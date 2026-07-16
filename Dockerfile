@@ -86,6 +86,5 @@ ENV LSD_PORT=32887 \
     LSD_CONFIG=config.lua \
     LSD_NO_STDIO_CONSOLE=1
 EXPOSE 32887/udp
-VOLUME /lsd/rw
 
 ENTRYPOINT ["docker-entrypoint.sh"]
