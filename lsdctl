@@ -1,0 +1,127 @@
+#!/bin/sh
+# lsdctl -- manage the dockerized LSD server
+set -eu
+
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+cd "$DIR"
+
+usage() {
+	cat <<'EOF'
+usage: lsdctl <command> [args]
+
+service
+  up                  build if needed and start the server
+  down                stop the server
+  restart             restart the server (applies config/.env changes)
+  status              show container state and published ports
+  logs [-f]           show server logs (-f to follow)
+  update              pull upstream source, rebuild, restart if changed
+  console             attach to the in-game admin console (Ctrl-C to leave)
+  shell               open a shell inside the container
+
+content
+  map list            list installed maps
+  map add <src>...    install maps from local files or http(s) URLs
+  map rm <name>...    remove maps
+  gamemode [name]     show or set the gamemode (ctf, arena, babel, ...)
+  set KEY VALUE       set any .env setting (LSD_PORT, LSD_NAME, LSD_MAPS, ...)
+
+Custom or overriding scripts go in scripts.local/ (same filename as an
+upstream script overrides it); they are picked up on restart.
+EOF
+	exit "${1:-0}"
+}
+
+# read current value of a .env key, empty if unset
+env_get() {
+	[ -f .env ] && sed -n "s/^$1=//p" .env | tail -1 || true
+}
+
+# set KEY to VALUE in .env, replacing any previous line
+env_set() {
+	touch .env
+	grep -v "^$1=" .env > .env.tmp || true
+	printf '%s=%s\n' "$1" "$2" >> .env.tmp
+	mv .env.tmp .env
+	echo "$1=$2"
+}
+
+cmd=${1:-}
+[ -n "$cmd" ] || usage 1
+shift
+
+case "$cmd" in
+up)
+	docker compose up -d --build "$@"
+	;;
+down)
+	docker compose down "$@"
+	;;
+restart)
+	docker compose up -d --force-recreate
+	;;
+status)
+	docker compose ps --format 'table {{.Name}}\t{{.State}}\t{{.Status}}\t{{.Publishers}}'
+	;;
+logs)
+	docker compose logs "$@"
+	;;
+update)
+	exec ./update.sh
+	;;
+console)
+	docker compose exec lsd socat STDIO UNIX-CONNECT:rw/console.sock
+	;;
+shell)
+	docker compose exec lsd sh
+	;;
+map)
+	sub=${1:-list}; [ $# -gt 0 ] && shift
+	case "$sub" in
+	list)
+		ls -lh maps/*.vxl 2>/dev/null || echo "no maps installed"
+		;;
+	add)
+		[ $# -gt 0 ] || usage 1
+		mkdir -p maps
+		for src in "$@"; do
+			case "$src" in
+			http://*|https://*)
+				curl -fSL -o "maps/$(basename "$src")" "$src";;
+			*)
+				cp -v "$src" maps/;;
+			esac
+		done
+		echo "installed; maps are picked up at the next rotation," \
+		     "add them to LSD_MAPS to queue them: ./lsdctl set LSD_MAPS '...'"
+		;;
+	rm)
+		[ $# -gt 0 ] || usage 1
+		for name in "$@"; do
+			rm -v "maps/${name%.vxl}.vxl"
+		done
+		;;
+	*)
+		usage 1;;
+	esac
+	;;
+gamemode)
+	if [ $# -eq 0 ]; then
+		echo "${LSD_GAMEMODE:-$(env_get LSD_GAMEMODE)}"
+	else
+		env_set LSD_GAMEMODE "$1"
+		docker compose up -d --force-recreate
+	fi
+	;;
+set)
+	[ $# -eq 2 ] || usage 1
+	env_set "$1" "$2"
+	docker compose up -d --force-recreate
+	;;
+help|-h|--help)
+	usage
+	;;
+*)
+	usage 1
+	;;
+esac

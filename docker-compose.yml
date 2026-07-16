@@ -12,16 +12,19 @@ services:
     environment:
       LSD_PORT: ${LSD_PORT:-32887}
       LSD_CONFIG: ${LSD_CONFIG:-config.lua}
+      LSD_NAME: ${LSD_NAME:-untitled LSd server}
+      LSD_GAMEMODE: ${LSD_GAMEMODE:-ctf}
+      LSD_MAPS: ${LSD_MAPS:-hallway bridgewars pinpoint}
       LSD_NO_STDIO_CONSOLE: "1"
     ports:
       - "${LSD_PORT:-32887}:${LSD_PORT:-32887}/udp"
     volumes:
       - ./config.lua:/lsd/config.lua:ro
+      # content dirs: drop .vxl files in maps/, override or add
+      # scripts/gamemodes in scripts.local/ (same-name file wins)
+      - ./maps:/lsd/maps:ro
+      - ./scripts.local:/lsd/scripts.local:ro
       - lsd-rw:/lsd/rw
-      # to run modified scripts instead of the baked-in ones:
-      # - ./lsd/scripts:/lsd/scripts:ro
-      # to serve local maps:
-      # - ./maps:/lsd/maps:ro
 
 volumes:
   lsd-rw:

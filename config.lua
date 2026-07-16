@@ -1,9 +1,13 @@
 -- config.lua -- Lua script executed on server start
 -- Pass the -c option on the command line to use a
 -- different path for the config file
-masterlist_name = "untitled LSd server"
+--
+-- Common settings can be overridden from the environment
+-- (see .env / docker-compose.yml): LSD_NAME, LSD_MAPS, LSD_GAMEMODE
+masterlist_name = os.getenv("LSD_NAME") or "untitled LSd server"
 
-map_queue = [[
+-- whitespace-separated map names, e.g. LSD_MAPS="hallway pinpoint"
+map_queue = os.getenv("LSD_MAPS") or [[
 	hallway
 	bridgewars
 	pinpoint
@@ -64,4 +68,4 @@ tip_frequency = 5*60
 load "tip_spam"
 
 -- Also try "arena", "babel"
-load "ctf"
+load(os.getenv("LSD_GAMEMODE") or "ctf")

@@ -11,27 +11,50 @@ scripts need: lsqlite3, luasodium, linenoise, stb_image, lfs.
 ## Run
 
 ```sh
-cp .env.example .env        # optional, set LSD_PORT here
-docker compose up -d --build
-docker compose logs -f
+cp .env.example .env        # then edit to taste
+./lsdctl up
+./lsdctl logs -f
 ```
 
-- **Port**: set `LSD_PORT` in `.env` (default 32887/udp). Container and
-  published port follow together — they must match because the
-  masterlist advertises the bound port.
-- **Config**: edit `config.lua` here, then `docker compose restart`.
-  It is mounted into the container; the submodule is never touched.
-- **Scripts**: uncomment the scripts volume in `docker-compose.yml` to
-  serve modified scripts from `lsd/scripts` without rebuilding.
+Day-to-day management goes through `lsdctl`:
+
+```sh
+./lsdctl status                      # state + published ports
+./lsdctl gamemode babel              # switch gamemode (ctf, arena, babel, ...)
+./lsdctl map add https://example.com/mesa.vxl ~/Downloads/pinpoint.vxl
+./lsdctl set LSD_NAME "my server"    # any .env setting, restarts to apply
+./lsdctl console                     # in-game admin console (Ctrl-C leaves)
+./lsdctl update                      # pull upstream source + rebuild
+```
+
+Everything an operator touches lives outside the image, so no rebuild
+is ever needed for content changes:
+
+| what | where | applied |
+|---|---|---|
+| settings (port, name, gamemode, map queue) | `.env` | on restart |
+| full config | `config.lua` | on restart |
+| maps (`.vxl`) | `maps/` | next rotation |
+| custom/override scripts & gamemodes | `scripts.local/` | on restart |
+
+- **Port**: `LSD_PORT` changes the container *and* published port
+  together — they must match because the masterlist advertises the
+  bound port.
+- **Scripts**: at startup the container overlays `scripts.local/` on
+  the upstream scripts; a file with the same name as an upstream script
+  replaces it, new files (e.g. a custom gamemode you then select with
+  `./lsdctl gamemode mymode`) are added. The `lsd/` submodule is never
+  modified.
 - **Persistent data** (bans/auth databases): named volume `lsd-rw`.
-- **Admin console**: `sock_console` listens on `rw/console.sock` inside
-  the volume (stdio_console is disabled in containers — it wedges the
-  event loop without a real terminal).
+- **Admin console**: `sock_console` on `rw/console.sock`
+  (stdio_console is disabled in containers — it wedges the event loop
+  without a real terminal).
 
 ## Update (nightly)
 
-`update.sh` bumps the `lsd` submodule to upstream master, rebuilds the
-image and restarts the container only if something changed. Cron:
+`./lsdctl update` (or `update.sh` directly) bumps the `lsd` submodule
+to upstream master, rebuilds the image and restarts the container only
+if something changed. Cron:
 
 ```
 0 3 * * * /path/to/lsd-docker/update.sh >> /var/log/lsd-update.log 2>&1

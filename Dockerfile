@@ -50,18 +50,21 @@ RUN cc -O2 -fPIC -shared /deps/linenoise-master/linenoise.c -o exec/liblinenoise
 
 FROM alpine:3.22
 
-RUN apk add --no-cache luajit enet isa-l libseccomp sqlite-libs libsodium \
+# socat is only for `lsdctl console` (attach to sock_console in rw/)
+RUN apk add --no-cache luajit enet isa-l libseccomp sqlite-libs libsodium socat \
  && adduser -D -H -h /lsd lsd
 
 WORKDIR /lsd
 COPY --from=build /build/server ./server
 COPY --from=build /build/exec ./exec
-COPY --from=build /build/scripts ./scripts
+# upstream scripts are baked as scripts.dist; the entrypoint assembles
+# the runtime scripts/ dir from them plus the scripts.local/ mount
+COPY --from=build /build/scripts ./scripts.dist
 # default config baked in; compose mounts the live one from the host
 COPY config.lua ./config.lua
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
- && mkdir -p rw maps && chown lsd:lsd rw maps
+ && mkdir -p rw maps scripts && chown lsd:lsd rw maps scripts
 
 USER lsd
 # override at run time: -e LSD_PORT=... -e LSD_CONFIG=/path/inside/container
