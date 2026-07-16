@@ -74,6 +74,15 @@ if something changed. Cron:
 0 3 * * * /path/to/lsd-docker/update.sh >> /var/log/lsd-update.log 2>&1
 ```
 
+## AI policy
+
+This repository is deployment packaging, not the server itself (the
+`lsd/` submodule is upstream's work and stays pristine). AI-assisted
+contributions are acceptable here, but only if they are small and a
+human can fully review and maintain them: a Dockerfile tweak, a script
+fix, a doc update. Anything a maintainer couldn't rewrite from scratch
+after reading it doesn't belong in this repo.
+
 ## Network checklist
 
 - Router: forward **UDP 32887** (external) → the docker host, same
