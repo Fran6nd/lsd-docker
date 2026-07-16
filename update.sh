@@ -29,6 +29,13 @@ OLD=$(as_owner git -C lsd rev-parse HEAD)
 as_owner git submodule update --remote --init --recursive lsd
 NEW=$(as_owner git -C lsd rev-parse HEAD)
 
+# build before committing the bump, so a broken upstream never gets
+# recorded (set -e aborts here and the old container keeps running)
+docker compose build --pull
+docker compose up -d
+docker image prune -f >/dev/null
+docker builder prune -f --max-used-space=2GB >/dev/null
+
 if [ "$OLD" != "$NEW" ]; then
 	echo "lsd updated: $OLD -> $NEW"
 	as_owner git add lsd
@@ -36,9 +43,5 @@ if [ "$OLD" != "$NEW" ]; then
 else
 	echo "lsd already up to date"
 fi
-
-docker compose build --pull
-docker compose up -d
-docker image prune -f >/dev/null
 
 echo "=== update finished $(date -Is) ==="
