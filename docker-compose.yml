@@ -15,7 +15,6 @@ services:
       LSD_NAME: ${LSD_NAME:-untitled LSd server}
       LSD_GAMEMODE: ${LSD_GAMEMODE:-ctf}
       LSD_MAPS: ${LSD_MAPS:-hallway bridgewars pinpoint}
-      LSD_NO_STDIO_CONSOLE: "1"
     ports:
       - "${LSD_PORT:-32887}:${LSD_PORT:-32887}/udp"
     volumes:
