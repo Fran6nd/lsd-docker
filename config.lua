@@ -7,11 +7,17 @@
 masterlist_name = os.getenv("LSD_NAME") or "untitled LSd server"
 
 -- whitespace-separated map names, e.g. LSD_MAPS="hallway pinpoint"
-map_queue = os.getenv("LSD_MAPS") or [[
-	hallway
-	bridgewars
-	pinpoint
-]]
+-- (parsed into a table here: upstream map_queue.lua only splits
+-- strings on newlines/tabs, so spaces would end up inside one name)
+local maps_env = os.getenv("LSD_MAPS")
+if maps_env then
+	map_queue = {}
+	for m in string.gmatch(maps_env, "%S+") do
+		table.insert(map_queue, m)
+	end
+else
+	map_queue = {"hallway", "bridgewars", "pinpoint"}
+end
 
 set_team_name (1, "Blue")
 set_team_color(1, {r=  0, g=  0, b=196})
