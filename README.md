@@ -8,13 +8,27 @@ The image compiles everything itself (Alpine/musl, matching the seccomp
 sandbox in `src/sandbox.c`), including the native Lua modules the stock
 scripts need: lsqlite3, luasodium, linenoise, stb_image, lfs.
 
-## Run
+## Setup
+
+Requires Docker with the compose plugin. The server source is a git
+submodule, so clone with `--recurse-submodules` (or init it after the
+fact — an empty `lsd/` is the usual cause of a failing build):
 
 ```sh
-cp .env.example .env        # then edit to taste
-./lsdctl up
-./lsdctl logs -f
+git clone --recurse-submodules git@github.com:Fran6nd/lsd-docker.git
+cd lsd-docker
+# if already cloned without submodules:
+git submodule update --init --recursive
+
+cp .env.example .env        # then edit to taste (port, name, maps, ...)
+./lsdctl up                 # builds the image and starts the server
+./lsdctl logs -f            # watch it come up (Ctrl-C to stop watching)
 ```
+
+The server is up when the logs show maps loading and masterlist
+connections; it announces itself to the LSD author's masterlist and to
+master.buildandshoot.com (drop entries from `masterlist_remotes` in
+`config.lua`, or remove `load "masterlist"`, to stay private).
 
 Day-to-day management goes through `lsdctl`:
 
