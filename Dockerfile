@@ -42,7 +42,7 @@ RUN curl -fsSL -o lsqlite3.zip 'https://lua.sqlite.org/home/zip/lsqlite3_fsl09y.
 
 COPY lsd/ /build
 WORKDIR /build
-RUN make clean && make OPTS='-DWITH_ANYASCII -DNO_DEFAULT_SANDBOX -DWITH_LIBSECCOMP'
+RUN make OPTS='-DWITH_ANYASCII -DNO_DEFAULT_SANDBOX -DWITH_LIBSECCOMP'
 
 # lsqlite3 -> exec/lsqlite3.so
 RUN cc -O2 -fPIC -shared $(pkg-config --cflags luajit) \
