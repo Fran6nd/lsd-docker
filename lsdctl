@@ -107,8 +107,14 @@ map)
 	;;
 gamemode)
 	if [ $# -eq 0 ]; then
-		echo "${LSD_GAMEMODE:-$(env_get LSD_GAMEMODE)}"
+		mode=${LSD_GAMEMODE:-$(env_get LSD_GAMEMODE)}
+		echo "${mode:-ctf}"
 	else
+		# catch typos here instead of a container restart loop
+		if [ ! -f "lsd/scripts/$1.lua" ] && [ ! -f "scripts.local/$1.lua" ]; then
+			echo "error: no gamemode '$1' (no $1.lua in lsd/scripts/ or scripts.local/)" >&2
+			exit 1
+		fi
 		env_set LSD_GAMEMODE "$1"
 		docker compose up -d --force-recreate
 	fi
