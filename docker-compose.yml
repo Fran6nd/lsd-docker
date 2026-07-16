@@ -1,0 +1,29 @@
+# LSD server (lsd-dev.fran6nd.online). One knob for the port: set
+# LSD_PORT in .env and both the container and the published port follow
+# (the masterlist advertises the bound port, so they must match).
+# config.lua is mounted from this directory, so config edits apply on
+# restart and never touch the lsd submodule.
+services:
+  lsd:
+    build: .
+    image: lsd
+    restart: unless-stopped
+    init: true
+    environment:
+      LSD_PORT: ${LSD_PORT:-32887}
+      LSD_CONFIG: ${LSD_CONFIG:-config.lua}
+      LSD_NO_STDIO_CONSOLE: "1"
+    ports:
+      - "${LSD_PORT:-32887}:${LSD_PORT:-32887}/udp"
+    volumes:
+      - ./config.lua:/lsd/config.lua:ro
+      - lsd-rw:/lsd/rw
+      # to run modified scripts instead of the baked-in ones:
+      # - ./lsd/scripts:/lsd/scripts:ro
+      # to serve local maps:
+      # - ./maps:/lsd/maps:ro
+
+volumes:
+  lsd-rw:
+    # fixed name so the bans/auth databases survive project moves/renames
+    name: lsd-rw

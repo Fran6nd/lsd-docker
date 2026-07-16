@@ -1,0 +1,16 @@
+.git
+lsd/.git
+**/*.o
+lsd/server
+lsd/serverstatic
+lsd/serverstatic-crust
+lsd/servernative
+lsd/dist
+lsd/dist.tar.gz
+lsd/exec/
+lsd/rw/
+lsd/maps/
+update.sh
+README.md
+.env
+.env.example
