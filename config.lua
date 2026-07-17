@@ -83,5 +83,8 @@ load "tip_spam"
 -- one random shotgun pellet per shot explodes (scripts.local/)
 load "shotgun_are_grenade_launchers"
 
+-- rifles pierce 5 blocks and leave a tracer trail (scripts.local/)
+load "heavy_sniper_rifle"
+
 -- Also try "arena", "babel"
 load(os.getenv("LSD_GAMEMODE") or "ctf")
