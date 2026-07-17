@@ -13,7 +13,6 @@ require "lib_bulk_destroy";
 
 getcfg("hsr_depth", 5);    -- blocks a shot can chew through
 getcfg("hsr_range", 160);  -- max bullet travel, in blocks
-getcfg("hsr_trail_color", {r=255, g=220, b=0});
 
 -- trail voxels waiting to be destroyed: newborn were built during the
 -- current tick, armed get their destroy broadcast on the next one
@@ -39,7 +38,9 @@ local function shoot(pid)
 		z = (vox.z - start.z + math.max(step.z, 0))/dir.z,
 	};
 
-	send_set_block_color(PID_BROADCAST, hsr_trail_color, get_anon_pid());
+	-- each shot traces in a random shade of red
+	send_set_block_color(PID_BROADCAST,
+		{r=math.random(128, 255), g=0, b=0}, get_anon_pid());
 
 	while (traversed < hsr_range) do
 		if (vox.x < 0 or vox.x > 511 or vox.y < 0 or vox.y > 511 or
