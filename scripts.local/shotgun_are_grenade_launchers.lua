@@ -47,6 +47,21 @@ local function explode_pellet(pid)
 	detonate_grenade(spawn_grenade(pid, get_team(pid), at, {x=0, y=0, z=0}, 0));
 end
 
+function mod.after.on_join(pid)
+	server_msg(pid, "warning: here shotguns are grenade launchers.");
+end
+
+-- pellets do nothing to blocks: swallow gun-destroys from shotgun
+-- holders and rebuild the block on the client that chewed it locally
+function mod.on_block_action(pid, pos, type)
+	if (type == 1 and is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 2) then
+		send_set_block_color(pid, get_map_block_color(pos), get_anon_pid());
+		send_block_action(pid, pos, 0, get_anon_pid());
+		return;
+	end
+	mod.next.on_block_action(pid, pos, type);
+end
+
 function mod.on_mouse_input(pid, bitmask)
 	local oldinp = get_mouse_inputs(pid);
 	mod.next.on_mouse_input(pid, bitmask);
