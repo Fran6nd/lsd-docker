@@ -38,11 +38,43 @@ local function explode_pellet(pid)
 	-- air voxel just before the impacted one, so the explosion isn't
 	-- born inside a wall (detonation LOS-checks its victims)
 	local vox = raycast(start, stop, false);
-	if (vox == nil) then
-		return; -- the live pellet flew off into the sky
+	local tmap = sgl_range;
+	if (vox ~= nil) then
+		local dx = vox.x+0.5-start.x;
+		local dy = vox.y+0.5-start.y;
+		local dz = vox.z+0.5-start.z;
+		tmap = math.sqrt(dx*dx + dy*dy + dz*dz);
 	end
 
-	local at = {x=vox.x+0.5, y=vox.y+0.5, z=vox.z+0.5};
+	-- the map raycast only sees voxels, so a pellet aimed at an enemy
+	-- would sail through them and burst on whatever is behind: check
+	-- the ray against enemy bodies and burst at the first one clipped
+	local tbody = nil;
+	for i in piditer(PID_BROADCAST) do
+		if (i ~= pid and is_alive(i) and get_team(i) ~= get_team(pid)) then
+			local q = get_position(i);
+			local wx, wy, wz = q.x-start.x, q.y-start.y, q.z-start.z;
+			local t = wx*dir.x + wy*dir.y + wz*dir.z;
+			if (t > 0.5 and t < tmap and (tbody == nil or t < tbody)
+			    and wx*wx + wy*wy + wz*wz - t*t < 1.44) then
+				tbody = t;
+			end
+		end
+	end
+
+	local at;
+	if (tbody ~= nil) then
+		-- burst just short of the body, in open air next to it
+		at = {
+			x = start.x + dir.x*(tbody-0.5),
+			y = start.y + dir.y*(tbody-0.5),
+			z = start.z + dir.z*(tbody-0.5),
+		};
+	elseif (vox ~= nil) then
+		at = {x=vox.x+0.5, y=vox.y+0.5, z=vox.z+0.5};
+	else
+		return; -- the live pellet flew off into the sky
+	end
 	local still = {x=0, y=0, z=0};
 
 	-- the shooter's copy of the grenade is attributed to the anon pid:
