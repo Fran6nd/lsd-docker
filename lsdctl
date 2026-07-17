@@ -63,11 +63,26 @@ restart)
 	;;
 reload)
 	notice=${1:-"server reboots in 5 seconds to reload scripts, hold on..."}
-	printf 'say %s\n' "$notice" \
-		| docker compose exec -T lsd socat - UNIX-CONNECT:rw/console.sock \
-		|| echo "warning: could not reach the console, rebooting anyway" >&2
-	sleep 5
-	docker compose restart lsd
+	# announce, wait, then have the server exit itself: its clean
+	# shutdown hooks run and the container's restart policy brings it
+	# back up (and reassembles scripts/) without any docker call here.
+	# The dying server breaks the console pipe, so success is checked
+	# by the container's start timestamp, not the pipe status.
+	cid=$(docker compose ps -q lsd)
+	born=$(docker inspect -f '{{.State.StartedAt}}' "$cid")
+	{
+		printf 'say %s\n' "$notice"
+		sleep 5
+		printf 'exec os.exit(0)\n'
+		sleep 1
+	} | docker compose exec -T lsd socat - UNIX-CONNECT:rw/console.sock \
+		>/dev/null 2>&1 || true
+	sleep 2
+	if [ "$(docker inspect -f '{{.State.StartedAt}}' "$cid")" = "$born" ]; then
+		echo "console did not take the server down, restarting the hard way" >&2
+		docker compose restart lsd
+	fi
+	docker compose ps --format 'table {{.Name}}\t{{.State}}\t{{.Status}}'
 	;;
 status)
 	docker compose ps --format 'table {{.Name}}\t{{.State}}\t{{.Status}}\t{{.Publishers}}'
