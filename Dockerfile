@@ -11,7 +11,7 @@
 
 FROM alpine:3.22 AS build
 
-RUN apk add --no-cache build-base pkgconf gawk curl unzip \
+RUN apk add --no-cache build-base pkgconf unzip \
         luajit-dev enet-dev isa-l-dev libseccomp-dev \
         sqlite-dev libsodium-dev
 
@@ -20,14 +20,14 @@ RUN apk add --no-cache build-base pkgconf gawk curl unzip \
 ARG LINENOISE_REF=a473823d74b93eab2ba83480df16ed37617493f2
 ARG STB_REF=31c1ad37456438565541f4919958214b6e762fb4
 WORKDIR /deps
-RUN curl -fsSL -o lsqlite3.zip 'https://lua.sqlite.org/home/zip/lsqlite3_fsl09y.zip' \
+RUN wget -q -O lsqlite3.zip 'https://lua.sqlite.org/home/zip/lsqlite3_fsl09y.zip' \
  && unzip -q lsqlite3.zip \
- && curl -fsSL -o luasodium.src.rock 'https://luarocks.org/luasodium-2.3.0-1.src.rock' \
- && curl -fsSL -o linenoise.c "https://raw.githubusercontent.com/antirez/linenoise/${LINENOISE_REF}/linenoise.c" \
- && curl -fsSL -o linenoise.h "https://raw.githubusercontent.com/antirez/linenoise/${LINENOISE_REF}/linenoise.h" \
- && curl -fsSL -o stb_image.h "https://raw.githubusercontent.com/nothings/stb/${STB_REF}/stb_image.h" \
- && curl -fsSL -o lfs.c 'https://raw.githubusercontent.com/lunarmodules/luafilesystem/v1_8_0/src/lfs.c' \
- && curl -fsSL -o lfs.h 'https://raw.githubusercontent.com/lunarmodules/luafilesystem/v1_8_0/src/lfs.h' \
+ && wget -q -O luasodium.src.rock 'https://luarocks.org/luasodium-2.3.0-1.src.rock' \
+ && wget -q -O linenoise.c "https://raw.githubusercontent.com/antirez/linenoise/${LINENOISE_REF}/linenoise.c" \
+ && wget -q -O linenoise.h "https://raw.githubusercontent.com/antirez/linenoise/${LINENOISE_REF}/linenoise.h" \
+ && wget -q -O stb_image.h "https://raw.githubusercontent.com/nothings/stb/${STB_REF}/stb_image.h" \
+ && wget -q -O lfs.c 'https://raw.githubusercontent.com/lunarmodules/luafilesystem/v1_8_0/src/lfs.c' \
+ && wget -q -O lfs.h 'https://raw.githubusercontent.com/lunarmodules/luafilesystem/v1_8_0/src/lfs.h' \
  && printf '%s\n' \
         'a3de0d56dcdd7df85e334174cd46e70451f996bc843e735ab1d8a8e8804f9486  lsqlite3_fsl09y/lsqlite3.c' \
         '3048e0555e0d2737d9b42ae70c7ee1c6aebd35961c1f15ba2aa938034f6fce78  luasodium.src.rock' \
