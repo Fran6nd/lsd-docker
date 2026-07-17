@@ -89,5 +89,4 @@ after reading it doesn't belong in this repo.
   port. That is the only port the server needs.
 - DNS: `lsd-dev.fran6nd.online` A record → the box's public IPv4.
 - Host firewall: Docker-published ports bypass ufw; no rule needed.
-- The old native systemd unit must stay off or it fights for the port:
-  `sudo systemctl disable --now lsd`.
+- Nothing else on the host may be bound to the same UDP port.
