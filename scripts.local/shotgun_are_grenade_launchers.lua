@@ -6,7 +6,6 @@
 -- destroys), so the chosen pellet is simulated here: jitter the aim
 -- direction by the shotgun's spread, raycast it, boom.
 local mod = init_mod();
-local bit = require("bit");
 
 getcfg("sgl_pellets", 8);     -- pellets per shell
 getcfg("sgl_spread", 0.024);  -- 0.75 shotgun spread
@@ -91,15 +90,11 @@ function mod.on_block_action(pid, pos, type)
 	mod.next.on_block_action(pid, pos, type);
 end
 
-function mod.on_mouse_input(pid, bitmask)
-	local oldinp = get_mouse_inputs(pid);
-	mod.next.on_mouse_input(pid, bitmask);
-
-	-- newly-pressed primary fire, holding the gun tool, with a shotgun
-	if (bit.band(oldinp, 1) == 1 or bit.band(bitmask, 1) ~= 1) then
-		return;
-	end
-	if (not is_alive(pid) or get_tool(pid) ~= 2 or get_gun(pid) ~= 2) then
+-- the server estimates gun cycling from the held inputs (rifle 0.5s,
+-- smg 0.1s, shotgun 1s) and calls this per estimated shot, so holding
+-- the trigger keeps launching -- clients send nothing while held
+function mod.after.before_estimated_fire(pid)
+	if (not is_alive(pid) or get_gun(pid) ~= 2 or get_mag_ammo(pid) == 0) then
 		return;
 	end
 
