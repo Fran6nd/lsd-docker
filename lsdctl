@@ -13,6 +13,7 @@ service
   up                  build if needed and start the server
   down                stop the server
   restart             restart the server (applies config/.env changes)
+  reload [msg]        warn players in-game, then restart (reloads scripts)
   status              show container state and published ports
   logs [-f]           show server logs (-f to follow)
   update              pull upstream source, rebuild, restart if changed
@@ -59,6 +60,14 @@ down)
 	;;
 restart)
 	docker compose up -d --force-recreate
+	;;
+reload)
+	notice=${1:-"server reboots in 5 seconds to reload scripts, hold on..."}
+	printf 'say %s\n' "$notice" \
+		| docker compose exec -T lsd socat - UNIX-CONNECT:rw/console.sock \
+		|| echo "warning: could not reach the console, rebooting anyway" >&2
+	sleep 5
+	docker compose restart lsd
 	;;
 status)
 	docker compose ps --format 'table {{.Name}}\t{{.State}}\t{{.Status}}\t{{.Publishers}}'
