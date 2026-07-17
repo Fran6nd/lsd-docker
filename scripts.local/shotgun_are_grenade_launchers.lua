@@ -51,6 +51,14 @@ function mod.after.on_join(pid)
 	server_msg(pid, "warning: here shotguns are grenade launchers.");
 end
 
+-- pellets don't hurt players: only the grenade does damage
+function mod.on_hit(pid, type, hitPlayer)
+	if (is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 2) then
+		return;
+	end
+	mod.next.on_hit(pid, type, hitPlayer);
+end
+
 -- pellets do nothing to blocks: swallow gun-destroys from shotgun
 -- holders and rebuild the block on the client that chewed it locally
 function mod.on_block_action(pid, pos, type)
