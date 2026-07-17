@@ -10,13 +10,18 @@
 local mod = init_mod();
 require "lib_bulk_destroy";
 
-getcfg("rig_depth", 5);   -- blocks a shot can chew through
-getcfg("rig_range", 160); -- max bullet travel, in blocks
+getcfg("rig_depth", 5);        -- blocks a shot can chew through
+getcfg("rig_range", 160);      -- max bullet travel, in blocks
+getcfg("rig_trail_step", 3);   -- one dash every this many voxels
+getcfg("rig_trail_range", 48); -- how far the dashes reach
 
 -- trail voxels waiting to be destroyed: newborn were built during the
 -- current tick, armed get their destroy broadcast on the next one
 local newborn = {};
 local armed = {};
+
+-- when each player's last shot was animated, to dedup backup triggers
+local lastanim = pid_connected_table(0);
 
 local function sign1(num)
 	return num < 0 and -1 or 1;
@@ -27,6 +32,8 @@ local function shoot(pid)
 	local dir = get_orientation(pid);
 	local budget = rig_depth;
 	local traversed = 0;
+
+	lastanim[pid] = get_time();
 
 	local step = {x=sign1(dir.x), y=sign1(dir.y), z=sign1(dir.z)};
 	local delta = {x=math.abs(1/dir.x), y=math.abs(1/dir.y), z=math.abs(1/dir.z)};
@@ -60,11 +67,15 @@ local function shoot(pid)
 			if (budget <= 0) then
 				break;
 			end
-		elseif (traversed >= 2 and traversed % 2 == 0) then
-			-- dashed tracer: every other voxel only, so no two trail
+		elseif (traversed >= 2 and traversed <= rig_trail_range
+		        and traversed % rig_trail_step == 0) then
+			-- dashed tracer: spaced-out voxels only, so no two trail
 			-- blocks are ever face-adjacent -- destroying a connected
 			-- run makes clients collapse the rest of it as one big
-			-- falling structure (skips the shooter's face too)
+			-- falling structure (skips the shooter's face too). Every
+			-- dash costs two reliable packets per player, so the
+			-- spacing and reach also keep the per-shot packet burst
+			-- small enough not to lag anyone
 			local p = {x=vox.x, y=vox.y, z=vox.z};
 			send_block_action(PID_BROADCAST, p, 0, get_anon_pid());
 			table.insert(newborn, p);
@@ -109,6 +120,28 @@ function mod.after.before_estimated_fire(pid)
 	end
 
 	shoot(pid);
+end
+
+-- backup triggers: the estimator is armed only by mouse-input packets
+-- and clients suppress those around sprinting and toolswitching, so
+-- shots fired while moving can be invisible to it -- but the bullet's
+-- effects (a block break, a player hit) still arrive; animate from
+-- those unless this shot was already animated
+local function estimator_missed(pid)
+	return is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 0
+	       and get_time() - lastanim[pid] > 0.35;
+end
+
+function mod.after.on_block_action(pid, pos, type)
+	if (type == 1 and estimator_missed(pid)) then
+		shoot(pid);
+	end
+end
+
+function mod.after.on_hit(pid, type, hitPlayer)
+	if (estimator_missed(pid)) then
+		shoot(pid);
+	end
 end
 
 return mod;
