@@ -58,7 +58,8 @@ register(maptime);
 
 motd = [[
 This server runs LSd.
-Remind the server operator to put something more useful in here.
+It is meant to test this server and have fun.
+You might see some weird stuff though as i like experimenting.
 ]]
 load "motd"
 
@@ -78,6 +79,9 @@ tips = {
 }
 tip_frequency = 5*60
 load "tip_spam"
+
+-- one random shotgun pellet per shot explodes (scripts.local/)
+load "shotgun_are_grenade_launchers"
 
 -- Also try "arena", "babel"
 load(os.getenv("LSD_GAMEMODE") or "ctf")
