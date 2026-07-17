@@ -48,6 +48,11 @@ local function shoot(pid)
 		end
 
 		if (is_solid(vox)) then
+			-- ground at water level stays whole; the bullet just stops
+			if (vox.z >= 62) then
+				break;
+			end
+
 			-- chew through; count indestructible blocks against the
 			-- budget too so the bullet can't tunnel forever
 			bdestroy_block_action(vox, 1);
