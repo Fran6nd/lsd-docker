@@ -11,6 +11,13 @@ getcfg("sgl_pellets", 8);     -- pellets per shell
 getcfg("sgl_spread", 0.024);  -- 0.75 shotgun spread
 getcfg("sgl_range", 128);     -- max pellet travel, in blocks
 
+-- when a real pellet of theirs last provably existed (block break or
+-- player hit): the engine's mag estimate drains on *estimated* shots
+-- and the estimator is sprint- and release-blind, so it can phantom
+-- its way to an empty magazine while the real one is half full --
+-- fresh evidence overrules it
+local lastreal = pid_connected_table(0);
+
 local function jitter(dir)
 	return {
 		x = dir.x + sgl_spread*(math.random()*2 - 1),
@@ -106,6 +113,7 @@ end
 -- pellets don't hurt players: only the grenade does damage
 function mod.on_hit(pid, type, hitPlayer)
 	if (is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 2) then
+		lastreal[pid] = get_time();
 		return;
 	end
 	mod.next.on_hit(pid, type, hitPlayer);
@@ -115,6 +123,7 @@ end
 -- holders and rebuild the block on the client that chewed it locally
 function mod.on_block_action(pid, pos, type)
 	if (type == 1 and is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 2) then
+		lastreal[pid] = get_time();
 		send_set_block_color(pid, get_map_block_color(pos), get_anon_pid());
 		send_block_action(pid, pos, 0, get_anon_pid());
 		return;
@@ -126,8 +135,11 @@ end
 -- smg 0.1s, shotgun 1s) and calls this per estimated shot, so holding
 -- the trigger keeps launching -- clients send nothing while held
 function mod.after.before_estimated_fire(pid)
-	if (not is_alive(pid) or get_gun(pid) ~= 2 or get_mag_ammo(pid) == 0) then
+	if (not is_alive(pid) or get_gun(pid) ~= 2) then
 		return;
+	end
+	if (get_mag_ammo(pid) == 0 and get_time() - lastreal[pid] > 2) then
+		return; -- estimated empty and no recent proof to the contrary
 	end
 
 	explode_pellet(pid);

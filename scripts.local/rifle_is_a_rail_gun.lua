@@ -23,6 +23,13 @@ local armed = {};
 -- when each player's last shot was animated, to dedup backup triggers
 local lastanim = pid_connected_table(0);
 
+-- when a real bullet of theirs last provably existed (block break or
+-- player hit): the engine's mag estimate drains on *estimated* shots
+-- and the estimator is sprint- and release-blind, so it can phantom
+-- its way to an empty magazine while the real one is half full --
+-- fresh evidence overrules it
+local lastreal = pid_connected_table(0);
+
 local function sign1(num)
 	return num < 0 and -1 or 1;
 end
@@ -115,8 +122,11 @@ end
 -- smg 0.1s, shotgun 1s) and calls this per estimated shot, so holding
 -- the trigger keeps firing -- clients send nothing while held
 function mod.after.before_estimated_fire(pid)
-	if (not is_alive(pid) or get_gun(pid) ~= 0 or get_mag_ammo(pid) == 0) then
+	if (not is_alive(pid) or get_gun(pid) ~= 0) then
 		return;
+	end
+	if (get_mag_ammo(pid) == 0 and get_time() - lastreal[pid] > 1.5) then
+		return; -- estimated empty and no recent proof to the contrary
 	end
 
 	shoot(pid);
@@ -127,21 +137,25 @@ end
 -- shots fired while moving can be invisible to it -- but the bullet's
 -- effects (a block break, a player hit) still arrive; animate from
 -- those unless this shot was already animated
-local function estimator_missed(pid)
-	return is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 0
-	       and get_time() - lastanim[pid] > 0.35;
+local function real_bullet(pid)
+	if (not is_alive(pid) or get_tool(pid) ~= 2 or get_gun(pid) ~= 0) then
+		return;
+	end
+
+	lastreal[pid] = get_time();
+	if (get_time() - lastanim[pid] > 0.35) then
+		shoot(pid);
+	end
 end
 
 function mod.after.on_block_action(pid, pos, type)
-	if (type == 1 and estimator_missed(pid)) then
-		shoot(pid);
+	if (type == 1) then
+		real_bullet(pid);
 	end
 end
 
 function mod.after.on_hit(pid, type, hitPlayer)
-	if (estimator_missed(pid)) then
-		shoot(pid);
-	end
+	real_bullet(pid);
 end
 
 return mod;
