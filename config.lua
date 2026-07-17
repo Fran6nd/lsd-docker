@@ -4,7 +4,7 @@
 --
 -- Common settings can be overridden from the environment
 -- (see .env / docker-compose.yml): LSD_NAME, LSD_MAPS, LSD_GAMEMODE
-masterlist_name = os.getenv("LSD_NAME") or "untitled LSd server"
+masterlist_name = "Fran6nd's LSd server under LSD"
 
 -- whitespace-separated map names, e.g. LSD_MAPS="hallway pinpoint"
 -- (parsed into a table here: upstream map_queue.lua only splits
@@ -84,7 +84,7 @@ load "tip_spam"
 load "shotgun_are_grenade_launchers"
 
 -- rifles pierce 5 blocks and leave a tracer trail (scripts.local/)
-load "heavy_sniper_rifle"
+load "rifle_is_a_rail_gun"
 
 -- Also try "arena", "babel"
 load(os.getenv("LSD_GAMEMODE") or "ctf")

@@ -1,6 +1,6 @@
--- heavy_sniper_rifle.lua -- Rifle shots dig through any surface up to
--- 5 blocks deep, and leave a tracer trail of blocks along the
--- trajectory that are destroyed right after being placed.
+-- rifle_is_a_rail_gun.lua -- Rifle shots dig through any surface up
+-- to 5 blocks deep, and leave a dashed tracer trail of blocks along
+-- the trajectory that are destroyed right after being placed.
 --
 -- The trail blocks are send-only (never in the server map): built for
 -- all clients on one tick, destroyed on a later one. The one-tick gap
@@ -11,13 +11,17 @@ local mod = init_mod();
 local bit = require("bit");
 require "lib_bulk_destroy";
 
-getcfg("hsr_depth", 5);    -- blocks a shot can chew through
-getcfg("hsr_range", 160);  -- max bullet travel, in blocks
+getcfg("rig_depth", 5);     -- blocks a shot can chew through
+getcfg("rig_range", 160);   -- max bullet travel, in blocks
+getcfg("rig_refire", 0.45); -- min seconds between shots (0.75 rifle: 0.5)
 
 -- trail voxels waiting to be destroyed: newborn were built during the
 -- current tick, armed get their destroy broadcast on the next one
 local newborn = {};
 local armed = {};
+
+-- time of each player's last accepted shot, for the repeat-press path
+local lastshot = pid_connected_table(0);
 
 local function sign1(num)
 	return num < 0 and -1 or 1;
@@ -26,7 +30,7 @@ end
 local function shoot(pid)
 	local start = get_position(pid);
 	local dir = get_orientation(pid);
-	local budget = hsr_depth;
+	local budget = rig_depth;
 	local traversed = 0;
 
 	local step = {x=sign1(dir.x), y=sign1(dir.y), z=sign1(dir.z)};
@@ -42,7 +46,7 @@ local function shoot(pid)
 	send_set_block_color(PID_BROADCAST,
 		{r=math.random(128, 255), g=0, b=0}, get_anon_pid());
 
-	while (traversed < hsr_range) do
+	while (traversed < rig_range) do
 		if (vox.x < 0 or vox.x > 511 or vox.y < 0 or vox.y > 511 or
 		    vox.z < 0 or vox.z > 63) then
 			break;
@@ -83,7 +87,7 @@ local function shoot(pid)
 end
 
 function mod.after.on_join(pid)
-	server_msg(pid, "warning: here rifles are wall-piercing heavy snipers.");
+	server_msg(pid, "warning: here rifles are railguns.");
 end
 
 function mod.tick()
@@ -100,14 +104,24 @@ function mod.on_mouse_input(pid, bitmask)
 	local oldinp = get_mouse_inputs(pid);
 	mod.next.on_mouse_input(pid, bitmask);
 
-	-- newly-pressed primary fire, holding the gun tool, with a rifle
-	if (bit.band(oldinp, 1) == 1 or bit.band(bitmask, 1) ~= 1) then
+	if (bit.band(bitmask, 1) ~= 1) then
 		return;
 	end
 	if (not is_alive(pid) or get_tool(pid) ~= 2 or get_gun(pid) ~= 0) then
 		return;
 	end
 
+	-- fire on a clean press edge, but also on a repeat-press: clients
+	-- don't report inputs in some states (sprint, toolswitch delay),
+	-- so a release can go unseen and the next shot then arrives with
+	-- primary seemingly still held and gets dropped by pure edge
+	-- detection -- accept it if the gun could have cycled since the
+	-- last accepted shot
+	if (bit.band(oldinp, 1) == 1 and get_time() - lastshot[pid] < rig_refire) then
+		return;
+	end
+
+	lastshot[pid] = get_time();
 	shoot(pid);
 end
 
