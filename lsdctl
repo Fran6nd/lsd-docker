@@ -70,10 +70,10 @@ update)
 	exec ./update.sh
 	;;
 console)
-	docker compose exec lsd socat STDIO UNIX-CONNECT:rw/console.sock
+	docker compose exec lsd socat READLINE UNIX-CONNECT:rw/console.sock
 	;;
 shell)
-	docker compose exec lsd sh
+	docker compose exec lsd ash
 	;;
 map)
 	sub=${1:-list}; [ $# -gt 0 ] && shift
