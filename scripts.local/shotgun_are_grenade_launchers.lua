@@ -44,7 +44,28 @@ local function explode_pellet(pid)
 	end
 
 	local at = {x=vox.x+0.5, y=vox.y+0.5, z=vox.z+0.5};
-	detonate_grenade(spawn_grenade(pid, get_team(pid), at, {x=0, y=0, z=0}, 0));
+	local still = {x=0, y=0, z=0};
+
+	-- the shooter's copy of the grenade is attributed to the anon pid:
+	-- clients decrement their own grenade stock when they receive a
+	-- grenade packet naming themselves, and this gun eats shells, not
+	-- grenades
+	local idx = register_grenade(pid, get_team(pid), at, still, 0);
+	send_grenade(PID_BROADCAST_EXCEPT(pid), at, still, 0, pid);
+	send_grenade(pid, at, still, 0, get_anon_pid());
+
+	local hp = get_hp(pid);
+	detonate_grenade(idx);
+
+	-- close-range self-damage net, in case the engine's detonation
+	-- spared the shooter (KillType 3 = grenade)
+	if (is_alive(pid) and get_hp(pid) == hp) then
+		local p = get_position(pid);
+		local d2 = (p.x-at.x)^2 + (p.y-at.y)^2 + (p.z-at.z)^2;
+		if (d2 < 256) then
+			damage_player_directional(pid, 4096/math.max(d2, 1), at, 3, pid);
+		end
+	end
 end
 
 function mod.after.on_join(pid)
