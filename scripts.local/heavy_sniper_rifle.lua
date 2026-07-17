@@ -56,8 +56,11 @@ local function shoot(pid)
 			if (budget <= 0) then
 				break;
 			end
-		elseif (traversed >= 2) then
-			-- tracer block (skipping the shooter's face)
+		elseif (traversed >= 2 and traversed % 2 == 0) then
+			-- dashed tracer: every other voxel only, so no two trail
+			-- blocks are ever face-adjacent -- destroying a connected
+			-- run makes clients collapse the rest of it as one big
+			-- falling structure (skips the shooter's face too)
 			local p = {x=vox.x, y=vox.y, z=vox.z};
 			send_block_action(PID_BROADCAST, p, 0, get_anon_pid());
 			table.insert(newborn, p);
@@ -77,6 +80,10 @@ local function shoot(pid)
 	end
 
 	bdestroy_finish();
+end
+
+function mod.after.on_join(pid)
+	server_msg(pid, "warning: here rifles are wall-piercing heavy snipers.");
 end
 
 function mod.tick()
