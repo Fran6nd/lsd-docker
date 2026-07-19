@@ -50,6 +50,9 @@ getcfg("hostage_lose_dist", 10);   -- stop when the escort is this far
 -- and safely non-solid to everything (is_solid() guards z < 0)
 local HIDDEN = {x=0.5, y=0.5, z=-100};
 
+-- every AoS map is 512x512, so the middle is here
+local CENTER = {x=256, y=256};
+
 local byteam = {}; -- team -> hostage pid
 
 local welcome_msg = "This is HOSTAGE mode: free the hostage held at "
@@ -195,6 +198,18 @@ function mod.after.tick()
 				data = {hostage=true},
 			};
 		end
+	end
+end
+
+-- every spawn (the C core sets orientation from team), turn the
+-- hostage to look across the map at its center. Keyed off the bot's
+-- own tag, not byteam: the very first spawn fires inside bot_create,
+-- before byteam is assigned. think() leaves orientation alone while
+-- idle, so it keeps facing in until someone comes to escort it
+function mod.after.spawn_player(pid)
+	local b = bot_get(pid);
+	if (b ~= nil and b.data.hostage) then
+		bot_look_at(pid, {x=CENTER.x, y=CENTER.y, z=get_position(pid).z});
 	end
 end
 
