@@ -2,17 +2,24 @@
 -- lib_bot) held prisoner at the enemy tent, standing with a block in
 -- its team's color. Come closer than hostage_engage_dist and it walks
 -- after you (hostages are too weary to run); stray past
--- hostage_lose_dist (or die) and it stops where it stands. Walking it
--- into its own tent scores its team a point, and the keepers
+-- hostage_lose_dist (or die) and it stops where it stands. Walk it
+-- into its own tent to score its team a point, and the keepers
 -- executing it hands its team a point too; either way the hostage
--- respawns back at the enemy tent.
+-- respawns back at the enemy tent, facing the map center.
 --
 -- It plays like team deathmatch over ctf's bones: ctf is loaded
 -- underneath for tents, spawns and team score, but the flags are
 -- stashed in the sky where nobody can reach them, the masterlist
 -- advertises "Hostage", and joining players get told the rules.
--- Works standalone (LSD_GAMEMODE=hostage) or loaded on top of a
--- running ctf server.
+--
+-- COMMUNICATION -- two voices, both localized via lib_l10n:
+-- * the hostage itself speaks in chat, attributed to it and rendered
+--   in each listener's language: a private "thanks" to a new escort,
+--   and a public "I'm lost" while stranded (hostage_say/_to).
+-- * the server announces scores as system messages to everyone
+--   (l10n_send_chat): a rescue, an execution, and the rules on join.
+-- Add a language by dropping another key into the message tables
+-- below (en/fr are provided).
 --
 -- LIMITATIONS:
 -- * Scoring rides capture_intel -- the only Lua-reachable way to move
@@ -35,17 +42,18 @@
 --   kicks silently fail on them, and this script must be reloaded
 --   together with the lib (lsdctl load lib_bot hostage).
 --
--- DEPENDENCIES: needs lib_bot and a tent gamemode (ctf) loaded
--- FIRST -- config.lua does this. The script never load()s them
+-- DEPENDENCIES: needs lib_bot, lib_l10n, and a tent gamemode (ctf)
+-- loaded FIRST -- config.lua does this. The script never load()s them
 -- itself: a load() at file-execution time re-registers an
 -- already-loaded module, which points one of its hook's `next` at
 -- itself and stack-overflows the tick chain. We only check the
 -- globals those modules export and bail cleanly if they are missing.
 local mod = init_mod();
 
-getcfg("hostage_engage_dist", 5);  -- follow when a teammate gets this close
-getcfg("hostage_lose_dist", 10);   -- stop when the escort is this far
-getcfg("hostage_tent_radius", 4);  -- how close counts as "at a tent"
+getcfg("hostage_engage_dist", 5);    -- follow when a teammate gets this close
+getcfg("hostage_lose_dist", 10);     -- stop when the escort is this far
+getcfg("hostage_home_radius", 3);    -- how close to home counts as a rescue
+getcfg("hostage_tent_radius", 4);    -- how close to a tent counts as "safe"
 getcfg("hostage_lost_interval", 10); -- seconds between "I'm lost" calls
 
 -- flags get stashed here: negative z is high in the sky, unreachable,
@@ -57,16 +65,49 @@ local CENTER = {x=256, y=256};
 
 local byteam = {}; -- team -> hostage pid
 
-local welcome_msg = "This is HOSTAGE mode: free the hostage held at "
-	.."the enemy tent. Get close and it follows; walk it home for a point.";
-local thanks_msg = "Thanks for picking me up!";
-local saved_msg = "%s team brought back an hostage !";
-local executed_msg = "%s team executed an hostage ! +1 for %s";
-local lost_msgs = {
-	"I'm lost! Somebody come get me!",
-	"Hello? Anyone? I'm stranded out here!",
-	"Help, I don't know the way home!",
+-- Player-facing text. Server announcements (system messages) and the
+-- hostage's own lines (chat attributed to it) share the same table
+-- shape: one string per language, %(key) filled from an interp table.
+local welcome_msg = {
+	en="This is HOSTAGE mode: free the hostage held at the enemy tent. "
+		.."Get close and it follows; walk it home to score.",
+	fr="Mode OTAGE : libere l'otage retenu au camp ennemi. Approche-toi "
+		.."et il te suit ; ramene-le chez toi pour marquer.",
 };
+local thanks_msg = {
+	en="Thanks for picking me up!",
+	fr="Merci de me sauver !",
+};
+local saved_msg = {
+	en="%(hero) brought the %(team) hostage home! +1 %(team)",
+	fr="%(hero) a ramene l'otage %(team) ! +1 %(team)",
+};
+local executed_msg = {
+	en="%(killer) executed the %(team) hostage! +1 %(team)",
+	fr="%(killer) a execute l'otage %(team) ! +1 %(team)",
+};
+local lost_msgs = {
+	{en="I'm lost! Somebody come get me!",
+	 fr="Je suis perdu ! Que quelqu'un vienne me chercher !"},
+	{en="Hello? Anyone? I'm stranded out here!",
+	 fr="Ohe ? Il y a quelqu'un ? Je suis coince ici !"},
+	{en="Help, I don't know the way home!",
+	 fr="A l'aide, je ne trouve pas le chemin du retour !"},
+};
+
+-- the hostage speaks, attributed to it (from = its pid), each listener
+-- served in their own language
+local function hostage_say(hpid, msgtab, interptab)
+	for i in piditer(PID_BROADCAST) do
+		if (not bot_is_bot(i)) then
+			send_chat(i, l10n_get_str_pid(i, msgtab, interptab or {}), 0, hpid);
+		end
+	end
+end
+
+local function hostage_say_to(hpid, target, msgtab, interptab)
+	send_chat(target, l10n_get_str_pid(target, msgtab, interptab or {}), 0, hpid);
+end
 
 local function length2(vec)
 	return math.sqrt(vec.x*vec.x + vec.y*vec.y);
@@ -84,6 +125,12 @@ local function within_cylinder(pos, cylinderpos, radius, bottom, top)
 	return true;
 end
 
+-- one shared tent test (within_cylinder mutates pos, so callers hand
+-- it a fresh get_position each time)
+local function near_tent(pos, tentpos, radius)
+	return tentpos ~= nil and within_cylinder(pos, tentpos, radius, 2, -4);
+end
+
 -- where team's hostage is held: the enemy tent
 local function post(team)
 	local t = get_tentloc()[3 - team];
@@ -94,17 +141,11 @@ local function post(team)
 	return {x=t.x, y=t.y, z=t.z - 2.5};
 end
 
--- standing near either tent (its spawn post, or home)? within_cylinder
--- mutates its pos arg, so hand it a fresh get_position each time
+-- standing near either tent (its spawn post, or home)?
 local function near_a_tent(pid)
 	local t = get_tentloc();
-	for team=1,2 do
-		if (t[team] ~= nil and within_cylinder(get_position(pid),
-		    t[team], hostage_tent_radius, 2, -4)) then
-			return true;
-		end
-	end
-	return false;
+	return near_tent(get_position(pid), t[1], hostage_tent_radius)
+	    or near_tent(get_position(pid), t[2], hostage_tent_radius);
 end
 
 -- capture_intel is the only Lua-reachable way to move the team score,
@@ -128,14 +169,18 @@ local function think(pid)
 	local me = bot_get(pid);
 	local mem = me.data;
 
-	-- saved: the hostage stands in its own team's tent
-	local home = get_tentloc()[me.team];
-	if (home ~= nil and within_cylinder(get_position(pid), home, 3, 1, -4)) then
-		award_point(mem.escort or pid);
-		server_msg(PID_BROADCAST,
-			string.format(saved_msg, get_team_name(me.team)));
+	-- reached home: score for whoever walked it in (falling back to a
+	-- remembered hero if the escort died on the doorstep), reset to post
+	if (near_tent(get_position(pid), get_tentloc()[me.team], hostage_home_radius)) then
+		local hero = mem.escort or mem.hero or pid;
+
+		award_point(hero);
+		l10n_send_chat(PID_BROADCAST, saved_msg,
+			{hero=get_name(hero), team=get_team_name(me.team)});
 
 		mem.escort = nil;
+		mem.hero = nil;
+		mem.thanked = nil;
 		bot_heal(pid);
 		bot_teleport(pid, post(me.team));
 		bot_stop(pid);
@@ -153,10 +198,6 @@ local function think(pid)
 	if (escort == nil) then
 		escort = bot_nearest_player(pid,
 			{team=me.team, within=hostage_engage_dist});
-		if (escort ~= nil) then
-			-- a private word from the hostage to its rescuer
-			send_chat(escort, thanks_msg, 0, pid);
-		end
 	end
 	mem.escort = escort;
 
@@ -170,11 +211,19 @@ local function think(pid)
 			bot_crouch(pid);
 			if (get_time() - (mem.lastlost or 0) >= hostage_lost_interval) then
 				mem.lastlost = get_time();
-				bot_chat(pid, lost_msgs[math.random(#lost_msgs)]);
+				hostage_say(pid, lost_msgs[math.random(#lost_msgs)]);
 			end
 		end
 		return;
 	end
+
+	-- greet a newly-acquired escort once, and remember them as the
+	-- hero to credit even if they die in the final stretch
+	if (mem.thanked ~= escort) then
+		mem.thanked = escort;
+		hostage_say_to(pid, escort, thanks_msg);
+	end
+	mem.hero = escort;
 
 	if (bot_distance_to(pid, escort) <= 1) then
 		bot_stop(pid); -- close enough, don't headbutt the escort
@@ -246,23 +295,27 @@ end
 
 -- keepers executing their hostage hands its team the point
 function mod.after.kill(pid, ktype, killer)
-	local team = byteam[1] == pid and 1 or byteam[2] == pid and 2 or nil;
-	if (team == nil) then
+	local b = bot_get(pid);
+	if (b == nil or not b.data.hostage) then
 		return;
 	end
 
-	bot_get(pid).data.escort = nil;
+	b.data.escort = nil;
+	b.data.hero = nil;
+	b.data.thanked = nil;
 
-	if (ktype <= 3 and killer ~= pid and get_team(killer) == 3 - team) then
+	-- only a real execution by the enemy (gun/melee/grenade), not a
+	-- fall, a drowning or a team/gun switch
+	if (ktype <= 3 and killer ~= pid and get_team(killer) == 3 - b.team) then
 		award_point(pid);
-		server_msg(PID_BROADCAST, string.format(executed_msg,
-			get_team_name(3 - team), get_team_name(team)));
+		l10n_send_chat(PID_BROADCAST, executed_msg,
+			{killer=get_name(killer), team=get_team_name(b.team)});
 	end
 end
 
 function mod.after.on_join(pid)
 	if (not bot_is_bot(pid)) then
-		server_msg(pid, welcome_msg);
+		l10n_send_chat(pid, welcome_msg);
 	end
 end
 
@@ -307,9 +360,15 @@ function mod.on_load()
 		error("hostage needs lib_bot loaded first "
 			.."(config.lua loads it, or: lsdctl load lib_bot hostage)", 0);
 	end
+	if (l10n_send_chat == nil) then
+		error("hostage needs lib_l10n loaded first", 0);
+	end
 
 	sweep_stale_hostages();
 	advertise();
+	-- catch anyone already connected up on the rules (on a fresh boot
+	-- there is nobody yet, so this is a no-op then)
+	l10n_send_chat(PID_BROADCAST, welcome_msg);
 end
 
 function mod.on_unload()
