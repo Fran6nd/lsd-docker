@@ -27,8 +27,14 @@ content
   gamemode [name]     show or set the gamemode (ctf, arena, babel, ...)
   set KEY VALUE       set any .env setting (LSD_PORT, LSD_NAME, LSD_MAPS, ...)
 
+scripts (hotloading, no restart -- players stay connected)
+  load [module...]    sync scripts.local/ into the running server and
+                      hot-(re)load the modules (no args: reload them all)
+  unload <module>...  unload modules from the running server
+  lsmod               list modules loaded in the running server
+
 Custom or overriding scripts go in scripts.local/ (same filename as an
-upstream script overrides it); they are picked up on restart.
+upstream script overrides it); apply them with load, or on restart.
 EOF
 	exit "${1:-0}"
 }
@@ -45,6 +51,25 @@ env_set() {
 	printf '%s=%s\n' "$1" "$2" >> .env.tmp
 	mv .env.tmp .env
 	echo "$1=$2"
+}
+
+# pipe stdin into the in-game admin console, relaying its replies
+console_pipe() {
+	docker compose exec -T lsd socat - UNIX-CONNECT:rw/console.sock
+}
+
+# reassemble the running container's scripts/ dir (same recipe as the
+# entrypoint) so hotloads pick up the current scripts.local/ contents
+scripts_sync() {
+	docker compose exec -T lsd sh -c \
+		'find scripts -mindepth 1 -delete
+		 cp -R scripts.dist/. scripts/
+		 [ ! -d scripts.local ] || cp -R scripts.local/. scripts/'
+}
+
+# "scripts.local/foo.lua" and "foo" both name the module foo
+module_name() {
+	basename "$1" .lua
 }
 
 cmd=${1:-}
@@ -75,8 +100,7 @@ reload)
 		sleep 5
 		printf 'exec os.exit(0)\n'
 		sleep 1
-	} | docker compose exec -T lsd socat - UNIX-CONNECT:rw/console.sock \
-		>/dev/null 2>&1 || true
+	} | console_pipe >/dev/null 2>&1 || true
 	sleep 2
 	if [ "$(docker inspect -f '{{.State.StartedAt}}' "$cid")" = "$born" ]; then
 		echo "console did not take the server down, restarting the hard way" >&2
@@ -98,6 +122,40 @@ console)
 	;;
 shell)
 	docker compose exec lsd ash
+	;;
+load)
+	# catch typos before touching the server
+	for name in "$@"; do
+		name=$(module_name "$name")
+		if [ ! -f "lsd/scripts/$name.lua" ] && [ ! -f "scripts.local/$name.lua" ]; then
+			echo "error: no module '$name' (no $name.lua in lsd/scripts/ or scripts.local/)" >&2
+			exit 1
+		fi
+	done
+	scripts_sync
+	{
+		if [ $# -eq 0 ]; then
+			echo reloadall
+		else
+			for name in "$@"; do
+				printf 'load %s\n' "$(module_name "$name")"
+			done
+		fi
+		# keep the socket open a moment to catch the replies
+		sleep 1
+	} | console_pipe
+	;;
+unload)
+	[ $# -gt 0 ] || usage 1
+	{
+		for name in "$@"; do
+			printf 'unload %s\n' "$(module_name "$name")"
+		done
+		sleep 1
+	} | console_pipe
+	;;
+lsmod)
+	{ echo lsmod; sleep 1; } | console_pipe
 	;;
 map)
 	sub=${1:-list}; [ $# -gt 0 ] && shift

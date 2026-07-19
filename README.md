@@ -37,6 +37,7 @@ Day-to-day management goes through `lsdctl`:
 ./lsdctl gamemode babel              # switch gamemode (ctf, arena, babel, ...)
 ./lsdctl map add https://example.com/mesa.vxl ~/Downloads/pinpoint.vxl
 ./lsdctl set LSD_NAME "my server"    # any .env setting, restarts to apply
+./lsdctl load rifle_is_a_rail_gun    # hot-reload a script, no restart
 ./lsdctl console                     # in-game admin console (Ctrl-C leaves)
 ./lsdctl update                      # pull upstream source + rebuild
 ```
@@ -49,7 +50,7 @@ is ever needed for content changes:
 | settings (port, name, gamemode, map queue) | `.env` | on restart |
 | full config | `config.lua` | on restart |
 | maps (`.vxl`) | `maps/` | next rotation |
-| custom/override scripts & gamemodes | `scripts.local/` | on restart |
+| custom/override scripts & gamemodes | `scripts.local/` | `./lsdctl load [module...]` (hot, no restart) or on restart |
 
 - **Port**: `LSD_PORT` changes the container *and* published port
   together — they must match because the masterlist advertises the
