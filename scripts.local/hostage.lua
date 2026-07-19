@@ -45,6 +45,8 @@ local mod = init_mod();
 
 getcfg("hostage_engage_dist", 5);  -- follow when a teammate gets this close
 getcfg("hostage_lose_dist", 10);   -- stop when the escort is this far
+getcfg("hostage_tent_radius", 4);  -- how close counts as "at a tent"
+getcfg("hostage_lost_interval", 10); -- seconds between "I'm lost" calls
 
 -- flags get stashed here: negative z is high in the sky, unreachable,
 -- and safely non-solid to everything (is_solid() guards z < 0)
@@ -60,6 +62,11 @@ local welcome_msg = "This is HOSTAGE mode: free the hostage held at "
 local thanks_msg = "Thanks for picking me up!";
 local saved_msg = "%s team brought back an hostage !";
 local executed_msg = "%s team executed an hostage ! +1 for %s";
+local lost_msgs = {
+	"I'm lost! Somebody come get me!",
+	"Hello? Anyone? I'm stranded out here!",
+	"Help, I don't know the way home!",
+};
 
 local function length2(vec)
 	return math.sqrt(vec.x*vec.x + vec.y*vec.y);
@@ -85,6 +92,19 @@ local function post(team)
 	end
 	-- tent z is ground level, internal player pos rides ~2.25 above
 	return {x=t.x, y=t.y, z=t.z - 2.5};
+end
+
+-- standing near either tent (its spawn post, or home)? within_cylinder
+-- mutates its pos arg, so hand it a fresh get_position each time
+local function near_a_tent(pid)
+	local t = get_tentloc();
+	for team=1,2 do
+		if (t[team] ~= nil and within_cylinder(get_position(pid),
+		    t[team], hostage_tent_radius, 2, -4)) then
+			return true;
+		end
+	end
+	return false;
 end
 
 -- capture_intel is the only Lua-reachable way to move the team score,
@@ -141,7 +161,18 @@ local function think(pid)
 	mem.escort = escort;
 
 	if (escort == nil) then
-		bot_stop(pid); -- hostages wait standing, no cowering
+		-- idle: stand guard while at a tent (also the fresh-spawn
+		-- pose), but if stranded in the open, crouch and call out
+		-- for a rescuer in general chat every so often
+		if (near_a_tent(pid)) then
+			bot_stop(pid);
+		else
+			bot_crouch(pid);
+			if (get_time() - (mem.lastlost or 0) >= hostage_lost_interval) then
+				mem.lastlost = get_time();
+				bot_chat(pid, lost_msgs[math.random(#lost_msgs)]);
+			end
+		end
 		return;
 	end
 
