@@ -57,14 +57,14 @@ load "trashheap"
 register(maptime);
 
 motd = [[
-This server runs LSd.
+This server runs [LSd] from [totally not a burner].
 It is meant to test this server and have fun.
 You might see some weird stuff though as i like experimenting.
 ]]
 load "motd"
 
 tips = {
-	"This is a worthless tip.",
+	"Tip: use smg to avoid injuring the hostage.",
 	"Did you learn something new today?",
 	"Use /kill to die.",
 	function() for i in piditer(PID_BROADCAST) do
@@ -86,5 +86,14 @@ load "shotgun_are_grenade_launchers"
 -- rifles pierce 5 blocks and leave a tracer trail (scripts.local/)
 load "rifle_is_a_rail_gun"
 
--- Also try "arena", "babel"
-load(os.getenv("LSD_GAMEMODE") or "ctf")
+-- Hostage rides on top of ctf (it uses ctf's tents and intel-based
+-- scoring). Load the base gamemode and lib_bot FIRST, each exactly
+-- once, then hostage -- it only *uses* their globals, never load()s
+-- them, so nothing is registered twice. A double register makes a
+-- hook's `next` point at itself and stack-overflows the tick chain.
+-- Also try "arena", "babel" (hostage stays idle without tents).
+local gamemode = os.getenv("LSD_GAMEMODE") or "ctf"
+if (gamemode == "hostage") then gamemode = "ctf" end
+load(gamemode)
+load "lib_bot"
+load "hostage"
