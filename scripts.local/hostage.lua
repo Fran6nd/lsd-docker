@@ -34,13 +34,13 @@
 -- * All lib_bot limitations apply: hostages use two player slots,
 --   kicks silently fail on them, and this script must be reloaded
 --   together with the lib (lsdctl load lib_bot hostage).
-if (package.loaded["ctf"] == nil) then
-	load("ctf");
-end
-if (package.loaded["lib_bot"] == nil) then
-	load("lib_bot");
-end
-
+--
+-- DEPENDENCIES: needs lib_bot and a tent gamemode (ctf) loaded
+-- FIRST -- config.lua does this. The script never load()s them
+-- itself: a load() at file-execution time re-registers an
+-- already-loaded module, which points one of its hook's `next` at
+-- itself and stack-overflows the tick chain. We only check the
+-- globals those modules export and bail cleanly if they are missing.
 local mod = init_mod();
 
 getcfg("hostage_engage_dist", 5);  -- follow when a teammate gets this close
@@ -255,6 +255,13 @@ local function sweep_stale_hostages()
 end
 
 function mod.on_load()
+	-- check, never load: erroring here unregisters us cleanly, while
+	-- a stray load() would corrupt the callchain (see DEPENDENCIES)
+	if (bot_create == nil) then
+		error("hostage needs lib_bot loaded first "
+			.."(config.lua loads it, or: lsdctl load lib_bot hostage)", 0);
+	end
+
 	sweep_stale_hostages();
 	advertise();
 end
