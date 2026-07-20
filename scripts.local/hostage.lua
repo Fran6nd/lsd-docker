@@ -61,9 +61,9 @@ getcfg("hostage_engage_dist", 5);    -- follow when a teammate gets this close
 getcfg("hostage_lose_dist", 10);     -- stop when the escort is this far
 getcfg("hostage_home_radius", 3);    -- how close to home counts as a rescue
 getcfg("hostage_tent_radius", 4);    -- how close to a tent counts as "safe"
-getcfg("hostage_captive_interval", 20);-- seconds between pleas while held at the tent
-getcfg("hostage_lost_interval", 20); -- seconds between "I'm lost" calls
-getcfg("hostage_chatter_interval", 16);-- seconds between while-escorted lines
+getcfg("hostage_captive_interval", 40);-- avg seconds between pleas while held at the tent
+getcfg("hostage_lost_interval", 40); -- avg seconds between "I'm lost" calls
+getcfg("hostage_chatter_interval", 32);-- avg seconds between while-escorted lines
 getcfg("hostage_scared_dist", 8);    -- enemy within this = nervous chatter
 
 -- flags get stashed here: negative z is high in the sky, unreachable,
@@ -204,6 +204,23 @@ local function award_point(to)
 	end
 end
 
+-- a per-hostage speech timer: true once `key` comes due, then it
+-- reschedules with +-40% jitter so the two hostages drift apart instead
+-- of talking in unison. The very first fire is staggered a random
+-- fraction of the interval in, so they don't open together at spawn.
+local function due(mem, key, interval)
+	local now = get_time();
+	if (mem[key] == nil) then
+		mem[key] = now + interval * math.random();
+		return false;
+	end
+	if (now < mem[key]) then
+		return false;
+	end
+	mem[key] = now + interval * (0.6 + math.random()*0.8);
+	return true;
+end
+
 local function think(pid)
 	local me = bot_get(pid);
 	local mem = me.data;
@@ -247,14 +264,12 @@ local function think(pid)
 		-- calls out that it's lost -- each on its own sparse timer
 		if (near_a_tent(pid)) then
 			bot_stop(pid);
-			if (get_time() - (mem.lastcaptive or 0) >= hostage_captive_interval) then
-				mem.lastcaptive = get_time();
+			if (due(mem, "captive", hostage_captive_interval)) then
 				hostage_say(pid, captive_msgs[math.random(#captive_msgs)]);
 			end
 		else
 			bot_crouch(pid);
-			if (get_time() - (mem.lastlost or 0) >= hostage_lost_interval) then
-				mem.lastlost = get_time();
+			if (due(mem, "lost", hostage_lost_interval)) then
 				hostage_say(pid, lost_msgs[math.random(#lost_msgs)]);
 			end
 		end
@@ -271,8 +286,7 @@ local function think(pid)
 
 	-- chatter while being walked home: nervous if a foe is near,
 	-- otherwise urging the escort onward
-	if (get_time() - (mem.lastchatter or 0) >= hostage_chatter_interval) then
-		mem.lastchatter = get_time();
+	if (due(mem, "chatter", hostage_chatter_interval)) then
 		if (bot_nearest_player(pid, {team=3-me.team, within=hostage_scared_dist}) ~= nil) then
 			hostage_say(pid, nervous_msgs[math.random(#nervous_msgs)]);
 		else
