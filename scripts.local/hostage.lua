@@ -14,10 +14,12 @@
 --
 -- COMMUNICATION -- two voices, both localized via lib_l10n:
 -- * the hostage itself speaks in chat, attributed to it and rendered
---   in each listener's language: a private "thanks" to a new escort,
---   a public "I'm lost" while stranded, nervous/urging chatter while
---   being walked home, a cheer on arrival and a cry when executed
---   (hostage_say/_to).
+--   in each listener's language, with a different voice per situation:
+--   pleading while held at the enemy tent, "I'm lost" while stranded,
+--   nervous/urging chatter while being walked home, plus a private
+--   "thanks" to a new escort, a cheer on arrival and a cry when
+--   executed (hostage_say/_to). Each recurring line is on its own
+--   sparse timer so they stay quiet.
 -- * the server announces scores as system messages to everyone
 --   (l10n_send_chat): a rescue, an execution, and the rules on join.
 -- Add a language by dropping another key into the message tables
@@ -59,8 +61,9 @@ getcfg("hostage_engage_dist", 5);    -- follow when a teammate gets this close
 getcfg("hostage_lose_dist", 10);     -- stop when the escort is this far
 getcfg("hostage_home_radius", 3);    -- how close to home counts as a rescue
 getcfg("hostage_tent_radius", 4);    -- how close to a tent counts as "safe"
-getcfg("hostage_lost_interval", 10); -- seconds between "I'm lost" calls
-getcfg("hostage_chatter_interval", 8);-- seconds between while-escorted lines
+getcfg("hostage_captive_interval", 20);-- seconds between pleas while held at the tent
+getcfg("hostage_lost_interval", 20); -- seconds between "I'm lost" calls
+getcfg("hostage_chatter_interval", 16);-- seconds between while-escorted lines
 getcfg("hostage_scared_dist", 8);    -- enemy within this = nervous chatter
 
 -- flags get stashed here: negative z is high in the sky, unreachable,
@@ -93,6 +96,15 @@ local executed_msg = {
 	en="%(killer) executed the %(team) hostage! +1 %(team)",
 	fr="%(killer) a execute l'otage %(team) ! +1 %(team)",
 };
+-- held at the enemy tent, waiting to be sprung
+local captive_msgs = {
+	{en="Get me out of here!", fr="Sortez-moi de la !"},
+	{en="I'm a prisoner -- someone free me!",
+	 fr="Je suis prisonnier -- que quelqu'un me libere !"},
+	{en="Psst! Come spring me from their tent!",
+	 fr="Psst ! Venez me delivrer de leur camp !"},
+};
+-- stranded in the open, no idea which way is home
 local lost_msgs = {
 	{en="I'm lost! Somebody come get me!",
 	 fr="Je suis perdu ! Que quelqu'un vienne me chercher !"},
@@ -230,11 +242,15 @@ local function think(pid)
 	mem.escort = escort;
 
 	if (escort == nil) then
-		-- idle: stand guard while at a tent (also the fresh-spawn
-		-- pose), but if stranded in the open, crouch and call out
-		-- for a rescuer in general chat every so often
+		-- idle, and talking to match: held at the tent it stands and
+		-- pleads to be sprung; stranded in the open it crouches and
+		-- calls out that it's lost -- each on its own sparse timer
 		if (near_a_tent(pid)) then
 			bot_stop(pid);
+			if (get_time() - (mem.lastcaptive or 0) >= hostage_captive_interval) then
+				mem.lastcaptive = get_time();
+				hostage_say(pid, captive_msgs[math.random(#captive_msgs)]);
+			end
 		else
 			bot_crouch(pid);
 			if (get_time() - (mem.lastlost or 0) >= hostage_lost_interval) then
