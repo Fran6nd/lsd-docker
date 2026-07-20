@@ -13,15 +13,16 @@
 -- advertises "Hostage", and joining players get told the rules.
 --
 -- COMMUNICATION -- two voices, both localized via lib_l10n:
--- * the hostage itself speaks in chat, attributed to it and rendered
---   in each listener's language, with a different voice per situation:
---   pleading while held at the enemy tent, "I'm lost" while stranded,
---   nervous/urging chatter while being walked home, plus a private
---   "thanks" to a new escort, a cheer on arrival and a cry when
---   executed (hostage_say/_to). Each recurring line is on its own
---   sparse timer so they stay quiet.
--- * the server announces scores as system messages to everyone
---   (l10n_send_chat): a rescue, an execution, and the rules on join.
+-- * the hostage itself speaks in chat, only to its own team (the ones
+--   who can rescue it), rendered in each listener's language, with a
+--   different voice per situation: pleading while held at the enemy
+--   tent, "I'm lost" while stranded, nervous/urging chatter while being
+--   walked home, plus a private "thanks" to a new escort, a cheer on
+--   arrival and a cry when executed (hostage_say/_to). Each recurring
+--   line is on its own sparse, jittered timer so they stay quiet.
+-- * the server announces to everyone (l10n_send_chat): a rescue, an
+--   execution, and the rules on join -- and tells a hostage's own team
+--   (PID_BROADCAST_TEAM) when someone starts freeing it.
 -- Add a language by dropping another key into the message tables
 -- below (en/fr are provided).
 --
@@ -96,6 +97,11 @@ local executed_msg = {
 	en="%(killer) executed the %(team) hostage! +1 %(team)",
 	fr="%(killer) a execute l'otage %(team) ! +1 %(team)",
 };
+-- told to the hostage's own team when a rescue begins
+local freeing_msg = {
+	en="%(escort) is freeing your hostage -- go support!",
+	fr="%(escort) libere votre otage -- allez l'aider !",
+};
 -- held at the enemy tent, waiting to be sprung
 local captive_msgs = {
 	{en="Get me out of here!", fr="Sortez-moi de la !"},
@@ -134,11 +140,12 @@ local urge_msgs = {
 	{en="Don't leave me behind!", fr="Ne me laisse pas derriere !"},
 };
 
--- the hostage speaks, attributed to it (from = its pid), each listener
--- served in their own language
+-- the hostage speaks, attributed to it (from = its pid), only to its
+-- own team (the ones who can rescue it), each in their own language
 local function hostage_say(hpid, msgtab, interptab)
+	local team = get_team(hpid);
 	for i in piditer(PID_BROADCAST) do
-		if (not bot_is_bot(i)) then
+		if (not bot_is_bot(i) and get_team(i) == team) then
 			send_chat(i, l10n_get_str_pid(i, msgtab, interptab or {}), 0, hpid);
 		end
 	end
@@ -281,6 +288,9 @@ local function think(pid)
 	if (mem.thanked ~= escort) then
 		mem.thanked = escort;
 		hostage_say_to(pid, escort, thanks_msg);
+		-- rally the hostage's own team: a rescue is underway
+		l10n_send_chat(PID_BROADCAST_TEAM(me.team), freeing_msg,
+			{escort=get_name(escort)});
 	end
 	mem.hero = escort;
 
