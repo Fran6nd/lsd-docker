@@ -7,6 +7,11 @@
 -- executing it hands its team a point too; either way the hostage
 -- respawns back at the enemy tent, facing the map center.
 --
+-- It cuts both ways: a hostage left loose in the open with no teammate
+-- near will surrender to a nearby captor and follow them, and a captor
+-- who marches it back to their own tent re-imprisons it (no points).
+-- When a hostage slips loose the server sends the captors hunting.
+--
 -- It plays like team deathmatch over ctf's bones: ctf is loaded
 -- underneath for tents, spawns and team score, but the flags are
 -- stashed in the sky where nobody can reach them, the masterlist
@@ -102,6 +107,16 @@ local freeing_msg = {
 	en="%(escort) is freeing your hostage -- go support!",
 	fr="%(escort) libere votre otage -- allez l'aider !",
 };
+-- told to the captor team when a hostage slips loose in the field
+local missing_msg = {
+	en="A %(team) hostage is loose -- hunt it down and drag it back!",
+	fr="Un otage %(team) s'est echappe -- retrouvez-le et ramenez-le !",
+};
+-- told to everyone when a captor returns a loose hostage to its prison
+local recaptured_msg = {
+	en="The %(team) hostage was dragged back to captivity.",
+	fr="L'otage %(team) a ete ramene en captivite.",
+};
 -- held at the enemy tent, waiting to be sprung
 local captive_msgs = {
 	{en="Get me out of here!", fr="Sortez-moi de la !"},
@@ -138,6 +153,12 @@ local urge_msgs = {
 	{en="This way, we're almost there!", fr="Par ici, on y est presque !"},
 	{en="Keep going, take me home!", fr="Continue, ramene-moi a la base !"},
 	{en="Don't leave me behind!", fr="Ne me laisse pas derriere !"},
+};
+-- crying to its team while a captor drags it back to prison
+local surrender_msgs = {
+	{en="They've caught me -- help!", fr="Ils m'ont repris -- a l'aide !"},
+	{en="I'm being dragged back!", fr="On me ramene de force !"},
+	{en="No -- not back to the cage!", fr="Non -- pas encore la cage !"},
 };
 
 -- the hostage speaks, attributed to it (from = its pid), only to its
@@ -228,48 +249,82 @@ local function due(mem, key, interval)
 	return true;
 end
 
+local function reset_follow_state(mem)
+	mem.follow = nil;
+	mem.hero = nil;
+	mem.thanked = nil;
+	mem.missing_alerted = nil;
+end
+
 local function think(pid)
 	local me = bot_get(pid);
 	local mem = me.data;
+	local myteam = me.team;
 
-	-- reached home: score for whoever walked it in (falling back to a
-	-- remembered hero if the escort died on the doorstep), reset to post
-	if (near_tent(get_position(pid), get_tentloc()[me.team], hostage_home_radius)) then
-		local hero = mem.escort or mem.hero or pid;
+	-- Pick who the hostage follows. Keep the current follower while it
+	-- lives and stays within lose range; a teammate rescuer always
+	-- takes priority (rescue beats surrender); and a hostage loose in
+	-- the open with no teammate near surrenders to a nearby captor.
+	local follow = mem.follow;
+	if (follow ~= nil and (not is_alive(follow)
+	    or bot_distance_to(pid, follow) > hostage_lose_dist)) then
+		follow = nil;
+	end
+	local by_enemy = follow ~= nil and get_team(follow) ~= myteam;
 
-		hostage_say(pid, saved_cheer_msg); -- the hostage's own relief
+	if (follow == nil or by_enemy) then
+		local mate = bot_nearest_player(pid, {team=myteam, within=hostage_engage_dist});
+		if (mate ~= nil) then
+			follow = mate;
+			by_enemy = false;
+		end
+	end
+	if (follow == nil and not near_a_tent(pid)) then
+		local foe = bot_nearest_player(pid, {team=3-myteam, within=hostage_engage_dist});
+		if (foe ~= nil) then
+			follow = foe;
+			by_enemy = true;
+		end
+	end
+	mem.follow = follow;
+
+	-- rescued: a teammate walked it to its own tent -> score, reset
+	if (not by_enemy and near_tent(get_position(pid),
+	    get_tentloc()[myteam], hostage_home_radius)) then
+		local hero = follow or mem.hero or pid;
+
+		hostage_say(pid, saved_cheer_msg);
 		award_point(hero);
 		l10n_send_chat(PID_BROADCAST, saved_msg,
-			{hero=get_name(hero), team=get_team_name(me.team)});
+			{hero=get_name(hero), team=get_team_name(myteam)});
 
-		mem.escort = nil;
-		mem.hero = nil;
-		mem.thanked = nil;
+		reset_follow_state(mem);
 		bot_heal(pid);
-		bot_teleport(pid, post(me.team));
+		bot_teleport(pid, post(myteam));
 		bot_stop(pid);
 		return;
 	end
 
-	-- keep the escort until they die, defect or stray too far
-	local escort = mem.escort;
-	if (escort ~= nil and (not is_alive(escort)
-	    or get_team(escort) ~= me.team
-	    or bot_distance_to(pid, escort) > hostage_lose_dist)) then
-		escort = nil;
+	-- recaptured: a captor dragged it back to its prison (the enemy
+	-- tent, which is the post) -- no points, just back in the cage
+	if (by_enemy and near_tent(get_position(pid),
+	    get_tentloc()[3-myteam], hostage_home_radius)) then
+		l10n_send_chat(PID_BROADCAST, recaptured_msg,
+			{team=get_team_name(myteam)});
+		reset_follow_state(mem);
+		bot_stop(pid);
+		return;
 	end
 
-	if (escort == nil) then
-		escort = bot_nearest_player(pid,
-			{team=me.team, within=hostage_engage_dist});
-	end
-	mem.escort = escort;
-
-	if (escort == nil) then
+	if (follow == nil) then
+		mem.hero = nil;
+		mem.thanked = nil;
 		-- idle, and talking to match: held at the tent it stands and
-		-- pleads to be sprung; stranded in the open it crouches and
-		-- calls out that it's lost -- each on its own sparse timer
+		-- pleads to its team; loose in the open it crouches, calls that
+		-- it is lost, and the server sends the captors hunting -- each
+		-- on its own sparse, jittered timer
 		if (near_a_tent(pid)) then
+			mem.missing_alerted = nil; -- safe at a tent, call off the hunt
 			bot_stop(pid);
 			if (due(mem, "captive", hostage_captive_interval)) then
 				hostage_say(pid, captive_msgs[math.random(#captive_msgs)]);
@@ -279,37 +334,50 @@ local function think(pid)
 			if (due(mem, "lost", hostage_lost_interval)) then
 				hostage_say(pid, lost_msgs[math.random(#lost_msgs)]);
 			end
+			if (not mem.missing_alerted) then
+				mem.missing_alerted = true;
+				l10n_send_chat(PID_BROADCAST_TEAM(3-myteam), missing_msg,
+					{team=get_team_name(myteam)});
+			end
 		end
 		return;
 	end
 
-	-- greet a newly-acquired escort once, and remember them as the
-	-- hero to credit even if they die in the final stretch
-	if (mem.thanked ~= escort) then
-		mem.thanked = escort;
-		hostage_say_to(pid, escort, thanks_msg);
-		-- rally the hostage's own team: a rescue is underway
-		l10n_send_chat(PID_BROADCAST_TEAM(me.team), freeing_msg,
-			{escort=get_name(escort)});
-	end
-	mem.hero = escort;
+	mem.missing_alerted = nil; -- someone has it now
 
-	-- chatter while being walked home: nervous if a foe is near,
-	-- otherwise urging the escort onward
-	if (due(mem, "chatter", hostage_chatter_interval)) then
-		if (bot_nearest_player(pid, {team=3-me.team, within=hostage_scared_dist}) ~= nil) then
-			hostage_say(pid, nervous_msgs[math.random(#nervous_msgs)]);
-		else
-			hostage_say(pid, urge_msgs[math.random(#urge_msgs)]);
+	if (not by_enemy) then
+		-- rescue: greet the escort once and rally the team, then chatter
+		if (mem.thanked ~= follow) then
+			mem.thanked = follow;
+			hostage_say_to(pid, follow, thanks_msg);
+			l10n_send_chat(PID_BROADCAST_TEAM(myteam), freeing_msg,
+				{escort=get_name(follow)});
+		end
+		mem.hero = follow;
+
+		if (due(mem, "chatter", hostage_chatter_interval)) then
+			if (bot_nearest_player(pid, {team=3-myteam, within=hostage_scared_dist}) ~= nil) then
+				hostage_say(pid, nervous_msgs[math.random(#nervous_msgs)]);
+			else
+				hostage_say(pid, urge_msgs[math.random(#urge_msgs)]);
+			end
+		end
+	else
+		-- surrender: dragged off by a captor, cry to the team for a
+		-- last-ditch intercept
+		mem.hero = nil;
+		mem.thanked = nil;
+		if (due(mem, "chatter", hostage_chatter_interval)) then
+			hostage_say(pid, surrender_msgs[math.random(#surrender_msgs)]);
 		end
 	end
 
-	if (bot_distance_to(pid, escort) <= 1) then
-		bot_stop(pid); -- close enough, don't headbutt the escort
+	if (bot_distance_to(pid, follow) <= 1) then
+		bot_stop(pid); -- close enough, don't headbutt whoever leads it
 		return;
 	end
 
-	bot_look_at(pid, get_position(escort));
+	bot_look_at(pid, get_position(follow));
 
 	local v = get_velocity(pid);
 	bot_walk(pid, {
@@ -379,9 +447,7 @@ function mod.after.kill(pid, ktype, killer)
 		return;
 	end
 
-	b.data.escort = nil;
-	b.data.hero = nil;
-	b.data.thanked = nil;
+	reset_follow_state(b.data);
 
 	-- only a real execution by the enemy (gun/melee/grenade), not a
 	-- fall, a drowning or a team/gun switch
@@ -477,8 +543,12 @@ local function hostage_status_line(team)
 	local dist = home ~= nil and math.floor(bot_distance_to(hpid, home)) or -1;
 
 	local state;
-	if (mem.escort ~= nil and is_alive(mem.escort)) then
-		state = "following "..get_name(mem.escort);
+	if (mem.follow ~= nil and is_alive(mem.follow)) then
+		if (get_team(mem.follow) == team) then
+			state = "following "..get_name(mem.follow);
+		else
+			state = "being recaptured by "..get_name(mem.follow);
+		end
 	elseif (near_a_tent(hpid)) then
 		state = "waiting at a tent";
 	else
