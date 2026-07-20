@@ -15,11 +15,16 @@
 -- COMMUNICATION -- two voices, both localized via lib_l10n:
 -- * the hostage itself speaks in chat, attributed to it and rendered
 --   in each listener's language: a private "thanks" to a new escort,
---   and a public "I'm lost" while stranded (hostage_say/_to).
+--   a public "I'm lost" while stranded, nervous/urging chatter while
+--   being walked home, a cheer on arrival and a cry when executed
+--   (hostage_say/_to).
 -- * the server announces scores as system messages to everyone
 --   (l10n_send_chat): a rescue, an execution, and the rules on join.
 -- Add a language by dropping another key into the message tables
 -- below (en/fr are provided).
+--
+-- /hostage shows each hostage's status; /hostage reset (needs the
+-- "hostage" cap) despawns and respawns them.
 --
 -- LIMITATIONS:
 -- * Scoring rides capture_intel -- the only Lua-reachable way to move
@@ -55,6 +60,8 @@ getcfg("hostage_lose_dist", 10);     -- stop when the escort is this far
 getcfg("hostage_home_radius", 3);    -- how close to home counts as a rescue
 getcfg("hostage_tent_radius", 4);    -- how close to a tent counts as "safe"
 getcfg("hostage_lost_interval", 10); -- seconds between "I'm lost" calls
+getcfg("hostage_chatter_interval", 8);-- seconds between while-escorted lines
+getcfg("hostage_scared_dist", 8);    -- enemy within this = nervous chatter
 
 -- flags get stashed here: negative z is high in the sky, unreachable,
 -- and safely non-solid to everything (is_solid() guards z < 0)
@@ -93,6 +100,26 @@ local lost_msgs = {
 	 fr="Ohe ? Il y a quelqu'un ? Je suis coince ici !"},
 	{en="Help, I don't know the way home!",
 	 fr="A l'aide, je ne trouve pas le chemin du retour !"},
+};
+-- the hostage's own reactions: a cheer at home, a cry when executed,
+-- and while-escorted chatter (nervous if a foe is near, else urging)
+local saved_cheer_msg = {
+	en="Home at last -- thank you!",
+	fr="Enfin rentre -- merci !",
+};
+local executed_cry_msg = {
+	en="Argh -- they got me!",
+	fr="Argh -- ils m'ont eu !",
+};
+local nervous_msgs = {
+	{en="They're right behind us!", fr="Ils sont juste derriere nous !"},
+	{en="Hurry, enemies close!", fr="Vite, des ennemis tout pres !"},
+	{en="Watch out -- keepers!", fr="Attention -- des gardiens !"},
+};
+local urge_msgs = {
+	{en="This way, we're almost there!", fr="Par ici, on y est presque !"},
+	{en="Keep going, take me home!", fr="Continue, ramene-moi a la base !"},
+	{en="Don't leave me behind!", fr="Ne me laisse pas derriere !"},
 };
 
 -- the hostage speaks, attributed to it (from = its pid), each listener
@@ -174,6 +201,7 @@ local function think(pid)
 	if (near_tent(get_position(pid), get_tentloc()[me.team], hostage_home_radius)) then
 		local hero = mem.escort or mem.hero or pid;
 
+		hostage_say(pid, saved_cheer_msg); -- the hostage's own relief
 		award_point(hero);
 		l10n_send_chat(PID_BROADCAST, saved_msg,
 			{hero=get_name(hero), team=get_team_name(me.team)});
@@ -224,6 +252,17 @@ local function think(pid)
 		hostage_say_to(pid, escort, thanks_msg);
 	end
 	mem.hero = escort;
+
+	-- chatter while being walked home: nervous if a foe is near,
+	-- otherwise urging the escort onward
+	if (get_time() - (mem.lastchatter or 0) >= hostage_chatter_interval) then
+		mem.lastchatter = get_time();
+		if (bot_nearest_player(pid, {team=3-me.team, within=hostage_scared_dist}) ~= nil) then
+			hostage_say(pid, nervous_msgs[math.random(#nervous_msgs)]);
+		else
+			hostage_say(pid, urge_msgs[math.random(#urge_msgs)]);
+		end
+	end
 
 	if (bot_distance_to(pid, escort) <= 1) then
 		bot_stop(pid); -- close enough, don't headbutt the escort
@@ -307,6 +346,7 @@ function mod.after.kill(pid, ktype, killer)
 	-- only a real execution by the enemy (gun/melee/grenade), not a
 	-- fall, a drowning or a team/gun switch
 	if (ktype <= 3 and killer ~= pid and get_team(killer) == 3 - b.team) then
+		hostage_say(pid, executed_cry_msg); -- a last word before it drops
 		award_point(pid);
 		l10n_send_chat(PID_BROADCAST, executed_msg,
 			{killer=get_name(killer), team=get_team_name(b.team)});
@@ -378,5 +418,66 @@ function mod.on_unload()
 		end
 	end
 end
+
+-- one status line per hostage: whose it is, what it's doing, how far
+-- from home it still is
+local function hostage_status_line(team)
+	local name = get_team_name(team);
+	local hpid = byteam[team];
+
+	if (hpid == nil) then
+		return name.." hostage: not spawned (no tents?)";
+	end
+	if (not is_alive(hpid)) then
+		return name.." hostage: down, respawning";
+	end
+
+	local mem = bot_get(hpid).data;
+	local home = get_tentloc()[team];
+	local dist = home ~= nil and math.floor(bot_distance_to(hpid, home)) or -1;
+
+	local state;
+	if (mem.escort ~= nil and is_alive(mem.escort)) then
+		state = "following "..get_name(mem.escort);
+	elseif (near_a_tent(hpid)) then
+		state = "waiting at a tent";
+	else
+		state = "stranded";
+	end
+
+	return string.format("%s hostage: %s (%d blocks from home)",
+		name, state, dist);
+end
+
+local function reset_hostages()
+	for team=1,2 do
+		if (byteam[team] ~= nil) then
+			bot_destroy(byteam[team]); -- our on_disconnect clears byteam
+			byteam[team] = nil;        -- and clear now so tick respawns it
+		end
+	end
+end
+
+-- /hostage [reset] -- status is open to all; reset needs the hostage cap
+local cmd = {name="hostage", fakepid=true, usage="[reset]",
+	desc="Show hostage status, or 'reset' them (needs the hostage cap)."};
+function cmd.func(pid, argv)
+	cmd_assert(pid, cmd, #argv <= 1);
+
+	if (argv[1] == "reset") then
+		if (not has_cap(pid, "hostage")) then
+			server_msg(pid, "you lack the 'hostage' cap");
+			return;
+		end
+		reset_hostages();
+		server_msg(pid, "hostages reset");
+		return;
+	end
+
+	for team=1,2 do
+		server_msg(pid, hostage_status_line(team));
+	end
+end
+register_command(cmd, mod);
 
 return mod;
