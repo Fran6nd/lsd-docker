@@ -24,6 +24,7 @@ content
   map list            list installed maps
   map add <src>...    install maps from local files or http(s) URLs
   map rm <name>...    remove maps
+  map load <name>     switch the live map now (no restart, no disconnects)
   gamemode [name]     show or set the gamemode (ctf, arena, babel, ...)
   set KEY VALUE       set any .env setting (LSD_PORT, LSD_NAME, LSD_MAPS, ...)
 
@@ -182,6 +183,17 @@ map)
 		for name in "$@"; do
 			rm -v "maps/${name%.vxl}.vxl"
 		done
+		;;
+	load)
+		[ $# -eq 1 ] || usage 1
+		name=${1%.vxl}
+		if [ ! -f "maps/$name.vxl" ]; then
+			echo "error: no map 'maps/$name.vxl' (see ./lsdctl map list)" >&2
+			exit 1
+		fi
+		# switch the running server's map now -- no restart, nobody
+		# disconnects; the in-game loadmap takes the name, not the path
+		{ printf 'loadmap %s\n' "$name"; sleep 1; } | console_pipe
 		;;
 	*)
 		usage 1;;
