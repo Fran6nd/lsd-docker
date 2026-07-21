@@ -36,6 +36,7 @@ Day-to-day management goes through `lsdctl`:
 ./lsdctl status                      # state + published ports
 ./lsdctl gamemode babel              # switch gamemode (ctf, arena, babel, ...)
 ./lsdctl map add https://example.com/mesa.vxl ~/Downloads/pinpoint.vxl
+./lsdctl map load BusanPort           # switch the live map now, no restart
 ./lsdctl set LSD_NAME "my server"    # any .env setting, restarts to apply
 ./lsdctl load rifle_is_a_rail_gun    # hot-reload a script, no restart
 ./lsdctl console                     # in-game admin console (Ctrl-C leaves)
