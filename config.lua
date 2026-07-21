@@ -98,6 +98,10 @@ load "votekick"
 local gamemode = os.getenv("LSD_GAMEMODE") or "ctf"
 if (gamemode == "hostage") then gamemode = "ctf" end
 load(gamemode)
+-- random spawn around the team tent; BEFORE lib_bot so lib_bot's bot
+-- spawn_at (the hostage's enemy-tent post) stays outermost and wins,
+-- while real players fall through to the random tent spawn
+load "tentspawns"
 load "lib_bot"
 load "hostage"
 -- combat guard bots, 5 per team (scripts.local/) -- disabled for now;
