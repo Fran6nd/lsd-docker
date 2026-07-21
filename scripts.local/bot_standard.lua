@@ -20,6 +20,7 @@ getcfg("guard_count", 5);         -- fighters per team
 getcfg("guard_shoot_range", 24);  -- start shooting within this many blocks
 getcfg("guard_grenade_range", 12);-- lob a grenade within this many blocks
 getcfg("guard_grenade_cd", 5);    -- seconds between a guard's grenades
+getcfg("guard_grenade_safe_r", 16);-- skip the grenade if a hostage is this close to the target
 getcfg("guard_lowhp", 30);        -- shout for help below this HP
 
 local STUCK_CHECK = 0.5;  -- seconds between progress checks
@@ -35,6 +36,23 @@ local WEAPONS = {0, 1, 2}; -- rifle, smg, shotgun
 local function is_hostage(i)
 	local b = bot_get(i);
 	return b ~= nil and b.data.hostage == true;
+end
+
+-- any living hostage within `radius` of a point? grenade blast is
+-- server-side and hits every enemy in range, so guards must not throw
+-- one near a hostage -- the enemy tent (where a hostage waits) is
+-- exactly where guards fight
+local function hostage_near(pos, radius)
+	local r2 = radius*radius;
+	for i in piditer(PID_BROADCAST) do
+		if (is_alive(i) and is_hostage(i)) then
+			local p = get_position(i);
+			if ((p.x-pos.x)^2 + (p.y-pos.y)^2 + (p.z-pos.z)^2 <= r2) then
+				return true;
+			end
+		end
+	end
+	return false;
 end
 
 -- destroy the block ahead at the bot's level and the ones above/below
@@ -172,7 +190,8 @@ local function guard_think(pid)
 	if (on_target) then
 		bot_shoot(pid, {reject=is_hostage}); -- bullets pass through hostages
 	end
-	if (dist <= guard_grenade_range and d.gren_cd <= 0) then
+	if (dist <= guard_grenade_range and d.gren_cd <= 0
+	    and not hostage_near(tpos, guard_grenade_safe_r)) then
 		if (bot_lob_grenade(pid, tpos, {accuracy=3, tolerance=6})) then
 			d.gren_cd = guard_grenade_cd;
 		end
@@ -209,11 +228,17 @@ function mod.after.tick()
 end
 
 local function sweep_guards()
+	-- collect first, then destroy: bot_destroy disconnects the slot,
+	-- and mutating the player set mid-piditer would skip some
+	local doomed = {};
 	for i in piditer(PID_BROADCAST) do
 		local b = bot_get(i);
 		if (b ~= nil and b.data.guard) then
-			bot_destroy(i);
+			doomed[#doomed+1] = i;
 		end
+	end
+	for _, i in ipairs(doomed) do
+		bot_destroy(i);
 	end
 end
 

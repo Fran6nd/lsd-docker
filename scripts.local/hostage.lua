@@ -533,15 +533,21 @@ end
 -- impossible for a real client) catch bots from older, lib-less
 -- versions whose registry is long gone.
 local function sweep_stale_hostages()
+	-- collect first, then act: destroying/disconnecting mutates the
+	-- player set, and doing it mid-piditer would skip entries
+	local doomed = {};
 	for i in piditer(PID_BROADCAST) do
 		local b = bot_get(i);
 		if (b ~= nil and (b.data.hostage
 		    or string.sub(b.name, 1, 8) == "Hostage ")) then
-			bot_destroy(i);
+			doomed[#doomed+1] = i;
 		elseif (b == nil and get_ipaddr(i) == 0 and is_joined(i)
 		        and string.sub(get_name(i), 1, 7) == "Hostage") then
-			on_disconnect(i);
+			doomed[#doomed+1] = i;
 		end
+	end
+	for _, i in ipairs(doomed) do
+		if (bot_get(i) ~= nil) then bot_destroy(i); else on_disconnect(i); end
 	end
 end
 
