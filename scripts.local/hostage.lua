@@ -360,7 +360,11 @@ local function think(pid)
 
 	if (follow == nil) then
 		mem.hero = nil;
-		mem.thanked = nil;
+		-- NB: keep mem.thanked. An escort who merely paused (>grace)
+		-- drops the follow for a moment; forgetting we thanked them
+		-- would re-thank and re-fire the "freeing your hostage" alert
+		-- every time they stop and start. A full reset (score, recapture,
+		-- death) still clears it via reset_follow_state.
 		-- idle, and talking to match: held at the tent it stands and
 		-- pleads to its team; loose in the open it crouches, calls that
 		-- it is lost, and the server sends the captors hunting -- each
