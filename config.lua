@@ -100,5 +100,6 @@ if (gamemode == "hostage") then gamemode = "ctf" end
 load(gamemode)
 load "lib_bot"
 load "hostage"
--- combat guard bots, 5 per team (scripts.local/)
-load "bot_standard"
+-- combat guard bots, 5 per team (scripts.local/) -- disabled for now;
+-- uncomment to bring them back (./lsdctl load lib_bot hostage bot_standard)
+-- load "bot_standard"
