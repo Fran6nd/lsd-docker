@@ -1,8 +1,9 @@
 -- hostage.lua -- The Hostage gamemode. Each team has a hostage (a
 -- lib_bot) held prisoner at the enemy tent, standing with a block in
 -- its team's color. Come closer than hostage_engage_dist and it walks
--- after you (hostages are too weary to run); stray past
--- hostage_lose_dist (or die) and it stops where it stands. Walk it
+-- after you (hostages are too weary to run) -- but only while you keep
+-- moving; stop, stray past hostage_lose_dist, or die and it gives up
+-- and stands where it is. Walk it
 -- into its own tent to score its team a point, and the keepers
 -- executing it hands its team a point too; either way the hostage
 -- respawns back at the enemy tent, facing the map center.
@@ -65,6 +66,8 @@ local mod = init_mod();
 
 getcfg("hostage_engage_dist", 5);    -- follow when a teammate gets this close
 getcfg("hostage_lose_dist", 10);     -- stop when the escort is this far
+getcfg("hostage_move_threshold", 0.002);-- min horizontal speed^2 to count as leading
+getcfg("hostage_follow_grace", 1.0); -- seconds a leader may pause before the hostage gives up
 getcfg("hostage_home_radius", 3);    -- how close to home counts as a rescue
 getcfg("hostage_tent_radius", 4);    -- how close to a tent counts as "safe"
 getcfg("hostage_captive_interval", 40);-- avg seconds between pleas while held at the tent
@@ -215,6 +218,29 @@ local function near_a_tent(pid)
 	    or near_tent(get_position(pid), t[2], hostage_tent_radius);
 end
 
+-- a hostage follows movement, not people: a leader only counts while
+-- actually moving, so it never stands grinding into terrain behind
+-- someone who has stopped
+local function is_leading(pid)
+	local v = get_velocity(pid);
+	return v.x*v.x + v.y*v.y >= hostage_move_threshold;
+end
+
+-- nearest *moving* real player of `team` within `range`, or nil
+local function nearest_mover(from, team, range)
+	local best, bestd;
+	for i in piditer(PID_BROADCAST) do
+		if (i ~= from and is_alive(i) and not bot_is_bot(i)
+		    and get_team(i) == team and is_leading(i)) then
+			local d = bot_distance_to(from, i);
+			if (d <= range and (best == nil or d < bestd)) then
+				best, bestd = i, d;
+			end
+		end
+	end
+	return best;
+end
+
 -- capture_intel is the only Lua-reachable way to move the team score,
 -- but it also yanks the enemy team's intel around (the C side clears
 -- its carrier, ctf's after-hook relocates it); snapshot the intel
@@ -251,6 +277,7 @@ end
 
 local function reset_follow_state(mem)
 	mem.follow = nil;
+	mem.follow_moved = nil;
 	mem.hero = nil;
 	mem.thanked = nil;
 	mem.missing_alerted = nil;
@@ -265,25 +292,40 @@ local function think(pid)
 	-- lives and stays within lose range; a teammate rescuer always
 	-- takes priority (rescue beats surrender); and a hostage loose in
 	-- the open with no teammate near surrenders to a nearby captor.
+	-- Keep the current follower only while it lives, stays in range,
+	-- AND keeps moving. A leader that stops strands the hostage (it
+	-- grinds into terrain trying to reach an idle player), so after a
+	-- short grace it gives up and drops to stuck mode; it re-latches
+	-- once someone is moving near it again.
 	local follow = mem.follow;
-	if (follow ~= nil and (not is_alive(follow)
-	    or bot_distance_to(pid, follow) > hostage_lose_dist)) then
-		follow = nil;
+	if (follow ~= nil) then
+		if (not is_alive(follow)
+		    or bot_distance_to(pid, follow) > hostage_lose_dist) then
+			follow = nil;
+		elseif (is_leading(follow)) then
+			mem.follow_moved = get_time();
+		elseif (get_time() - (mem.follow_moved or 0) > hostage_follow_grace) then
+			follow = nil;
+		end
 	end
 	local by_enemy = follow ~= nil and get_team(follow) ~= myteam;
 
+	-- a moving teammate rescuer always takes priority
 	if (follow == nil or by_enemy) then
-		local mate = bot_nearest_player(pid, {team=myteam, within=hostage_engage_dist});
+		local mate = nearest_mover(pid, myteam, hostage_engage_dist);
 		if (mate ~= nil) then
 			follow = mate;
 			by_enemy = false;
+			mem.follow_moved = get_time();
 		end
 	end
+	-- loose in the open with no teammate: surrender to a moving captor
 	if (follow == nil and not near_a_tent(pid)) then
-		local foe = bot_nearest_player(pid, {team=3-myteam, within=hostage_engage_dist});
+		local foe = nearest_mover(pid, 3-myteam, hostage_engage_dist);
 		if (foe ~= nil) then
 			follow = foe;
 			by_enemy = true;
+			mem.follow_moved = get_time();
 		end
 	end
 	mem.follow = follow;
