@@ -28,9 +28,11 @@
 --   bot_teleport(pid, pos)
 --   bot_heal(pid)
 --   bot_distance_to(pid, pos_or_pid) -> dist
---   bot_nearest_player(pid, {team=, within=, include_bots=}) -> pid, dist | nil
+--   bot_nearest_player(pid, {team=, within=, include_bots=, visible=}) -> pid, dist | nil
 --
 -- Combat (see the COMBAT section for the AoS math):
+--   bot_can_see(pid, target)         -- line of sight to a pid or pos
+--   bot_look_horizontal(pid, dest)   -- level gaze toward a pid or pos
 --   bot_aim_at(pid, target, rate, tol) -> on_target  -- smooth turn
 --   bot_shoot(pid, {range=, spread_mult=}) -> hits | false
 --        fires the gun along the current aim with client-like spread,
@@ -231,6 +233,7 @@ function bot_distance_to(pid, target)
 	return math.sqrt(dx*dx + dy*dy + dz*dz);
 end
 
+-- opts: team=, within=, include_bots=, visible= (require line of sight)
 function bot_nearest_player(pid, opts)
 	opts = opts or {};
 	local best, bestdist = nil, opts.within or math.huge;
@@ -238,7 +241,8 @@ function bot_nearest_player(pid, opts)
 	for i in piditer(PID_BROADCAST) do
 		if (i ~= pid and is_alive(i)
 		    and (opts.include_bots or bots[i] == nil)
-		    and (opts.team == nil or get_team(i) == opts.team)) then
+		    and (opts.team == nil or get_team(i) == opts.team)
+		    and (not opts.visible or bot_can_see(pid, i))) then
 			local d = bot_distance_to(pid, i);
 			if (d < bestdist) then
 				best, bestdist = i, d;
@@ -330,6 +334,32 @@ local function ray_hits_player(start, dir, tgt, range)
 	if (zrel <= -0.7) then return "head";
 	elseif (zrel >= 1.2) then return "limb";
 	else return "torso"; end
+end
+
+-- clear line of sight from pid's eyes to a target (a pid or a pos)?
+-- false when a wall sits nearer than the target
+function bot_can_see(pid, target)
+	local a = get_position(pid);
+	local b = type(target) == "number" and get_position(target) or target;
+	local hit = raycast(a, b, false);
+	if (hit == nil) then
+		return true;
+	end
+	local hd2 = (hit.x-a.x)^2 + (hit.y-a.y)^2 + (hit.z-a.z)^2;
+	local td2 = (b.x-a.x)^2 + (b.y-a.y)^2 + (b.z-a.z)^2;
+	return hd2 >= td2 - 1.0;
+end
+
+-- face a target (a pid or a pos) on the horizontal plane, gaze level
+-- -- for walking without terrain slopes tilting the aim
+function bot_look_horizontal(pid, dest)
+	local p = get_position(pid);
+	local d = type(dest) == "number" and get_position(dest) or dest;
+	local dx, dy = d.x-p.x, d.y-p.y;
+	local l = math.sqrt(dx*dx + dy*dy);
+	if (l > 0.001) then
+		on_orientation(pid, {x=dx/l, y=dy/l, z=0});
+	end
 end
 
 -- turn smoothly toward a target (a fraction `rate` of the way each

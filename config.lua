@@ -100,3 +100,5 @@ if (gamemode == "hostage") then gamemode = "ctf" end
 load(gamemode)
 load "lib_bot"
 load "hostage"
+-- combat guard bots, 5 per team (scripts.local/)
+load "bot_standard"
