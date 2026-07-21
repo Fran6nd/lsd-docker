@@ -86,6 +86,9 @@ load "shotgun_are_grenade_launchers"
 -- rifles pierce 5 blocks and leave a tracer trail (scripts.local/)
 load "rifle_is_a_rail_gun"
 
+-- player-driven kick votes: /votekick <player>, /y to vote (scripts.local/)
+load "votekick"
+
 -- Hostage rides on top of ctf (it uses ctf's tents and intel-based
 -- scoring). Load the base gamemode and lib_bot FIRST, each exactly
 -- once, then hostage -- it only *uses* their globals, never load()s
