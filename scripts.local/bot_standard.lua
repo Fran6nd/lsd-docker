@@ -29,6 +29,14 @@ local CROUCH_DUR = 0.4;   -- seconds to hold crouch
 
 local WEAPONS = {0, 1, 2}; -- rifle, smg, shotgun
 
+-- hostages are non-combatants: identify them by the data tag their
+-- script sets, so guards leave them alone whether or not hostage.lua
+-- is loaded (no module dependency needed)
+local function is_hostage(i)
+	local b = bot_get(i);
+	return b ~= nil and b.data.hostage == true;
+end
+
 -- destroy the block ahead at the bot's level and the ones above/below
 local function dig_forward(pid, p, iz)
 	local o = get_orientation(pid);
@@ -131,7 +139,7 @@ local function guard_think(pid)
 	end
 
 	local enemy, dist = bot_nearest_player(pid,
-		{team=3-get_team(pid), visible=true, include_bots=true});
+		{team=3-get_team(pid), visible=true, include_bots=true, reject=is_hostage});
 
 	if (enemy == nil) then
 		d.state = "roam";
@@ -162,7 +170,7 @@ local function guard_think(pid)
 	-- fire before the grenade so the shot uses the enemy-aim, not the
 	-- orientation bot_lob_grenade leaves pointing along the throw
 	if (on_target) then
-		bot_shoot(pid);
+		bot_shoot(pid, {reject=is_hostage}); -- bullets pass through hostages
 	end
 	if (dist <= guard_grenade_range and d.gren_cd <= 0) then
 		if (bot_lob_grenade(pid, tpos, {accuracy=3, tolerance=6})) then

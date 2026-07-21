@@ -28,13 +28,13 @@
 --   bot_teleport(pid, pos)
 --   bot_heal(pid)
 --   bot_distance_to(pid, pos_or_pid) -> dist
---   bot_nearest_player(pid, {team=, within=, include_bots=, visible=}) -> pid, dist | nil
+--   bot_nearest_player(pid, {team=, within=, include_bots=, visible=, reject=}) -> pid, dist | nil
 --
 -- Combat (see the COMBAT section for the AoS math):
 --   bot_can_see(pid, target)         -- line of sight to a pid or pos
 --   bot_look_horizontal(pid, dest)   -- level gaze toward a pid or pos
 --   bot_aim_at(pid, target, rate, tol) -> on_target  -- smooth turn
---   bot_shoot(pid, {range=, spread_mult=}) -> hits | false
+--   bot_shoot(pid, {range=, spread_mult=, reject=}) -> hits | false
 --        fires the gun along the current aim with client-like spread,
 --        recoil and cadence, and damages whoever the ray strikes
 --   bot_lob_grenade(pid, target, {accuracy=1..4, tolerance=}) -> thrown
@@ -233,7 +233,8 @@ function bot_distance_to(pid, target)
 	return math.sqrt(dx*dx + dy*dy + dz*dz);
 end
 
--- opts: team=, within=, include_bots=, visible= (require line of sight)
+-- opts: team=, within=, include_bots=, visible= (require line of sight),
+-- reject=function(pid) skip a candidate when it returns true
 function bot_nearest_player(pid, opts)
 	opts = opts or {};
 	local best, bestdist = nil, opts.within or math.huge;
@@ -242,6 +243,7 @@ function bot_nearest_player(pid, opts)
 		if (i ~= pid and is_alive(i)
 		    and (opts.include_bots or bots[i] == nil)
 		    and (opts.team == nil or get_team(i) == opts.team)
+		    and (opts.reject == nil or not opts.reject(i))
 		    and (not opts.visible or bot_can_see(pid, i))) then
 			local d = bot_distance_to(pid, i);
 			if (d < bestdist) then
@@ -412,7 +414,8 @@ function bot_shoot(pid, opts)
 
 		local best, bestpart, bestt;
 		for i in piditer(PID_BROADCAST) do
-			if (i ~= pid and is_alive(i) and get_team(i) ~= team) then
+			if (i ~= pid and is_alive(i) and get_team(i) ~= team
+			    and (opts.reject == nil or not opts.reject(i))) then
 				local part = ray_hits_player(get_position(pid), dir, i, range);
 				if (part ~= nil) then
 					local d = bot_distance_to(pid, i);
