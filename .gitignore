@@ -1,1 +1,8 @@
 .env
+
+# map pool: heavy binary .vxl files are content, not source
+maps/*.vxl
+
+# local tooling / scratch
+.claude/
+tmp-bot-script-advanced.py

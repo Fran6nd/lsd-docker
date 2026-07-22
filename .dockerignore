@@ -13,7 +13,6 @@ lsd/maps/
 update.sh
 README.md
 .env
-.env.example
 .gitmodules
 lsdctl
 maps/
