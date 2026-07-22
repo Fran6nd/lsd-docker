@@ -44,7 +44,7 @@ local function explode_pellet(pid)
 
 	-- air voxel just before the impacted one, so the explosion isn't
 	-- born inside a wall (detonation LOS-checks its victims)
-	local vox = raycast(start, stop, false);
+	local vox = raycast(start, stop, true);
 	local tmap = sgl_range;
 	if (vox ~= nil) then
 		local dx = vox.x+0.5-start.x;
