@@ -6,7 +6,7 @@
 -- (see .env / docker-compose.yml): LSD_NAME, LSD_MAPS, LSD_GAMEMODE
 -- masterlist caps the name at 31 chars, so "server" is dropped from
 -- "Fran6nd's Spicy CTF server under LSd"
-masterlist_name = "Fran6nd's Spicy CTF under LSd"
+masterlist_name = os.getenv("LSD_NAME")
 
 -- whitespace-separated map names, e.g. LSD_MAPS="hallway pinpoint"
 -- (parsed into a table here: upstream map_queue.lua only splits
@@ -61,8 +61,9 @@ register(maptime);
 motd = [[
 Welcome to [Spicy CTF] on [LSd].
 Grab the enemy intel and run it back to your tent to score.
-The catch: the guns are spiced. Shotguns lob grenades and rifles
-are railguns. Have fun and expect some chaos.
+The catch: the guns are spiced.
+Have fun and expect some chaos.
+I recommend using ZeroSpades as client.
 ]]
 load "motd"
 
@@ -91,6 +92,10 @@ load "rifle_is_a_rail_gun"
 
 -- player-driven kick votes: /votekick <player>, /y to vote (scripts.local/)
 load "votekick"
+
+-- central pit dug on every map load: hand grenades lose their blast and
+-- instead drop everyone over the shaft to their death (scripts.local/)
+load "grenades_teleport_to_eol_fall"
 
 -- Plain CTF (this is the spicyctf instance -- same scripts as hostage,
 -- minus the hostage gamemode). Load the base gamemode and lib_bot, each
