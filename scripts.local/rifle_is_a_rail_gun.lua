@@ -13,10 +13,15 @@
 local mod = init_mod();
 require "lib_bulk_destroy";
 
-getcfg("rig_range", 725);      -- max bullet travel: the full map diagonal
+getcfg("rig_range", 727);      -- max bullet travel: the map's space
+                               -- diagonal, ceil sqrt(512^2+512^2+64^2)
 getcfg("rig_hit_radius", 0.8); -- how close the ray must pass to kill
-getcfg("rig_trail_step", 3);   -- one dash every this many voxels
-getcfg("rig_trail_range", 48); -- how far the dashes reach
+getcfg("rig_trail_step", 3);   -- one dash every this many voxels; with
+                               -- the trail now spanning the whole map
+                               -- this also caps the per-shot packet
+                               -- burst -- widen it (5-6) if a full
+                               -- server lags
+getcfg("rig_trail_range", rig_range); -- how far the dashes reach (whole map)
 getcfg("rig_trail_life", 6);   -- ticks a dash stays up before destroy
                                -- (~100ms at 60Hz, to ride out jitter)
 
@@ -115,9 +120,10 @@ local function shoot(pid)
 			-- blocks are ever face-adjacent -- destroying a connected
 			-- run makes clients collapse the rest of it as one big
 			-- falling structure (skips the shooter's face too). Every
-			-- dash costs two reliable packets per player, so the
-			-- spacing and reach also keep the per-shot packet burst
-			-- small enough not to lag anyone
+			-- dash costs two reliable packets per player; now that the
+			-- reach spans the whole map, rig_trail_step spacing is the
+			-- only thing keeping the per-shot packet burst in check --
+			-- widen it if a full server starts to lag
 			local p = {x=vox.x, y=vox.y, z=vox.z};
 			send_block_action(PID_BROADCAST, p, 0, get_anon_pid());
 			table.insert(newborn, p);
