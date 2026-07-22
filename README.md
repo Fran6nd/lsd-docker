@@ -121,6 +121,25 @@ human can fully review and maintain them: a Dockerfile tweak, a script
 fix, a doc update. Anything a maintainer couldn't rewrite from scratch
 after reading it doesn't belong in this repo.
 
+## License
+
+Copyright (C) 2026 Fran6nd.
+
+The files original to this repository — the packaging, `lsdctl`, the
+Docker setup, and the custom scripts under `scripts.local/` — are free
+software licensed under the **GNU Affero General Public License, version
+3 or (at your option) any later version** (AGPL-3.0-or-later). The full
+text is in [LICENSE](LICENSE).
+
+Because the AGPL covers use over a network, **anyone who runs a modified
+version of this software — including operating a modified server that
+players connect to — must make the complete corresponding source of
+their modifications available to those users under the same license.**
+Distributing modified copies carries the same obligation.
+
+The bundled `lsd/` git submodule is upstream's work, kept pristine and
+distributed under its own license; it is not covered by this notice.
+
 ## Network checklist
 
 - Router: forward the **UDP port of each instance** (external) → the
