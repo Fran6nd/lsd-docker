@@ -20,9 +20,23 @@ cd lsd-docker
 # if already cloned without submodules:
 git submodule update --init --recursive
 
-cp .env.example .env        # then edit to taste (port, name, maps, ...)
-./lsdctl up                 # builds the image and starts the server
-./lsdctl logs -f            # watch it come up (Ctrl-C to stop watching)
+./lsdctl hostage up            # builds the image and starts the instance
+./lsdctl hostage logs -f       # watch it come up (Ctrl-C to stop watching)
+```
+
+The server runs as one or more named **instances**. Each instance is the
+pair `instances/<name>.env` + `instances/<name>.config.lua`, run as its
+own compose project (`lsd-<name>`) off the shared image and
+`docker-compose.yml`. Instances have their own port, config, and data
+volume, so they start and stop independently. This repo ships one
+instance, `hostage`. Add more with `./lsdctl new <name>`:
+
+```sh
+./lsdctl ls                    # list instances (port, gamemode, state)
+./lsdctl new arena -p 32888    # scaffold instances/arena.{env,config.lua}
+# edit instances/arena.config.lua to taste, then:
+./lsdctl arena up
+./lsdctl rm arena              # stop and delete an instance
 ```
 
 The server is up when the logs show maps loading and masterlist
@@ -30,47 +44,58 @@ connections; it announces itself to the LSD author's masterlist and to
 master.buildandshoot.com (drop entries from `masterlist_remotes` in
 `config.lua`, or remove `load "masterlist"`, to stay private).
 
-Day-to-day management goes through `lsdctl`:
+Day-to-day management goes through `lsdctl`. Per-instance commands take
+the instance name first (`lsdctl <name> <command>`):
 
 ```sh
-./lsdctl status                      # state + published ports
-./lsdctl gamemode babel              # switch gamemode (ctf, arena, babel, ...)
-./lsdctl map add https://example.com/mesa.vxl ~/Downloads/pinpoint.vxl
-./lsdctl map load BusanPort           # switch the live map now, no restart
-./lsdctl set LSD_NAME "my server"    # any .env setting, restarts to apply
-./lsdctl load rifle_is_a_rail_gun    # hot-reload a script, no restart
-./lsdctl console                     # in-game admin console (Ctrl-C leaves)
-./lsdctl update                      # pull upstream source + rebuild
+./lsdctl hostage status                      # state + published ports
+./lsdctl hostage gamemode babel              # switch gamemode (ctf, arena, babel, ...)
+./lsdctl hostage map add https://example.com/mesa.vxl ~/Downloads/pinpoint.vxl
+./lsdctl hostage map load BusanPort          # switch the live map now, no restart
+./lsdctl hostage set LSD_NAME "my server"    # any .env setting, restarts to apply
+./lsdctl hostage load rifle_is_a_rail_gun    # hot-reload a script, no restart
+./lsdctl hostage console                     # in-game admin console (Ctrl-C leaves)
+./lsdctl update                              # rebuild + restart every instance
 ```
+
+Maps (`maps/`) and custom scripts (`scripts.local/`) are a shared pool
+by default; an instance can point at its own via `LSD_MAPS_DIR` /
+`LSD_SCRIPTS_DIR` in its `.env`.
 
 Everything an operator touches lives outside the image, so no rebuild
 is ever needed for content changes:
 
 | what | where | applied |
 |---|---|---|
-| settings (port, name, gamemode, map queue) | `.env` | on restart |
-| full config | `config.lua` | on restart |
-| maps (`.vxl`) | `maps/` | next rotation |
-| custom/override scripts & gamemodes | `scripts.local/` | `./lsdctl load [module...]` (hot, no restart) or on restart |
+| settings (port, name, gamemode, map queue) | `instances/<name>.env` | on restart |
+| full config | `instances/<name>.config.lua` | on restart |
+| maps (`.vxl`) | `maps/` (shared) | next rotation |
+| custom/override scripts & gamemodes | `scripts.local/` (shared) | `./lsdctl <name> load [module...]` (hot, no restart) or on restart |
+
+The top-level `config.lua` is the template `./lsdctl new` copies for a
+new instance; it is not itself loaded by any instance.
 
 - **Port**: `LSD_PORT` changes the container *and* published port
   together — they must match because the masterlist advertises the
-  bound port.
+  bound port. Each instance needs a distinct port; `lsdctl new` and
+  `lsdctl <name> set LSD_PORT` refuse a port another instance already uses.
 - **Scripts**: at startup the container overlays `scripts.local/` on
   the upstream scripts; a file with the same name as an upstream script
   replaces it, new files (e.g. a custom gamemode you then select with
-  `./lsdctl gamemode mymode`) are added. The `lsd/` submodule is never
-  modified.
-- **Persistent data** (bans/auth databases): named volume `lsd-rw`.
-- **Admin console**: `sock_console` on `rw/console.sock`
-  (stdio_console is disabled in containers — it wedges the event loop
-  without a real terminal).
+  `./lsdctl <name> gamemode mymode`) are added. The `lsd/` submodule is
+  never modified.
+- **Persistent data** (bans/auth databases): a per-instance named volume,
+  `lsd-<name>-rw` (the migrated `hostage` instance keeps the legacy
+  `lsd-rw`).
+- **Admin console**: `sock_console` on `rw/console.sock` inside each
+  instance's container (stdio_console is disabled in containers — it
+  wedges the event loop without a real terminal).
 
 ## Update (nightly)
 
 `./lsdctl update` (or `update.sh` directly) bumps the `lsd` submodule
-to upstream master, rebuilds the image and restarts the container only
-if something changed. Cron:
+to upstream master, rebuilds the shared image and recreates every
+instance (each picks up the rebuilt image on recreate). Cron:
 
 ```
 0 3 * * * /path/to/lsd-docker/update.sh >> /var/log/lsd-update.log 2>&1
@@ -87,8 +112,9 @@ after reading it doesn't belong in this repo.
 
 ## Network checklist
 
-- Router: forward **UDP 32887** (external) → the docker host, same
-  port. That is the only port the server needs.
+- Router: forward the **UDP port of each instance** (external) → the
+  docker host, same port (e.g. 32887 for `hostage`). That is the only
+  port each server needs.
 - DNS: `lsd-dev.fran6nd.online` A record → the box's public IPv4.
 - Host firewall: Docker-published ports bypass ufw; no rule needed.
 - Nothing else on the host may be bound to the same UDP port.

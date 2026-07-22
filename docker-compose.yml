@@ -1,8 +1,10 @@
-# LSD server (lsd-dev.fran6nd.online). One knob for the port: set
-# LSD_PORT in .env and both the container and the published port follow
-# (the masterlist advertises the bound port, so they must match).
-# config.lua is mounted from this directory, so config edits apply on
-# restart and never touch the lsd submodule.
+# LSD server (lsd-dev.fran6nd.online). Multi-instance: this one file is
+# reused for every instance via `docker compose -p lsd-<name>
+# --env-file instances/<name>.env` (see lsdctl). Each instance mounts
+# its own config.lua and owns a private rw volume; ports must differ.
+#
+# The defaults below keep a bare `docker compose up` working as a single
+# instance on 32887, so nothing breaks outside lsdctl.
 services:
   lsd:
     build: .
@@ -11,21 +13,24 @@ services:
     init: true
     environment:
       LSD_PORT: ${LSD_PORT:-32887}
-      LSD_CONFIG: ${LSD_CONFIG:-config.lua}
+      # the instance config is always mounted at /lsd/config.lua below,
+      # so the server always loads it under this fixed in-container path
+      LSD_CONFIG: config.lua
       LSD_NAME: ${LSD_NAME:-untitled LSd server}
       LSD_GAMEMODE: ${LSD_GAMEMODE:-ctf}
       LSD_MAPS: ${LSD_MAPS:-hallway bridgewars pinpoint}
     ports:
       - "${LSD_PORT:-32887}:${LSD_PORT:-32887}/udp"
     volumes:
-      - ./config.lua:/lsd/config.lua:ro
-      # content dirs: drop .vxl files in maps/, override or add
-      # scripts/gamemodes in scripts.local/ (same-name file wins)
-      - ./maps:/lsd/maps:ro
-      - ./scripts.local:/lsd/scripts.local:ro
+      # per-instance config; the shared maps/ and scripts.local/ pools
+      # are the defaults, an instance may override either in its .env
+      - ${LSD_CONFIG_FILE:-./config.lua}:/lsd/config.lua:ro
+      - ${LSD_MAPS_DIR:-./maps}:/lsd/maps:ro
+      - ${LSD_SCRIPTS_DIR:-./scripts.local}:/lsd/scripts.local:ro
       - lsd-rw:/lsd/rw
 
 volumes:
   lsd-rw:
-    # fixed name so the bans/auth databases survive project moves/renames
-    name: lsd-rw
+    # per-instance name so bans/auth databases stay isolated and survive
+    # project moves/renames; defaults to the legacy single-instance name
+    name: ${LSD_RW_VOLUME:-lsd-rw}

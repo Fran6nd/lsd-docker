@@ -30,9 +30,15 @@ as_owner git submodule update --remote --init --recursive lsd
 NEW=$(as_owner git -C lsd rev-parse HEAD)
 
 # build before committing the bump, so a broken upstream never gets
-# recorded (set -e aborts here and the old container keeps running)
+# recorded (set -e aborts here and the old container keeps running).
+# The image is shared by every instance, so build once, then recreate
+# each instance so it picks up the rebuilt image.
 docker compose build --pull
-docker compose up -d
+for envf in instances/*.env; do
+	[ -f "$envf" ] || continue
+	name=$(basename "$envf" .env)
+	docker compose -p "lsd-$name" --env-file "$envf" up -d
+done
 docker image prune -f >/dev/null
 docker builder prune -f --max-used-space=2GB >/dev/null
 
