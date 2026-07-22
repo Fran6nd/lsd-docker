@@ -138,6 +138,14 @@ function mod.after.before_estimated_fire(pid)
 	if (not is_alive(pid) or get_gun(pid) ~= 2) then
 		return;
 	end
+	-- the estimator is release-blind, so it keeps "firing" straight
+	-- through a reload; a real trigger-press cancels the reload first,
+	-- so a fire estimated while one is pending is a phantom -- launching
+	-- here would burst grenades mid-reload and stomp the shell-by-shell
+	-- reload animation on the client
+	if (get_reload_time(pid) ~= 0) then
+		return;
+	end
 	if (get_mag_ammo(pid) == 0 and get_time() - lastreal[pid] > 2) then
 		return; -- estimated empty and no recent proof to the contrary
 	end
