@@ -17,11 +17,17 @@ getcfg("rig_range", 725);      -- max bullet travel: the full map diagonal
 getcfg("rig_hit_radius", 0.8); -- how close the ray must pass to kill
 getcfg("rig_trail_step", 3);   -- one dash every this many voxels
 getcfg("rig_trail_range", 48); -- how far the dashes reach
+getcfg("rig_trail_life", 6);   -- ticks a dash stays up before destroy
+                               -- (~100ms at 60Hz, to ride out jitter)
 
--- trail voxels waiting to be destroyed: newborn were built during the
--- current tick, armed get their destroy broadcast on the next one
+-- trail voxels waiting to be destroyed. one tick (~17ms at 60Hz) is
+-- shorter than a client's render frame, so a build and its destroy
+-- coalesce into the same frame and the dash never draws -- keep each
+-- generation up for rig_trail_life ticks so it reliably straddles
+-- several frames. newborn collects the current tick's dashes; pending
+-- is a FIFO of past generations, oldest first, destroyed once aged out
 local newborn = {};
-local armed = {};
+local pending = {};
 
 -- when each player's last shot was animated, to dedup backup triggers
 local lastanim = pid_connected_table(0);
@@ -140,11 +146,18 @@ end
 function mod.tick()
 	mod.next.tick();
 
-	for _,p in ipairs(armed) do
-		send_block_action(PID_BROADCAST, p, 1, get_anon_pid());
-	end
-	armed = newborn;
+	-- this tick's dashes were built during mod.next.tick(); queue them
+	-- and advance the FIFO by one tick (an empty generation still ages
+	-- the queue, so lifetime is measured in ticks, not shots)
+	table.insert(pending, newborn);
 	newborn = {};
+
+	-- destroy the generation that has now been up rig_trail_life ticks
+	if (#pending > rig_trail_life) then
+		for _,p in ipairs(table.remove(pending, 1)) do
+			send_block_action(PID_BROADCAST, p, 1, get_anon_pid());
+		end
+	end
 end
 
 -- the server estimates gun cycling from the held inputs (rifle 0.5s,
