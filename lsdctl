@@ -4,6 +4,7 @@
 # Each instance is the pair instances/<name>.env + instances/<name>.config.lua,
 # run as its own compose project (lsd-<name>) off the shared docker-compose.yml.
 # Per-instance commands take the instance name first: `lsdctl <name> <command>`.
+# The *All commands (and `all <command>`) fan a command out over every instance.
 set -eu
 
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -15,12 +16,18 @@ usage() {
 	cat <<'EOF'
 usage:
   lsdctl <instance> <command> [args]   act on one instance
-  lsdctl <global-command> [args]        act on all / the instance set
+  lsdctl <global-command> [args]       act on the whole instance set
 
 instances
   ls                  list instances (name, port, gamemode, state)
   new <name> [-p N]   create instances/<name>.env + <name>.config.lua
   rm  <name>          stop and delete an instance
+
+all instances (every per-instance command below has an All twin)
+  <command>All [args] run that per-instance command on every instance,
+                      e.g. upAll downAll restartAll reloadAll statusAll
+                      logsAll loadAll unloadAll lsmodAll mapAll ...
+  all <command> [a]   same thing, spelled with a space
   update              pull upstream source, rebuild, restart every instance
 
 per-instance (first arg is the instance name)
@@ -50,11 +57,24 @@ EOF
 	exit "${1:-0}"
 }
 
-reserved_name() {
+# the per-instance subcommands -- the set that also gets an All twin
+is_instance_command() {
 	case "$1" in
-	ls|list|new|rm|update|help|-h|--help) return 0 ;;
+	up|down|restart|reload|status|logs|console|shell|load|unload|lsmod|map|gamemode|set) return 0 ;;
 	*) return 1 ;;
 	esac
+}
+
+# names that would shadow a global verb or a <command>All fan-out
+reserved_name() {
+	case "$1" in
+	ls|list|new|rm|update|help|-h|--help|all) return 0 ;;
+	esac
+	case "$1" in
+	*All) is_instance_command "${1%All}" && return 0 ;;
+	*all) is_instance_command "${1%all}" && return 0 ;;
+	esac
+	return 1
 }
 
 envf_for() { printf '%s/%s.env' "$INSTANCES_DIR" "$1"; }
@@ -156,31 +176,12 @@ rm_instance() {
 	fi
 }
 
-# ---- top-level dispatch --------------------------------------------------
+# ---- per-instance helpers (operate on the current $INSTANCE / $ENVF) -----
 
-cmd=${1:-}
-[ -n "$cmd" ] || usage 1
-
-case "$cmd" in
-ls|list) list_instances; exit 0 ;;
-new) shift; new_instance "$@"; exit 0 ;;
-rm) shift; rm_instance "$@"; exit 0 ;;
-update) exec ./update.sh ;;
-help|-h|--help) usage ;;
-esac
-
-# everything else: <instance> <subcommand> [args]
-INSTANCE=$cmd
-ENVF=$(envf_for "$INSTANCE")
-[ -f "$ENVF" ] || { echo "error: no instance '$INSTANCE' (lsdctl ls)" >&2; exit 1; }
-shift
-sub=${1:-}; [ -n "$sub" ] || usage 1
-shift
-
-# every docker compose call for this instance goes through here
+# every docker compose call for the current instance goes through here
 compose() { docker compose -p "lsd-$INSTANCE" --env-file "$ENVF" "$@"; }
 
-# read/set a key in this instance's env file
+# read/set a key in the current instance's env file
 env_get() { env_get_file "$1" "$ENVF"; }
 env_set() {
 	grep -v "^$1=" "$ENVF" > "$ENVF.tmp" 2>/dev/null || true
@@ -189,7 +190,7 @@ env_set() {
 	echo "$1=$2"
 }
 
-# pipe stdin into this instance's in-game admin console, relaying replies
+# pipe stdin into the current instance's in-game admin console, relaying replies
 console_pipe() { compose exec -T lsd socat - UNIX-CONNECT:rw/console.sock; }
 
 # reassemble the running container's scripts/ dir (same recipe as the
@@ -203,152 +204,207 @@ scripts_sync() {
 
 module_name() { basename "$1" .lua; }
 
-case "$sub" in
-up)
-	compose up -d --build "$@"
-	;;
-down)
-	compose down "$@"
-	;;
-restart)
-	compose up -d --force-recreate
-	;;
-reload)
-	notice=${1:-"server reboots in 5 seconds to reload scripts, hold on..."}
-	# announce, wait, then have the server exit itself: its clean shutdown
-	# hooks run and the container's restart policy brings it back up (and
-	# reassembles scripts/) without any docker call here. The dying server
-	# breaks the console pipe, so success is checked by the container's
-	# start timestamp, not the pipe status.
-	cid=$(compose ps -q lsd)
-	born=$(docker inspect -f '{{.State.StartedAt}}' "$cid")
-	{
-		printf 'say %s\n' "$notice"
-		sleep 5
-		printf 'exec os.exit(0)\n'
-		sleep 1
-	} | console_pipe >/dev/null 2>&1 || true
-	sleep 2
-	if [ "$(docker inspect -f '{{.State.StartedAt}}' "$cid")" = "$born" ]; then
-		echo "console did not take the server down, restarting the hard way" >&2
-		compose restart lsd
-	fi
-	compose ps --format 'table {{.Name}}\t{{.State}}\t{{.Status}}'
-	;;
-status)
-	compose ps --format 'table {{.Name}}\t{{.State}}\t{{.Status}}\t{{.Publishers}}'
-	;;
-logs)
-	compose logs "$@"
-	;;
-console)
-	compose exec lsd socat READLINE UNIX-CONNECT:rw/console.sock
-	;;
-shell)
-	compose exec lsd ash
-	;;
-load)
-	# catch typos before touching the server
-	for name in "$@"; do
-		name=$(module_name "$name")
-		if [ ! -f "lsd/scripts/$name.lua" ] && [ ! -f "scripts.local/$name.lua" ]; then
-			echo "error: no module '$name' (no $name.lua in lsd/scripts/ or scripts.local/)" >&2
-			exit 1
-		fi
-	done
-	scripts_sync
-	{
-		if [ $# -eq 0 ]; then
-			echo reloadall
-		else
-			for name in "$@"; do
-				printf 'load %s\n' "$(module_name "$name")"
-			done
-		fi
-		sleep 1
-	} | console_pipe
-	;;
-unload)
-	[ $# -gt 0 ] || usage 1
-	{
-		for name in "$@"; do
-			printf 'unload %s\n' "$(module_name "$name")"
-		done
-		sleep 1
-	} | console_pipe
-	;;
-lsmod)
-	{ echo lsmod; sleep 1; } | console_pipe
-	;;
-map)
-	msub=${1:-list}; [ $# -gt 0 ] && shift
-	case "$msub" in
-	list)
-		ls -lh maps/*.vxl 2>/dev/null || echo "no maps installed"
+# run one per-instance subcommand against the current $INSTANCE / $ENVF
+dispatch() {
+	sub=$1; shift
+	case "$sub" in
+	up)
+		compose up -d --build "$@"
 		;;
-	add)
-		[ $# -gt 0 ] || usage 1
-		mkdir -p maps
-		for src in "$@"; do
-			case "$src" in
-			http://*|https://*)
-				curl -fSL -o "maps/$(basename "$src")" "$src";;
-			*)
-				cp -v "$src" maps/;;
-			esac
-		done
-		echo "installed; maps are picked up at the next rotation," \
-		     "add them to LSD_MAPS to queue them: ./lsdctl $INSTANCE set LSD_MAPS '...'"
+	down)
+		compose down "$@"
 		;;
-	rm)
-		[ $# -gt 0 ] || usage 1
-		for name in "$@"; do
-			rm -v "maps/${name%.vxl}.vxl"
-		done
+	restart)
+		compose up -d --force-recreate
+		;;
+	reload)
+		notice=${1:-"server reboots in 5 seconds to reload scripts, hold on..."}
+		# announce, wait, then have the server exit itself: its clean shutdown
+		# hooks run and the container's restart policy brings it back up (and
+		# reassembles scripts/) without any docker call here. The dying server
+		# breaks the console pipe, so success is checked by the container's
+		# start timestamp, not the pipe status.
+		cid=$(compose ps -q lsd)
+		born=$(docker inspect -f '{{.State.StartedAt}}' "$cid")
+		{
+			printf 'say %s\n' "$notice"
+			sleep 5
+			printf 'exec os.exit(0)\n'
+			sleep 1
+		} | console_pipe >/dev/null 2>&1 || true
+		sleep 2
+		if [ "$(docker inspect -f '{{.State.StartedAt}}' "$cid")" = "$born" ]; then
+			echo "console did not take the server down, restarting the hard way" >&2
+			compose restart lsd
+		fi
+		compose ps --format 'table {{.Name}}\t{{.State}}\t{{.Status}}'
+		;;
+	status)
+		compose ps --format 'table {{.Name}}\t{{.State}}\t{{.Status}}\t{{.Publishers}}'
+		;;
+	logs)
+		compose logs "$@"
+		;;
+	console)
+		compose exec lsd socat READLINE UNIX-CONNECT:rw/console.sock
+		;;
+	shell)
+		compose exec lsd ash
 		;;
 	load)
-		[ $# -eq 1 ] || usage 1
-		name=${1%.vxl}
-		if [ ! -f "maps/$name.vxl" ]; then
-			echo "error: no map 'maps/$name.vxl' (see ./lsdctl $INSTANCE map list)" >&2
-			exit 1
+		# catch typos before touching the server
+		for name in "$@"; do
+			name=$(module_name "$name")
+			if [ ! -f "lsd/scripts/$name.lua" ] && [ ! -f "scripts.local/$name.lua" ]; then
+				echo "error: no module '$name' (no $name.lua in lsd/scripts/ or scripts.local/)" >&2
+				exit 1
+			fi
+		done
+		scripts_sync
+		{
+			if [ $# -eq 0 ]; then
+				echo reloadall
+			else
+				for name in "$@"; do
+					printf 'load %s\n' "$(module_name "$name")"
+				done
+			fi
+			sleep 1
+		} | console_pipe
+		;;
+	unload)
+		[ $# -gt 0 ] || usage 1
+		{
+			for name in "$@"; do
+				printf 'unload %s\n' "$(module_name "$name")"
+			done
+			sleep 1
+		} | console_pipe
+		;;
+	lsmod)
+		{ echo lsmod; sleep 1; } | console_pipe
+		;;
+	map)
+		msub=${1:-list}; [ $# -gt 0 ] && shift
+		case "$msub" in
+		list)
+			ls -lh maps/*.vxl 2>/dev/null || echo "no maps installed"
+			;;
+		add)
+			[ $# -gt 0 ] || usage 1
+			mkdir -p maps
+			for src in "$@"; do
+				case "$src" in
+				http://*|https://*)
+					curl -fSL -o "maps/$(basename "$src")" "$src";;
+				*)
+					cp -v "$src" maps/;;
+				esac
+			done
+			echo "installed; maps are picked up at the next rotation," \
+			     "add them to LSD_MAPS to queue them: ./lsdctl $INSTANCE set LSD_MAPS '...'"
+			;;
+		rm)
+			[ $# -gt 0 ] || usage 1
+			for name in "$@"; do
+				rm -v "maps/${name%.vxl}.vxl"
+			done
+			;;
+		load)
+			[ $# -eq 1 ] || usage 1
+			name=${1%.vxl}
+			if [ ! -f "maps/$name.vxl" ]; then
+				echo "error: no map 'maps/$name.vxl' (see ./lsdctl $INSTANCE map list)" >&2
+				exit 1
+			fi
+			# switch the running server's map now -- no restart, nobody
+			# disconnects; the in-game loadmap takes the name, not the path
+			{ printf 'loadmap %s\n' "$name"; sleep 1; } | console_pipe
+			;;
+		*)
+			usage 1;;
+		esac
+		;;
+	gamemode)
+		if [ $# -eq 0 ]; then
+			mode=${LSD_GAMEMODE:-$(env_get LSD_GAMEMODE)}
+			echo "${mode:-ctf}"
+		else
+			if [ ! -f "lsd/scripts/$1.lua" ] && [ ! -f "scripts.local/$1.lua" ]; then
+				echo "error: no gamemode '$1' (no $1.lua in lsd/scripts/ or scripts.local/)" >&2
+				exit 1
+			fi
+			env_set LSD_GAMEMODE "$1"
+			compose up -d --force-recreate
 		fi
-		# switch the running server's map now -- no restart, nobody
-		# disconnects; the in-game loadmap takes the name, not the path
-		{ printf 'loadmap %s\n' "$name"; sleep 1; } | console_pipe
+		;;
+	set)
+		[ $# -eq 2 ] || usage 1
+		# guard against giving two instances the same port
+		if [ "$1" = LSD_PORT ]; then
+			if used_ports | grep -vx "$(env_get LSD_PORT)" | grep -qx "$2"; then
+				echo "error: port $2 is already used by another instance (lsdctl ls)" >&2; exit 1
+			fi
+		fi
+		env_set "$1" "$2"
+		compose up -d --force-recreate
+		;;
+	help|-h|--help)
+		usage
 		;;
 	*)
-		usage 1;;
+		usage 1
+		;;
 	esac
-	;;
-gamemode)
-	if [ $# -eq 0 ]; then
-		mode=${LSD_GAMEMODE:-$(env_get LSD_GAMEMODE)}
-		echo "${mode:-ctf}"
-	else
-		if [ ! -f "lsd/scripts/$1.lua" ] && [ ! -f "scripts.local/$1.lua" ]; then
-			echo "error: no gamemode '$1' (no $1.lua in lsd/scripts/ or scripts.local/)" >&2
-			exit 1
-		fi
-		env_set LSD_GAMEMODE "$1"
-		compose up -d --force-recreate
-	fi
-	;;
-set)
-	[ $# -eq 2 ] || usage 1
-	# guard against giving two instances the same port
-	if [ "$1" = LSD_PORT ]; then
-		if used_ports | grep -vx "$(env_get LSD_PORT)" | grep -qx "$2"; then
-			echo "error: port $2 is already used by another instance (lsdctl ls)" >&2; exit 1
-		fi
-	fi
-	env_set "$1" "$2"
-	compose up -d --force-recreate
-	;;
-help|-h|--help)
-	usage
-	;;
-*)
-	usage 1
-	;;
+}
+
+# fan a per-instance subcommand out over every instance
+for_all() {
+	sub=${1:-}; [ -n "$sub" ] || usage 1
+	shift
+	any= rc=0
+	for f in "$INSTANCES_DIR"/*.env; do
+		[ -f "$f" ] || continue
+		any=1
+		INSTANCE=$(basename "$f" .env)
+		ENVF=$f
+		printf '\n== %s ==\n' "$INSTANCE"
+		dispatch "$sub" "$@" || { rc=1; echo "  ($INSTANCE: '$sub' exited nonzero)" >&2; }
+	done
+	[ -n "$any" ] || { echo "no instances (lsdctl new <name>)"; return 0; }
+	return "$rc"
+}
+
+# ---- top-level dispatch --------------------------------------------------
+
+cmd=${1:-}
+[ -n "$cmd" ] || usage 1
+
+case "$cmd" in
+ls|list) list_instances; exit 0 ;;
+new) shift; new_instance "$@"; exit 0 ;;
+rm) shift; rm_instance "$@"; exit 0 ;;
+update) exec ./update.sh ;;
+all) shift; for_all "$@"; exit 0 ;;
+help|-h|--help) usage ;;
 esac
+
+# <command>All / <command>all: fan the base per-instance command out over
+# every instance (guarded so an instance whose name ends in "all" is safe)
+base=
+case "$cmd" in
+*All) base=${cmd%All} ;;
+*all) base=${cmd%all} ;;
+esac
+if [ -n "$base" ] && is_instance_command "$base"; then
+	shift; for_all "$base" "$@"; exit 0
+fi
+
+# everything else: <instance> <subcommand> [args]
+INSTANCE=$cmd
+ENVF=$(envf_for "$INSTANCE")
+[ -f "$ENVF" ] || { echo "error: no instance '$INSTANCE' (lsdctl ls)" >&2; exit 1; }
+shift
+sub=${1:-}; [ -n "$sub" ] || usage 1
+shift
+dispatch "$sub" "$@"
