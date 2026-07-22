@@ -8,7 +8,8 @@
 -- Hand-thrown grenades lose all their natural blast damage. Instead, when
 -- one goes off, every player within the blast radius (any team, and the
 -- thrower too if they're close enough) is teleported over the shaft and
--- dropped in -- killed, with the kill credited to the thrower.
+-- left to plummet down it. The fatal landing at the bottom is rewritten
+-- into the thrower's grenade kill, so the drop counts for them.
 local mod = init_mod();
 require "lib_bulk_destroy";
 
@@ -19,17 +20,12 @@ getcfg("gteof_center_y", 256);
 getcfg("gteof_diameter", 25);
 -- how close to a detonation a player must be to get flung down the pit
 getcfg("gteof_blast_radius", 8);
--- how long a victim gets to fall down the shaft before the kill lands
--- (kept shorter than the ~2s it takes to hit the bottom, so the fall
--- doesn't finish them first and steal the thrower's credit)
-getcfg("gteof_fall_time", 1.0);
 
 local CX = gteof_center_x;
 local CY = gteof_center_y;
 local R  = gteof_diameter / 2;
 local R2 = R * R;
 local BLAST2 = gteof_blast_radius * gteof_blast_radius;
-local FALL_TIME = gteof_fall_time;
 
 -- z 0..62 is carved; z 63 is left as the floor they splat onto
 local DIG_Z_BOTTOM = 62;
@@ -37,8 +33,9 @@ local DIG_Z_BOTTOM = 62;
 local DROP_Z = 1;
 -- grenade physics tick, matching the engine's 60 Hz
 local STEP = 1/60;
--- KillTypeGrenade: <4, so it credits the killer (the thrower)
+-- KillType/HurtType: <4 credits the killer; 3 = grenade, 4 = fall
 local KILL_GRENADE = 3;
+local KILL_FALL = 4;
 
 local no_build_msg = "You can't build in the pit.";
 
@@ -72,15 +69,16 @@ end
 
 -- pending grenade detonations: {x, y, z, t, thrower}
 local pending = {};
--- victims mid-fall, waiting for the kill to land: {pid, t, thrower}
-local pending_kills = {};
+-- players currently plummeting down the pit: victims[pid] = thrower pid.
+-- Their fatal fall landing is rewritten into the thrower's grenade kill.
+local victims = {};
 
 -- Dig on every map load, while the map is still "loading" so the change
 -- rides along inside the map that's about to be sent -- no per-block
 -- packets. This is the requested "hole is made on map loading".
 function mod.before.finish_map_load()
 	pending = {};
-	pending_kills = {};
+	victims = {};
 	clear_hole();
 end
 
@@ -125,9 +123,9 @@ local function detonation_pos(pos, vel, fuse)
 end
 
 -- the blast goes off at (bx,by,bz): everyone within the blast radius --
--- any team, and the thrower if they're in it too -- is flung over the
--- shaft to fall in. The kill is deferred (see mod.tick) so they actually
--- plummet before dying, and so it still lands as the thrower's kill.
+-- any team, and the thrower if they're in it too -- is teleported over
+-- the shaft to fall in. The kill lands when they hit the bottom (see the
+-- kill hook below), credited to the thrower.
 local function detonate(bx, by, bz, thrower)
 	for i in piditer(PID_BROADCAST) do
 		if (is_alive(i)) then
@@ -135,18 +133,15 @@ local function detonate(bx, by, bz, thrower)
 			local dx, dy, dz = p.x - bx, p.y - by, p.z - bz;
 			if (dx*dx + dy*dy + dz*dz < BLAST2) then
 				set_position(i, {x=CX, y=CY, z=DROP_Z});
-				table.insert(pending_kills,
-				    {pid=i, t=get_time() + FALL_TIME, thrower=thrower});
+				victims[i] = thrower;
 			end
 		end
 	end
 end
 
--- fire queued detonations once their fuse runs out, then finish off
--- anyone who has fallen long enough
+-- fire queued detonations once their fuse has run out
 function mod.tick()
 	local now = get_time();
-
 	local i = 1;
 	while (i <= #pending) do
 		local g = pending[i];
@@ -157,21 +152,31 @@ function mod.tick()
 			i = i + 1;
 		end
 	end
+	mod.next.tick();
+end
 
-	local j = 1;
-	while (j <= #pending_kills) do
-		local k = pending_kills[j];
-		if (now >= k.t) then
-			if (is_connected(k.pid) and is_alive(k.pid)) then
-				kill(k.pid, KILL_GRENADE, k.thrower);
-			end
-			table.remove(pending_kills, j);
-		else
-			j = j + 1;
+-- A player we flung into the pit has hit the bottom: the engine is about
+-- to log a fall suicide. Rewrite it into the thrower's grenade kill so
+-- the drop counts for them. Any other death just clears the tracking.
+function mod.kill(pid, type, killer)
+	local thrower = victims[pid];
+	if (thrower ~= nil) then
+		victims[pid] = nil;
+		if (type == KILL_FALL) then
+			mod.next.kill(pid, KILL_GRENADE, thrower);
+			return;
 		end
 	end
+	mod.next.kill(pid, type, killer);
+end
 
-	mod.next.tick();
+-- stop tracking anyone who leaves or respawns before the fall finishes them
+function mod.after.on_disconnect(pid)
+	victims[pid] = nil;
+end
+
+function mod.after.spawn_player(pid)
+	victims[pid] = nil;
 end
 
 -- A MANUALLY thrown grenade (bots spawn grenades directly, bypassing this
