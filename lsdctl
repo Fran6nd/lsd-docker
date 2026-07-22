@@ -1,100 +1,226 @@
 #!/bin/sh
-# lsdctl -- manage the dockerized LSD server
+# lsdctl -- manage dockerized LSD server instances
+#
+# Each instance is the pair instances/<name>.env + instances/<name>.config.lua,
+# run as its own compose project (lsd-<name>) off the shared docker-compose.yml.
+# Per-instance commands take the instance name first: `lsdctl <name> <command>`.
 set -eu
 
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$DIR"
 
+INSTANCES_DIR=instances
+
 usage() {
 	cat <<'EOF'
-usage: lsdctl <command> [args]
+usage:
+  lsdctl <instance> <command> [args]   act on one instance
+  lsdctl <global-command> [args]        act on all / the instance set
 
-service
-  up                  build if needed and start the server
-  down                stop the server
-  restart             restart the server (applies config/.env changes)
+instances
+  ls                  list instances (name, port, gamemode, state)
+  new <name> [-p N]   create instances/<name>.env + <name>.config.lua
+  rm  <name>          stop and delete an instance
+  update              pull upstream source, rebuild, restart every instance
+
+per-instance (first arg is the instance name)
+  up                  build if needed and start the instance
+  down                stop the instance
+  restart             restart the instance (applies config/.env changes)
   reload [msg]        warn players in-game, then restart (reloads scripts)
   status              show container state and published ports
   logs [-f]           show server logs (-f to follow)
-  update              pull upstream source, rebuild, restart if changed
   console             attach to the in-game admin console (Ctrl-C to leave)
   shell               open a shell inside the container
 
-content
-  map list            list installed maps
+  map list            list installed maps (shared pool)
   map add <src>...    install maps from local files or http(s) URLs
   map rm <name>...    remove maps
-  map load <name>     switch the live map now (no restart, no disconnects)
+  map load <name>     switch this instance's live map now (no restart)
   gamemode [name]     show or set the gamemode (ctf, arena, babel, ...)
   set KEY VALUE       set any .env setting (LSD_PORT, LSD_NAME, LSD_MAPS, ...)
 
-scripts (hotloading, no restart -- players stay connected)
-  load [module...]    sync scripts.local/ into the running server and
-                      hot-(re)load the modules (no args: reload them all)
+  load [module...]    sync scripts.local/ and hot-(re)load modules
   unload <module>...  unload modules from the running server
   lsmod               list modules loaded in the running server
 
-Custom or overriding scripts go in scripts.local/ (same filename as an
-upstream script overrides it); apply them with load, or on restart.
+Instance config lives in instances/<name>.config.lua; custom/overriding
+scripts go in scripts.local/ (same filename as an upstream script wins).
 EOF
 	exit "${1:-0}"
 }
 
-# read current value of a .env key, empty if unset
-env_get() {
-	[ -f .env ] && sed -n "s/^$1=//p" .env | tail -1 || true
+reserved_name() {
+	case "$1" in
+	ls|list|new|rm|update|help|-h|--help) return 0 ;;
+	*) return 1 ;;
+	esac
 }
 
-# set KEY to VALUE in .env, replacing any previous line
+envf_for() { printf '%s/%s.env' "$INSTANCES_DIR" "$1"; }
+cfgf_for() { printf '%s/%s.config.lua' "$INSTANCES_DIR" "$1"; }
+
+# read a key from an env file, empty if unset
+env_get_file() {
+	[ -f "$2" ] && sed -n "s/^$1=//p" "$2" | tail -1 || true
+}
+
+# ports already claimed by any instance's env file
+used_ports() {
+	for f in "$INSTANCES_DIR"/*.env; do
+		[ -f "$f" ] || continue
+		env_get_file LSD_PORT "$f"
+	done
+}
+
+list_instances() {
+	[ -d "$INSTANCES_DIR" ] || { echo "no instances (lsdctl new <name>)"; return 0; }
+	found=
+	printf '%-16s %-7s %-10s %s\n' NAME PORT GAMEMODE STATE
+	for f in "$INSTANCES_DIR"/*.env; do
+		[ -f "$f" ] || continue
+		found=1
+		name=$(basename "$f" .env)
+		port=$(env_get_file LSD_PORT "$f")
+		mode=$(env_get_file LSD_GAMEMODE "$f")
+		if [ -n "$(docker compose -p "lsd-$name" ps -q lsd 2>/dev/null)" ]; then
+			state=running
+		else
+			state=stopped
+		fi
+		printf '%-16s %-7s %-10s %s\n' "$name" "${port:--}" "${mode:--}" "$state"
+	done
+	[ -n "$found" ] || echo "no instances (lsdctl new <name>)"
+}
+
+new_instance() {
+	name=${1:-}; [ -n "$name" ] || usage 1
+	shift || true
+	port=
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		-p|--port) port=${2:-}; shift 2 ;;
+		*) echo "unknown option: $1" >&2; usage 1 ;;
+		esac
+	done
+
+	case "$name" in
+	*[!a-zA-Z0-9_-]*) echo "error: instance name may only contain letters, digits, - and _" >&2; exit 1 ;;
+	esac
+	if reserved_name "$name"; then
+		echo "error: '$name' is a reserved command, pick another name" >&2; exit 1
+	fi
+	[ ! -f "$(envf_for "$name")" ] || { echo "error: instance '$name' already exists" >&2; exit 1; }
+
+	# auto-pick the next free port after the highest one in use
+	if [ -z "$port" ]; then
+		max=$(used_ports | sort -n | tail -1)
+		port=$(( ${max:-32886} + 1 ))
+	fi
+	case "$port" in *[!0-9]*|'') echo "error: port must be a number" >&2; exit 1 ;; esac
+	if used_ports | grep -qx "$port"; then
+		echo "error: port $port is already used by another instance (lsdctl ls)" >&2; exit 1
+	fi
+
+	cp config.lua "$(cfgf_for "$name")"
+	cat > "$(envf_for "$name")" <<EOF
+# $name instance
+LSD_PORT=$port
+LSD_NAME=$name
+LSD_GAMEMODE=ctf
+LSD_MAPS=hallway bridgewars pinpoint
+LSD_CONFIG_FILE=./$(cfgf_for "$name")
+LSD_RW_VOLUME=lsd-$name-rw
+EOF
+	echo "created instance '$name' on port $port:"
+	echo "  $(envf_for "$name")"
+	echo "  $(cfgf_for "$name")"
+	echo "next: edit $(cfgf_for "$name"), then  ./lsdctl $name up"
+}
+
+rm_instance() {
+	name=${1:-}; [ -n "$name" ] || usage 1
+	envf=$(envf_for "$name")
+	[ -f "$envf" ] || { echo "error: no instance '$name' (lsdctl ls)" >&2; exit 1; }
+	vol=$(env_get_file LSD_RW_VOLUME "$envf")
+	docker compose -p "lsd-$name" --env-file "$envf" down || true
+	rm -f "$envf" "$(cfgf_for "$name")"
+	echo "removed instance '$name' (config + env deleted)"
+	if [ -n "$vol" ]; then
+		printf "also delete its data volume '%s'? [y/N] " "$vol"
+		read -r ans || ans=n
+		case "$ans" in
+		y|Y) docker volume rm "$vol" >/dev/null 2>&1 && echo "volume $vol removed" || echo "volume $vol not found" ;;
+		*) echo "kept volume $vol (delete later: docker volume rm $vol)" ;;
+		esac
+	fi
+}
+
+# ---- top-level dispatch --------------------------------------------------
+
+cmd=${1:-}
+[ -n "$cmd" ] || usage 1
+
+case "$cmd" in
+ls|list) list_instances; exit 0 ;;
+new) shift; new_instance "$@"; exit 0 ;;
+rm) shift; rm_instance "$@"; exit 0 ;;
+update) exec ./update.sh ;;
+help|-h|--help) usage ;;
+esac
+
+# everything else: <instance> <subcommand> [args]
+INSTANCE=$cmd
+ENVF=$(envf_for "$INSTANCE")
+[ -f "$ENVF" ] || { echo "error: no instance '$INSTANCE' (lsdctl ls)" >&2; exit 1; }
+shift
+sub=${1:-}; [ -n "$sub" ] || usage 1
+shift
+
+# every docker compose call for this instance goes through here
+compose() { docker compose -p "lsd-$INSTANCE" --env-file "$ENVF" "$@"; }
+
+# read/set a key in this instance's env file
+env_get() { env_get_file "$1" "$ENVF"; }
 env_set() {
-	touch .env
-	grep -v "^$1=" .env > .env.tmp || true
-	printf '%s=%s\n' "$1" "$2" >> .env.tmp
-	mv .env.tmp .env
+	grep -v "^$1=" "$ENVF" > "$ENVF.tmp" 2>/dev/null || true
+	printf '%s=%s\n' "$1" "$2" >> "$ENVF.tmp"
+	mv "$ENVF.tmp" "$ENVF"
 	echo "$1=$2"
 }
 
-# pipe stdin into the in-game admin console, relaying its replies
-console_pipe() {
-	docker compose exec -T lsd socat - UNIX-CONNECT:rw/console.sock
-}
+# pipe stdin into this instance's in-game admin console, relaying replies
+console_pipe() { compose exec -T lsd socat - UNIX-CONNECT:rw/console.sock; }
 
 # reassemble the running container's scripts/ dir (same recipe as the
 # entrypoint) so hotloads pick up the current scripts.local/ contents
 scripts_sync() {
-	docker compose exec -T lsd sh -c \
+	compose exec -T lsd sh -c \
 		'find scripts -mindepth 1 -delete
 		 cp -R scripts.dist/. scripts/
 		 [ ! -d scripts.local ] || cp -R scripts.local/. scripts/'
 }
 
-# "scripts.local/foo.lua" and "foo" both name the module foo
-module_name() {
-	basename "$1" .lua
-}
+module_name() { basename "$1" .lua; }
 
-cmd=${1:-}
-[ -n "$cmd" ] || usage 1
-shift
-
-case "$cmd" in
+case "$sub" in
 up)
-	docker compose up -d --build "$@"
+	compose up -d --build "$@"
 	;;
 down)
-	docker compose down "$@"
+	compose down "$@"
 	;;
 restart)
-	docker compose up -d --force-recreate
+	compose up -d --force-recreate
 	;;
 reload)
 	notice=${1:-"server reboots in 5 seconds to reload scripts, hold on..."}
-	# announce, wait, then have the server exit itself: its clean
-	# shutdown hooks run and the container's restart policy brings it
-	# back up (and reassembles scripts/) without any docker call here.
-	# The dying server breaks the console pipe, so success is checked
-	# by the container's start timestamp, not the pipe status.
-	cid=$(docker compose ps -q lsd)
+	# announce, wait, then have the server exit itself: its clean shutdown
+	# hooks run and the container's restart policy brings it back up (and
+	# reassembles scripts/) without any docker call here. The dying server
+	# breaks the console pipe, so success is checked by the container's
+	# start timestamp, not the pipe status.
+	cid=$(compose ps -q lsd)
 	born=$(docker inspect -f '{{.State.StartedAt}}' "$cid")
 	{
 		printf 'say %s\n' "$notice"
@@ -105,24 +231,21 @@ reload)
 	sleep 2
 	if [ "$(docker inspect -f '{{.State.StartedAt}}' "$cid")" = "$born" ]; then
 		echo "console did not take the server down, restarting the hard way" >&2
-		docker compose restart lsd
+		compose restart lsd
 	fi
-	docker compose ps --format 'table {{.Name}}\t{{.State}}\t{{.Status}}'
+	compose ps --format 'table {{.Name}}\t{{.State}}\t{{.Status}}'
 	;;
 status)
-	docker compose ps --format 'table {{.Name}}\t{{.State}}\t{{.Status}}\t{{.Publishers}}'
+	compose ps --format 'table {{.Name}}\t{{.State}}\t{{.Status}}\t{{.Publishers}}'
 	;;
 logs)
-	docker compose logs "$@"
-	;;
-update)
-	exec ./update.sh
+	compose logs "$@"
 	;;
 console)
-	docker compose exec lsd socat READLINE UNIX-CONNECT:rw/console.sock
+	compose exec lsd socat READLINE UNIX-CONNECT:rw/console.sock
 	;;
 shell)
-	docker compose exec lsd ash
+	compose exec lsd ash
 	;;
 load)
 	# catch typos before touching the server
@@ -142,7 +265,6 @@ load)
 				printf 'load %s\n' "$(module_name "$name")"
 			done
 		fi
-		# keep the socket open a moment to catch the replies
 		sleep 1
 	} | console_pipe
 	;;
@@ -159,8 +281,8 @@ lsmod)
 	{ echo lsmod; sleep 1; } | console_pipe
 	;;
 map)
-	sub=${1:-list}; [ $# -gt 0 ] && shift
-	case "$sub" in
+	msub=${1:-list}; [ $# -gt 0 ] && shift
+	case "$msub" in
 	list)
 		ls -lh maps/*.vxl 2>/dev/null || echo "no maps installed"
 		;;
@@ -176,7 +298,7 @@ map)
 			esac
 		done
 		echo "installed; maps are picked up at the next rotation," \
-		     "add them to LSD_MAPS to queue them: ./lsdctl set LSD_MAPS '...'"
+		     "add them to LSD_MAPS to queue them: ./lsdctl $INSTANCE set LSD_MAPS '...'"
 		;;
 	rm)
 		[ $# -gt 0 ] || usage 1
@@ -188,7 +310,7 @@ map)
 		[ $# -eq 1 ] || usage 1
 		name=${1%.vxl}
 		if [ ! -f "maps/$name.vxl" ]; then
-			echo "error: no map 'maps/$name.vxl' (see ./lsdctl map list)" >&2
+			echo "error: no map 'maps/$name.vxl' (see ./lsdctl $INSTANCE map list)" >&2
 			exit 1
 		fi
 		# switch the running server's map now -- no restart, nobody
@@ -204,19 +326,24 @@ gamemode)
 		mode=${LSD_GAMEMODE:-$(env_get LSD_GAMEMODE)}
 		echo "${mode:-ctf}"
 	else
-		# catch typos here instead of a container restart loop
 		if [ ! -f "lsd/scripts/$1.lua" ] && [ ! -f "scripts.local/$1.lua" ]; then
 			echo "error: no gamemode '$1' (no $1.lua in lsd/scripts/ or scripts.local/)" >&2
 			exit 1
 		fi
 		env_set LSD_GAMEMODE "$1"
-		docker compose up -d --force-recreate
+		compose up -d --force-recreate
 	fi
 	;;
 set)
 	[ $# -eq 2 ] || usage 1
+	# guard against giving two instances the same port
+	if [ "$1" = LSD_PORT ]; then
+		if used_ports | grep -vx "$(env_get LSD_PORT)" | grep -qx "$2"; then
+			echo "error: port $2 is already used by another instance (lsdctl ls)" >&2; exit 1
+		fi
+	fi
 	env_set "$1" "$2"
-	docker compose up -d --force-recreate
+	compose up -d --force-recreate
 	;;
 help|-h|--help)
 	usage
