@@ -11,6 +11,10 @@ getcfg("sgl_pellets", 8);     -- pellets per shell
 getcfg("sgl_spread", 0.024);  -- 0.75 shotgun spread
 getcfg("sgl_range", 128);     -- max pellet travel, in blocks
 
+-- the engine's magazine size for the shotgun (initialMagAmmo[2]); a
+-- reload tops the mag off one shell at a time up to this
+local SHELLS = 6;
+
 -- when a real pellet of theirs last provably existed (block break or
 -- player hit): the engine's mag estimate drains on *estimated* shots
 -- and the estimator is sprint- and release-blind, so it can phantom
@@ -139,11 +143,24 @@ function mod.after.before_estimated_fire(pid)
 		return;
 	end
 	-- the estimator is release-blind, so it keeps "firing" straight
-	-- through a reload; a real trigger-press cancels the reload first,
-	-- so a fire estimated while one is pending is a phantom -- launching
-	-- here would burst grenades mid-reload and stomp the shell-by-shell
-	-- reload animation on the client
+	-- through a reload (a real trigger-press cancels the reload first,
+	-- so any shot estimated while one is pending is a phantom). two
+	-- things then go wrong: we'd burst a grenade mid-reload, and -- the
+	-- freeze -- the engine drains a shell right after this hook returns
+	-- (estMagAmmo--). that drain fights reload_player, which only refills
+	-- one shell per 0.5s: net the reload crawls to full slower than the
+	-- client animates it, so the gun sits frozen waiting on the server.
+	-- hand the shell back here so the drain nets zero and the reload
+	-- keeps the pace the client expects.
 	if (get_reload_time(pid) ~= 0) then
+		local mag = get_estimated_mag_ammo(pid);
+		if (mag >= SHELLS) then
+			-- already full; the imminent drain would only re-open the
+			-- reload for another needless shell -- close it out instead
+			set_reload_time(pid, 0);
+		else
+			set_ammo(pid, mag + 1, get_reserve_ammo(pid));
+		end
 		return;
 	end
 	if (get_mag_ammo(pid) == 0 and get_time() - lastreal[pid] > 2) then
