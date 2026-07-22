@@ -36,16 +36,15 @@
 -- "hostage" cap) despawns and respawns them.
 --
 -- LIMITATIONS:
--- * Scoring rides capture_intel -- the only Lua-reachable way to move
---   the team score -- so clients play the intel-capture fanfare and
---   the scorer gets ctf's +10 personal score. The enemy intel state
---   is snapshotted and restored around each award.
--- * Flags are hidden, not gone: the protocol has no TDM mode, so
---   clients still believe they are in ctf and may draw flag markers
---   (pointing at a map corner, high in the sky). Anything that
---   re-places intel (map load, ctf hooks) is re-stashed on the next
---   tick, so a flag can flicker in for one tick. On unload the flags
---   stay stashed until ctf next relocates them or the map changes.
+-- * The intel is hard-linked to the hostage: the living hostage is
+--   made the intel carrier each tick, so it renders on the hostage and
+--   can't be picked up off the ground (a one-tick snatch is stolen
+--   back). A rescue is therefore ctf's own auto-capture, fired when
+--   the carrier reaches its home tent (handled in after.capture_intel);
+--   clients play the normal capture fanfare and the scorer gets ctf's
+--   +10. While a hostage is dead its intel is parked out of reach
+--   until it respawns. On unload the intel stays wherever it last was
+--   until ctf relocates it or the map changes.
 -- * Needs a mode with tents: on maps/modes without them the hostages
 --   simply never spawn (creation retries every tick).
 -- * Escorting is straight-line walking with a hop -- no pathfinding.
@@ -241,21 +240,11 @@ local function nearest_mover(from, team, range)
 	return best;
 end
 
--- capture_intel is the only Lua-reachable way to move the team score,
--- but it also yanks the enemy team's intel around (the C side clears
--- its carrier, ctf's after-hook relocates it); snapshot the intel
--- state and put it back afterwards
+-- capture_intel is the only Lua-reachable way to move the team score.
+-- The intel is re-linked to its hostage on the next tick, so we no
+-- longer need to snapshot/restore it here.
 local function award_point(to)
-	local enemy = 3 - get_team(to);
-	local saved = get_intelloc()[enemy];
-
 	capture_intel(to, get_team_score(get_team(to))+1 >= get_max_score());
-
-	if (type(saved) == "number") then
-		pickup_intel(saved);
-	elseif (type(saved) == "table") then
-		move_intel(enemy, saved);
-	end
 end
 
 -- a per-hostage speech timer: true once `key` comes due, then it
@@ -330,22 +319,9 @@ local function think(pid)
 	end
 	mem.follow = follow;
 
-	-- rescued: a teammate walked it to its own tent -> score, reset
-	if (not by_enemy and near_tent(get_position(pid),
-	    get_tentloc()[myteam], hostage_home_radius)) then
-		local hero = follow or mem.hero or pid;
-
-		hostage_say(pid, saved_cheer_msg);
-		award_point(hero);
-		l10n_send_chat(PID_BROADCAST, saved_msg,
-			{hero=get_name(hero), team=get_team_name(myteam)});
-
-		reset_follow_state(mem);
-		bot_heal(pid);
-		bot_teleport(pid, post(myteam));
-		bot_stop(pid);
-		return;
-	end
+	-- rescued: the hostage carries the intel, so when a teammate walks
+	-- it into its own tent, ctf's own auto-capture fires -- handled in
+	-- mod.after.capture_intel below, no explicit check needed here.
 
 	-- recaptured: a captor dragged it back to its prison (the enemy
 	-- tent, which is the post) -- no points, just back in the cage
@@ -435,12 +411,23 @@ local function think(pid)
 end
 
 function mod.after.tick()
-	-- keep the flags stashed no matter who places them back (ctf
-	-- does on map load, after captures, and on some block actions)
+	-- Hard-link each team's captured intel to its hostage. A living
+	-- hostage carries it, so it renders on the hostage and can't be
+	-- grabbed off the ground (and if a player somehow snatches it in a
+	-- one-tick window, we steal it right back). While a hostage is
+	-- dead, park its intel out of reach until it respawns.
 	for team=1,2 do
-		local intel = get_intelloc()[team];
-		if (type(intel) == "table" and intel.z > HIDDEN.z + 10) then
-			move_intel(team, HIDDEN);
+		local h = byteam[team];
+		local enemy = 3 - team; -- a team captures the enemy's intel
+		if (h ~= nil and is_joined(h) and is_alive(h)) then
+			if (get_intelloc()[enemy] ~= h) then
+				pickup_intel(h);
+			end
+		else
+			local intel = get_intelloc()[enemy];
+			if (type(intel) == "table" and intel.z > HIDDEN.z + 10) then
+				move_intel(enemy, HIDDEN);
+			end
 		end
 	end
 
@@ -499,10 +486,36 @@ function mod.after.kill(pid, ktype, killer)
 	-- fall, a drowning or a team/gun switch
 	if (ktype <= 3 and killer ~= pid and get_team(killer) == 3 - b.team) then
 		hostage_say(pid, executed_cry_msg); -- a last word before it drops
+		b.data.executing = true; -- tell the capture hook this is an execution
 		award_point(pid);
 		l10n_send_chat(PID_BROADCAST, executed_msg,
 			{killer=get_name(killer), team=get_team_name(b.team)});
 	end
+end
+
+-- the hostage carries the intel, so ctf auto-captures the moment it is
+-- walked into its home tent -- that capture IS the rescue
+function mod.after.capture_intel(scorer)
+	local b = bot_get(scorer);
+	if (b == nil or not b.data.hostage) then
+		return;
+	end
+	local mem = b.data;
+
+	if (mem.executing) then
+		mem.executing = nil; -- scored via execution; the kill hook said it all
+		return;
+	end
+
+	-- rescued: cheer, credit the escort, and send the hostage back to
+	-- its post (the tick re-links a fresh intel to it next frame)
+	hostage_say(scorer, saved_cheer_msg);
+	l10n_send_chat(PID_BROADCAST, saved_msg,
+		{hero=get_name(mem.hero or scorer), team=get_team_name(b.team)});
+	reset_follow_state(mem);
+	bot_heal(scorer);
+	bot_teleport(scorer, post(b.team));
+	bot_stop(scorer);
 end
 
 function mod.after.on_join(pid)
