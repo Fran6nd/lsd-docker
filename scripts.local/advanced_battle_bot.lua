@@ -22,6 +22,7 @@ local mod = init_mod();
 
 local cfg = require "advanced_battle_bot.config";
 local aim = require "advanced_battle_bot.aim";
+local move = require "advanced_battle_bot.movement";
 
 local WEAPONS = {0, 1, 2}; -- rifle, smg, shotgun
 
@@ -65,19 +66,13 @@ local function objective_target(pid)
 	return get_tentloc()[enemy]; -- default push: the enemy tent
 end
 
-local function walk_toward(pid, dest, d)
-	bot_look_horizontal(pid, dest);
-	local v = get_velocity(pid);
-	local stuck = v.x*v.x + v.y*v.y < 0.0004 and not is_airborne(pid);
-	bot_walk(pid, {forward=true, sprint=true, jump=stuck});
-end
-
 local function brain(pid)
 	local b = bot_get(pid);
 	local d = b.data;
 	local now = get_time();
-	d.gren_cd = math.max(0, (d.gren_cd or 0) - (now - (d.last or now)));
+	local dt = now - (d.last or now);
 	d.last = now;
+	d.gren_cd = math.max(0, (d.gren_cd or 0) - dt);
 
 	-- 1) survival: run from an incoming grenade (low skill sometimes
 	-- fails to notice -- the old gre_ignore)
@@ -85,10 +80,7 @@ local function brain(pid)
 	if (blast ~= nil) then
 		d.state = "flee";
 		local p = get_position(pid);
-		bot_look_horizontal(pid, {x=2*p.x-blast.x, y=2*p.y-blast.y});
-		local v = get_velocity(pid);
-		bot_walk(pid, {forward=true, sprint=true,
-			jump = v.x*v.x+v.y*v.y < 0.0004 and not is_airborne(pid)});
+		move.navigate(pid, d, {x=2*p.x-blast.x, y=2*p.y-blast.y, z=p.z}, now, dt);
 		return;
 	end
 
@@ -118,7 +110,7 @@ local function brain(pid)
 	-- 3) pursue: seen but far, close the distance
 	if (enemy ~= nil) then
 		d.state = "pursue";
-		walk_toward(pid, get_position(enemy), d);
+		move.navigate(pid, d, get_position(enemy), now, dt);
 		return;
 	end
 
@@ -129,7 +121,7 @@ local function brain(pid)
 		bot_stop(pid);
 		return;
 	end
-	walk_toward(pid, dest, d);
+	move.navigate(pid, d, dest, now, dt);
 end
 
 local function count_bots(team)
