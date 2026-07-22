@@ -58,6 +58,17 @@ the instance name first (`lsdctl <name> <command>`):
 ./lsdctl update                              # rebuild + restart every instance
 ```
 
+Every per-instance command has an `All` twin that fans it out over all
+instances (`<command>All`, or `all <command>`):
+
+```sh
+./lsdctl restartAll                          # restart every instance
+./lsdctl reloadAll                           # warn + reload scripts everywhere
+./lsdctl loadAll rifle_is_a_rail_gun         # hot-reload a script on all
+./lsdctl statusAll                           # state of every instance
+./lsdctl all set LSD_MAPS "hallway pinpoint" # any command works: upAll, logsAll, ...
+```
+
 Maps (`maps/`) and custom scripts (`scripts.local/`) are a shared pool
 by default; an instance can point at its own via `LSD_MAPS_DIR` /
 `LSD_SCRIPTS_DIR` in its `.env`.
