@@ -22,6 +22,22 @@ local SHELLS = 6;
 -- fresh evidence overrules it
 local lastreal = pid_connected_table(0);
 
+-- our own shell count, kept from real evidence instead of the engine's
+-- blind timing estimate. one trigger-pull sprays a burst of pellets
+-- that all land at once, and the fire rate caps real shells ~1s apart,
+-- so a pellet landing more than half a second after the last counted
+-- one marks a genuinely new shell. this drives reload sizing, so a
+-- reload seats exactly the shells that were spent -- no more, no less
+local mymag = pid_connected_table(SHELLS);
+local lastshell = pid_connected_table(0);
+
+local function count_shell(pid)
+	if (get_time() - lastshell[pid] > 0.5) then
+		mymag[pid] = math.max(mymag[pid] - 1, 0);
+		lastshell[pid] = get_time();
+	end
+end
+
 local function jitter(dir)
 	return {
 		x = dir.x + sgl_spread*(math.random()*2 - 1),
@@ -118,6 +134,7 @@ end
 function mod.on_hit(pid, type, hitPlayer)
 	if (is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 2) then
 		lastreal[pid] = get_time();
+		count_shell(pid);
 		return;
 	end
 	mod.next.on_hit(pid, type, hitPlayer);
@@ -128,11 +145,31 @@ end
 function mod.on_block_action(pid, pos, type)
 	if (type == 1 and is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 2) then
 		lastreal[pid] = get_time();
+		count_shell(pid);
 		send_set_block_color(pid, get_map_block_color(pos), get_anon_pid());
 		send_block_action(pid, pos, 0, get_anon_pid());
 		return;
 	end
 	mod.next.on_block_action(pid, pos, type);
+end
+
+-- The engine sizes a reload as (full mag - its ammo estimate) shells,
+-- but that estimate is blind to shots fired while moving, so it drifts
+-- from the client's real magazine and seats the wrong number of shells
+-- -- too few (reload stalls mid-animation) or, if we forced it empty,
+-- too many (a full reload after a single shot). Seat from our own
+-- evidence-based count instead, so the shell-by-shell reload matches
+-- exactly what was spent. The reload then tops the mag back to full.
+function mod.after.on_reload(pid)
+	if (is_alive(pid) and get_gun(pid) == 2) then
+		set_ammo(pid, mymag[pid], get_reserve_ammo(pid));
+		mymag[pid] = SHELLS;
+	end
+end
+
+-- a fresh spawn comes with a full mag
+function mod.after.spawn_player(pid)
+	mymag[pid] = SHELLS;
 end
 
 -- the server estimates gun cycling from the held inputs (rifle 0.5s,
@@ -143,24 +180,13 @@ function mod.after.before_estimated_fire(pid)
 		return;
 	end
 	-- the estimator is release-blind, so it keeps "firing" straight
-	-- through a reload (a real trigger-press cancels the reload first,
-	-- so any shot estimated while one is pending is a phantom). two
-	-- things then go wrong: we'd burst a grenade mid-reload, and -- the
-	-- freeze -- the engine drains a shell right after this hook returns
-	-- (estMagAmmo--). that drain fights reload_player, which only refills
-	-- one shell per 0.5s: net the reload crawls to full slower than the
-	-- client animates it, so the gun sits frozen waiting on the server.
-	-- hand the shell back here so the drain nets zero and the reload
-	-- keeps the pace the client expects.
+	-- through a reload -- but a real trigger-press cancels the reload
+	-- first, so any shot estimated while one is pending is a phantom.
+	-- don't burst a grenade for it. (leave the mag alone: reload_player
+	-- owns the count now, seeded from our evidence-based mymag, and any
+	-- set_ammo here would race its send_reload packets and jump the
+	-- client's shell-by-shell animation straight to full.)
 	if (get_reload_time(pid) ~= 0) then
-		local mag = get_estimated_mag_ammo(pid);
-		if (mag >= SHELLS) then
-			-- already full; the imminent drain would only re-open the
-			-- reload for another needless shell -- close it out instead
-			set_reload_time(pid, 0);
-		else
-			set_ammo(pid, mag + 1, get_reserve_ammo(pid));
-		end
 		return;
 	end
 	if (get_mag_ammo(pid) == 0 and get_time() - lastreal[pid] > 2) then
