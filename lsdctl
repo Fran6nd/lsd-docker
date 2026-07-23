@@ -1,6 +1,8 @@
 #!/bin/sh
 # lsdctl -- manage dockerized LSD server instances
 #
+# Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+#
 # Each instance is the pair instances/<name>.env + instances/<name>.config.lua,
 # run as its own compose project (lsd-<name>) off the shared docker-compose.yml.
 # Per-instance commands take the instance name first: `lsdctl <name> <command>`.
@@ -50,6 +52,7 @@ per-instance (first arg is the instance name)
   load [module...]    sync scripts.local/ and hot-(re)load modules
   unload <module>...  unload modules from the running server
   lsmod               list modules loaded in the running server
+  edit [on|off]       enter/leave world_editor edit mode (console-only gate)
 
 Instance config lives in instances/<name>.config.lua; custom/overriding
 scripts go in scripts.local/ (same filename as an upstream script wins).
@@ -60,7 +63,7 @@ EOF
 # the per-instance subcommands -- the set that also gets an All twin
 is_instance_command() {
 	case "$1" in
-	up|down|restart|reload|status|logs|console|shell|load|unload|lsmod|map|gamemode|set) return 0 ;;
+	up|down|restart|reload|status|logs|console|shell|load|unload|lsmod|edit|map|gamemode|set) return 0 ;;
 	*) return 1 ;;
 	esac
 }
@@ -283,6 +286,23 @@ dispatch() {
 		;;
 	lsmod)
 		{ echo lsmod; sleep 1; } | console_pipe
+		;;
+	edit)
+		# world_editor's edit mode is deliberately console-only, so this
+		# is the sanctioned way in. Nothing to do if the script isn't
+		# loaded -- say so instead of leaving a silent no-op.
+		what=${1:-status}
+		case "$what" in
+		on|off|status) ;;
+		*) echo "usage: lsdctl <instance> edit [on|off|status]" >&2; exit 1 ;;
+		esac
+		if ! { echo lsmod; sleep 1; } | console_pipe 2>/dev/null | grep -q world_editor; then
+			echo "error: world_editor is not loaded on '$INSTANCE'" >&2
+			echo "       load it with: ./lsdctl $INSTANCE load world_editor" >&2
+			echo "       (and add \`load \"world_editor\"\` to instances/$INSTANCE.config.lua to persist)" >&2
+			exit 1
+		fi
+		{ printf 'worldedit %s\n' "$what"; sleep 1; } | console_pipe
 		;;
 	map)
 		msub=${1:-list}; [ $# -gt 0 ] && shift
