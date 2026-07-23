@@ -25,7 +25,9 @@ services:
       # per-instance config; the shared maps/ and scripts.local/ pools
       # are the defaults, an instance may override either in its .env
       - ${LSD_CONFIG_FILE:-./config.lua}:/lsd/config.lua:ro
-      - ${LSD_MAPS_DIR:-./maps}:/lsd/maps:ro
+      # maps/ is writable: world_editor persists component layouts to
+      # maps/<map>.json next to the .vxl it belongs to
+      - ${LSD_MAPS_DIR:-./maps}:/lsd/maps
       - ${LSD_SCRIPTS_DIR:-./scripts.local}:/lsd/scripts.local:ro
       - lsd-rw:/lsd/rw
 
