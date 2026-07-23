@@ -416,6 +416,50 @@ local function revert(pid, pos, type)
 	send_block_action(pid, pos, 0, get_anon_pid());
 end
 
+-- Feed one mark into the placement in progress. Marks arrive either by
+-- spading a block or, for anyone who cannot spade (spectators, who are
+-- often the ones building), from /here.
+local function apply_mark(pid, pos)
+	local s = session[pid];
+	if (s == nil) then
+		return false;
+	end
+
+	local k = kinds[s.kind];
+	local done, err = k.click(s, pos, we);
+	if (err) then
+		server_msg(pid, "world_editor: "..err);
+		return true;
+	end
+
+	if (not done) then
+		server_msg(pid, "world_editor: "..(s.prompt or "mark again."));
+		return true;
+	end
+
+	if (s.kind == "__chunk") then
+		session[pid] = nil;
+		local c = s.made;
+		server_msg(pid, string.format("world_editor: chunk %s (%s) created.",
+		                              c and c.name or "?", chunks.format_perm(s.perm)));
+		save();
+		return true;
+	end
+
+	local inst = k.spawn(s.data, we);
+	inst.id = nextid; nextid = nextid + 1;
+	inst.kind = s.kind;
+	inst.perm = s.perm or {mode="ro"};
+	inst.color = s.color;   -- nil keeps the component's own default
+	insts[inst.id] = inst;
+	k.render(inst, we);
+	table.insert(undo, inst.id);
+	session[pid] = nil;
+	server_msg(pid, string.format("world_editor: %s #%d placed.", s.kind, inst.id));
+	save();
+	return true;
+end
+
 function mod.on_block_action(pid, pos, type)
 	-- a spade click while placing is a pick, not an edit
 	local s = session[pid];
@@ -427,27 +471,7 @@ function mod.on_block_action(pid, pos, type)
 			revert(pid, {x=pos.x, y=pos.y, z=pos.z-1}, type);
 			revert(pid, {x=pos.x, y=pos.y, z=pos.z+1}, type);
 		end
-		local k = kinds[s.kind];
-		local done, err = k.click(s, pos, we);
-		if (err) then
-			server_msg(pid, "world_editor: "..err);
-			return;
-		end
-		if (done) then
-			local inst = k.spawn(s.data, we);
-			inst.id = nextid; nextid = nextid + 1;
-			inst.kind = s.kind;
-			inst.perm = s.perm or {mode="ro"};
-			inst.color = s.color;   -- nil keeps the component's own default
-			insts[inst.id] = inst;
-			k.render(inst, we);
-			table.insert(undo, inst.id);
-			session[pid] = nil;
-			server_msg(pid, string.format("world_editor: %s #%d placed.", s.kind, inst.id));
-			save();
-		else
-			server_msg(pid, "world_editor: "..(s.prompt or "click again."));
-		end
+		apply_mark(pid, pos);
 		return;
 	end
 
@@ -626,6 +650,44 @@ function cmd.func(pid, argv)
 	s.color = color;
 	session[pid] = s;
 	server_msg(pid, "world_editor: "..(s.prompt or "spade a block to place."));
+end
+register_command(cmd, mod);
+
+-- Spectators can't spade, and spectating is the natural way to build:
+-- you can fly to the exact spot instead of standing on it. /here drops
+-- the mark at your own position, so the whole editor works from spec.
+local cmd = {name={"here", "mark"}, usage="[x y z]",
+             desc="Drop a placement mark where you are (or at x y z)."};
+function cmd.func(pid, argv)
+	if (not need_edit(pid)) then return; end
+	cmd_assert(pid, cmd, #argv == 0 or #argv == 3);
+
+	if (session[pid] == nil) then
+		server_msg(pid, "world_editor: nothing being placed -- start with /place or /chunk.");
+		return;
+	end
+
+	local pos;
+	if (#argv == 3) then
+		local x, y, z = tonumber(argv[1]), tonumber(argv[2]), tonumber(argv[3]);
+		if (x == nil or y == nil or z == nil) then
+			server_msg(pid, "world_editor: x y z must be numbers.");
+			return;
+		end
+		pos = {x=math.floor(x), y=math.floor(y), z=math.floor(z)};
+	else
+		local p = get_position(pid);
+		pos = {x=math.floor(p.x), y=math.floor(p.y), z=math.floor(p.z)};
+	end
+
+	if (pos.x < 0 or pos.x > 511 or pos.y < 0 or pos.y > 511
+	    or pos.z < 0 or pos.z > 63) then
+		server_msg(pid, "world_editor: that is outside the map.");
+		return;
+	end
+
+	server_msg(pid, string.format("world_editor: mark at %d %d %d", pos.x, pos.y, pos.z));
+	apply_mark(pid, pos);
 end
 register_command(cmd, mod);
 

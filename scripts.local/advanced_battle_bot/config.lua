@@ -5,6 +5,7 @@
 -- each bot rolls once into abb.skill in 0..1 (higher = sharper aim,
 -- faster reactions, steadier hands). It drives the whole aim-error
 -- (gosa) model in aim.lua.
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local M = {};
 
 getcfg("abb_count", 4);          -- fighters per team (old BOT_ADD_NUM)
