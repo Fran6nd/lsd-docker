@@ -20,6 +20,16 @@
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 
+-- Hot-reload correctness: require() caches modules in package.loaded, so
+-- without this a /load of world_editor would re-run this file but keep
+-- the *old* areas/chunks/component code. Drop our whole namespace first
+-- so a reload genuinely reloads every piece.
+for m in pairs(package.loaded) do
+	if (string.sub(m, 1, 13) == "world_editor.") then
+		package.loaded[m] = nil;
+	end
+end
+
 local bit    = require("bit");
 local areas  = require "world_editor.areas";
 local chunks = require "world_editor.chunks";
@@ -232,16 +242,28 @@ we.areas = areas;
 
 -- ------------------------------------------------------------ persistence
 
+-- Layouts live beside the .vxl as <map>.editor.json. The .editor.
+-- infix keeps them clearly ours and out of the way of anything else
+-- that might key off <map>.json.
 local function jsonpath()
 	if (mapname == nil) then
 		return nil;
 	end
-	return we_dir.."/"..mapname..".json";
+	return we_dir.."/"..mapname..".editor.json";
 end
 
-local function save()
+local function file_exists(path)
+	local f = io.open(path, "r");
+	if (f == nil) then return false; end
+	f:close();
+	return true;
+end
+
+-- ignore_autosave lets edit-mode force the very first write even when
+-- autosave is off, so a brand-new map still gets its .editor.json
+local function save(force)
 	local path = jsonpath();
-	if (path == nil or not we_autosave) then
+	if (path == nil or (not we_autosave and not force)) then
 		return;
 	end
 
@@ -541,10 +563,30 @@ end
 
 -- ---------------------------------------------------------------- events
 
+-- strip directory and extension so "maps/hallway.vxl" keys the same
+-- file as "hallway"
+local function mapkey(name)
+	name = string.gsub(name, "^.*/", "");
+	name = string.gsub(name, "%.vxl$", "");
+	name = string.gsub(name, "%.lua$", "");
+	return name;
+end
+
 function mod.after.load_map(name)
-	mapname = name;
+	mapname = mapkey(name);
 	editing = false;   -- a fresh map always comes up in play mode
 	load_layout();
+end
+
+-- When world_editor is hot-loaded onto an already-running map, load_map
+-- has long since fired, so recover the current map from the masterlist
+-- name (usually the filename; a map shipping .txt metadata may report a
+-- display name, which the next real load_map corrects).
+if (mapname == nil) then
+	local ok, m = pcall(masterlist_get_map);
+	if (ok and type(m) == "string" and m ~= "" and m ~= "???") then
+		mapname = mapkey(m);
+	end
 end
 
 function mod.on_join(pid, team, gun, name)
@@ -720,6 +762,18 @@ function cmd.func(pid, argv)
 	end
 
 	editing = (what == "on");
+
+	-- entering edit mode on a map with no layout yet writes an empty
+	-- <map>.editor.json straight away, so there is a file to save into
+	-- (and to prove the mount is writable) before anything is placed
+	if (editing) then
+		local path = jsonpath();
+		if (path ~= nil and not file_exists(path)) then
+			save(true);
+			server_msg(pid, "world_editor: created "..path);
+		end
+	end
+
 	for i in piditer(PID_BROADCAST) do
 		if (is_joined(i)) then
 			server_msg(i, "world_editor: edit mode "..(editing and "ENABLED -- no new players may join." or "disabled."));
@@ -728,6 +782,16 @@ function cmd.func(pid, argv)
 	log("world_editor: edit mode %s", editing and "on" or "off");
 end
 register_command(cmd, mod);
+
+-- every registered component, minus the internal chunk pseudo-kind
+local function component_names()
+	local names = {};
+	for n in pairs(kinds) do
+		if (n ~= "__chunk") then table.insert(names, n); end
+	end
+	table.sort(names);
+	return names;
+end
 
 -- print a component's help: its own lines if it provides them, else a
 -- usage line built from its fields
@@ -744,20 +808,22 @@ local function show_help(pid, k)
 	end
 end
 
-local cmd = {name="place", usage="<component> [args...]",
-             desc="Place a component; /place <component> alone shows its help."};
+local cmd = {name="place", usage="[component] [args...]",
+             desc="Place a component; /place alone lists them, /place <c> shows help."};
 function cmd.func(pid, argv)
 	if (not need_edit(pid)) then return; end
-	cmd_assert(pid, cmd, #argv >= 1);
+
+	-- bare /place lists everything placeable and how to get each one's help
+	if (#argv == 0) then
+		server_msg(pid, "world_editor: placeable -- "..table.concat(component_names(), ", "));
+		server_msg(pid, "  /place <component> for its help, e.g. /place elevator");
+		return;
+	end
 
 	local k = kinds[string.lower(argv[1])];
 	if (k == nil or k.name == "__chunk") then
-		local names = {};
-		for n in pairs(kinds) do
-			if (n ~= "__chunk") then table.insert(names, n); end
-		end
-		table.sort(names);
-		server_msg(pid, "world_editor: unknown component. have: "..table.concat(names, ", "));
+		server_msg(pid, "world_editor: no such component. placeable: "
+		                ..table.concat(component_names(), ", "));
 		return;
 	end
 
