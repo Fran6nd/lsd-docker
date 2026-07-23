@@ -30,6 +30,7 @@ getcfg("we_elevator_speed", 6);    -- blocks per second
 getcfg("we_elevator_wait", 1.0);   -- seconds held at the far end
 getcfg("we_elevator_headroom", 3); -- rider headroom reserved above the top
 getcfg("we_elevator_thick", 2);    -- platform thickness (>=2 rides out lag)
+getcfg("we_elevator_stand", 2.4);  -- head-to-feet: pos.z when stood on the top
 
 local RED = {r=255, g=32, b=32};   -- fallback if the palette read fails
 
@@ -255,10 +256,18 @@ end
 
 -- ------------------------------------------------------------------ tick
 
-local function carry(aboard, dz)
+-- Carry riders with the platform. Move them by the same delta so their
+-- own walking/jumping is preserved, but never let them end up below the
+-- platform's top surface -- that is the "legs stuck in the platform"
+-- sink, where relative motion plus client jitter buries them a little
+-- deeper each step. inst.z is already the new top layer here.
+local function carry(inst, aboard, dz)
+	local top = inst.z - we_elevator_stand;   -- pos.z of feet-on-surface
 	for _, pid in ipairs(aboard) do
 		local p = get_position(pid);
-		set_position(pid, {x=p.x, y=p.y, z=p.z + dz});
+		local nz = p.z + dz;
+		if (nz > top) then nz = top; end       -- z is down: clamp the sink
+		set_position(pid, {x=p.x, y=p.y, z=nz});
 	end
 end
 
@@ -284,7 +293,7 @@ local function step(inst, we, dz)
 		-- rising: lift riders, add the new top layer under their feet,
 		-- then convert the vacated bottom layer into piston (it stays
 		-- solid, just insets by a block as the platform climbs off it)
-		carry(aboard, dz);
+		carry(inst, aboard, dz);
 		draw_foot(inst, we, to, tint(inst), true);            -- new top
 		draw_foot(inst, we, from + thick - 1, nil, false);    -- old bottom off
 		draw_piston_layer(inst, we, from + thick - 1, true);  -- piston grows up
@@ -294,7 +303,7 @@ local function step(inst, we, dz)
 		-- shrinks); catch the riders, then drop the old top layer
 		draw_foot(inst, we, to + thick - 1, tint(inst), true);-- new bottom
 		draw_foot(inst, we, from, nil, false);                -- old top
-		carry(aboard, dz);
+		carry(inst, aboard, dz);
 	end
 end
 

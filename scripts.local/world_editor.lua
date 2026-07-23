@@ -711,6 +711,23 @@ function mod.after.tick()
 	end
 end
 
+-- A rider is teleported, not falling, but neither the engine's velocity
+-- nor fall_damage.lua's apex tracking can tell the difference, so a ride
+-- can land phantom fall damage. Swallow fall damage (KillTypeFall = 4)
+-- for anyone standing inside an elevator's shaft.
+function mod.damage_player(pid, hp, type, from)
+	if (type == 4 and is_alive(pid)) then
+		local p = get_position(pid);
+		for _, inst in pairs(insts) do
+			if (inst.reserved_area ~= nil
+			    and areas.contains(inst.reserved_area, p.x, p.y, p.z)) then
+				return;
+			end
+		end
+	end
+	mod.next.damage_player(pid, hp, type, from);
+end
+
 -- ------------------------------------------------------------------ flight
 --
 -- Building means getting to awkward corners, so edit mode gives
