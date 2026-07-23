@@ -40,6 +40,8 @@ getcfg("we_readonly", false);      -- master lock: no player edits at all
 getcfg("we_autosave", true);       -- rewrite <map>.json on every change
 getcfg("we_fly", true);            -- free flight while edit mode is on
 getcfg("we_fly_speed", 16);        -- blocks per second, doubled by sprint
+getcfg("we_mark_range", 160);      -- how far a spade/gun mark reaches
+getcfg("we_water_level", 63);      -- z a mark lands on when aimed past all blocks
 
 local editing = false;
 local mapname = nil;
@@ -229,6 +231,18 @@ function we.rect(inst, x1, y1, x2, y2, z, color, on)
 			if (on) then we.set(inst, x, y, z, color);
 			else we.clear(inst, x, y, z); end
 		end
+	end
+end
+
+-- dig out an existing map block (not a component block, so it is not
+-- tracked in guarded): used to clear an elevator's path so the platform
+-- isn't obstructed
+function we.dig(x, y, z)
+	if (x < 0 or x > 511 or y < 0 or y > 511 or z < 0 or z > 63) then
+		return;
+	end
+	if (guarded[key(x, y, z)] == nil and is_solid({x=x, y=y, z=z})) then
+		block_action({x=x, y=y, z=z}, 1, get_anon_pid());
 	end
 end
 
@@ -435,9 +449,38 @@ local function revert(pid, pos, type)
 	send_block_action(pid, pos, 0, get_anon_pid());
 end
 
--- Feed one mark into the placement in progress. Marks arrive either by
--- spading a block or, for anyone who cannot spade (spectators, who are
--- often the ones building), from /here.
+-- Where a player is aiming, for marking. Raycast eye-forward to the
+-- first solid block; if the shot clears every block (aiming at water or
+-- the void) drop the mark on the water/floor plane instead, so a swing
+-- that destroys nothing still marks something.
+local function aim_target(pid)
+	local s = get_position(pid);
+	local o = get_orientation(pid);
+	local e = {x=s.x + o.x*we_mark_range,
+	           y=s.y + o.y*we_mark_range,
+	           z=s.z + o.z*we_mark_range};
+
+	local vox = raycast(s, e, false);   -- first solid voxel
+	if (vox ~= nil) then
+		return vox;
+	end
+
+	if (o.z > 0.001) then               -- looking down: meet the water plane
+		local t = (we_water_level - s.z) / o.z;
+		if (t > 0 and t <= we_mark_range) then
+			local x = math.floor(s.x + o.x*t);
+			local y = math.floor(s.y + o.y*t);
+			if (x >= 0 and x < 512 and y >= 0 and y < 512) then
+				return {x=x, y=y, z=we_water_level};
+			end
+		end
+	end
+	return nil;
+end
+
+-- Feed one mark into the placement in progress. Marks arrive from a
+-- spade/gun swing (aim_target, works on water and misses too), or from
+-- /here for spectators who fly rather than spade.
 local function apply_mark(pid, pos)
 	local s = session[pid];
 	if (s == nil) then
@@ -480,18 +523,29 @@ local function apply_mark(pid, pos)
 	return true;
 end
 
+-- undo whatever the client just did to a block or three, given the
+-- action type (build vs a 1- or 3-wide spade/gun destroy)
+local function revert_action(pid, pos, type)
+	revert(pid, pos, type);
+	if (type == 2) then
+		revert(pid, {x=pos.x, y=pos.y, z=pos.z-1}, type);
+		revert(pid, {x=pos.x, y=pos.y, z=pos.z+1}, type);
+	end
+end
+
 function mod.on_block_action(pid, pos, type)
-	-- a spade click while placing is a pick, not an edit
-	local s = session[pid];
-	if (s ~= nil and type ~= 0) then
-		-- a mark is always "spade one block"; put it straight back, and
-		-- put back the neighbours too if they used the 3-block spade
-		revert(pid, pos, type);
-		if (type == 2) then
-			revert(pid, {x=pos.x, y=pos.y, z=pos.z-1}, type);
-			revert(pid, {x=pos.x, y=pos.y, z=pos.z+1}, type);
-		end
-		apply_mark(pid, pos);
+	-- while placing, no block action edits anything -- the destroy is
+	-- swallowed and the mark comes from the fire input (on_mouse_input),
+	-- so it also works on water and on empty misses
+	if (session[pid] ~= nil) then
+		revert_action(pid, pos, type);
+		return;
+	end
+
+	-- a gun never destroys blocks in edit mode: fly around armed without
+	-- chewing the map
+	if (editing and get_tool(pid) == 2) then
+		revert_action(pid, pos, type);
 		return;
 	end
 
@@ -518,6 +572,31 @@ function mod.on_block_action(pid, pos, type)
 	end
 
 	mod.next.on_block_action(pid, pos, type);
+end
+
+-- Marking is driven by the fire button so it works with a spade or a
+-- gun, whether or not the swing destroys anything. on_mouse_input gives
+-- the whole button bitmask on change; bit 1 is primary fire, so mark on
+-- the press edge (0 -> 1) while a placement is in progress.
+local prevmouse = pid_connected_table(0);
+function mod.on_mouse_input(pid, bits)
+	local pressed = bit.band(bits, 1) ~= 0 and bit.band(prevmouse[pid], 1) == 0;
+	prevmouse[pid] = bits;
+
+	if (pressed and editing and session[pid] ~= nil) then
+		local tool = get_tool(pid);
+		if (tool == 0 or tool == 2) then   -- spade or gun
+			local t = aim_target(pid);
+			if (t == nil) then
+				server_msg(pid, "world_editor: nothing to mark there -- aim at ground or water.");
+			else
+				server_msg(pid, string.format("world_editor: mark at %d %d %d", t.x, t.y, t.z));
+				apply_mark(pid, t);
+			end
+		end
+	end
+
+	mod.next.on_mouse_input(pid, bits);
 end
 
 function mod.on_block_line(pid, start, stop)
