@@ -1,69 +1,101 @@
 -- world_editor/elevator.lua -- A rising platform.
 --
--- Placement: /place elevator up|down [perm]
---   mark 1 -- spade the block that is the platform's centre; the
---             platform is a filled disc of radius `r` around it
---   mark 2 -- spade a block at the altitude to travel to
+-- Placement: /place elevator <rect|square> <up|down>
+--   mark 1 -- one corner of the platform footprint
+--   mark 2 -- the opposite corner (square snaps it to equal sides)
+--   mark 3 -- a block at the altitude to travel to
 --
--- Direction is where the platform *goes* when someone stands on it, so
--- it rests at the opposite end: "up" waits at the bottom, "down" waits
--- at the top. Once the rider steps off it returns to that resting end
--- on its own, ready for the next person.
+-- The footprint is the rectangle between marks 1 and 2, resting at their
+-- level; mark 3 gives the far altitude. Direction is where the platform
+-- *goes* when someone stands on it, so it rests at the opposite end:
+-- "up" waits at the bottom, "down" waits at the top. Once the rider
+-- steps off it returns to that resting end on its own.
 --
 -- Riders are carried by teleport rather than by block physics: the
 -- platform is only redrawn a layer at a time, and a player standing on
 -- a block that vanishes and reappears one layer along would stutter or
 -- fall through. Moving them by the same delta keeps the ride smooth.
 --
--- Remember the map's z axis points *down* -- z=0 is sky, z=63 is floor
--- -- so travelling "up" means stepping z towards the smaller value.
+-- The whole shaft the platform sweeps -- plus rider headroom -- is
+-- reserved, so no one can wall the platform in or block its path.
+--
+-- Colour comes from the placer's block palette. The map's z axis points
+-- *down* (z=0 sky, z=63 floor), so travelling "up" steps z downward.
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local E = {name = "elevator"};
 
 local areas = require "world_editor.areas";
 
-getcfg("we_elevator_radius", 5);   -- platform radius, in blocks
 getcfg("we_elevator_speed", 6);    -- blocks per second
 getcfg("we_elevator_wait", 1.0);   -- seconds held at the far end
+getcfg("we_elevator_headroom", 3); -- rider headroom reserved above the top
 
--- default platform colour; /place elevator ... <colour> overrides it
-local RED = {r=255, g=32, b=32};
+local RED = {r=255, g=32, b=32};   -- fallback if the palette read fails
 
 local function tint(inst)
 	return inst.color or RED;
 end
 
+E.desc  = "a platform that lifts riders between two altitudes.";
+E.usage = "<rect|square> <up|down>";
+E.help  = {
+	"world_editor: elevator -- a platform that carries riders up or down.",
+	"  usage: /place elevator <rect|square> <up|down>",
+	"  up rests at the bottom and rises when stood on; down is the reverse.",
+	"  then mark two footprint corners and one altitude (spade, or /here).",
+	"  colour is taken from your current block palette.",
+};
+
 -- ------------------------------------------------------------ placement
 
-function E.start(pid, dir)
-	dir = string.lower(dir or "up");
+function E.start(pid, args)
+	local shape = string.lower(args[1] or "");
+	local dir   = string.lower(args[2] or "");
+	if (shape ~= "rect" and shape ~= "square") then
+		return nil, "shape must be rect or square.";
+	end
 	if (dir ~= "up" and dir ~= "down") then
 		return nil, "direction must be up or down.";
 	end
-	return {dir=dir, pts={}, data=nil,
-	        prompt="spade the platform centre."};
+	return {shape=shape, dir=dir, pts={}, data=nil,
+	        prompt="mark one corner of the platform."};
 end
 
 function E.click(s, pos)
 	table.insert(s.pts, {x=pos.x, y=pos.y, z=pos.z});
 
 	if (#s.pts == 1) then
-		s.prompt = "now spade a block at the altitude to travel to.";
+		s.prompt = "now mark the opposite corner.";
+		return false;
+	end
+	if (#s.pts == 2) then
+		s.prompt = "now mark a block at the altitude to travel to.";
 		return false;
 	end
 
-	local a, b = s.pts[1], s.pts[2];
-	if (a.z == b.z) then
-		s.pts = {a};
-		return false, "that is the same altitude -- pick a different height.";
+	local a, b, c = s.pts[1], s.pts[2], s.pts[3];
+
+	local x1, y1 = math.min(a.x, b.x), math.min(a.y, b.y);
+	local x2, y2 = math.max(a.x, b.x), math.max(a.y, b.y);
+
+	-- square: grow the shorter side to match the longer, anchored at the
+	-- low corner, so both dimensions end up equal
+	if (s.shape == "square") then
+		local side = math.max(x2 - x1, y2 - y1);
+		x2, y2 = x1 + side, y1 + side;
+	end
+
+	local base = a.z;
+	if (base == c.z) then
+		s.pts = {a, b};
+		return false, "that altitude is the platform's own level -- pick a different height.";
 	end
 
 	s.data = {
-		x = a.x, y = a.y,
-		zlo = math.min(a.z, b.z),   -- smaller z == higher up
-		zhi = math.max(a.z, b.z),
-		dir = s.dir,
-		r   = we_elevator_radius,
+		x1=x1, y1=y1, x2=x2, y2=y2,
+		zlo=math.min(base, c.z),   -- smaller z == higher up
+		zhi=math.max(base, c.z),
+		dir=s.dir,
 	};
 	return true;
 end
@@ -71,8 +103,7 @@ end
 -- ------------------------------------------------------------- lifecycle
 
 local function rest_z(inst)
-	-- "up" waits down at the floor end (larger z)
-	if (inst.dir == "up") then return inst.zhi; end
+	if (inst.dir == "up") then return inst.zhi; end  -- wait low (large z)
 	return inst.zlo;
 end
 
@@ -83,36 +114,46 @@ end
 
 function E.spawn(d)
 	local inst = {
-		x=d.x, y=d.y, zlo=d.zlo, zhi=d.zhi,
-		dir=d.dir, r=d.r or we_elevator_radius,
+		x1=d.x1, y1=d.y1, x2=d.x2, y2=d.y2,
+		zlo=d.zlo, zhi=d.zhi, dir=d.dir,
 	};
+	-- centre, kept for /componentperm's nearest-component search
+	inst.x = math.floor((d.x1 + d.x2) / 2);
+	inst.y = math.floor((d.y1 + d.y2) / 2);
 	inst.z = rest_z(inst);      -- current platform layer
 	inst.state = "rest";        -- rest | going | holding | returning
-	inst.t = 0;                 -- seconds accumulated for the next step
+	inst.t = 0;
 	inst.hold = 0;
 	return inst;
 end
 
 function E.save(inst)
-	return {x=inst.x, y=inst.y, zlo=inst.zlo, zhi=inst.zhi,
-	        dir=inst.dir, r=inst.r};
+	return {x1=inst.x1, y1=inst.y1, x2=inst.x2, y2=inst.y2,
+	        zlo=inst.zlo, zhi=inst.zhi, dir=inst.dir};
 end
 
 function E.render(inst, we)
-	we.disc(inst, inst.x, inst.y, inst.z, inst.r, tint(inst), true);
+	we.rect(inst, inst.x1, inst.y1, inst.x2, inst.y2, inst.z, tint(inst), true);
 end
 
 function E.destroy(inst, we)
-	we.disc(inst, inst.x, inst.y, inst.z, inst.r, nil, false);
+	we.rect(inst, inst.x1, inst.y1, inst.x2, inst.y2, inst.z, nil, false);
+end
+
+-- the full column the platform sweeps, plus headroom above the topmost
+-- stop, so nobody can build in the shaft or over the exit
+function E.reserved(inst)
+	return areas.box(inst.x1, inst.y1, inst.zlo - we_elevator_headroom,
+	                 inst.x2, inst.y2, inst.zhi);
 end
 
 -- ---------------------------------------------------------------- trigger
 
--- The trigger is a short cylinder sitting directly on top of the
--- platform: same footprint, a few blocks of headroom. It slides with
--- the platform so riders keep triggering it the whole way.
+-- a box on top of the platform footprint with a few blocks of headroom,
+-- sliding with the platform so riders keep triggering the whole way
 local function rider_area(inst)
-	return areas.cylinder(inst.x, inst.y, inst.r, inst.z - 4, inst.z);
+	return areas.box(inst.x1, inst.y1, inst.z - 4,
+	                 inst.x2, inst.y2, inst.z);
 end
 
 local function riders(inst)
@@ -125,12 +166,11 @@ local function step(inst, we, dz)
 	local from = inst.z;
 	local to = from + dz;
 
-	-- carry anyone aboard before the floor moves out from under them
-	local aboard = riders(inst);
+	local aboard = riders(inst);  -- carry them before the floor moves
 
-	we.disc(inst, inst.x, inst.y, from, inst.r, nil, false);
+	we.rect(inst, inst.x1, inst.y1, inst.x2, inst.y2, from, nil, false);
 	inst.z = to;
-	we.disc(inst, inst.x, inst.y, to, inst.r, tint(inst), true);
+	we.rect(inst, inst.x1, inst.y1, inst.x2, inst.y2, to, tint(inst), true);
 
 	for _, pid in ipairs(aboard) do
 		local p = get_position(pid);
@@ -155,7 +195,6 @@ function E.tick(inst, we)
 
 	if (inst.state == "holding") then
 		inst.hold = inst.hold - dt;
-		-- don't drop out from under someone still standing there
 		if (inst.hold <= 0 and #riders(inst) == 0) then
 			inst.state = "returning";
 			inst.t = 0;
