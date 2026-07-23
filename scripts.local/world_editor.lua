@@ -573,10 +573,12 @@ end
 -- everyone free flight. Input bits are Forward 1, Backward 2, Left 4,
 -- Right 8, Jump 16, Crouch 32, Sneak 64, Sprint 128.
 --
--- Jump is unreliable for going up: the engine strips that bit while the
--- player is airborne (on_move_input), so it only ever fires the instant
--- you leave the ground. Sneak is therefore the dependable "up" and we
--- accept either.
+-- Vertical is sneak (up) and crouch (down). Jump is deliberately NOT
+-- read, for two independent reasons: the engine strips that bit while
+-- the player is airborne (on_move_input), so it only fires the instant
+-- you leave the ground; and set_jump() below calls send_move_input(),
+-- which sets the very same bit -- reading it would make the anti-jitter
+-- nudge look like held input and fly you upward forever on its own.
 
 local jumpctr = pid_connected_table(0);
 
@@ -610,8 +612,8 @@ function mod.tick_player_physics(pid, delta)
 
 	local fwd    = (bit.band(inp, 1) ~= 0 and 1 or 0) - (bit.band(inp, 2) ~= 0 and 1 or 0);
 	local strafe = (bit.band(inp, 8) ~= 0 and 1 or 0) - (bit.band(inp, 4) ~= 0 and 1 or 0);
-	-- z grows downward, so rising means subtracting
-	local up     = ((bit.band(inp, 16) ~= 0 or bit.band(inp, 64) ~= 0) and 1 or 0)
+	-- sneak rises, crouch sinks; z grows downward, so rising subtracts
+	local up     = (bit.band(inp, 64) ~= 0 and 1 or 0)
 	             - (bit.band(inp, 32) ~= 0 and 1 or 0);
 
 	local new = {
