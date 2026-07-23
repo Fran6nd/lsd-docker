@@ -1,23 +1,23 @@
 -- world_editor/elevator.lua -- A rising platform.
 --
--- Placement: /place elevator <rect|square> <up|down>
---   mark 1 -- one corner of the platform footprint
---   mark 2 -- the opposite corner (square snaps it to equal sides)
---   mark 3 -- a block at the altitude to travel to
+-- Placement: /place elevator <rect|square|circle> <up|down>
+--   rect/square: mark two footprint corners, then an altitude
+--                (square snaps the corners to equal sides)
+--   circle:      mark the centre, then a rim block (radius), then an
+--                altitude
 --
--- The footprint is the rectangle between marks 1 and 2, resting at their
--- level; mark 3 gives the far altitude. Direction is where the platform
--- *goes* when someone stands on it, so it rests at the opposite end:
--- "up" waits at the bottom, "down" waits at the top. Once the rider
--- steps off it returns to that resting end on its own.
+-- The footprint rests at the level of its first mark(s); the last mark
+-- gives the far altitude. Direction is where the platform *goes* when
+-- someone stands on it, so it rests at the opposite end: "up" waits at
+-- the bottom, "down" waits at the top, and it returns there once empty.
 --
--- Riders are carried by teleport rather than by block physics: the
--- platform is only redrawn a layer at a time, and a player standing on
--- a block that vanishes and reappears one layer along would stutter or
--- fall through. Moving them by the same delta keeps the ride smooth.
+-- Riders are carried by teleport rather than block physics: the platform
+-- is redrawn a layer at a time, and a player on a block that vanishes
+-- and reappears one layer along would stutter or fall through. Moving
+-- them by the same delta keeps the ride smooth.
 --
--- The whole shaft the platform sweeps -- plus rider headroom -- is
--- reserved, so no one can wall the platform in or block its path.
+-- On placement the whole shaft is cleared of map blocks and then
+-- reserved, so the platform has a free path and nobody can wall it in.
 --
 -- Colour comes from the placer's block palette. The map's z axis points
 -- *down* (z=0 sky, z=63 floor), so travelling "up" steps z downward.
@@ -37,12 +37,13 @@ local function tint(inst)
 end
 
 E.desc  = "a platform that lifts riders between two altitudes.";
-E.usage = "<rect|square> <up|down>";
+E.usage = "<rect|square|circle> <up|down>";
 E.help  = {
 	"world_editor: elevator -- a platform that carries riders up or down.",
-	"  usage: /place elevator <rect|square> <up|down>",
+	"  usage: /place elevator <rect|square|circle> <up|down>",
 	"  up rests at the bottom and rises when stood on; down is the reverse.",
-	"  then mark two footprint corners and one altitude (spade, or /here).",
+	"  rect/square: mark two corners then an altitude.",
+	"  circle: mark centre, then a rim block, then an altitude.",
 	"  colour is taken from your current block palette.",
 };
 
@@ -51,21 +52,23 @@ E.help  = {
 function E.start(pid, args)
 	local shape = string.lower(args[1] or "");
 	local dir   = string.lower(args[2] or "");
-	if (shape ~= "rect" and shape ~= "square") then
-		return nil, "shape must be rect or square.";
+	if (shape ~= "rect" and shape ~= "square" and shape ~= "circle") then
+		return nil, "shape must be rect, square or circle.";
 	end
 	if (dir ~= "up" and dir ~= "down") then
 		return nil, "direction must be up or down.";
 	end
-	return {shape=shape, dir=dir, pts={}, data=nil,
-	        prompt="mark one corner of the platform."};
+	return {shape=shape, dir=dir, pts={},
+	        prompt=(shape == "circle") and "mark the platform centre."
+	                                    or "mark one corner of the platform."};
 end
 
 function E.click(s, pos)
 	table.insert(s.pts, {x=pos.x, y=pos.y, z=pos.z});
 
 	if (#s.pts == 1) then
-		s.prompt = "now mark the opposite corner.";
+		s.prompt = (s.shape == "circle") and "now mark a rim block (sets the radius)."
+		                                  or "now mark the opposite corner.";
 		return false;
 	end
 	if (#s.pts == 2) then
@@ -74,15 +77,23 @@ function E.click(s, pos)
 	end
 
 	local a, b, c = s.pts[1], s.pts[2], s.pts[3];
+	local foot;
 
-	local x1, y1 = math.min(a.x, b.x), math.min(a.y, b.y);
-	local x2, y2 = math.max(a.x, b.x), math.max(a.y, b.y);
-
-	-- square: grow the shorter side to match the longer, anchored at the
-	-- low corner, so both dimensions end up equal
-	if (s.shape == "square") then
-		local side = math.max(x2 - x1, y2 - y1);
-		x2, y2 = x1 + side, y1 + side;
+	if (s.shape == "circle") then
+		local r = math.ceil(math.sqrt((b.x-a.x)^2 + (b.y-a.y)^2));
+		if (r < 1) then
+			s.pts = {a};
+			return false, "the rim is on the centre -- mark it further out.";
+		end
+		foot = {shape="circle", cx=a.x, cy=a.y, r=r};
+	else
+		local x1, y1 = math.min(a.x, b.x), math.min(a.y, b.y);
+		local x2, y2 = math.max(a.x, b.x), math.max(a.y, b.y);
+		if (s.shape == "square") then
+			local side = math.max(x2 - x1, y2 - y1);
+			x2, y2 = x1 + side, y1 + side;
+		end
+		foot = {shape="rect", x1=x1, y1=y1, x2=x2, y2=y2};
 	end
 
 	local base = a.z;
@@ -91,13 +102,37 @@ function E.click(s, pos)
 		return false, "that altitude is the platform's own level -- pick a different height.";
 	end
 
-	s.data = {
-		x1=x1, y1=y1, x2=x2, y2=y2,
-		zlo=math.min(base, c.z),   -- smaller z == higher up
-		zhi=math.max(base, c.z),
-		dir=s.dir,
-	};
+	s.data = {foot=foot, dir=s.dir,
+	          zlo=math.min(base, c.z), zhi=math.max(base, c.z)};
 	return true;
+end
+
+-- ------------------------------------------------------------- footprint
+
+-- xy bounding box of the footprint, clamped to the map
+local function foot_bbox(f)
+	if (f.shape == "circle") then
+		return f.cx-f.r, f.cy-f.r, f.cx+f.r, f.cy+f.r;
+	end
+	return f.x1, f.y1, f.x2, f.y2;
+end
+
+-- the footprint as an area spanning z1..z2 (for triggers and reserving)
+local function foot_area(f, z1, z2)
+	if (f.shape == "circle") then
+		return areas.cylinder(f.cx, f.cy, f.r, z1, z2);
+	end
+	return areas.box(f.x1, f.y1, z1, f.x2, f.y2, z2);
+end
+
+-- draw (or clear) the platform layer at z
+local function draw_foot(inst, we, z, color, on)
+	local f = inst.foot;
+	if (f.shape == "circle") then
+		we.disc(inst, f.cx, f.cy, z, f.r, color, on);
+	else
+		we.rect(inst, f.x1, f.y1, f.x2, f.y2, z, color, on);
+	end
 end
 
 -- ------------------------------------------------------------- lifecycle
@@ -113,13 +148,12 @@ local function goal_z(inst)
 end
 
 function E.spawn(d)
-	local inst = {
-		x1=d.x1, y1=d.y1, x2=d.x2, y2=d.y2,
-		zlo=d.zlo, zhi=d.zhi, dir=d.dir,
-	};
-	-- centre, kept for /componentperm's nearest-component search
-	inst.x = math.floor((d.x1 + d.x2) / 2);
-	inst.y = math.floor((d.y1 + d.y2) / 2);
+	local inst = {foot=d.foot, dir=d.dir, zlo=d.zlo, zhi=d.zhi};
+
+	local x1, y1, x2, y2 = foot_bbox(d.foot);
+	inst.x = math.floor((x1 + x2) / 2);   -- centre, for nearest-component search
+	inst.y = math.floor((y1 + y2) / 2);
+
 	inst.z = rest_z(inst);      -- current platform layer
 	inst.state = "rest";        -- rest | going | holding | returning
 	inst.t = 0;
@@ -128,32 +162,40 @@ function E.spawn(d)
 end
 
 function E.save(inst)
-	return {x1=inst.x1, y1=inst.y1, x2=inst.x2, y2=inst.y2,
-	        zlo=inst.zlo, zhi=inst.zhi, dir=inst.dir};
+	return {foot=inst.foot, dir=inst.dir, zlo=inst.zlo, zhi=inst.zhi};
 end
 
 function E.render(inst, we)
-	we.rect(inst, inst.x1, inst.y1, inst.x2, inst.y2, inst.z, tint(inst), true);
+	-- clear the shaft so the platform has a free path, then lay the
+	-- platform down at its resting layer
+	local x1, y1, x2, y2 = foot_bbox(inst.foot);
+	local shaft = foot_area(inst.foot, inst.zlo - we_elevator_headroom, inst.zhi);
+	for z = inst.zlo - we_elevator_headroom, inst.zhi do
+		for y = y1, y2 do
+			for x = x1, x2 do
+				if (areas.contains(shaft, x, y, z)) then
+					we.dig(x, y, z);
+				end
+			end
+		end
+	end
+	draw_foot(inst, we, inst.z, tint(inst), true);
 end
 
 function E.destroy(inst, we)
-	we.rect(inst, inst.x1, inst.y1, inst.x2, inst.y2, inst.z, nil, false);
+	draw_foot(inst, we, inst.z, nil, false);
 end
 
--- the full column the platform sweeps, plus headroom above the topmost
--- stop, so nobody can build in the shaft or over the exit
+-- the full column the platform sweeps, plus headroom above the top stop
 function E.reserved(inst)
-	return areas.box(inst.x1, inst.y1, inst.zlo - we_elevator_headroom,
-	                 inst.x2, inst.y2, inst.zhi);
+	return foot_area(inst.foot, inst.zlo - we_elevator_headroom, inst.zhi);
 end
 
 -- ---------------------------------------------------------------- trigger
 
--- a box on top of the platform footprint with a few blocks of headroom,
--- sliding with the platform so riders keep triggering the whole way
+-- the footprint with a few blocks of headroom, sliding with the platform
 local function rider_area(inst)
-	return areas.box(inst.x1, inst.y1, inst.z - 4,
-	                 inst.x2, inst.y2, inst.z);
+	return foot_area(inst.foot, inst.z - 4, inst.z);
 end
 
 local function riders(inst)
@@ -168,9 +210,9 @@ local function step(inst, we, dz)
 
 	local aboard = riders(inst);  -- carry them before the floor moves
 
-	we.rect(inst, inst.x1, inst.y1, inst.x2, inst.y2, from, nil, false);
+	draw_foot(inst, we, from, nil, false);
 	inst.z = to;
-	we.rect(inst, inst.x1, inst.y1, inst.x2, inst.y2, to, tint(inst), true);
+	draw_foot(inst, we, to, tint(inst), true);
 
 	for _, pid in ipairs(aboard) do
 		local p = get_position(pid);
