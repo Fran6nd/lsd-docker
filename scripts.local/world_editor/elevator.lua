@@ -29,6 +29,7 @@ local areas = require "world_editor.areas";
 getcfg("we_elevator_speed", 6);    -- blocks per second
 getcfg("we_elevator_wait", 1.0);   -- seconds held at the far end
 getcfg("we_elevator_headroom", 3); -- rider headroom reserved above the top
+getcfg("we_elevator_thick", 2);    -- platform thickness (>=2 rides out lag)
 
 local RED = {r=255, g=32, b=32};   -- fallback if the palette read fails
 
@@ -125,13 +126,48 @@ local function foot_area(f, z1, z2)
 	return areas.box(f.x1, f.y1, z1, f.x2, f.y2, z2);
 end
 
--- draw (or clear) the platform layer at z
+-- draw (or clear) one footprint layer at z
 local function draw_foot(inst, we, z, color, on)
 	local f = inst.foot;
 	if (f.shape == "circle") then
 		we.disc(inst, f.cx, f.cy, z, f.r, color, on);
 	else
 		we.rect(inst, f.x1, f.y1, f.x2, f.y2, z, color, on);
+	end
+end
+
+-- the platform is a slab we_elevator_thick layers deep, its top surface
+-- at z and the rest hanging below (z+1 ..). draw/clear the whole slab
+local function draw_slab(inst, we, ztop, color, on)
+	for d = 0, we_elevator_thick - 1 do
+		draw_foot(inst, we, ztop + d, color, on);
+	end
+end
+
+-- The piston is the visible support column under the platform: the
+-- footprint inset by one block on every side (x-, x+, y-, y+), running
+-- from just beneath the platform down to the shaft base, so the wider
+-- platform appears to ride on a narrower shaft. nil when the platform
+-- is too small to inset.
+local function inset_foot(f)
+	if (f.shape == "circle") then
+		if (f.r - 1 < 1) then return nil; end
+		return {shape="circle", cx=f.cx, cy=f.cy, r=f.r-1};
+	end
+	local x1, y1 = f.x1+1, f.y1+1;
+	local x2, y2 = f.x2-1, f.y2-1;
+	if (x1 > x2 or y1 > y2) then return nil; end
+	return {shape="rect", x1=x1, y1=y1, x2=x2, y2=y2};
+end
+
+local function draw_piston_layer(inst, we, z, on)
+	local p = inst.piston;
+	if (p == nil) then return; end
+	local color = on and tint(inst) or nil;
+	if (p.shape == "circle") then
+		we.disc(inst, p.cx, p.cy, z, p.r, color, on);
+	else
+		we.rect(inst, p.x1, p.y1, p.x2, p.y2, z, color, on);
 	end
 end
 
@@ -149,6 +185,7 @@ end
 
 function E.spawn(d)
 	local inst = {foot=d.foot, dir=d.dir, zlo=d.zlo, zhi=d.zhi};
+	inst.piston = inset_foot(d.foot);
 
 	local x1, y1, x2, y2 = foot_bbox(d.foot);
 	inst.x = math.floor((x1 + x2) / 2);   -- centre, for nearest-component search
@@ -165,12 +202,20 @@ function E.save(inst)
 	return {foot=inst.foot, dir=inst.dir, zlo=inst.zlo, zhi=inst.zhi};
 end
 
+-- lowest z the slab ever reaches: its top travels down to zhi, plus the
+-- thickness hanging below
+local function shaft_bottom(inst)
+	return inst.zhi + we_elevator_thick - 1;
+end
+
 function E.render(inst, we)
 	-- clear the shaft so the platform has a free path, then lay the
 	-- platform down at its resting layer
 	local x1, y1, x2, y2 = foot_bbox(inst.foot);
-	local shaft = foot_area(inst.foot, inst.zlo - we_elevator_headroom, inst.zhi);
-	for z = inst.zlo - we_elevator_headroom, inst.zhi do
+	local top = inst.zlo - we_elevator_headroom;
+	local bot = shaft_bottom(inst);
+	local shaft = foot_area(inst.foot, top, bot);
+	for z = top, bot do
 		for y = y1, y2 do
 			for x = x1, x2 do
 				if (areas.contains(shaft, x, y, z)) then
@@ -179,16 +224,22 @@ function E.render(inst, we)
 			end
 		end
 	end
-	draw_foot(inst, we, inst.z, tint(inst), true);
+	draw_slab(inst, we, inst.z, tint(inst), true);
+	for z = inst.z + we_elevator_thick, shaft_bottom(inst) do
+		draw_piston_layer(inst, we, z, true);
+	end
 end
 
 function E.destroy(inst, we)
-	draw_foot(inst, we, inst.z, nil, false);
+	draw_slab(inst, we, inst.z, nil, false);
+	for z = inst.z + we_elevator_thick, shaft_bottom(inst) do
+		draw_piston_layer(inst, we, z, false);
+	end
 end
 
 -- the full column the platform sweeps, plus headroom above the top stop
 function E.reserved(inst)
-	return foot_area(inst.foot, inst.zlo - we_elevator_headroom, inst.zhi);
+	return foot_area(inst.foot, inst.zlo - we_elevator_headroom, shaft_bottom(inst));
 end
 
 -- ---------------------------------------------------------------- trigger
@@ -204,19 +255,46 @@ end
 
 -- ------------------------------------------------------------------ tick
 
-local function step(inst, we, dz)
-	local from = inst.z;
-	local to = from + dz;
-
-	local aboard = riders(inst);  -- carry them before the floor moves
-
-	draw_foot(inst, we, from, nil, false);
-	inst.z = to;
-	draw_foot(inst, we, to, tint(inst), true);
-
+local function carry(aboard, dz)
 	for _, pid in ipairs(aboard) do
 		local p = get_position(pid);
 		set_position(pid, {x=p.x, y=p.y, z=p.z + dz});
+	end
+end
+
+-- Move the slab one layer. With a thick slab a 1-step move overlaps by
+-- thickness-1 layers, so we only add the new edge layer and remove the
+-- old one -- the overlap stays solid the whole time and the rider never
+-- loses their floor, even if a block packet is briefly late.
+--
+-- The rider must never see a moment with no floor, or client-side
+-- physics drops them through: add the new layer before removing the old,
+-- and teleport in the safe order per direction. Position, block-build
+-- and block-destroy are all reliable and ordered, so the client applies
+-- them exactly as sent.
+local function step(inst, we, dz)
+	local from = inst.z;
+	local to = from + dz;
+	local aboard = riders(inst);  -- detect before anything moves
+	local thick = we_elevator_thick;
+
+	inst.z = to;
+
+	if (dz < 0) then
+		-- rising: lift riders, add the new top layer under their feet,
+		-- then convert the vacated bottom layer into piston (it stays
+		-- solid, just insets by a block as the platform climbs off it)
+		carry(aboard, dz);
+		draw_foot(inst, we, to, tint(inst), true);            -- new top
+		draw_foot(inst, we, from + thick - 1, nil, false);    -- old bottom off
+		draw_piston_layer(inst, we, from + thick - 1, true);  -- piston grows up
+	else
+		-- descending: the new bottom layer lands on the piston's top
+		-- layer, drawing the full footprint there absorbs it (piston
+		-- shrinks); catch the riders, then drop the old top layer
+		draw_foot(inst, we, to + thick - 1, tint(inst), true);-- new bottom
+		draw_foot(inst, we, from, nil, false);                -- old top
+		carry(aboard, dz);
 	end
 end
 
