@@ -10,6 +10,7 @@
 -- matters: block actions are batched per client frame and a build and
 -- destroy landing in the same frame get processed in the wrong order,
 -- leaving phantom blocks.
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 require "lib_bulk_destroy";
 

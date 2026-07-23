@@ -10,6 +10,7 @@
 -- thrower too if they're close enough) is teleported over the shaft and
 -- left to plummet down it. The fatal landing at the bottom is rewritten
 -- into the thrower's grenade kill, so the drop counts for them.
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 require "lib_bulk_destroy";
 

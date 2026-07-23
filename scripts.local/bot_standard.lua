@@ -12,6 +12,7 @@
 --
 -- DEPENDENCIES: lib_bot loaded first (config.lua does this), and a
 -- tent gamemode (ctf) for the roam target. It never load()s its deps.
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 require "lib_bulk_destroy"; -- global bdestroy_* for the dig-out stage
 
 local mod = init_mod();

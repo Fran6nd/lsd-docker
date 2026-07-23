@@ -73,6 +73,7 @@
 --   (lsdctl load lib_bot hostage ...): reloading the lib alone
 --   destroys the registry under its dependents' feet, which is also
 --   why bot_destroy is idempotent.
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 
 getcfg("bot_fidget_secs", 45);      -- idle keepalive period
