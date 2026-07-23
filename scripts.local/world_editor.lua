@@ -273,14 +273,8 @@ local function file_exists(path)
 	return true;
 end
 
--- ignore_autosave lets edit-mode force the very first write even when
--- autosave is off, so a brand-new map still gets its .editor.json
-local function save(force)
-	local path = jsonpath();
-	if (path == nil or (not we_autosave and not force)) then
-		return;
-	end
-
+-- the whole editable state as a plain table, ready for jenc
+local function build_doc()
 	local comps = {};
 	for _, inst in pairs(insts) do
 		local d = kinds[inst.kind].save(inst);
@@ -294,22 +288,36 @@ local function save(force)
 	end
 	table.sort(comps, function(a, b) return a.id < b.id; end);
 
-	local doc = {
+	return {
 		default_perm = chunks.format_perm(chunks.get_default()),
 		readonly = we_readonly and true or false,
 		chunks = chunks.serialize(),
 		components = comps,
 	};
+end
 
+-- write the layout json to an explicit path; returns ok, err
+local function write_json(path)
 	local f, err = io.open(path, "w");
 	if (f == nil) then
 		-- maps/ is mounted read-only in the stock compose file; say so
 		-- plainly rather than silently dropping the layout
 		log("world_editor: cannot write %s (%s) -- drop the :ro on the maps mount to persist", path, tostring(err));
+		return false, err;
+	end
+	f:write(jenc(build_doc()), "\n");
+	f:close();
+	return true;
+end
+
+-- force lets edit-mode force the very first write even when autosave is
+-- off, so a brand-new map still gets its .editor.json
+local function save(force)
+	local path = jsonpath();
+	if (path == nil or (not we_autosave and not force)) then
 		return;
 	end
-	f:write(jenc(doc), "\n");
-	f:close();
+	write_json(path);
 end
 
 local function clear_all()
@@ -485,6 +493,26 @@ local function apply_mark(pid, pos)
 	local s = session[pid];
 	if (s == nil) then
 		return false;
+	end
+
+	-- delete mode: the mark names a block; whichever component owns it
+	-- gets removed. Aim the spade/gun straight at one of its blocks.
+	if (s.kind == "__delete") then
+		local id = guarded[key(pos.x, pos.y, pos.z)];
+		local inst = id and insts[id];
+		if (inst == nil) then
+			server_msg(pid, "world_editor: no component on that block -- aim right at one.");
+			return true;   -- keep the session so they can try again
+		end
+		kinds[inst.kind].destroy(inst, we);
+		insts[id] = nil;
+		for i = #undo, 1, -1 do
+			if (undo[i] == id) then table.remove(undo, i); end
+		end
+		session[pid] = nil;
+		server_msg(pid, string.format("world_editor: deleted %s #%d.", inst.kind, id));
+		save();
+		return true;
 	end
 
 	local k = kinds[s.kind];
@@ -1013,6 +1041,76 @@ function cmd.func(pid, argv)
 	insts[id] = nil;
 	server_msg(pid, string.format("world_editor: removed #%d.", id));
 	save();
+end
+register_command(cmd, mod);
+
+-- Delete by pointing: start a mark, then spade/shoot a block belonging
+-- to the component you want gone.
+local cmd = {name="delete", desc="Delete the component whose block you mark."};
+function cmd.func(pid, argv)
+	if (not need_edit(pid)) then return; end
+	session[pid] = {kind="__delete",
+	                prompt="spade or shoot a block of the component to delete."};
+	server_msg(pid, "world_editor: "..session[pid].prompt);
+end
+register_command(cmd, mod);
+
+-- Persist the map itself. The components are drawn into the live map, so
+-- lift them out first, dump pure terrain to <name>.vxl, put them back,
+-- then write <name>.editor.json alongside -- reloading the map restores
+-- terrain from the vxl and components from the json.
+local cmd = {name="savemap", fakepid=true, usage="[name]",
+             desc="Save the map (.vxl) and its components (.editor.json) to maps/."};
+function cmd.func(pid, argv)
+	if (not is_fakepid(pid) and not need_edit(pid)) then return; end
+	cmd_assert(pid, cmd, #argv <= 1);
+
+	local name = argv[1] or mapname;
+	if (name == nil) then
+		server_msg(pid, "world_editor: no map name known -- pass one: /savemap <name>.");
+		return;
+	end
+	if (string.find(name, "[/\\]") or string.find(name, "^%.")) then
+		server_msg(pid, "world_editor: bad name (no / \\ or leading dot).");
+		return;
+	end
+
+	local vxlpath = we_dir.."/"..name..".vxl";
+	local jsonpath2 = we_dir.."/"..name..".editor.json";
+
+	-- take component blocks out so the vxl is pure terrain (+ the shafts
+	-- dug for elevators, which are genuine terrain changes)
+	for _, inst in pairs(insts) do
+		kinds[inst.kind].destroy(inst, we);
+	end
+
+	local ok = true;
+	local f, err = io.open(vxlpath..".new", "wb");
+	if (f == nil) then
+		log("world_editor: cannot write %s (%s)", vxlpath, tostring(err));
+		ok = false;
+	else
+		f:setvbuf("no");
+		for dat in dump_vxl() do
+			f:write(dat);
+		end
+		f:close();
+		os.rename(vxlpath..".new", vxlpath);
+	end
+
+	-- put the components back on the live map
+	for _, inst in pairs(insts) do
+		kinds[inst.kind].render(inst, we);
+	end
+
+	local jok = write_json(jsonpath2);
+
+	if (ok and jok) then
+		server_msg(pid, string.format("world_editor: saved %s.vxl + %s.editor.json in %s/",
+		                              name, name, we_dir));
+	else
+		server_msg(pid, "world_editor: save failed -- see server log (is maps/ writable?).");
+	end
 end
 register_command(cmd, mod);
 
