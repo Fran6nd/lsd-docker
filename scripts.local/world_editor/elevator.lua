@@ -28,6 +28,7 @@ local areas = require "world_editor.areas";
 
 getcfg("we_elevator_speed", 6);    -- blocks per second
 getcfg("we_elevator_wait", 1.0);   -- seconds held at the far end
+getcfg("we_elevator_abort", 0.6);  -- empty this long mid-travel -> return
 getcfg("we_elevator_headroom", 3); -- rider headroom reserved above the top
 getcfg("we_elevator_thick", 2);    -- platform thickness (>=2 rides out lag)
 getcfg("we_elevator_stand", 2.4);  -- head-to-feet: pos.z when stood on the top
@@ -245,9 +246,10 @@ end
 
 -- ---------------------------------------------------------------- trigger
 
--- the footprint with a few blocks of headroom, sliding with the platform
+-- the footprint with headroom, sliding with the platform. generous
+-- enough that a rider jumping in place still counts as aboard
 local function rider_area(inst)
-	return foot_area(inst.foot, inst.z - 4, inst.z);
+	return foot_area(inst.foot, inst.z - 6, inst.z);
 end
 
 local function riders(inst)
@@ -318,6 +320,7 @@ function E.tick(inst, we)
 		elseif (#riders(inst) > 0) then
 			inst.state = "going";
 			inst.t = 0;
+			inst.empty = 0;
 		end
 		return;
 	end
@@ -329,6 +332,21 @@ function E.tick(inst, we)
 			inst.t = 0;
 		end
 		return;
+	end
+
+	-- Riders all gone mid-travel: abort and head back to rest. A short
+	-- grace absorbs a rider being briefly airborne (a jump), so a hop
+	-- doesn't reverse the lift.
+	if (inst.state == "going") then
+		if (#riders(inst) == 0) then
+			inst.empty = (inst.empty or 0) + dt;
+			if (inst.empty >= we_elevator_abort) then
+				inst.state = "returning";
+				inst.t = 0;
+			end
+		else
+			inst.empty = 0;
+		end
 	end
 
 	local target = (inst.state == "going") and goal or rest;
