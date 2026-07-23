@@ -46,37 +46,6 @@ local function key(x, y, z)
 	return (z*512 + y)*512 + x;
 end
 
--- Colours are optional on every component: "r,g,b" or one of a few
--- names, so /place elevator up ro 0,255,0 just works. nil means the
--- component keeps whatever default it ships with.
-local named = {
-	red={r=255,g=32,b=32},    green={r=32,g=255,b=32},  blue={r=64,g=96,b=255},
-	yellow={r=255,g=224,b=32}, orange={r=255,g=140,b=0}, purple={r=170,g=64,b=255},
-	white={r=245,g=245,b=245}, black={r=16,g=16,b=16},   grey={r=170,g=170,b=185},
-	gray={r=170,g=170,b=185},  cyan={r=0,g=220,b=220},   pink={r=255,g=120,b=200},
-};
-
-local function parse_color(str)
-	if (str == nil) then
-		return nil, nil;
-	end
-
-	local n = named[string.lower(str)];
-	if (n ~= nil) then
-		return {r=n.r, g=n.g, b=n.b};
-	end
-
-	local r, g, b = string.match(str, "^(%d+)%s*,%s*(%d+)%s*,%s*(%d+)$");
-	if (r == nil) then
-		return nil, "colour must be r,g,b or a name (red, blue, grey, ...)";
-	end
-	r, g, b = tonumber(r), tonumber(g), tonumber(b);
-	if (r > 255 or g > 255 or b > 255) then
-		return nil, "colour channels must be 0-255.";
-	end
-	return {r=r, g=g, b=b};
-end
-
 -- ------------------------------------------------------------------ json
 --
 -- No JSON library ships with the server and the data here is simple
@@ -242,6 +211,17 @@ function we.disc(inst, cx, cy, z, r, color, on)
 	end
 end
 
+-- a filled rectangle of blocks at one z layer, the rect/square platform
+function we.rect(inst, x1, y1, x2, y2, z, color, on)
+	if (z < 0 or z >= 64) then return; end
+	for y = math.max(0, y1), math.min(511, y2) do
+		for x = math.max(0, x1), math.min(511, x2) do
+			if (on) then we.set(inst, x, y, z, color);
+			else we.clear(inst, x, y, z); end
+		end
+	end
+end
+
 function we.editing()
 	return editing;
 end
@@ -345,6 +325,7 @@ local function load_layout()
 			inst.kind = d.kind;
 			inst.perm = chunks.parse_perm(d.perm) or {mode="ro"};
 			inst.color = d.color;
+			if (k.reserved) then inst.reserved_area = k.reserved(inst); end
 			if (inst.id >= nextid) then nextid = inst.id + 1; end
 			insts[inst.id] = inst;
 			k.render(inst, we);
@@ -380,6 +361,19 @@ local function may_edit(pid, x, y, z)
 			return "deny";
 		end
 		return "break", id;
+	end
+
+	-- reserved volumes (e.g. an elevator shaft): no block there to break,
+	-- but nobody may fill it in either, subject to the same perm as the
+	-- component that owns it
+	for _, inst in pairs(insts) do
+		if (inst.reserved_area ~= nil
+		    and areas.contains(inst.reserved_area, x, y, z)) then
+			local p = inst.perm or {mode="ro"};
+			if (p.mode ~= "rw" or (p.team ~= nil and get_team(pid) ~= p.team)) then
+				return "deny";
+			end
+		end
 	end
 
 	if (we_readonly) then
@@ -454,6 +448,7 @@ local function apply_mark(pid, pos)
 	inst.kind = s.kind;
 	inst.perm = s.perm or {mode="ro"};
 	inst.color = s.color;   -- nil keeps the component's own default
+	if (k.reserved) then inst.reserved_area = k.reserved(inst); end
 	insts[inst.id] = inst;
 	k.render(inst, we);
 	table.insert(undo, inst.id);
@@ -734,14 +729,29 @@ function cmd.func(pid, argv)
 end
 register_command(cmd, mod);
 
-local cmd = {name="place", usage="<component> [direction] [perm] [colour]",
-             desc="Place a component (perm: ro/rw/rw:<team>; colour: r,g,b or a name)."};
+-- print a component's help: its own lines if it provides them, else a
+-- usage line built from its fields
+local function show_help(pid, k)
+	if (type(k.help) == "table") then
+		for _, line in ipairs(k.help) do
+			server_msg(pid, line);
+		end
+		return;
+	end
+	server_msg(pid, string.format("world_editor: %s -- %s", k.name, k.desc or ""));
+	if (k.usage) then
+		server_msg(pid, "  usage: /place "..k.name.." "..k.usage);
+	end
+end
+
+local cmd = {name="place", usage="<component> [args...]",
+             desc="Place a component; /place <component> alone shows its help."};
 function cmd.func(pid, argv)
 	if (not need_edit(pid)) then return; end
 	cmd_assert(pid, cmd, #argv >= 1);
 
 	local k = kinds[string.lower(argv[1])];
-	if (k == nil) then
+	if (k == nil or k.name == "__chunk") then
 		local names = {};
 		for n in pairs(kinds) do
 			if (n ~= "__chunk") then table.insert(names, n); end
@@ -751,32 +761,29 @@ function cmd.func(pid, argv)
 		return;
 	end
 
-	-- default is protected from both teams: a component nobody can chip
-	local perm = {mode="ro"};
-	if (argv[3] ~= nil) then
-		perm = chunks.parse_perm(argv[3]);
-		if (perm == nil) then
-			server_msg(pid, "world_editor: perm must be ro, rw, or rw:<team>.");
-			return;
-		end
-	end
+	-- gather the component's own args (everything after its name)
+	local args = {};
+	for i = 2, #argv do args[#args+1] = argv[i]; end
 
-	local color, cerr = parse_color(argv[4]);
-	if (cerr ~= nil) then
-		server_msg(pid, "world_editor: "..cerr);
+	-- /place <component> with no further args just prints its help
+	if (#args == 0) then
+		show_help(pid, k);
 		return;
 	end
 
-	local s, err = k.start(pid, argv[2]);
+	local s, err = k.start(pid, args);
 	if (s == nil) then
-		server_msg(pid, "world_editor: "..err);
+		if (err) then server_msg(pid, "world_editor: "..err); end
+		show_help(pid, k);
 		return;
 	end
+
 	s.kind = k.name;
-	s.perm = perm;
-	s.color = color;
+	s.perm = s.perm or {mode="ro"};   -- components default to fully protected
+	-- colour comes from the placer's own block palette, not an argument
+	s.color = get_block_color(pid);
 	session[pid] = s;
-	server_msg(pid, "world_editor: "..(s.prompt or "spade a block to place."));
+	server_msg(pid, "world_editor: "..(s.prompt or "mark a block to place."));
 end
 register_command(cmd, mod);
 

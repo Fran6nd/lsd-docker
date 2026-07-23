@@ -41,10 +41,20 @@ end
 
 local DIRS = {up=true, down=true, left=true, right=true};
 
+D.desc  = "a plane that retracts to open when someone is near.";
+D.usage = "<up|down|left|right>";
+D.help  = {
+	"world_editor: door -- a plane that slides open when a player nears it.",
+	"  usage: /place door <up|down|left|right>",
+	"  up/down retract into ceiling/floor; left/right slide aside.",
+	"  then mark two opposite corners (spade a block, or /here).",
+	"  colour is taken from your current block palette.",
+};
+
 -- ------------------------------------------------------------ placement
 
-function D.start(pid, dir)
-	dir = string.lower(dir or "up");
+function D.start(pid, args)
+	local dir = string.lower(args[1] or "");
 	if (not DIRS[dir]) then
 		return nil, "direction must be up, down, left or right.";
 	end
