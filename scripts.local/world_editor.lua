@@ -1157,4 +1157,14 @@ for _, name in ipairs({"elevator", "door"}) do
 end
 kinds["__chunk"] = chunkkind;
 
+-- Hot-load restore: when the script is (re)loaded onto an already-running
+-- map, load_map fired long before us, so nothing would restore the saved
+-- layout. Now that mapname is recovered and the components are
+-- registered, load <map>.editor.json here. (On a normal boot mapname is
+-- still nil at this point -- the map loads after us -- so this is skipped
+-- and load_map does the load.)
+if (mapname ~= nil) then
+	load_layout();
+end
+
 return mod;
