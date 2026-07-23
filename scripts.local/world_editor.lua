@@ -581,9 +581,10 @@ end
 -- nudge look like held input and fly you upward forever on its own.
 
 local jumpctr = pid_connected_table(0);
+local walking = pid_connected_table(false);  -- players who turned flight off
 
 local function flying(pid)
-	return editing and we_fly and is_alive(pid);
+	return editing and we_fly and is_alive(pid) and not walking[pid];
 end
 
 local function right_of(v)
@@ -592,6 +593,25 @@ local function right_of(v)
 		return {x=0, y=0, z=0};
 	end
 	return {x=-v.y/len, y=v.x/len, z=0};
+end
+
+-- is_solid PANICs above z=63 and treats z<0 as undefined; clamp both.
+-- Below the world floor reads as solid so you can't fly out the bottom,
+-- above the sky as empty.
+local function solid_at(x, y, z)
+	if (z < 0) then return false; end
+	if (z > 63) then return true; end
+	return is_solid({x=x, y=y, z=z});
+end
+
+-- A player is ~3 blocks tall with pos.z at the head (feet ride at
+-- pos.z+2.25, per demoncore's crouch maths). This is true when moving
+-- the head to hz at column x,y would bury any of those cells in solid.
+local function body_in_solid(x, y, hz)
+	local ix, iy, iz = math.floor(x), math.floor(y), math.floor(hz);
+	return solid_at(ix, iy, iz)
+	    or solid_at(ix, iy, iz+1)
+	    or solid_at(ix, iy, iz+2);
 end
 
 function mod.tick_player_physics(pid, delta)
@@ -616,15 +636,23 @@ function mod.tick_player_physics(pid, delta)
 	local up     = (bit.band(inp, 64) ~= 0 and 1 or 0)
 	             - (bit.band(inp, 32) ~= 0 and 1 or 0);
 
-	local new = {
-		x = (pos.x + (ori.x*fwd + rt.x*strafe) * speed) % 512,
-		y = (pos.y + (ori.y*fwd + rt.y*strafe) * speed) % 512,
-		z = pos.z + ori.z*fwd*speed - up*speed,
-	};
-	if (new.z < 0) then new.z = 0; end
-	if (new.z > 63) then new.z = 63; end
+	local nx = (pos.x + (ori.x*fwd + rt.x*strafe) * speed) % 512;
+	local ny = (pos.y + (ori.y*fwd + rt.y*strafe) * speed) % 512;
+	local nz = pos.z + ori.z*fwd*speed - up*speed;
+	if (nz < 0) then nz = 0; end
+	if (nz > 63) then nz = 63; end
 
-	set_position(pid, new);
+	-- Collide instead of clipping: resolve each axis on its own so a
+	-- blocked direction stops while the others keep going -- you slide
+	-- along a wall and settle onto the floor rather than sinking through
+	-- it. Steps are a fraction of a block, so stopping short of solid
+	-- reads as landing.
+	local x, y, z = pos.x, pos.y, pos.z;
+	if (not body_in_solid(nx, y, z)) then x = nx; end
+	if (not body_in_solid(x, ny, z)) then y = ny; end
+	if (not body_in_solid(x, y, nz)) then z = nz; end
+
+	set_position(pid, {x=x, y=y, z=z});
 
 	-- the client keeps trying to fall; nudging jump keeps its view from
 	-- settling into a drop and jittering against us
@@ -657,6 +685,25 @@ local function need_edit(pid)
 	end
 	return true;
 end
+
+-- Flight is on by default in edit mode; /fly drops you into normal
+-- physics so you can walk and jump, and toggles back. Per-player, so
+-- one builder walking around doesn't ground everyone.
+local cmd = {name="fly", desc="Toggle your flight in edit mode (walk/jump when off)."};
+function cmd.func(pid, argv)
+	if (not need_edit(pid)) then return; end
+	if (not we_fly) then
+		server_msg(pid, "world_editor: flight is disabled here (we_fly).");
+		return;
+	end
+	walking[pid] = not walking[pid];
+	if (walking[pid]) then
+		server_msg(pid, "world_editor: flight OFF -- walk and jump normally. /fly to fly again.");
+	else
+		server_msg(pid, "world_editor: flight ON -- sneak to rise, crouch to sink, sprint to speed up.");
+	end
+end
+register_command(cmd, mod);
 
 -- Enabling is console-only: fakepid=true lets the console in, and the
 -- is_fakepid check keeps in-game players out.
