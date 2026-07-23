@@ -20,6 +20,7 @@
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 
+local bit    = require("bit");
 local areas  = require "world_editor.areas";
 local chunks = require "world_editor.chunks";
 
@@ -27,6 +28,8 @@ getcfg("we_dir", "maps");          -- where <map>.json is read/written
 getcfg("we_default_perm", "rw");   -- authorization outside every chunk
 getcfg("we_readonly", false);      -- master lock: no player edits at all
 getcfg("we_autosave", true);       -- rewrite <map>.json on every change
+getcfg("we_fly", true);            -- free flight while edit mode is on
+getcfg("we_fly_speed", 16);        -- blocks per second, doubled by sprint
 
 local editing = false;
 local mapname = nil;
@@ -562,6 +565,81 @@ function mod.after.tick()
 	for _, inst in pairs(insts) do
 		kinds[inst.kind].tick(inst, we);
 	end
+end
+
+-- ------------------------------------------------------------------ flight
+--
+-- Building means getting to awkward corners, so edit mode gives
+-- everyone free flight. Input bits are Forward 1, Backward 2, Left 4,
+-- Right 8, Jump 16, Crouch 32, Sneak 64, Sprint 128.
+--
+-- Jump is unreliable for going up: the engine strips that bit while the
+-- player is airborne (on_move_input), so it only ever fires the instant
+-- you leave the ground. Sneak is therefore the dependable "up" and we
+-- accept either.
+
+local jumpctr = pid_connected_table(0);
+
+local function flying(pid)
+	return editing and we_fly and is_alive(pid);
+end
+
+local function right_of(v)
+	local len = math.sqrt(v.x*v.x + v.y*v.y);
+	if (len == 0) then
+		return {x=0, y=0, z=0};
+	end
+	return {x=-v.y/len, y=v.x/len, z=0};
+end
+
+function mod.tick_player_physics(pid, delta)
+	if (not flying(pid)) then
+		mod.next.tick_player_physics(pid, delta);
+		return;
+	end
+
+	local pos = get_position(pid);
+	local ori = get_orientation(pid);
+	local inp = get_inputs(pid);
+	local rt  = right_of(ori);
+
+	local speed = delta * we_fly_speed;
+	if (bit.band(inp, 128) ~= 0) then
+		speed = speed * 2;
+	end
+
+	local fwd    = (bit.band(inp, 1) ~= 0 and 1 or 0) - (bit.band(inp, 2) ~= 0 and 1 or 0);
+	local strafe = (bit.band(inp, 8) ~= 0 and 1 or 0) - (bit.band(inp, 4) ~= 0 and 1 or 0);
+	-- z grows downward, so rising means subtracting
+	local up     = ((bit.band(inp, 16) ~= 0 or bit.band(inp, 64) ~= 0) and 1 or 0)
+	             - (bit.band(inp, 32) ~= 0 and 1 or 0);
+
+	local new = {
+		x = (pos.x + (ori.x*fwd + rt.x*strafe) * speed) % 512,
+		y = (pos.y + (ori.y*fwd + rt.y*strafe) * speed) % 512,
+		z = pos.z + ori.z*fwd*speed - up*speed,
+	};
+	if (new.z < 0) then new.z = 0; end
+	if (new.z > 63) then new.z = 63; end
+
+	set_position(pid, new);
+
+	-- the client keeps trying to fall; nudging jump keeps its view from
+	-- settling into a drop and jittering against us
+	jumpctr[pid] = jumpctr[pid] + delta;
+	if (jumpctr[pid] >= 0.5) then
+		set_jump(pid);
+		jumpctr[pid] = jumpctr[pid] - 0.5;
+	end
+end
+
+-- while we are driving the position, the client's own idea of where it
+-- is would fight us every packet
+function mod.on_position(pid, pos)
+	if (flying(pid)) then
+		return;
+	end
+	mod.next.on_position(pid, pos);
 end
 
 function mod.after.on_disconnect(pid)
