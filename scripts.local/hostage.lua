@@ -65,6 +65,7 @@
 -- already-loaded module, which points one of its hook's `next` at
 -- itself and stack-overflows the tick chain. We only check the
 -- globals those modules export and bail cleanly if they are missing.
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 
 getcfg("hostage_engage_dist", 5);    -- follow when a teammate gets this close

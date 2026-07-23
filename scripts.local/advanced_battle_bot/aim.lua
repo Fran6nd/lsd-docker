@@ -5,6 +5,7 @@
 -- a gaussian hand tremor, a recoil kick on every shot, and a
 -- skill-scaled lead on moving targets. Higher skill (0..1) = smaller
 -- errors, tighter settle, less tremor.
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local M = {};
 
 local sin, cos, atan2, sqrt, pi = math.sin, math.cos, math.atan2, math.sqrt, math.pi;
