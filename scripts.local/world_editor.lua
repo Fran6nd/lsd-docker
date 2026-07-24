@@ -54,6 +54,15 @@ local undo = {};       -- stack of instance ids, newest last
 local guarded = {};    -- packed block -> instance id (indestructible)
 local session = pid_connected_table(nil);  -- in-progress placement per pid
 
+-- Deepest layer components may write. z=63 is the client's connectivity
+-- Root (GameMapWrapper::Rebuild marks every column's z=63 Root
+-- unconditionally), so a create there hits `GetLink ~= Invalid` and
+-- asserts the cell is solid -- if anything emptied it first, the client
+-- dies on the spot. z=62 is the engine's floor: its 3x-destroy guards
+-- `pos.z < 62`, though *single* destroy has no such guard, so a script
+-- can empty bedrock that no client expects to move. Stay above both.
+local WE_DEEPEST = 61;
+
 local function key(x, y, z)
 	return (z*512 + y)*512 + x;
 end
@@ -216,7 +225,7 @@ local we = {};
 -- partial layers (the disc); nil means the whole box.
 function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep)
 	x1 = math.max(0, x1); y1 = math.max(0, y1); z1 = math.max(0, z1);
-	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(63, z2);
+	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(WE_DEEPEST, z2);
 	if (x1 > x2 or y1 > y2 or z1 > z2) then return; end
 
 	-- set_block_color, not send_set_block_color: block_action writes the
@@ -266,7 +275,7 @@ end
 -- guarded) out of a box, so an elevator's path is clear
 function we.dig_box(x1, y1, z1, x2, y2, z2, keep)
 	x1 = math.max(0, x1); y1 = math.max(0, y1); z1 = math.max(0, z1);
-	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(63, z2);
+	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(WE_DEEPEST, z2);
 	for z = z1, z2 do
 		for y = y1, y2 do
 			for x = x1, x2 do
@@ -287,6 +296,10 @@ end
 -- components build their trigger volumes from the same shape library
 -- the authorization chunks use
 we.areas = areas;
+
+-- deepest layer a component may occupy (see WE_DEEPEST above): the
+-- engine floor and the client's Root layer are off limits
+we.deepest = WE_DEEPEST;
 
 -- ------------------------------------------------------------ persistence
 
