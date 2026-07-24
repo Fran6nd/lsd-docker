@@ -33,6 +33,7 @@ end
 local bit    = require("bit");
 local areas  = require "world_editor.areas";
 local chunks = require "world_editor.chunks";
+require "lib_bulk_destroy";   -- bdestroy_block_action / bdestroy_finish
 
 getcfg("we_dir", "maps");          -- where <map>.json is read/written
 getcfg("we_default_perm", "rw");   -- authorization outside every chunk
@@ -221,69 +222,102 @@ local we = {};
 -- volume ever needs cutting, do it by moving fewer blocks, not by
 -- batching packets.
 
+-- one guaranteed-empty run [rx1..rx2] at (y,z), as block_line packets
+-- capped at 50 cells each (the client's cube_line stops at 50)
+local function line_run(inst, y, z, rx1, rx2)
+	local s = rx1;
+	while (s <= rx2) do
+		local e = math.min(s + 49, rx2);
+		block_line({x=s, y=y, z=z}, {x=e, y=y, z=z}, get_anon_pid());
+		for x = s, e do guarded[(z*512 + y)*512 + x] = inst.id; end
+		s = e + 1;
+	end
+end
+
 -- Fill (or clear) a solid box. `keep` is a predicate (x,y,z)->bool for
 -- partial layers (the disc); nil means the whole box.
-function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep)
+--
+-- `line` picks the build path:
+--   * line=true  -- coalesce empty cells into block_line rows (few
+--     packets). ONLY safe when every target cell is already empty this
+--     tick: the client's BlockLine skips cells IT sees as solid and its
+--     cube_line caps at 50, so a run must be genuine air. Use it for a
+--     platform layer landing on open air, never over a cell dug or
+--     cleared in the same tick.
+--   * line=false -- one block_action per empty cell. Slower but its
+--     create cancels a same-tick destroy on the client, so it is the
+--     only safe path where a build overlaps a clear (the piston layer).
+-- Either way we never create over a solid cell (no "paint without
+-- breaking"). Clears always go through lib_bulk_destroy: same per-block
+-- destroy packets, but one floating-block cull per batch, not per block.
+function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep, line)
 	x1 = math.max(0, x1); y1 = math.max(0, y1); z1 = math.max(0, z1);
 	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(WE_DEEPEST, z2);
 	if (x1 > x2 or y1 > y2 or z1 > z2) then return; end
 
-	-- set_block_color, not send_set_block_color: block_action writes the
-	-- map's colorData from the anon pid's *server-side* held colour, so
-	-- only setting it server-side gets the colour baked into the map. A
-	-- mere broadcast reached live clients but left the stored map black,
-	-- so a fresh joiner downloaded black components until a rebuild
-	-- (elevator moving, door opening) re-broadcast the colour.
+	-- set_block_color, not send_set_block_color: block_action/block_line
+	-- colour the map from the anon pid's *server-side* held colour, so
+	-- only setting it server-side bakes the colour into the stored map
+	-- (a bare broadcast left it black for fresh joiners).
 	if (on and color ~= nil) then
 		set_block_color(get_anon_pid(), color);
 	end
 
 	for z = z1, z2 do
 		for y = y1, y2 do
-			for x = x1, x2 do
-				if (keep == nil or keep(x, y, z)) then
-					local k = (z*512 + y)*512 + x;
-					if (on) then
-						-- Only create a cell that is actually empty. Issuing
-						-- a create over a solid cell is "painting without
-						-- breaking first" -- the client takes its recolour/
-						-- link fast-path and, if its own view of that cell
-						-- ever disagrees (a stale link), asserts and dies.
-						-- We never need to repaint: a cell we already own
-						-- keeps its colour, terrain we don't own we leave be.
-						if (not is_solid({x=x, y=y, z=z})) then
+			-- run of consecutive empty, wanted cells (for line builds)
+			local run = nil;
+			for x = x1, x2 + 1 do
+				local k = (z*512 + y)*512 + x;
+				local want = x <= x2 and (keep == nil or keep(x, y, z));
+				local empty = want and not is_solid({x=x, y=y, z=z});
+
+				if (on) then
+					if (line) then
+						if (empty) then
+							run = run or x;
+						else
+							if (run ~= nil) then line_run(inst, y, z, run, x-1); run = nil; end
+							if (want and guarded[k] ~= nil) then guarded[k] = inst.id; end
+						end
+					elseif (want) then
+						if (empty) then
 							block_action({x=x, y=y, z=z}, 0, get_anon_pid());
 							guarded[k] = inst.id;
 						elseif (guarded[k] ~= nil) then
 							guarded[k] = inst.id;   -- already ours; keep it
 						end
-					elseif (guarded[k] ~= nil) then
-						block_action({x=x, y=y, z=z}, 1, get_anon_pid());
-						guarded[k] = nil;
 					end
+				elseif (want and guarded[k] ~= nil) then
+					bdestroy_block_action({x=x, y=y, z=z}, 1);
+					guarded[k] = nil;
 				end
 			end
 		end
 	end
+
+	if (not on) then bdestroy_finish(); end
 end
 
 function we.is_guarded(x, y, z)
 	return guarded[key(x, y, z)] ~= nil;
 end
 
--- a filled disc at one z layer (the elevator platform), via row runs
-function we.disc(inst, cx, cy, z, r, color, on)
+-- a filled disc at one z layer (the elevator platform)
+function we.disc(inst, cx, cy, z, r, color, on, line)
 	we.fill(inst, cx-r, cy-r, z, cx+r, cy+r, z, color, on,
-	        function(x, y) local dx, dy = x-cx, y-cy; return dx*dx+dy*dy <= r*r; end);
+	        function(x, y) local dx, dy = x-cx, y-cy; return dx*dx+dy*dy <= r*r; end,
+	        line);
 end
 
 -- a filled rectangle at one z layer (the rect/square platform)
-function we.rect(inst, x1, y1, x2, y2, z, color, on)
-	we.fill(inst, x1, y1, z, x2, y2, z, color, on, nil);
+function we.rect(inst, x1, y1, x2, y2, z, color, on, line)
+	we.fill(inst, x1, y1, z, x2, y2, z, color, on, nil, line);
 end
 
 -- dig existing map blocks (not component blocks, so untracked in
--- guarded) out of a box, so an elevator's path is clear
+-- guarded) out of a box, so an elevator's path is clear. Bulk: one
+-- floating-block cull for the whole shaft instead of one per block.
 function we.dig_box(x1, y1, z1, x2, y2, z2, keep)
 	x1 = math.max(0, x1); y1 = math.max(0, y1); z1 = math.max(0, z1);
 	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(WE_DEEPEST, z2);
@@ -293,11 +327,12 @@ function we.dig_box(x1, y1, z1, x2, y2, z2, keep)
 				if ((keep == nil or keep(x, y, z))
 				    and guarded[(z*512 + y)*512 + x] == nil
 				    and is_solid({x=x, y=y, z=z})) then
-					block_action({x=x, y=y, z=z}, 1, get_anon_pid());
+					bdestroy_block_action({x=x, y=y, z=z}, 1);
 				end
 			end
 		end
 	end
+	bdestroy_finish();
 end
 
 function we.editing()
