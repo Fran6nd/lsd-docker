@@ -217,8 +217,14 @@ function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep)
 	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(63, z2);
 	if (x1 > x2 or y1 > y2 or z1 > z2) then return; end
 
+	-- set_block_color, not send_set_block_color: block_action writes the
+	-- map's colorData from the anon pid's *server-side* held colour, so
+	-- only setting it server-side gets the colour baked into the map. A
+	-- mere broadcast reached live clients but left the stored map black,
+	-- so a fresh joiner downloaded black components until a rebuild
+	-- (elevator moving, door opening) re-broadcast the colour.
 	if (on and color ~= nil) then
-		send_set_block_color(PID_BROADCAST, color, get_anon_pid());
+		set_block_color(get_anon_pid(), color);
 	end
 
 	for z = z1, z2 do
