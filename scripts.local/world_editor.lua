@@ -33,7 +33,6 @@ end
 local bit    = require("bit");
 local areas  = require "world_editor.areas";
 local chunks = require "world_editor.chunks";
-require "lib_bulk_destroy";   -- bdestroy_block_action / bdestroy_finish
 
 getcfg("we_dir", "maps");          -- where <map>.json is read/written
 getcfg("we_default_perm", "rw");   -- authorization outside every chunk
@@ -193,22 +192,25 @@ local we = {};
 -- *real* (solid) block so players stand on platforms and stop at shut
 -- doors.
 --
--- Builds use single block_action (BlockActionCreate), NOT block_line.
--- block_line looks tempting for packet count, but a BlockLine only fills
--- the *non-solid* cells its cube_line touches, and only those cancel a
--- queued same-cell destroy on the client. We dig terrain then build the
--- platform over it in one tick; the client still sees that terrain solid
--- when the BlockLine arrives (destroys are queued, applied after), so it
--- skips those cells, fails to cancel the destroy, and the platform block
--- is culled -- leaving holes and corrupting connectivity (a crash on
--- zerospades). Its cube_line also caps at 50 cells while the server's
--- does not. block_action's create always cancels the destroy and has no
--- cap, so it is the correct tool here.
+-- Everything is a single block_action, one packet per block, both to
+-- build and to destroy. The batched forms were tried and both broke
+-- zerospades clients:
 --
--- Clears still go through lib_bulk_destroy: it emits the same per-block
--- BlockAction destroys the client expects, but defers the floating-block
--- cull to one bdestroy_finish() per batch instead of one per block --
--- the cheap, safe half of the optimisation.
+--   * block_line: a BlockLine only fills the *non-solid* cells its
+--     cube_line touches and caps at 50, so building over solid/dug
+--     cells silently dropped blocks and corrupted connectivity.
+--   * lib_bulk_destroy: it defers the floating-block cull to one
+--     finish per batch, but the client culls immediately per destroy
+--     -- so the client removes a block the server still holds, leaving
+--     a stale connectivity link. The next create on that cell then
+--     trips GameMapWrapper::AddBlock's assert and crashes the client
+--     (per the LSd author, that assert fires "when you paint a block
+--     without breaking it first").
+--
+-- Per-block block_action keeps the server's cull in lockstep with the
+-- client's, so no stale links -- the proven-stable primitive. If block
+-- volume ever needs cutting, do it by moving fewer blocks, not by
+-- batching packets.
 
 -- Fill (or clear) a solid box. `keep` is a predicate (x,y,z)->bool for
 -- partial layers (the disc); nil means the whole box.
@@ -236,16 +238,12 @@ function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep)
 						block_action({x=x, y=y, z=z}, 0, get_anon_pid());
 						guarded[k] = inst.id;
 					elseif (guarded[k] ~= nil) then
-						bdestroy_block_action({x=x, y=y, z=z}, 1);
+						block_action({x=x, y=y, z=z}, 1, get_anon_pid());
 						guarded[k] = nil;
 					end
 				end
 			end
 		end
-	end
-
-	if (not on) then
-		bdestroy_finish();
 	end
 end
 
@@ -265,8 +263,7 @@ function we.rect(inst, x1, y1, x2, y2, z, color, on)
 end
 
 -- dig existing map blocks (not component blocks, so untracked in
--- guarded) out of a box, so an elevator's path is clear. Bulk so the
--- whole shaft is one cull, not thousands.
+-- guarded) out of a box, so an elevator's path is clear
 function we.dig_box(x1, y1, z1, x2, y2, z2, keep)
 	x1 = math.max(0, x1); y1 = math.max(0, y1); z1 = math.max(0, z1);
 	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(63, z2);
@@ -276,12 +273,11 @@ function we.dig_box(x1, y1, z1, x2, y2, z2, keep)
 				if ((keep == nil or keep(x, y, z))
 				    and guarded[(z*512 + y)*512 + x] == nil
 				    and is_solid({x=x, y=y, z=z})) then
-					bdestroy_block_action({x=x, y=y, z=z}, 1);
+					block_action({x=x, y=y, z=z}, 1, get_anon_pid());
 				end
 			end
 		end
 	end
-	bdestroy_finish();
 end
 
 function we.editing()
