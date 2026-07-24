@@ -185,8 +185,18 @@ local function goal_z(inst)
 	return inst.zhi;
 end
 
-function E.spawn(d)
+function E.spawn(d, we)
 	local inst = {foot=d.foot, dir=d.dir, zlo=d.zlo, zhi=d.zhi};
+
+	-- Keep the whole structure off the engine floor / client Root layer.
+	-- The slab hangs thickness-1 below its top, so the lowest top we can
+	-- use is deepest-(thick-1); an elevator marked at bedrock level then
+	-- rests directly ON the floor instead of inside it. Writing into
+	-- those layers is what crashed zerospades.
+	local floor_top = (we and we.deepest or 61) - (we_elevator_thick - 1);
+	if (inst.zhi > floor_top) then inst.zhi = floor_top; end
+	if (inst.zlo > inst.zhi) then inst.zlo = inst.zhi; end
+
 	inst.piston = inset_foot(d.foot);
 
 	local x1, y1, x2, y2 = foot_bbox(d.foot);
