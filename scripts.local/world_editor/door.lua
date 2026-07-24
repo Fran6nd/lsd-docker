@@ -142,8 +142,9 @@ local function slice_open(inst, c)
 	return c < inst.lo + inst.open;
 end
 
--- draw (or clear) the plane slice sitting at coordinate c on the
--- retract axis; the other two axes are swept in full
+-- draw (or clear) the plane slice sitting at coordinate c on the retract
+-- axis; the other two axes are swept in full. we.fill batches it into
+-- block_line rows (build) or a bulk cull (clear) instead of per block.
 local function draw_slice(inst, we, c, on)
 	local x1, x2 = inst.x1, inst.x2;
 	local y1, y2 = inst.y1, inst.y2;
@@ -153,17 +154,7 @@ local function draw_slice(inst, we, c, on)
 	elseif (inst.axis == "x") then x1, x2 = c, c;
 	else y1, y2 = c, c; end
 
-	for z = z1, z2 do
-		for y = y1, y2 do
-			for x = x1, x2 do
-				if (x >= 0 and x < 512 and y >= 0 and y < 512
-				    and z >= 0 and z < 64) then
-					if (on) then we.set(inst, x, y, z, tint(inst));
-					else we.clear(inst, x, y, z); end
-				end
-			end
-		end
-	end
+	we.fill(inst, x1, y1, z1, x2, y2, z2, tint(inst), on, nil);
 end
 
 function D.render(inst, we)
