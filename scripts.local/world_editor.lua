@@ -193,25 +193,25 @@ local we = {};
 -- *real* (solid) block so players stand on platforms and stop at shut
 -- doors.
 --
--- Batching matters here -- a moving elevator or a wide door rewrites a
--- lot of blocks per tick, and one packet per block lags a full server.
--- So builds go out as block_line rows (one packet a row) and clears go
--- through lib_bulk_destroy (one deferred floating-block cull for the
--- whole batch instead of one per block). The guarded index is still
--- kept per block, but that is table writes, not network.
+-- Builds use single block_action (BlockActionCreate), NOT block_line.
+-- block_line looks tempting for packet count, but a BlockLine only fills
+-- the *non-solid* cells its cube_line touches, and only those cancel a
+-- queued same-cell destroy on the client. We dig terrain then build the
+-- platform over it in one tick; the client still sees that terrain solid
+-- when the BlockLine arrives (destroys are queued, applied after), so it
+-- skips those cells, fails to cancel the destroy, and the platform block
+-- is culled -- leaving holes and corrupting connectivity (a crash on
+-- zerospades). Its cube_line also caps at 50 cells while the server's
+-- does not. block_action's create always cancels the destroy and has no
+-- cap, so it is the correct tool here.
+--
+-- Clears still go through lib_bulk_destroy: it emits the same per-block
+-- BlockAction destroys the client expects, but defers the floating-block
+-- cull to one bdestroy_finish() per batch instead of one per block --
+-- the cheap, safe half of the optimisation.
 
--- one solid run [x1..x2] at (y,z) via a single block_line packet
-local function build_run(inst, x1, x2, y, z)
-	block_line({x=x1, y=y, z=z}, {x=x2, y=y, z=z}, get_anon_pid());
-	for x = x1, x2 do
-		guarded[(z*512 + y)*512 + x] = inst.id;
-	end
-end
-
--- Fill (or clear) a solid box. Rows run along whichever of x/y is longer
--- per z-layer, so a plane collapsed on one axis (a door slice) still
--- draws as long lines rather than unit lines. `keep` is a predicate
--- (x,y,z)->bool for partial layers (the disc); nil means the whole box.
+-- Fill (or clear) a solid box. `keep` is a predicate (x,y,z)->bool for
+-- partial layers (the disc); nil means the whole box.
 function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep)
 	x1 = math.max(0, x1); y1 = math.max(0, y1); z1 = math.max(0, z1);
 	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(63, z2);
@@ -223,26 +223,16 @@ function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep)
 
 	for z = z1, z2 do
 		for y = y1, y2 do
-			-- gather maximal runs on this row, so a run with a keep-hole
-			-- in it still becomes as few lines as possible
-			local run = nil;
-			for x = x1, x2 + 1 do
-				local want = x <= x2 and (keep == nil or keep(x, y, z));
-				if (want) then
-					run = run or x;
-				elseif (run ~= nil) then
+			for x = x1, x2 do
+				if (keep == nil or keep(x, y, z)) then
+					local k = (z*512 + y)*512 + x;
 					if (on) then
-						build_run(inst, run, x-1, y, z);
-					else
-						for xx = run, x-1 do
-							local k = (z*512 + y)*512 + xx;
-							if (guarded[k] ~= nil) then
-								bdestroy_block_action({x=xx, y=y, z=z}, 1);
-								guarded[k] = nil;
-							end
-						end
+						block_action({x=x, y=y, z=z}, 0, get_anon_pid());
+						guarded[k] = inst.id;
+					elseif (guarded[k] ~= nil) then
+						bdestroy_block_action({x=x, y=y, z=z}, 1);
+						guarded[k] = nil;
 					end
-					run = nil;
 				end
 			end
 		end
