@@ -33,6 +33,7 @@ end
 local bit    = require("bit");
 local areas  = require "world_editor.areas";
 local chunks = require "world_editor.chunks";
+require "lib_bulk_destroy";   -- bdestroy_block_action / bdestroy_finish
 
 getcfg("we_dir", "maps");          -- where <map>.json is read/written
 getcfg("we_default_perm", "rw");   -- authorization outside every chunk
@@ -187,63 +188,104 @@ end
 
 local we = {};
 
--- Blocks are built the way a client would: point the anon player's
--- held colour at what we want, then build from that pid. block_action
--- (not send_block_action) so the block is real and solid -- players
--- have to stand on a platform and be stopped by a shut door.
-function we.set(inst, x, y, z, color)
-	if (color ~= nil) then
-		send_set_block_color(PID_BROADCAST, color, get_anon_pid());
+-- Blocks are built the way a client would: point the anon player's held
+-- colour at what we want, then build from that pid. Everything is a
+-- *real* (solid) block so players stand on platforms and stop at shut
+-- doors.
+--
+-- Batching matters here -- a moving elevator or a wide door rewrites a
+-- lot of blocks per tick, and one packet per block lags a full server.
+-- So builds go out as block_line rows (one packet a row) and clears go
+-- through lib_bulk_destroy (one deferred floating-block cull for the
+-- whole batch instead of one per block). The guarded index is still
+-- kept per block, but that is table writes, not network.
+
+-- one solid run [x1..x2] at (y,z) via a single block_line packet
+local function build_run(inst, x1, x2, y, z)
+	block_line({x=x1, y=y, z=z}, {x=x2, y=y, z=z}, get_anon_pid());
+	for x = x1, x2 do
+		guarded[(z*512 + y)*512 + x] = inst.id;
 	end
-	block_action({x=x, y=y, z=z}, 0, get_anon_pid());
-	guarded[key(x, y, z)] = inst.id;
 end
 
-function we.clear(inst, x, y, z)
-	block_action({x=x, y=y, z=z}, 1, get_anon_pid());
-	guarded[key(x, y, z)] = nil;
+-- Fill (or clear) a solid box. Rows run along whichever of x/y is longer
+-- per z-layer, so a plane collapsed on one axis (a door slice) still
+-- draws as long lines rather than unit lines. `keep` is a predicate
+-- (x,y,z)->bool for partial layers (the disc); nil means the whole box.
+function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep)
+	x1 = math.max(0, x1); y1 = math.max(0, y1); z1 = math.max(0, z1);
+	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(63, z2);
+	if (x1 > x2 or y1 > y2 or z1 > z2) then return; end
+
+	if (on and color ~= nil) then
+		send_set_block_color(PID_BROADCAST, color, get_anon_pid());
+	end
+
+	for z = z1, z2 do
+		for y = y1, y2 do
+			-- gather maximal runs on this row, so a run with a keep-hole
+			-- in it still becomes as few lines as possible
+			local run = nil;
+			for x = x1, x2 + 1 do
+				local want = x <= x2 and (keep == nil or keep(x, y, z));
+				if (want) then
+					run = run or x;
+				elseif (run ~= nil) then
+					if (on) then
+						build_run(inst, run, x-1, y, z);
+					else
+						for xx = run, x-1 do
+							local k = (z*512 + y)*512 + xx;
+							if (guarded[k] ~= nil) then
+								bdestroy_block_action({x=xx, y=y, z=z}, 1);
+								guarded[k] = nil;
+							end
+						end
+					end
+					run = nil;
+				end
+			end
+		end
+	end
+
+	if (not on) then
+		bdestroy_finish();
+	end
 end
 
 function we.is_guarded(x, y, z)
 	return guarded[key(x, y, z)] ~= nil;
 end
 
--- a filled disc of blocks, the platform shape shared by elevators
+-- a filled disc at one z layer (the elevator platform), via row runs
 function we.disc(inst, cx, cy, z, r, color, on)
-	for dy = -r, r do
-		for dx = -r, r do
-			if (dx*dx + dy*dy <= r*r) then
-				local x, y = cx+dx, cy+dy;
-				if (x >= 0 and x < 512 and y >= 0 and y < 512 and z >= 0 and z < 64) then
-					if (on) then we.set(inst, x, y, z, color);
-					else we.clear(inst, x, y, z); end
+	we.fill(inst, cx-r, cy-r, z, cx+r, cy+r, z, color, on,
+	        function(x, y) local dx, dy = x-cx, y-cy; return dx*dx+dy*dy <= r*r; end);
+end
+
+-- a filled rectangle at one z layer (the rect/square platform)
+function we.rect(inst, x1, y1, x2, y2, z, color, on)
+	we.fill(inst, x1, y1, z, x2, y2, z, color, on, nil);
+end
+
+-- dig existing map blocks (not component blocks, so untracked in
+-- guarded) out of a box, so an elevator's path is clear. Bulk so the
+-- whole shaft is one cull, not thousands.
+function we.dig_box(x1, y1, z1, x2, y2, z2, keep)
+	x1 = math.max(0, x1); y1 = math.max(0, y1); z1 = math.max(0, z1);
+	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(63, z2);
+	for z = z1, z2 do
+		for y = y1, y2 do
+			for x = x1, x2 do
+				if ((keep == nil or keep(x, y, z))
+				    and guarded[(z*512 + y)*512 + x] == nil
+				    and is_solid({x=x, y=y, z=z})) then
+					bdestroy_block_action({x=x, y=y, z=z}, 1);
 				end
 			end
 		end
 	end
-end
-
--- a filled rectangle of blocks at one z layer, the rect/square platform
-function we.rect(inst, x1, y1, x2, y2, z, color, on)
-	if (z < 0 or z >= 64) then return; end
-	for y = math.max(0, y1), math.min(511, y2) do
-		for x = math.max(0, x1), math.min(511, x2) do
-			if (on) then we.set(inst, x, y, z, color);
-			else we.clear(inst, x, y, z); end
-		end
-	end
-end
-
--- dig out an existing map block (not a component block, so it is not
--- tracked in guarded): used to clear an elevator's path so the platform
--- isn't obstructed
-function we.dig(x, y, z)
-	if (x < 0 or x > 511 or y < 0 or y > 511 or z < 0 or z > 63) then
-		return;
-	end
-	if (guarded[key(x, y, z)] == nil and is_solid({x=x, y=y, z=z})) then
-		block_action({x=x, y=y, z=z}, 1, get_anon_pid());
-	end
+	bdestroy_finish();
 end
 
 function we.editing()

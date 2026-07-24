@@ -211,21 +211,13 @@ local function shaft_bottom(inst)
 end
 
 function E.render(inst, we)
-	-- clear the shaft so the platform has a free path, then lay the
-	-- platform down at its resting layer
+	-- clear the shaft so the platform has a free path (bulk: one cull for
+	-- the whole column), then lay the platform down at its resting layer
 	local x1, y1, x2, y2 = foot_bbox(inst.foot);
-	local top = inst.zlo - we_elevator_headroom;
-	local bot = shaft_bottom(inst);
-	local shaft = foot_area(inst.foot, top, bot);
-	for z = top, bot do
-		for y = y1, y2 do
-			for x = x1, x2 do
-				if (areas.contains(shaft, x, y, z)) then
-					we.dig(x, y, z);
-				end
-			end
-		end
-	end
+	local shaft = foot_area(inst.foot, inst.zlo - we_elevator_headroom, shaft_bottom(inst));
+	we.dig_box(x1, y1, inst.zlo - we_elevator_headroom, x2, y2, shaft_bottom(inst),
+	           function(x, y, z) return areas.contains(shaft, x, y, z); end);
+
 	draw_slab(inst, we, inst.z, tint(inst), true);
 	for z = inst.z + we_elevator_thick, shaft_bottom(inst) do
 		draw_piston_layer(inst, we, z, true);
