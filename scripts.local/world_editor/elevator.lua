@@ -30,7 +30,7 @@ getcfg("we_elevator_speed", 6);    -- blocks per second
 getcfg("we_elevator_wait", 1.0);   -- seconds held at the far end
 getcfg("we_elevator_abort", 0.6);  -- empty this long mid-travel -> return
 getcfg("we_elevator_headroom", 3); -- rider headroom reserved above the top
-getcfg("we_elevator_thick", 2);    -- platform thickness (>=2 rides out lag)
+getcfg("we_elevator_thick", 1);    -- platform layers thick (1 = flat pad)
 getcfg("we_elevator_stand", 2.4);  -- head-to-feet: pos.z when stood on the top
 
 local RED = {r=255, g=32, b=32};   -- fallback if the palette read fails
@@ -99,14 +99,19 @@ function E.click(s, pos)
 		foot = {shape="rect", x1=x1, y1=y1, x2=x2, y2=y2};
 	end
 
-	local base = a.z;
-	if (base == c.z) then
+	-- marks land on solid surfaces (you spade a block); the platform is a
+	-- new layer that sits ON TOP of them, i.e. one above (z is down, so
+	-- top = z-1). Building it at the mark itself would try to occupy the
+	-- solid block you clicked, which we correctly refuse to repaint.
+	local base = a.z - 1;
+	local dest = c.z - 1;
+	if (base == dest) then
 		s.pts = {a, b};
 		return false, "that altitude is the platform's own level -- pick a different height.";
 	end
 
 	s.data = {foot=foot, dir=s.dir,
-	          zlo=math.min(base, c.z), zhi=math.max(base, c.z)};
+	          zlo=math.min(base, dest), zhi=math.max(base, dest)};
 	return true;
 end
 

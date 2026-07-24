@@ -244,8 +244,19 @@ function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep)
 				if (keep == nil or keep(x, y, z)) then
 					local k = (z*512 + y)*512 + x;
 					if (on) then
-						block_action({x=x, y=y, z=z}, 0, get_anon_pid());
-						guarded[k] = inst.id;
+						-- Only create a cell that is actually empty. Issuing
+						-- a create over a solid cell is "painting without
+						-- breaking first" -- the client takes its recolour/
+						-- link fast-path and, if its own view of that cell
+						-- ever disagrees (a stale link), asserts and dies.
+						-- We never need to repaint: a cell we already own
+						-- keeps its colour, terrain we don't own we leave be.
+						if (not is_solid({x=x, y=y, z=z})) then
+							block_action({x=x, y=y, z=z}, 0, get_anon_pid());
+							guarded[k] = inst.id;
+						elseif (guarded[k] ~= nil) then
+							guarded[k] = inst.id;   -- already ours; keep it
+						end
 					elseif (guarded[k] ~= nil) then
 						block_action({x=x, y=y, z=z}, 1, get_anon_pid());
 						guarded[k] = nil;
