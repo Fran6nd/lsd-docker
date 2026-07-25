@@ -284,10 +284,20 @@ local we = {};
 -- draw hundreds of layers in the same colour. Remember what it holds and
 -- only send on a real change.
 --
--- revert() below pushes a different colour onto ONE client's copy of the
--- anon pid, which our server-side value can't see; it invalidates this
--- cache so the next build re-broadcasts and that client resyncs.
+-- The cache is only sound while nothing ELSE moves that colour, and
+-- things do. rifle_is_a_rail_gun broadcasts a random red from the anon
+-- pid on every shot, and revert() pushes the map's colour at one client
+-- -- both via send_set_block_color, which changes what *clients* believe
+-- the anon pid holds without touching the server-side value we track.
+-- Skipping our colour packet after that drew the block in their stale
+-- colour (grey platform, red ring). So the hooks further down drop this
+-- cache whenever anyone sets that colour, and hold_color records the new
+-- value only after its own call has passed through them.
 local heldcolor = nil;
+
+local function forget_color()
+	heldcolor = nil;
+end
 
 local function hold_color(c)
 	if (c == nil) then
@@ -297,16 +307,12 @@ local function hold_color(c)
 	    and heldcolor.r == c.r and heldcolor.g == c.g and heldcolor.b == c.b) then
 		return;
 	end
-	heldcolor = {r=c.r, g=c.g, b=c.b};
 	-- set_block_color, not send_set_block_color: block_action/block_line
 	-- colour the map from the anon pid's *server-side* held colour, so
 	-- only setting it server-side bakes the colour into the stored map
 	-- (a bare broadcast left it black for fresh joiners).
 	set_block_color(get_anon_pid(), c);
-end
-
-local function forget_color()
-	heldcolor = nil;
+	heldcolor = {r=c.r, g=c.g, b=c.b};
 end
 
 -- one guaranteed-empty run [rx1..rx2] at (y,z), as block_line packets
@@ -711,11 +717,10 @@ local function revert(pid, pos, type)
 		return;
 	end
 	-- this leaves THIS client holding a different colour for the anon pid
-	-- than the server does, so drop the cache: the next component build
-	-- re-broadcasts the real colour and resyncs them
+	-- than the server does; the send_set_block_color hook drops the colour
+	-- cache for us, so the next component build resyncs them
 	send_set_block_color(pid, get_map_block_color(pos), get_anon_pid());
 	send_block_action(pid, pos, 0, get_anon_pid());
-	forget_color();
 end
 
 -- Where a player is aiming, for marking. Raycast eye-forward to the first
@@ -945,6 +950,28 @@ function mod.on_block_line(pid, start, stop)
 		return;
 	end
 	mod.next.on_block_line(pid, start, stop);
+end
+
+-- Anyone moving the anon pid's held colour invalidates our cache of it,
+-- ourselves included. Two callers make this mandatory rather than
+-- defensive: rifle_is_a_rail_gun broadcasts a random red from the anon
+-- pid on every shot, and shotgun_are_grenade_launchers pushes the map
+-- colour at a single client. Both use send_set_block_color, so the
+-- server-side value we track never moves while every client's copy does
+-- -- and a build whose colour packet we skipped then rendered in their
+-- colour, not ours.
+function mod.set_block_color(pid, color)
+	if (pid == get_anon_pid()) then
+		forget_color();
+	end
+	mod.next.set_block_color(pid, color);
+end
+
+function mod.send_set_block_color(pid, color, from)
+	if (from == get_anon_pid()) then
+		forget_color();
+	end
+	mod.next.send_set_block_color(pid, color, from);
 end
 
 -- Grenades and other world damage go straight to block_action without
