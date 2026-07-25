@@ -1046,11 +1046,22 @@ end
 -- nor fall_damage.lua's apex tracking can tell the difference, so a ride
 -- can land phantom fall damage. Swallow fall damage (KillTypeFall = 4)
 -- for anyone standing inside an elevator's shaft.
+-- Kill type 4 is the environment: BOTH stock hazards report it, so this
+-- one branch covers both.
+--
+--   * fall_damage.lua  -- damage_player(i, damage, 4, i) on landing
+--   * water_damage.lua -- damage_player(i, damage, 4, i) per second of
+--                         wading, on maps whose meta sets water_damage
+--
+-- If either ever stops using type 4, its suppression here goes silently
+-- dead -- check both before trusting this.
 function mod.damage_player(pid, hp, type, from)
 	if (type == 4 and is_alive(pid)) then
-		-- Building means dropping off things constantly, and /fly can be
-		-- toggled off mid-air. Edit mode swallows fall damage outright,
-		-- with no message: a builder should never think about landing.
+		-- Building means dropping off things constantly, /fly can be
+		-- toggled off mid-air, and a builder wading a lava-water map
+		-- would just bleed. Edit mode swallows the environment outright,
+		-- with no message: nobody building should think about landing or
+		-- about what they are standing in.
 		if (editing) then
 			return;
 		end
