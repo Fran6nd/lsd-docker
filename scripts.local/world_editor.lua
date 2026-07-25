@@ -718,10 +718,26 @@ local function revert(pid, pos, type)
 	forget_color();
 end
 
--- Where a player is aiming, for marking. Raycast eye-forward to the
--- first solid block; if the shot clears every block (aiming at water or
--- the void) drop the mark on the water/floor plane instead, so a swing
--- that destroys nothing still marks something.
+-- Where a player is aiming, for marking. Raycast eye-forward to the first
+-- solid block, and fall back to the water plane so a shot that destroys
+-- nothing still marks something.
+--
+-- raycast(s, e, false) returns the solid voxel that was hit. (The apidoc
+-- has `last` the wrong way round -- demoncore.c cast2() returns the hit
+-- voxel for last=false and the cell before it for last=true.) It needs no
+-- bounds clamping: cast2 wraps x/y mod 512 and stops going up at z<0.
+--
+-- Down is the problem. Water columns are allowed to be non-solid
+-- (budgetvxl.c, "pyspades allows it so we do too"), and phys_solid()
+-- reports everything at z>=64 as solid -- so a shot into water falls
+-- clean through the column and "hits" the virtual floor one layer below
+-- the map. Aiming at water used to return that off-map cell, which is
+-- why it never reached the water plane below. Two rules fix it:
+--
+--   * a hit outside the map is not a hit
+--   * a hit *under* the water surface loses to the surface itself, so
+--     pointing across water marks the water you aimed at, not the seabed
+--     beneath it
 local function aim_target(pid)
 	local s = get_position(pid);
 	local o = get_orientation(pid);
@@ -729,20 +745,32 @@ local function aim_target(pid)
 	           y=s.y + o.y*we_mark_range,
 	           z=s.z + o.z*we_mark_range};
 
-	local vox = raycast(s, e, false);   -- first solid voxel
+	-- where the ray crosses the water plane; z grows downward, so only a
+	-- downward look (o.z > 0) can meet it
+	local tw = nil;
+	if (o.z > 0.001) then
+		local t = (we_water_level - s.z) / o.z;
+		if (t > 0 and t <= we_mark_range) then
+			tw = t;
+		end
+	end
+
+	local vox = raycast(s, e, false);
+	if (vox ~= nil and (vox.z < 0 or vox.z > 63)) then
+		vox = nil;                       -- fell off the map, not a real block
+	end
+	if (vox ~= nil and tw ~= nil and vox.z > we_water_level) then
+		vox = nil;                       -- submerged; the surface came first
+	end
 	if (vox ~= nil) then
 		return vox;
 	end
 
-	if (o.z > 0.001) then               -- looking down: meet the water plane
-		local t = (we_water_level - s.z) / o.z;
-		if (t > 0 and t <= we_mark_range) then
-			local x = math.floor(s.x + o.x*t);
-			local y = math.floor(s.y + o.y*t);
-			if (x >= 0 and x < 512 and y >= 0 and y < 512) then
-				return {x=x, y=y, z=we_water_level};
-			end
-		end
+	if (tw ~= nil) then
+		-- cast2 wraps horizontally, so the plane hit wraps to match
+		return {x=math.floor(s.x + o.x*tw) % 512,
+		        y=math.floor(s.y + o.y*tw) % 512,
+		        z=we_water_level};
 	end
 	return nil;
 end
@@ -754,6 +782,14 @@ local function apply_mark(pid, pos)
 	local s = session[pid];
 	if (s == nil) then
 		return false;
+	end
+
+	-- Every mark source funnels through here, so the in-map check lives
+	-- here too rather than in each of them.
+	if (pos.x < 0 or pos.x > 511 or pos.y < 0 or pos.y > 511
+	    or pos.z < 0 or pos.z > 63) then
+		server_msg(pid, "world_editor: that mark is outside the map.");
+		return true;
 	end
 
 	-- delete mode: the mark names a block; whichever component owns it
