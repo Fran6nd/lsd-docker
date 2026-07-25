@@ -13,9 +13,9 @@
 --                         chunks.lua, and component blocks are always
 --                         read-only (losing one block would break the
 --                         component, so they simply cannot be broken)
---   * persistence      -- components and chunks live in <map>.json next
---                         to the map, autoloaded on map load, rewritten
---                         on every change
+--   * persistence      -- components and chunks live in <map>.editor.json
+--                         next to the map, autoloaded on map load,
+--                         rewritten on every change
 --   * undo             -- /undo pops the last thing placed
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
@@ -54,6 +54,56 @@ local undo = {};       -- stack of instance ids, newest last
 
 local guarded = {};    -- packed block -> instance id (indestructible)
 local session = pid_connected_table(nil);  -- in-progress placement per pid
+
+-- Reserved volumes are consulted for every block a player edits, and a
+-- block line is dozens of blocks at once -- so they go through the same
+-- xy grid the authorization chunks use rather than a scan over every
+-- component. Rebuilt whenever the instance set changes (rare).
+local reserved_idx = areas.index();
+
+local function reindex_reserved()
+	reserved_idx:reset();
+	for _, inst in pairs(insts) do
+		if (inst.reserved_area ~= nil) then
+			reserved_idx:add(inst.reserved_area, inst);
+		end
+	end
+end
+
+-- Does any reserved volume covering this block refuse this player?
+-- Every volume covering the block has a say, not just the first found:
+-- where two overlap, the stricter one wins, so a permissive component
+-- can't open a hole through a protected one.
+local function reserved_denies(pid, x, y, z)
+	local bucket = reserved_idx:bucket(x, y);
+	if (bucket == nil) then
+		return false;
+	end
+	for i = 1, #bucket do
+		local inst = bucket[i];
+		if (areas.contains(inst.reserved_area, x, y, z)) then
+			local p = inst.perm or {mode="ro"};
+			if (p.mode ~= "rw" or (p.team ~= nil and get_team(pid) ~= p.team)) then
+				return true;
+			end
+		end
+	end
+	return false;
+end
+
+-- is this point inside any component's reserved volume at all?
+local function in_reserved(x, y, z)
+	local bucket = reserved_idx:bucket(x, y);
+	if (bucket == nil) then
+		return false;
+	end
+	for i = 1, #bucket do
+		if (areas.contains(bucket[i].reserved_area, x, y, z)) then
+			return true;
+		end
+	end
+	return false;
+end
 
 -- Deepest layer components may write. z=63 is the client's connectivity
 -- Root (GameMapWrapper::Rebuild marks every column's z=63 Root
@@ -212,15 +262,52 @@ local we = {};
 --   * lib_bulk_destroy: it defers the floating-block cull to one
 --     finish per batch, but the client culls immediately per destroy
 --     -- so the client removes a block the server still holds, leaving
---     a stale connectivity link. The next create on that cell then
---     trips GameMapWrapper::AddBlock's assert and crashes the client
---     (per the LSd author, that assert fires "when you paint a block
---     without breaking it first").
+--     a stale connectivity link (cell not solid, link still valid).
+--
+--     The next create on that cell then hits GameMapWrapper::AddBlock's
+--     `GetLink(x,y,z) != Invalid` branch. Note what that costs on a
+--     *release* client: SPAssert compiles to a no-op under NDEBUG
+--     (zerospades Sources/Core/Debug.h), so the assert never fires --
+--     AddBlock simply returns early and the block silently never
+--     appears. The assert crash is a debug-build symptom; the
+--     release-build symptom is a structure with holes in it. Either way
+--     the stale link is the bug.
 --
 -- Per-block block_action keeps the server's cull in lockstep with the
 -- client's, so no stale links -- the proven-stable primitive. If block
 -- volume ever needs cutting, do it by moving fewer blocks, not by
 -- batching packets.
+
+-- The anon pid's held colour is server state that every build reads, and
+-- set_block_color() broadcasts a packet on every call -- so setting it
+-- per layer sent one redundant packet per layer even though components
+-- draw hundreds of layers in the same colour. Remember what it holds and
+-- only send on a real change.
+--
+-- revert() below pushes a different colour onto ONE client's copy of the
+-- anon pid, which our server-side value can't see; it invalidates this
+-- cache so the next build re-broadcasts and that client resyncs.
+local heldcolor = nil;
+
+local function hold_color(c)
+	if (c == nil) then
+		return;
+	end
+	if (heldcolor ~= nil
+	    and heldcolor.r == c.r and heldcolor.g == c.g and heldcolor.b == c.b) then
+		return;
+	end
+	heldcolor = {r=c.r, g=c.g, b=c.b};
+	-- set_block_color, not send_set_block_color: block_action/block_line
+	-- colour the map from the anon pid's *server-side* held colour, so
+	-- only setting it server-side bakes the colour into the stored map
+	-- (a bare broadcast left it black for fresh joiners).
+	set_block_color(get_anon_pid(), c);
+end
+
+local function forget_color()
+	heldcolor = nil;
+end
 
 -- one guaranteed-empty run [rx1..rx2] at (y,z), as block_line packets
 -- capped at 50 cells each (the client's cube_line stops at 50)
@@ -255,20 +342,19 @@ function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep, line)
 	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(WE_DEEPEST, z2);
 	if (x1 > x2 or y1 > y2 or z1 > z2) then return; end
 
-	-- set_block_color, not send_set_block_color: block_action/block_line
-	-- colour the map from the anon pid's *server-side* held colour, so
-	-- only setting it server-side bakes the colour into the stored map
-	-- (a bare broadcast left it black for fresh joiners).
-	if (on and color ~= nil) then
-		set_block_color(get_anon_pid(), color);
+	if (on) then
+		hold_color(color);
 	end
 
 	for z = z1, z2 do
 		for y = y1, y2 do
+			-- (z*512+y)*512 is constant across the row; hoisting it keeps
+			-- the inner loop to one add
+			local base = (z*512 + y)*512;
 			-- run of consecutive empty, wanted cells (for line builds)
 			local run = nil;
 			for x = x1, x2 + 1 do
-				local k = (z*512 + y)*512 + x;
+				local k = base + x;
 				local want = x <= x2 and (keep == nil or keep(x, y, z));
 				local empty = want and not is_solid({x=x, y=y, z=z});
 
@@ -303,16 +389,70 @@ function we.is_guarded(x, y, z)
 	return guarded[key(x, y, z)] ~= nil;
 end
 
--- a filled disc at one z layer (the elevator platform)
-function we.disc(inst, cx, cy, z, r, color, on, line)
-	we.fill(inst, cx-r, cy-r, z, cx+r, cy+r, z, color, on,
-	        function(x, y) local dx, dy = x-cx, y-cy; return dx*dx+dy*dy <= r*r; end,
-	        line);
+-- ------------------------------------------------------------ footprints
+--
+-- A footprint is a 2d shape in xy that a component extrudes through z:
+-- {shape="rect", x1,y1,x2,y2} or {shape="circle", cx,cy,r}. Platforms,
+-- pads and columns are all "this shape, at these layers", so the
+-- vocabulary lives here rather than in any one component.
+
+function we.foot_bbox(f)
+	if (f.shape == "circle") then
+		return f.cx-f.r, f.cy-f.r, f.cx+f.r, f.cy+f.r;
+	end
+	return f.x1, f.y1, f.x2, f.y2;
 end
 
--- a filled rectangle at one z layer (the rect/square platform)
-function we.rect(inst, x1, y1, x2, y2, z, color, on, line)
-	we.fill(inst, x1, y1, z, x2, y2, z, color, on, nil, line);
+function we.foot_has(f, x, y)
+	if (f.shape == "circle") then
+		local dx, dy = x-f.cx, y-f.cy;
+		return dx*dx + dy*dy <= f.r*f.r;
+	end
+	return x >= f.x1 and x <= f.x2 and y >= f.y1 and y <= f.y2;
+end
+
+-- the footprint as an areas volume spanning z1..z2 (triggers, reserving)
+function we.foot_area(f, z1, z2)
+	if (f.shape == "circle") then
+		return areas.cylinder(f.cx, f.cy, f.r, z1, z2);
+	end
+	return areas.box(f.x1, f.y1, z1, f.x2, f.y2, z2);
+end
+
+-- The footprint shrunk by n blocks on every side, or nil when nothing is
+-- left (an elevator's piston column is its platform inset).
+function we.foot_inset(f, n)
+	n = n or 1;
+	if (f.shape == "circle") then
+		if (f.r - n < 1) then return nil; end
+		return {shape="circle", cx=f.cx, cy=f.cy, r=f.r-n};
+	end
+	local x1, y1, x2, y2 = f.x1+n, f.y1+n, f.x2-n, f.y2-n;
+	if (x1 > x2 or y1 > y2) then return nil; end
+	return {shape="rect", x1=x1, y1=y1, x2=x2, y2=y2};
+end
+
+-- Half the footprint's smallest span -- how much room an inset has to
+-- eat into before the shape disappears.
+function we.foot_half(f)
+	if (f.shape == "circle") then
+		return f.r;
+	end
+	return math.min(f.x2 - f.x1, f.y2 - f.y1) / 2;
+end
+
+-- Draw (or clear) one z layer of a footprint. `except` is an optional
+-- second footprint to leave alone, which turns the call into a ring --
+-- the single most valuable primitive here, because a shape sliding
+-- inside a slightly smaller one only ever changes the ring between them.
+-- Touching just that ring is the difference between rewriting a whole
+-- platform every step and writing its outline.
+function we.layer(inst, f, z, color, on, except)
+	local x1, y1, x2, y2 = we.foot_bbox(f);
+	we.fill(inst, x1, y1, z, x2, y2, z, color, on, function(x, y)
+		return we.foot_has(f, x, y)
+		   and (except == nil or not we.foot_has(except, x, y));
+	end);
 end
 
 -- dig existing map blocks (not component blocks, so untracked in
@@ -337,6 +477,32 @@ end
 
 function we.editing()
 	return editing;
+end
+
+-- ------------------------------------------------------------- animation
+--
+-- Every moving component runs the same loop: accumulate time, and once a
+-- period has passed advance by exactly one step. One step per period is
+-- what keeps motion from arriving as a block storm, so it is worth every
+-- component doing it identically rather than each rolling its own.
+
+-- The colour a component draws in: its own if the placer picked one from
+-- their palette, else the component's default.
+function we.tint(inst, fallback)
+	return inst.color or fallback;
+end
+
+-- True once per 1/speed seconds, consuming that much of inst[field].
+-- Components call it in tick() and step only when it returns true.
+function we.due(inst, field, speed, dt)
+	local t = (inst[field] or 0) + dt;
+	local period = 1 / math.max(speed, 0.1);
+	if (t < period) then
+		inst[field] = t;
+		return false;
+	end
+	inst[field] = t - period;
+	return true;
 end
 
 -- components build their trigger volumes from the same shape library
@@ -421,6 +587,8 @@ local function clear_all()
 	guarded = {};
 	undo = {};
 	nextid = 1;
+	reindex_reserved();
+	forget_color();   -- a fresh map resets the anon pid's held colour
 end
 
 local function load_layout()
@@ -462,12 +630,13 @@ local function load_layout()
 			inst.kind = d.kind;
 			inst.perm = chunks.parse_perm(d.perm) or {mode="ro"};
 			inst.color = d.color;
-			if (k.reserved) then inst.reserved_area = k.reserved(inst); end
+			if (k.reserved) then inst.reserved_area = k.reserved(inst, we); end
 			if (inst.id >= nextid) then nextid = inst.id + 1; end
 			insts[inst.id] = inst;
 			k.render(inst, we);
 		end
 	end
+	reindex_reserved();
 
 	log("world_editor: loaded %s", path);
 end
@@ -503,14 +672,8 @@ local function may_edit(pid, x, y, z)
 	-- reserved volumes (e.g. an elevator shaft): no block there to break,
 	-- but nobody may fill it in either, subject to the same perm as the
 	-- component that owns it
-	for _, inst in pairs(insts) do
-		if (inst.reserved_area ~= nil
-		    and areas.contains(inst.reserved_area, x, y, z)) then
-			local p = inst.perm or {mode="ro"};
-			if (p.mode ~= "rw" or (p.team ~= nil and get_team(pid) ~= p.team)) then
-				return "deny";
-			end
-		end
+	if (reserved_denies(pid, x, y, z)) then
+		return "deny";
 	end
 
 	if (we_readonly) then
@@ -530,6 +693,7 @@ local function break_component(id, by)
 	end
 	kinds[inst.kind].destroy(inst, we);
 	insts[id] = nil;
+	reindex_reserved();
 	for i = #undo, 1, -1 do
 		if (undo[i] == id) then table.remove(undo, i); end
 	end
@@ -546,8 +710,12 @@ local function revert(pid, pos, type)
 		send_block_action(pid, pos, 1, get_anon_pid());
 		return;
 	end
+	-- this leaves THIS client holding a different colour for the anon pid
+	-- than the server does, so drop the cache: the next component build
+	-- re-broadcasts the real colour and resyncs them
 	send_set_block_color(pid, get_map_block_color(pos), get_anon_pid());
 	send_block_action(pid, pos, 0, get_anon_pid());
+	forget_color();
 end
 
 -- Where a player is aiming, for marking. Raycast eye-forward to the
@@ -599,6 +767,7 @@ local function apply_mark(pid, pos)
 		end
 		kinds[inst.kind].destroy(inst, we);
 		insts[id] = nil;
+		reindex_reserved();
 		for i = #undo, 1, -1 do
 			if (undo[i] == id) then table.remove(undo, i); end
 		end
@@ -634,8 +803,9 @@ local function apply_mark(pid, pos)
 	inst.kind = s.kind;
 	inst.perm = s.perm or {mode="ro"};
 	inst.color = s.color;   -- nil keeps the component's own default
-	if (k.reserved) then inst.reserved_area = k.reserved(inst); end
+	if (k.reserved) then inst.reserved_area = k.reserved(inst, we); end
 	insts[inst.id] = inst;
+	reindex_reserved();
 	k.render(inst, we);
 	table.insert(undo, inst.id);
 	session[pid] = nil;
@@ -798,9 +968,14 @@ function mod.on_join(pid, team, gun, name)
 	mod.next.on_join(pid, team, gun, name);
 end
 
+-- tick() is called at TICKRATE Hz (60, per src/main.c) and Lua is not
+-- told the delta, so it lives here as one constant rather than being
+-- hardcoded again inside every component.
+local TICK_DT = 1/60;
+
 function mod.after.tick()
 	for _, inst in pairs(insts) do
-		kinds[inst.kind].tick(inst, we);
+		kinds[inst.kind].tick(inst, we, TICK_DT);
 	end
 end
 
@@ -810,12 +985,15 @@ end
 -- for anyone standing inside an elevator's shaft.
 function mod.damage_player(pid, hp, type, from)
 	if (type == 4 and is_alive(pid)) then
+		-- Building means dropping off things constantly, and /fly can be
+		-- toggled off mid-air. Edit mode swallows fall damage outright,
+		-- with no message: a builder should never think about landing.
+		if (editing) then
+			return;
+		end
 		local p = get_position(pid);
-		for _, inst in pairs(insts) do
-			if (inst.reserved_area ~= nil
-			    and areas.contains(inst.reserved_area, p.x, p.y, p.z)) then
-				return;
-			end
+		if (in_reserved(p.x, p.y, p.z)) then
+			return;
 		end
 	end
 	mod.next.damage_player(pid, hp, type, from);
@@ -1149,6 +1327,7 @@ function cmd.func(pid, argv)
 	end
 	kinds[insts[id].kind].destroy(insts[id], we);
 	insts[id] = nil;
+	reindex_reserved();
 	server_msg(pid, string.format("world_editor: removed #%d.", id));
 	save();
 end

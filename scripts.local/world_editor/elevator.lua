@@ -16,6 +16,15 @@
 -- and reappears one layer along would stutter or fall through. Moving
 -- them by the same delta keeps the ride smooth.
 --
+-- A step never rewrites the platform. The slab and the piston column
+-- under it overlap everywhere except the ring between them, so moving a
+-- layer only ever changes that ring plus the single layer the slab gains
+-- or gives up. Everything else is already the right block in the right
+-- place, and re-sending it would be both a packet storm and a
+-- destroy-then-create on the same cell in one tick -- the pattern that
+-- leaves client connectivity stale (see the block api in
+-- world_editor.lua).
+--
 -- On placement the whole shaft is cleared of map blocks and then
 -- reserved, so the platform has a free path and nobody can wall it in.
 --
@@ -31,13 +40,14 @@ getcfg("we_elevator_wait", 1.0);   -- seconds held at the far end
 getcfg("we_elevator_abort", 0.6);  -- empty this long mid-travel -> return
 getcfg("we_elevator_headroom", 3); -- rider headroom reserved above the top
 getcfg("we_elevator_thick", 1);    -- platform layers thick (1 = flat pad)
+getcfg("we_elevator_piston", 0.4); -- piston width as a fraction of the platform
 getcfg("we_elevator_stand", 2.4);  -- head-to-feet: pos.z when stood on the top
 
 local RED = {r=255, g=32, b=32};   -- fallback if the palette read fails
 
-local function tint(inst)
-	return inst.color or RED;
-end
+-- how far above the platform still counts as standing on it; generous
+-- enough that a rider jumping in place stays aboard
+local RIDER_REACH = 6;
 
 E.desc  = "a platform that lifts riders between two altitudes.";
 E.usage = "<rect|square|circle> <up|down>";
@@ -116,65 +126,39 @@ function E.click(s, pos)
 end
 
 -- ------------------------------------------------------------- footprint
+--
+-- The shapes come from we.foot_* -- the same footprint vocabulary any
+-- component extruding a 2d shape through z uses.
 
--- xy bounding box of the footprint, clamped to the map
-local function foot_bbox(f)
-	if (f.shape == "circle") then
-		return f.cx-f.r, f.cy-f.r, f.cx+f.r, f.cy+f.r;
-	end
-	return f.x1, f.y1, f.x2, f.y2;
+-- one full footprint layer at z (a slab layer)
+local function draw_foot(inst, we, z, on)
+	we.layer(inst, inst.foot, z, on and we.tint(inst, RED) or nil, on);
 end
 
--- the footprint as an area spanning z1..z2 (for triggers and reserving)
-local function foot_area(f, z1, z2)
-	if (f.shape == "circle") then
-		return areas.cylinder(f.cx, f.cy, f.r, z1, z2);
-	end
-	return areas.box(f.x1, f.y1, z1, f.x2, f.y2, z2);
+-- The piston is the visible support column under the platform: the
+-- footprint inset on every side (see we_elevator_piston), running from
+-- just beneath the platform down to the shaft base, so the wider
+-- platform appears to ride on a narrower shaft. nil when the platform
+-- is too small to inset at all.
+local function draw_piston(inst, we, z, on)
+	if (inst.piston == nil) then return; end
+	we.layer(inst, inst.piston, z, on and we.tint(inst, RED) or nil, on);
 end
 
--- draw (or clear) one footprint layer at z
-local function draw_foot(inst, we, z, color, on)
-	local f = inst.foot;
-	if (f.shape == "circle") then
-		we.disc(inst, f.cx, f.cy, z, f.r, color, on);
-	else
-		we.rect(inst, f.x1, f.y1, f.x2, f.y2, z, color, on);
-	end
+-- The ring between platform and piston: the only cells that differ
+-- between "this layer is slab" and "this layer is piston". Moving one
+-- layer converts a slab layer into a piston layer (or back), and that is
+-- exactly this ring going away or coming back -- nothing else on the
+-- layer changes, so nothing else is sent.
+local function draw_ring(inst, we, z, on)
+	we.layer(inst, inst.foot, z, on and we.tint(inst, RED) or nil, on, inst.piston);
 end
 
 -- the platform is a slab we_elevator_thick layers deep, its top surface
 -- at z and the rest hanging below (z+1 ..). draw/clear the whole slab
-local function draw_slab(inst, we, ztop, color, on)
+local function draw_slab(inst, we, ztop, on)
 	for d = 0, we_elevator_thick - 1 do
-		draw_foot(inst, we, ztop + d, color, on);
-	end
-end
-
--- The piston is the visible support column under the platform: the
--- footprint inset by one block on every side (x-, x+, y-, y+), running
--- from just beneath the platform down to the shaft base, so the wider
--- platform appears to ride on a narrower shaft. nil when the platform
--- is too small to inset.
-local function inset_foot(f)
-	if (f.shape == "circle") then
-		if (f.r - 1 < 1) then return nil; end
-		return {shape="circle", cx=f.cx, cy=f.cy, r=f.r-1};
-	end
-	local x1, y1 = f.x1+1, f.y1+1;
-	local x2, y2 = f.x2-1, f.y2-1;
-	if (x1 > x2 or y1 > y2) then return nil; end
-	return {shape="rect", x1=x1, y1=y1, x2=x2, y2=y2};
-end
-
-local function draw_piston_layer(inst, we, z, on)
-	local p = inst.piston;
-	if (p == nil) then return; end
-	local color = on and tint(inst) or nil;
-	if (p.shape == "circle") then
-		we.disc(inst, p.cx, p.cy, z, p.r, color, on);
-	else
-		we.rect(inst, p.x1, p.y1, p.x2, p.y2, z, color, on);
+		draw_foot(inst, we, ztop + d, on);
 	end
 end
 
@@ -198,13 +182,22 @@ function E.spawn(d, we)
 	-- use is deepest-(thick-1); an elevator marked at bedrock level then
 	-- rests directly ON the floor instead of inside it. Writing into
 	-- those layers is what crashed zerospades.
-	local floor_top = (we and we.deepest or 61) - (we_elevator_thick - 1);
+	local floor_top = we.deepest - (we_elevator_thick - 1);
 	if (inst.zhi > floor_top) then inst.zhi = floor_top; end
 	if (inst.zlo > inst.zhi) then inst.zlo = inst.zhi; end
 
-	inst.piston = inset_foot(d.foot);
+	-- A fixed one-block inset is a fraction of a wide platform and all of
+	-- a narrow one, so the column read as "stacked platforms" on big
+	-- footprints and vanished on small ones. Scale it with the footprint
+	-- instead, always leaving the piston at least one block narrower than
+	-- the platform, and nil when there is no room to inset at all.
+	local half = we.foot_half(d.foot);
+	local target = math.floor(half * we_elevator_piston);
+	if (target < 1) then target = 1; end
+	if (target > half - 1) then target = half - 1; end
+	inst.piston = (target >= 1) and we.foot_inset(d.foot, math.floor(half - target)) or nil;
 
-	local x1, y1, x2, y2 = foot_bbox(d.foot);
+	local x1, y1, x2, y2 = we.foot_bbox(d.foot);
 	inst.x = math.floor((x1 + x2) / 2);   -- centre, for nearest-component search
 	inst.y = math.floor((y1 + y2) / 2);
 
@@ -225,42 +218,78 @@ local function shaft_bottom(inst)
 	return inst.zhi + we_elevator_thick - 1;
 end
 
+-- top of the shaft, i.e. the highest layer the platform can reach plus
+-- the headroom a rider standing on it needs
+local function shaft_top(inst)
+	return inst.zlo - we_elevator_headroom;
+end
+
 function E.render(inst, we)
 	-- clear the shaft so the platform has a free path (bulk: one cull for
 	-- the whole column), then lay the platform down at its resting layer
-	local x1, y1, x2, y2 = foot_bbox(inst.foot);
-	local shaft = foot_area(inst.foot, inst.zlo - we_elevator_headroom, shaft_bottom(inst));
-	we.dig_box(x1, y1, inst.zlo - we_elevator_headroom, x2, y2, shaft_bottom(inst),
-	           function(x, y, z) return areas.contains(shaft, x, y, z); end);
+	local x1, y1, x2, y2 = we.foot_bbox(inst.foot);
+	local f = inst.foot;
+	we.dig_box(x1, y1, shaft_top(inst), x2, y2, shaft_bottom(inst),
+	           function(x, y) return we.foot_has(f, x, y); end);
 
-	draw_slab(inst, we, inst.z, tint(inst), true);
+	draw_slab(inst, we, inst.z, true);
 	for z = inst.z + we_elevator_thick, shaft_bottom(inst) do
-		draw_piston_layer(inst, we, z, true);
+		draw_piston(inst, we, z, true);
 	end
 end
 
+-- The whole structure comes down in one we.fill, not layer by layer:
+-- clears go through the bulk-destroy path, which culls floating blocks
+-- once per call, so taking the slab and the piston column down together
+-- is one cull instead of one per layer. /savemap and /delete both
+-- destroy every component, so this is the hot path for them.
 function E.destroy(inst, we)
-	draw_slab(inst, we, inst.z, nil, false);
-	for z = inst.z + we_elevator_thick, shaft_bottom(inst) do
-		draw_piston_layer(inst, we, z, false);
-	end
+	local x1, y1, x2, y2 = we.foot_bbox(inst.foot);
+	local slab_bottom = inst.z + we_elevator_thick - 1;
+	local f, p = inst.foot, inst.piston;
+
+	we.fill(inst, x1, y1, inst.z, x2, y2, shaft_bottom(inst), nil, false,
+	        function(x, y, z)
+		if (z <= slab_bottom) then
+			return we.foot_has(f, x, y);
+		end
+		return p ~= nil and we.foot_has(p, x, y);
+	end);
 end
 
 -- the full column the platform sweeps, plus headroom above the top stop
-function E.reserved(inst)
-	return foot_area(inst.foot, inst.zlo - we_elevator_headroom, shaft_bottom(inst));
+function E.reserved(inst, we)
+	return we.foot_area(inst.foot, shaft_top(inst), shaft_bottom(inst));
 end
 
 -- ---------------------------------------------------------------- trigger
 
--- the footprint with headroom, sliding with the platform. generous
--- enough that a rider jumping in place still counts as aboard
-local function rider_area(inst)
-	return foot_area(inst.foot, inst.z - 6, inst.z);
+-- The footprint plus rider headroom, sliding with the platform. The
+-- volume is cached and its z span mutated in place: this is asked 60
+-- times a second per elevator, so building a fresh area table each time
+-- was pure garbage.
+local function rider_area(inst, we)
+	local a = inst.trigger;
+	if (a == nil) then
+		a = we.foot_area(inst.foot, inst.z - RIDER_REACH, inst.z);
+		inst.trigger = a;
+		return a;
+	end
+	a.z1, a.z2 = inst.z - RIDER_REACH, inst.z;
+	return a;
 end
 
-local function riders(inst)
-	return areas.players_in(rider_area(inst));
+-- Most checks only need "is anyone aboard", which short-circuits on the
+-- first hit and allocates nothing; only a step needs the actual list, and
+-- that refills one scratch table rather than making a new one.
+local function has_riders(inst, we)
+	return areas.any_player_in(rider_area(inst, we));
+end
+
+local aboard = {};
+
+local function riders(inst, we)
+	return areas.players_in(rider_area(inst, we), nil, aboard);
 end
 
 -- ------------------------------------------------------------------ tick
@@ -270,9 +299,9 @@ end
 -- platform's top surface -- that is the "legs stuck in the platform"
 -- sink, where relative motion plus client jitter buries them a little
 -- deeper each step. inst.z is already the new top layer here.
-local function carry(inst, aboard, dz)
+local function carry(inst, riding, dz)
 	local top = inst.z - we_elevator_stand;   -- pos.z of feet-on-surface
-	for _, pid in ipairs(aboard) do
+	for _, pid in ipairs(riding) do
 		local p = get_position(pid);
 		local nz = p.z + dz;
 		if (nz > top) then nz = top; end       -- z is down: clamp the sink
@@ -280,10 +309,20 @@ local function carry(inst, aboard, dz)
 	end
 end
 
--- Move the slab one layer. With a thick slab a 1-step move overlaps by
--- thickness-1 layers, so we only add the new edge layer and remove the
--- old one -- the overlap stays solid the whole time and the rider never
--- loses their floor, even if a block packet is briefly late.
+-- Move the slab one layer.
+--
+-- A 1-layer move changes exactly two layers, whatever the slab's
+-- thickness: the layer it gains at the leading edge, and the layer it
+-- gives up at the trailing edge. Every layer in between is already
+-- correct and is never touched -- that overlap is also what keeps the
+-- rider's floor solid the whole time, even if a block packet is briefly
+-- late.
+--
+-- And the trailing layer does not turn into air, it turns into piston,
+-- so only the ring between the two shapes moves. Destroying the layer
+-- and rebuilding its inset would send both shapes for no visible
+-- difference, and would destroy-then-create the same cells inside one
+-- tick, which is what makes clients assert.
 --
 -- The rider must never see a moment with no floor, or client-side
 -- physics drops them through: add the new layer before removing the old,
@@ -293,38 +332,36 @@ end
 local function step(inst, we, dz)
 	local from = inst.z;
 	local to = from + dz;
-	local aboard = riders(inst);  -- detect before anything moves
+	local riding = riders(inst, we);  -- detect before anything moves
 	local thick = we_elevator_thick;
 
 	inst.z = to;
 
 	if (dz < 0) then
 		-- rising: lift riders, add the new top layer under their feet,
-		-- then convert the vacated bottom layer into piston (it stays
-		-- solid, just insets by a block as the platform climbs off it)
-		carry(inst, aboard, dz);
-		draw_foot(inst, we, to, tint(inst), true);            -- new top
-		draw_foot(inst, we, from + thick - 1, nil, false);    -- old bottom off
-		draw_piston_layer(inst, we, from + thick - 1, true);  -- piston grows up
+		-- then let the vacated bottom layer become piston -- it stays
+		-- solid and just loses its ring as the platform climbs off it
+		carry(inst, riding, dz);
+		draw_foot(inst, we, to, true);                  -- new top layer
+		draw_ring(inst, we, from + thick - 1, false);   -- old bottom -> piston
 	else
 		-- descending: the new bottom layer lands on the piston's top
-		-- layer, drawing the full footprint there absorbs it (piston
-		-- shrinks); catch the riders, then drop the old top layer
-		draw_foot(inst, we, to + thick - 1, tint(inst), true);-- new bottom
-		draw_foot(inst, we, from, nil, false);                -- old top
-		carry(inst, aboard, dz);
+		-- layer, so it only needs its ring filled in to become slab;
+		-- catch the riders, then drop the old top layer entirely
+		draw_ring(inst, we, to + thick - 1, true);      -- piston -> new bottom
+		draw_foot(inst, we, from, false);               -- old top layer off
+		carry(inst, riding, dz);
 	end
 end
 
-function E.tick(inst, we)
-	local dt = 1/60;
+function E.tick(inst, we, dt)
 	local goal = goal_z(inst);
 	local rest = rest_z(inst);
 
 	if (inst.state == "rest") then
 		if (inst.z ~= rest) then
 			inst.state = "returning";
-		elseif (#riders(inst) > 0) then
+		elseif (has_riders(inst, we)) then
 			inst.state = "going";
 			inst.t = 0;
 			inst.empty = 0;
@@ -334,7 +371,7 @@ function E.tick(inst, we)
 
 	if (inst.state == "holding") then
 		inst.hold = inst.hold - dt;
-		if (inst.hold <= 0 and #riders(inst) == 0) then
+		if (inst.hold <= 0 and not has_riders(inst, we)) then
 			inst.state = "returning";
 			inst.t = 0;
 		end
@@ -345,7 +382,7 @@ function E.tick(inst, we)
 	-- grace absorbs a rider being briefly airborne (a jump), so a hop
 	-- doesn't reverse the lift.
 	if (inst.state == "going") then
-		if (#riders(inst) == 0) then
+		if (not has_riders(inst, we)) then
 			inst.empty = (inst.empty or 0) + dt;
 			if (inst.empty >= we_elevator_abort) then
 				inst.state = "returning";
@@ -367,14 +404,9 @@ function E.tick(inst, we)
 		return;
 	end
 
-	inst.t = inst.t + dt;
-	local period = 1 / math.max(we_elevator_speed, 0.1);
-	if (inst.t < period) then
-		return;
+	if (we.due(inst, "t", we_elevator_speed, dt)) then
+		step(inst, we, (target < inst.z) and -1 or 1);
 	end
-	inst.t = inst.t - period;
-
-	step(inst, we, (target < inst.z) and -1 or 1);
 end
 
 return E;
