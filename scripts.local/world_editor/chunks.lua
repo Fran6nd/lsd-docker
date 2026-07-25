@@ -10,11 +10,10 @@
 --
 -- Two things keep this fast and predictable:
 --
---   * Lookup is indexed, not a linear scan. Every chunk registers
---     itself into the XY grid cells its bounding box touches, so
---     resolving a block only tests the handful of chunks that could
---     possibly contain it. Block edits are frequent (a block line is
---     dozens at once), so an O(#chunks) scan per block would bite.
+--   * Lookup is indexed, not a linear scan -- see areas.index(), which
+--     world_editor also uses for component reserved volumes. Block
+--     edits are frequent (a block line is dozens at once), so an
+--     O(#chunks) scan per block would bite.
 --
 --   * Overlap is resolved by priority, highest wins, ties broken by
 --     creation order (later wins). That makes exceptions natural:
@@ -25,18 +24,11 @@ local M = {};
 
 local areas = require "world_editor.areas";
 
-local CELL = 32;              -- XY index granularity, in blocks
-local GRID = math.ceil(512/CELL);
-
 -- chunks[id] = {id, name, shape, perm, prio, <shape fields>}
 local chunks = {};
 local nextid = 1;
-local index = {};             -- cell key -> {chunk, ...}
+local index = areas.index();  -- xy grid -> chunks that might cover a block
 local default = {mode="rw"};  -- out-of-chunk fallback
-
-local function cellkey(cx, cy)
-	return cy*GRID + cx;
-end
 
 -- ---------------------------------------------------------------- perms
 
@@ -102,28 +94,10 @@ end
 
 -- ---------------------------------------------------------------- index
 
-local function reindex_one(c)
-	local x1, y1, x2, y2 = areas.bbox(c.area);
-
-	-- clamp to the map so a fat radius near an edge doesn't spray cells
-	x1 = math.max(0, math.min(511, x1));
-	y1 = math.max(0, math.min(511, y1));
-	x2 = math.max(0, math.min(511, x2));
-	y2 = math.max(0, math.min(511, y2));
-
-	for cy = math.floor(y1/CELL), math.floor(y2/CELL) do
-		for cx = math.floor(x1/CELL), math.floor(x2/CELL) do
-			local k = cellkey(cx, cy);
-			index[k] = index[k] or {};
-			table.insert(index[k], c);
-		end
-	end
-end
-
 local function reindex_all()
-	index = {};
+	index:reset();
 	for _, c in pairs(chunks) do
-		reindex_one(c);
+		index:add(c.area, c);
 	end
 end
 
@@ -144,7 +118,7 @@ function M.add(c)
 	c.name = c.name or (c.area.kind.."#"..c.id);
 
 	chunks[c.id] = c;
-	reindex_one(c);
+	index:add(c.area, c);
 	return c;
 end
 
@@ -163,7 +137,7 @@ end
 
 function M.reset()
 	chunks = {};
-	index = {};
+	index:reset();
 	nextid = 1;
 	default = {mode="rw"};
 end
@@ -172,11 +146,7 @@ end
 
 -- the winning chunk covering a block, or nil when none does
 function M.at(x, y, z)
-	if (x < 0 or x > 511 or y < 0 or y > 511) then
-		return nil;
-	end
-
-	local bucket = index[cellkey(math.floor(x/CELL), math.floor(y/CELL))];
+	local bucket = index:bucket(x, y);
 	if (bucket == nil) then
 		return nil;
 	end

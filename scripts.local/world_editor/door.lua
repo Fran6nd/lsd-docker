@@ -1,8 +1,9 @@
 -- world_editor/door.lua -- A plane that retracts to open.
 --
--- Placement: /place door up|down|left|right [perm] [colour]
+-- Placement: /place door up|down|left|right
 --   mark 1 -- one corner of the door plane
 --   mark 2 -- the opposite corner
+-- Colour comes from the placer's block palette, not an argument.
 --
 -- Direction is the way the panel retracts:
 --   up     pulls it into the ceiling  (gap grows from the floor)
@@ -32,12 +33,8 @@ local areas = require "world_editor.areas";
 getcfg("we_door_speed", 8);     -- slices opened/closed per second
 getcfg("we_door_range", 4);     -- how close a player must be, in blocks
 
--- default panel colour; /place door ... <colour> overrides it
+-- default panel colour, used when the placer's palette read fails
 local GREY = {r=170, g=170, b=185};
-
-local function tint(inst)
-	return inst.color or GREY;
-end
 
 local DIRS = {up=true, down=true, left=true, right=true};
 
@@ -106,12 +103,20 @@ local function axis_of(d)
 	return "y", d.y1, d.y2;
 end
 
-function D.spawn(d)
+function D.spawn(d, we)
 	local inst = {
 		x1=d.x1, y1=d.y1, z1=d.z1,
 		x2=d.x2, y2=d.y2, z2=d.z2,
 		dir=d.dir,
 	};
+
+	-- Keep the panel off the engine floor and the client's Root layer,
+	-- the same clamp the elevator applies: we.fill would silently drop
+	-- those rows anyway, and a door that is shorter than it thinks would
+	-- leave a permanent gap under it.
+	if (inst.z2 > we.deepest) then inst.z2 = we.deepest; end
+	if (inst.z1 > inst.z2) then inst.z1 = inst.z2; end
+
 	inst.axis, inst.lo, inst.hi = axis_of(inst);
 	inst.slices = inst.hi - inst.lo + 1;
 	-- "up" and "right" eat slices from the high end, "down" and "left"
@@ -154,35 +159,52 @@ local function draw_slice(inst, we, c, on)
 	elseif (inst.axis == "x") then x1, x2 = c, c;
 	else y1, y2 = c, c; end
 
-	we.fill(inst, x1, y1, z1, x2, y2, z2, tint(inst), on, nil);
+	we.fill(inst, x1, y1, z1, x2, y2, z2, we.tint(inst, GREY), on, nil);
 end
 
+-- Only the shut slices own blocks; the retracted ones are air the panel
+-- has already given up, so there is nothing there to draw or to clear.
+-- Sweeping them anyway cost a bulk-destroy cull per slice for no writes.
 function D.render(inst, we)
 	for c = inst.lo, inst.hi do
-		draw_slice(inst, we, c, not slice_open(inst, c));
+		if (not slice_open(inst, c)) then
+			draw_slice(inst, we, c, true);
+		end
 	end
 end
 
+-- The whole panel comes down in one we.fill rather than slice by slice:
+-- one bulk-destroy cull for the component instead of one per slice.
 function D.destroy(inst, we)
-	for c = inst.lo, inst.hi do
-		draw_slice(inst, we, c, false);
-	end
+	we.fill(inst, inst.x1, inst.y1, inst.z1, inst.x2, inst.y2, inst.z2,
+	        nil, false, nil);
 end
 
 -- ---------------------------------------------------------------- trigger
 
--- a box around the whole panel, fattened by we_door_range so someone
--- walking up to either face sets it off
+-- The panel fattened by we_door_range, so someone walking up to either
+-- face sets it off. The panel never moves, so this is built once at
+-- spawn rather than rebuilt 60 times a second.
 local function near_area(inst)
-	local r = we_door_range;
-	return areas.box(inst.x1-r, inst.y1-r, inst.z1-r,
-	                 inst.x2+r, inst.y2+r, inst.z2+r);
+	if (inst.trigger == nil) then
+		local r = we_door_range;
+		inst.trigger = areas.box(inst.x1-r, inst.y1-r, inst.z1-r,
+		                         inst.x2+r, inst.y2+r, inst.z2+r);
+	end
+	return inst.trigger;
+end
+
+-- Nobody may build inside the panel or its retract path: a block left in
+-- the way would be one we.fill refuses to repaint (it never paints over
+-- solid), so the door would close with a hole in it and never recover.
+-- The elevator reserves its shaft for the same reason.
+function D.reserved(inst)
+	return areas.box(inst.x1, inst.y1, inst.z1, inst.x2, inst.y2, inst.z2);
 end
 
 -- ------------------------------------------------------------------ tick
 
-function D.tick(inst, we)
-	local dt = 1/60;
+function D.tick(inst, we, dt)
 	local want = areas.any_player_in(near_area(inst)) and inst.slices or 0;
 
 	if (inst.open == want) then
@@ -190,12 +212,9 @@ function D.tick(inst, we)
 		return;
 	end
 
-	inst.t = inst.t + dt;
-	local period = 1 / math.max(we_door_speed, 0.1);
-	if (inst.t < period) then
+	if (not we.due(inst, "t", we_door_speed, dt)) then
 		return;
 	end
-	inst.t = inst.t - period;
 
 	-- exactly one slice per step, and only that slice is touched:
 	-- redrawing the whole panel every step would be a block storm

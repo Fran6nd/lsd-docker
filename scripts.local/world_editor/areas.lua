@@ -129,21 +129,90 @@ end
 
 -- Every live player standing inside the area. Bots and spectators are
 -- skipped: a trigger should react to people who can actually be there.
-function A.players_in(a, pred)
-	local out = {};
+--
+-- `out` lets a caller pass a scratch table to refill instead of
+-- allocating a fresh list: triggers run at 60 Hz per component, so the
+-- garbage adds up.
+function A.players_in(a, pred, out)
+	out = out or {};
+	local n = 0;
 	for i in piditer(PID_BROADCAST) do
 		if (is_joined(i) and is_alive(i) and get_team(i) ~= 255) then
 			local p = get_position(i);
 			if (A.contains(a, p.x, p.y, p.z) and (pred == nil or pred(i))) then
-				table.insert(out, i);
+				n = n + 1;
+				out[n] = i;
 			end
 		end
 	end
+	for i = #out, n+1, -1 do out[i] = nil; end
 	return out;
 end
 
+-- Boolean-only form: stops at the first hit and allocates nothing. Most
+-- triggers only ask "is anyone there", so this is the common path.
 function A.any_player_in(a, pred)
-	return #A.players_in(a, pred) > 0;
+	for i in piditer(PID_BROADCAST) do
+		if (is_joined(i) and is_alive(i) and get_team(i) ~= 255) then
+			local p = get_position(i);
+			if (A.contains(a, p.x, p.y, p.z) and (pred == nil or pred(i))) then
+				return true;
+			end
+		end
+	end
+	return false;
+end
+
+-- ---------------------------------------------------------------- index
+--
+-- An XY grid of areas, so "which areas cover this block" costs a bucket
+-- lookup instead of a scan over everything. Both users need it for the
+-- same reason: they are queried once per *block* on every player edit,
+-- and a block line is dozens of blocks at once, so O(#areas) per block
+-- would bite. Chunks index their permission regions; world_editor
+-- indexes component reserved volumes.
+
+local CELL = 32;                    -- grid granularity, in blocks
+local GRID = math.ceil(512/CELL);
+
+local Index = {};
+Index.__index = Index;
+
+function A.index()
+	return setmetatable({cells={}}, Index);
+end
+
+function Index:reset()
+	self.cells = {};
+end
+
+-- register `val` under every grid cell `area`'s bounding box touches
+function Index:add(area, val)
+	local x1, y1, x2, y2 = A.bbox(area);
+
+	-- clamp to the map so a fat radius near an edge doesn't spray cells
+	x1 = math.max(0, math.min(511, x1));
+	y1 = math.max(0, math.min(511, y1));
+	x2 = math.max(0, math.min(511, x2));
+	y2 = math.max(0, math.min(511, y2));
+
+	for cy = math.floor(y1/CELL), math.floor(y2/CELL) do
+		for cx = math.floor(x1/CELL), math.floor(x2/CELL) do
+			local k = cy*GRID + cx;
+			local b = self.cells[k];
+			if (b == nil) then b = {}; self.cells[k] = b; end
+			b[#b+1] = val;
+		end
+	end
+end
+
+-- the values whose cell covers x,y -- a superset of the real hits, so
+-- callers still test containment themselves
+function Index:bucket(x, y)
+	if (x < 0 or x > 511 or y < 0 or y > 511) then
+		return nil;
+	end
+	return self.cells[math.floor(y/CELL)*GRID + math.floor(x/CELL)];
 end
 
 -- ---------------------------------------------------------------- json
