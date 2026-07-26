@@ -17,6 +17,11 @@
 --                         next to the map, autoloaded on map load,
 --                         rewritten on every change
 --   * undo             -- /undo pops the last thing placed
+--
+-- Terrain editing is not reimplemented here: edit mode loads the stock
+-- sel.lua (selections, bulk fill/paint/remove/copy/move/swizzle) and
+-- grants its "sel" cap for the duration. See the sel section below for
+-- why that needs the anon-pid write guard to be safe.
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 
@@ -54,6 +59,13 @@ local undo = {};       -- stack of instance ids, newest last
 
 local guarded = {};    -- packed block -> instance id (indestructible)
 local session = pid_connected_table(nil);  -- in-progress placement per pid
+
+-- True only while world_editor itself is writing blocks. Our writes and
+-- every other script's writes both arrive as the anon pid, so the guard
+-- cannot tell them apart by `from` alone -- this flag is what tells them
+-- apart. Anything anon-pid arriving with this false is somebody else
+-- (sel.lua's bulk ops, say) and must not touch what we own.
+local drawing = false;
 
 -- Reserved volumes are consulted for every block a player edits, and a
 -- block line is dozens of blocks at once -- so they go through the same
@@ -278,41 +290,36 @@ local we = {};
 -- volume ever needs cutting, do it by moving fewer blocks, not by
 -- batching packets.
 
--- The anon pid's held colour is server state that every build reads, and
--- set_block_color() broadcasts a packet on every call -- so setting it
--- per layer sent one redundant packet per layer even though components
--- draw hundreds of layers in the same colour. Remember what it holds and
--- only send on a real change.
+-- Set the colour every build draws in, every single time.
 --
--- The cache is only sound while nothing ELSE moves that colour, and
--- things do. rifle_is_a_rail_gun broadcasts a random red from the anon
--- pid on every shot, and revert() pushes the map's colour at one client
--- -- both via send_set_block_color, which changes what *clients* believe
--- the anon pid holds without touching the server-side value we track.
--- Skipping our colour packet after that drew the block in their stale
--- colour (grey platform, red ring). So the hooks further down drop this
--- cache whenever anyone sets that colour, and hold_color records the new
--- value only after its own call has passed through them.
-local heldcolor = nil;
-
-local function forget_color()
-	heldcolor = nil;
-end
-
+-- set_block_color, not send_set_block_color: block_action/block_line
+-- colour the map from the anon pid's *server-side* held colour, so only
+-- setting it server-side bakes the colour into the stored map (a bare
+-- broadcast left it black for fresh joiners).
+--
+-- This looks like an obvious thing to cache -- it costs a packet per
+-- call and components draw many layers in one colour -- but DO NOT. The
+-- anon pid's held colour is global state shared with every other script,
+-- and two of ours move it constantly through send_set_block_color, which
+-- changes what *clients* believe without touching the server-side value
+-- a cache would be tracking:
+--
+--   * rifle_is_a_rail_gun -- a random red per shot, to everyone
+--   * shotgun_are_grenade_launchers -- get_map_block_color(pos) at one
+--     client, and that is documented as implementation-defined for a
+--     non-solid voxel, so pellets hitting air push black
+--
+-- Caching it drew platform rings red, then whole moving components
+-- black, and only while people were shooting -- which is to say never
+-- during a build session and always during a game. Hooking the setters
+-- to invalidate the cache did not catch every path either. One packet
+-- per fill is a few percent against the ~73 block packets an elevator
+-- step already sends; correctness is worth more than that.
 local function hold_color(c)
 	if (c == nil) then
 		return;
 	end
-	if (heldcolor ~= nil
-	    and heldcolor.r == c.r and heldcolor.g == c.g and heldcolor.b == c.b) then
-		return;
-	end
-	-- set_block_color, not send_set_block_color: block_action/block_line
-	-- colour the map from the anon pid's *server-side* held colour, so
-	-- only setting it server-side bakes the colour into the stored map
-	-- (a bare broadcast left it black for fresh joiners).
 	set_block_color(get_anon_pid(), c);
-	heldcolor = {r=c.r, g=c.g, b=c.b};
 end
 
 -- one guaranteed-empty run [rx1..rx2] at (y,z), as block_line packets
@@ -348,6 +355,7 @@ function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep, line)
 	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(WE_DEEPEST, z2);
 	if (x1 > x2 or y1 > y2 or z1 > z2) then return; end
 
+	drawing = true;
 	if (on) then
 		hold_color(color);
 	end
@@ -389,6 +397,7 @@ function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep, line)
 	end
 
 	if (not on) then bdestroy_finish(); end
+	drawing = false;
 end
 
 function we.is_guarded(x, y, z)
@@ -467,6 +476,7 @@ end
 function we.dig_box(x1, y1, z1, x2, y2, z2, keep)
 	x1 = math.max(0, x1); y1 = math.max(0, y1); z1 = math.max(0, z1);
 	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(WE_DEEPEST, z2);
+	drawing = true;
 	for z = z1, z2 do
 		for y = y1, y2 do
 			for x = x1, x2 do
@@ -479,6 +489,7 @@ function we.dig_box(x1, y1, z1, x2, y2, z2, keep)
 		end
 	end
 	bdestroy_finish();
+	drawing = false;
 end
 
 function we.editing()
@@ -594,7 +605,6 @@ local function clear_all()
 	undo = {};
 	nextid = 1;
 	reindex_reserved();
-	forget_color();   -- a fresh map resets the anon pid's held colour
 end
 
 local function load_layout()
@@ -717,8 +727,8 @@ local function revert(pid, pos, type)
 		return;
 	end
 	-- this leaves THIS client holding a different colour for the anon pid
-	-- than the server does; the send_set_block_color hook drops the colour
-	-- cache for us, so the next component build resyncs them
+	-- than the server does; harmless, because every component build sets
+	-- the colour again before it draws (see hold_color)
 	send_set_block_color(pid, get_map_block_color(pos), get_anon_pid());
 	send_block_action(pid, pos, 0, get_anon_pid());
 end
@@ -952,34 +962,28 @@ function mod.on_block_line(pid, start, stop)
 	mod.next.on_block_line(pid, start, stop);
 end
 
--- Anyone moving the anon pid's held colour invalidates our cache of it,
--- ourselves included. Two callers make this mandatory rather than
--- defensive: rifle_is_a_rail_gun broadcasts a random red from the anon
--- pid on every shot, and shotgun_are_grenade_launchers pushes the map
--- colour at a single client. Both use send_set_block_color, so the
--- server-side value we track never moves while every client's copy does
--- -- and a build whose colour packet we skipped then rendered in their
--- colour, not ours.
-function mod.set_block_color(pid, color)
-	if (pid == get_anon_pid()) then
-		forget_color();
-	end
-	mod.next.set_block_color(pid, color);
-end
-
-function mod.send_set_block_color(pid, color, from)
-	if (from == get_anon_pid()) then
-		forget_color();
-	end
-	mod.next.send_set_block_color(pid, color, from);
+-- A cell another script must not write: one a component occupies, or a
+-- volume a component has reserved. Blocks written by a script bypass
+-- may_edit entirely (that only sees player edits), and `guarded` is our
+-- record of what exists -- a foreign write makes that record a lie, and
+-- the component silently breaks. sel.lua's /selrm and /selfill are
+-- exactly this: bulk writes through the anon pid.
+local function foreign_blocked(pos)
+	return guarded[key(pos.x, pos.y, pos.z)] ~= nil
+	    or in_reserved(pos.x, pos.y, pos.z);
 end
 
 -- Grenades and other world damage go straight to block_action without
 -- passing a player, so they cannot be team-resolved: anything short of
 -- a fully open component (perm "rw") shrugs them off. Our own writes
--- come through as the anon pid and must pass.
+-- come through as the anon pid and must pass -- `drawing` is how we
+-- recognise them; any other anon-pid write is another script's.
 function mod.block_action(pos, type, from)
-	if (type ~= 0 and from ~= get_anon_pid()) then
+	if (from == get_anon_pid()) then
+		if (not drawing and foreign_blocked(pos)) then
+			return;
+		end
+	elseif (type ~= 0) then
 		local id = guarded[key(pos.x, pos.y, pos.z)];
 		local inst = id and insts[id];
 		if (inst ~= nil) then
@@ -992,6 +996,19 @@ function mod.block_action(pos, type, from)
 		end
 	end
 	mod.next.block_action(pos, type, from);
+end
+
+-- lib_bulk_destroy (and so sel.lua's /selrm, /selmv, /selswiz) destroys
+-- through block_action_rm, which never reaches block_action above -- so
+-- it needs the same guard. Returning 0 is the honest "nothing was
+-- destroyed" mask the C uses when a cell was already empty, and
+-- bdestroy_block_action skips zero masks, so nothing is left queued for
+-- the cull.
+function mod.block_action_rm(pos, type, from)
+	if (not drawing and from == get_anon_pid() and foreign_blocked(pos)) then
+		return 0;
+	end
+	return mod.next.block_action_rm(pos, type, from);
 end
 
 -- ---------------------------------------------------------------- events
@@ -1211,6 +1228,56 @@ function cmd.func(pid, argv)
 end
 register_command(cmd, mod);
 
+-- ------------------------------------------------------------------ sel
+--
+-- sel.lua is the stock bulk-edit script: two-corner selections plus
+-- fill / replace / paint / remove / copy / move / swizzle over them. It
+-- is everything an editor wants for terrain and none of it is worth
+-- reimplementing here, so edit mode simply switches it on.
+--
+-- Two things stand in the way of just loading it, both handled here:
+--
+--   * Its commands are gated on caps="sel", which no default player
+--     has, so the cap is granted for the duration.
+--   * Its bulk ops write through the anon pid and consult nothing --
+--     not chunks, not we_readonly, not `guarded`. /selrm across an
+--     elevator would delete its blocks while we still believed they
+--     existed. The block_action / block_action_rm guards above are what
+--     make that safe, by refusing any anon-pid write we did not issue.
+--
+-- We only unload it again if we were the ones who loaded it, so a
+-- server that loads sel itself keeps it.
+local sel_ours = false;
+
+local function sel_start()
+	if (package.loaded["sel"] == nil) then
+		local ok, err = pcall(load, "sel");
+		if (not ok) then
+			log("world_editor: could not load sel (%s)", tostring(err));
+			return false;
+		end
+		sel_ours = true;
+	end
+	for i in piditer(PID_BROADCAST) do
+		if (is_joined(i) and not has_cap(i, "sel")) then
+			grant_cap(i, "sel");
+		end
+	end
+	return true;
+end
+
+local function sel_stop()
+	for i in piditer(PID_BROADCAST) do
+		if (is_joined(i) and has_cap(i, "sel")) then
+			drop_cap(i, "sel");
+		end
+	end
+	if (sel_ours) then
+		pcall(unload, "sel");
+		sel_ours = false;
+	end
+end
+
 -- Enabling is console-only: fakepid=true lets the console in, and the
 -- is_fakepid check keeps in-game players out.
 local cmd = {name="worldedit", caps="worldedit", fakepid=true,
@@ -1241,6 +1308,12 @@ function cmd.func(pid, argv)
 			save(true);
 			server_msg(pid, "world_editor: created "..path);
 		end
+		if (sel_start()) then
+			server_msg(pid, "world_editor: sel loaded -- /sel /sel1 /sel2 then "
+			                .."/selfill /selrm /selpaint /selcpy /selmv /selswiz");
+		end
+	else
+		sel_stop();
 	end
 
 	for i in piditer(PID_BROADCAST) do
