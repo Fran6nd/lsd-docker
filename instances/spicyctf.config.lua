@@ -120,3 +120,11 @@ load "lib_bot"
 -- combat guard bots, 5 per team (scripts.local/) -- disabled for now;
 -- uncomment to bring them back (./lsdctl spicyctf load lib_bot bot_standard)
 -- load "bot_standard"
+
+-- in-game map/component editor (scripts.local/). Loading it is inert on
+-- its own: edit mode is console-gated (./lsdctl spicyctf edit on), it
+-- pulls its own deps through require, and it restores each map's
+-- maps/<map>.editor.json on load. Listed here so a restart keeps it --
+-- a hot `./lsdctl spicyctf load world_editor` only lives in the running
+-- server's Lua state and is lost the next time the container is recreated.
+load "world_editor"
