@@ -49,12 +49,15 @@
 -- reconciliation (on_move_input only fires on change; the jump key
 -- auto-releases once airborne so it acts as one-shot), rejoining
 -- after map-change limbo, an idle fidget so afkick sees life, and
--- destruction on unload/disconnect.
+-- destruction on unload/disconnect. It also keeps bots out of the
+-- player count published to the masterlist (see MASTERLIST below):
+-- only humans are population.
 --
 -- LIMITATIONS:
--- * Bots occupy real player slots: they count toward max players and
---   the masterlist player count, and a full server starves
---   bot_create (it returns nil; retry later).
+-- * Bots occupy real player slots, so a full server starves
+--   bot_create (it returns nil; retry later) -- and the capacity
+--   advertised to the masterlist shrinks by the number of live bots,
+--   because those slots aren't free for humans either.
 -- * disconnect()/kick on a bot is a silent no-op -- no peer, so no
 --   DISCONNECT event ever fires. Other modules kicking a bot leave
 --   it in place; only bot_destroy()/on_disconnect() removes one.
@@ -81,6 +84,7 @@ getcfg("bot_shoot_range", 128);     -- max bullet reach, in blocks
 getcfg("bot_grenade_speed", 1.0);   -- throw speed (|vel|); a client's orientation throw is ~1
 getcfg("bot_grenade_max_fuse", 3.0);-- longest fuse a bot will cook toward
 getcfg("bot_grenade_danger_ttl", 6);-- forget a tracked live grenade after this long
+getcfg("bot_hide_from_masterlist", true);-- advertise humans only, not bots
 
 local KEY = {up=1, down=2, left=4, right=8,
              jump=16, crouch=32, sneak=64, sprint=128};
@@ -584,7 +588,55 @@ local function prune_dangers()
 	end
 end
 
+--========================== MASTERLIST ==========================--
+-- Bots are scenery, not population: the public server list must only
+-- ever advertise humans. Nothing in C computes that count -- upstream
+-- masterlist.lua recomputes it from every is_joined() pid (bots
+-- included) and masterlist_set_players() is the sole writer of
+-- st->ms.players -- so overwriting it from here is the whole fix.
+--
+-- Same policy as masterlist.lua's calc_players(), which is a local we
+-- can't reuse: a slot that isn't a joined human comes off the
+-- advertised maximum instead, whether it holds a connecting peer or a
+-- bot. So five bots on a 32-slot server read "0/27": nobody playing,
+-- and 27 seats really are free. The recompute is absolute, not a
+-- subtraction, so it can run as often as we like.
+local function advertise_humans()
+	if (not bot_hide_from_masterlist or next(bots) == nil) then
+		return; -- nothing of ours to hide; masterlist.lua is right
+	end
+
+	local players = 0;
+	local max = get_effective_max_players();
+
+	for i in piditer(PID_BROADCAST) do
+		if (bots[i] ~= nil or not is_joined(i)) then
+			max = max - 1;
+		else
+			players = players + 1;
+		end
+	end
+
+	masterlist_set_players(players);
+	masterlist_set_max_players(max);
+end
+
+-- xearly is the outermost callchain, so these land after
+-- masterlist.lua's own (std) after-hooks on the same events whatever
+-- order the two modules were last (re)loaded in -- and still inside
+-- the event, while masterlist_service() only ships changes between
+-- main-loop iterations, so the padded count never reaches the wire.
+mod.xearly.after.on_successful_connect = advertise_humans;
+mod.xearly.after.on_join = advertise_humans;
+mod.xearly.after.boot_players_to_limbo = advertise_humans;
+mod.xearly.after.on_disconnect = advertise_humans;
+mod.xearly.after.disconnect_now = advertise_humans;
+
 function mod.after.tick()
+	-- also each tick: cheap, and it heals the count if anything else
+	-- (a `lsdctl load masterlist`, say) recomputes it with bots in
+	advertise_humans();
+
 	if (not ready) then
 		return;
 	end
