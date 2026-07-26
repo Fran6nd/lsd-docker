@@ -117,6 +117,11 @@ function D.spawn(d, we)
 	if (inst.z2 > we.deepest) then inst.z2 = we.deepest; end
 	if (inst.z1 > inst.z2) then inst.z1 = inst.z2; end
 
+	-- centre, for the nearest-component search /componentperm does; every
+	-- instance owes the framework one of these
+	inst.x = math.floor((inst.x1 + inst.x2) / 2);
+	inst.y = math.floor((inst.y1 + inst.y2) / 2);
+
 	inst.axis, inst.lo, inst.hi = axis_of(inst);
 	inst.slices = inst.hi - inst.lo + 1;
 	-- "up" and "right" eat slices from the high end, "down" and "left"
@@ -162,10 +167,23 @@ local function draw_slice(inst, we, c, on)
 	we.fill(inst, x1, y1, z1, x2, y2, z2, we.tint(inst, GREY), on, nil);
 end
 
--- Only the shut slices own blocks; the retracted ones are air the panel
--- has already given up, so there is nothing there to draw or to clear.
--- Sweeping them anyway cost a bulk-destroy cull per slice for no writes.
+-- A door has to OWN every cell of its panel, or it cannot move them.
+-- we.fill never paints over a solid cell (that is what stops it painting
+-- without breaking), so a door laid against existing terrain claimed
+-- nothing at all: its state machine opened and closed happily while zero
+-- blocks moved, which reads as a completely dead door.
+--
+-- So clear the panel volume of foreign blocks first, exactly as the
+-- elevator clears its shaft, and only then lay the panel down. dig_box
+-- skips cells we already own, so a re-render is not a destroy-rebuild
+-- cycle. D.reserved keeps the volume ours afterwards.
+--
+-- Only the shut slices are then drawn; the retracted ones are air the
+-- panel has already given up, and sweeping them cost a bulk-destroy cull
+-- per slice for no writes.
 function D.render(inst, we)
+	we.dig_box(inst.x1, inst.y1, inst.z1, inst.x2, inst.y2, inst.z2);
+
 	for c = inst.lo, inst.hi do
 		if (not slice_open(inst, c)) then
 			draw_slice(inst, we, c, true);
@@ -200,6 +218,14 @@ end
 -- The elevator reserves its shaft for the same reason.
 function D.reserved(inst)
 	return areas.box(inst.x1, inst.y1, inst.z1, inst.x2, inst.y2, inst.z2);
+end
+
+-- what /components reports for a door
+function D.status(inst, we)
+	return string.format("%s %s %d..%d open %d/%d near %s",
+	                     inst.dir, inst.axis, inst.lo, inst.hi,
+	                     inst.open, inst.slices,
+	                     tostring(areas.any_player_in(near_area(inst))));
 end
 
 -- ------------------------------------------------------------------ tick

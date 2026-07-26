@@ -292,6 +292,13 @@ local function riders(inst, we)
 	return areas.players_in(rider_area(inst, we), nil, aboard);
 end
 
+-- what /components reports for an elevator
+function E.status(inst, we)
+	return string.format("%s z %d (%d..%d) %s riders %s",
+	                     inst.dir, inst.z, inst.zlo, inst.zhi, inst.state,
+	                     tostring(areas.any_player_in(rider_area(inst, we))));
+end
+
 -- ------------------------------------------------------------------ tick
 
 -- Carry riders with the platform. Move them by the same delta so their
