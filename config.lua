@@ -35,14 +35,22 @@ load "group_commands"
 load "group_moderation"
 load "group_feature"
 
--- Don't load masterlist if you don't want your server to be public.
--- The upstream default only announces to the LSD author's masterlist;
--- master.buildandshoot.com is the official Build and Shoot list.
+-- Public listing. The upstream default only announces to the LSD
+-- author's masterlist; master.buildandshoot.com is the official Build
+-- and Shoot list. LSD_MASTERLIST=0 keeps the server unlisted:
+-- ./lsdctl <instance> masterlist off (delisting is not access control
+-- though -- anyone who knows ip:port can still join).
+--
+-- The name and remotes are set even when the listing is off, on
+-- purpose: getcfg only fills globals that are nil, so a later live
+-- `load masterlist` would otherwise fall back to upstream's defaults.
 masterlist_remotes = {
 	"66.135.15.57",
 	"master.buildandshoot.com",
 }
-load "masterlist"
+if (os.getenv("LSD_MASTERLIST") ~= "0") then
+	load "masterlist"
+end
 
 -- stdio_console wedges the whole server when stdin is a docker TTY or
 -- closed pipe; the container sets LSD_NO_STDIO_CONSOLE=1 to skip it
