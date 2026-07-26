@@ -102,6 +102,11 @@ load(gamemode)
 -- spawn_at (the hostage's enemy-tent post) stays outermost and wins,
 -- while real players fall through to the random tent spawn
 load "tentspawns"
+-- the server list counts humans only: lib_bot keeps its bots (the
+-- hostages, and bot_standard's guards) out of the advertised player
+-- count and off the advertised capacity, since their slots aren't free
+-- for humans either. Set false to advertise bots as players again.
+bot_hide_from_masterlist = true
 load "lib_bot"
 load "hostage"
 -- combat guard bots, 5 per team (scripts.local/) -- disabled for now;
