@@ -1000,10 +1000,18 @@ end
 
 -- lib_bulk_destroy (and so sel.lua's /selrm, /selmv, /selswiz) destroys
 -- through block_action_rm, which never reaches block_action above -- so
--- it needs the same guard. Returning 0 is the honest "nothing was
--- destroyed" mask the C uses when a cell was already empty, and
+-- it needs the same guard.
+--
+-- Hooking it is safe despite the loop it looks like: lblock_action_rm
+-- calls f.block_action_rm, and `f` is a static snapshot taken in
+-- lua.c:1619 *before* register_luaawk() installs the cX bridges, so the
+-- chain terminates in the original C implementation rather than calling
+-- the global straight back.
+--
+-- Returning 0 is the honest "nothing was destroyed" mask -- main.c's
+-- block_action_rm returns exactly that for an already-empty cell -- and
 -- bdestroy_block_action skips zero masks, so nothing is left queued for
--- the cull.
+-- a cull that never happened.
 function mod.block_action_rm(pos, type, from)
 	if (not drawing and from == get_anon_pid() and foreign_blocked(pos)) then
 		return 0;
@@ -1607,6 +1615,39 @@ function cmd.func(pid, argv)
 	chunks.remove(c.id);
 	server_msg(pid, "world_editor: removed chunk "..c.name);
 	save();
+end
+register_command(cmd, mod);
+
+-- Why a component is or is not doing what you expect. Each kind reports
+-- its own live state through an optional status(inst, we), so a door
+-- that will not open can be told apart from a door that thinks nobody
+-- is near it without guessing from the outside.
+local cmd = {name={"components", "comps"}, fakepid=true,
+             desc="List placed components and their live state."};
+function cmd.func(pid, argv)
+	-- how many blocks each instance actually owns. A component whose
+	-- state machine runs but whose block count is 0 owns nothing to move:
+	-- we.fill refuses to paint over an already-solid cell, so a component
+	-- placed onto existing terrain never claims it and then appears dead.
+	local owned = {};
+	for _, id in pairs(guarded) do
+		owned[id] = (owned[id] or 0) + 1;
+	end
+
+	local n = 0;
+	for _, inst in pairs(insts) do
+		n = n + 1;
+		local k = kinds[inst.kind];
+		server_msg(pid, string.format("  #%d %s at %s,%s %s blocks %d %s",
+		                              inst.id, inst.kind,
+		                              tostring(inst.x), tostring(inst.y),
+		                              chunks.format_perm(inst.perm or {mode="ro"}),
+		                              owned[inst.id] or 0,
+		                              k.status and k.status(inst, we) or ""));
+	end
+	if (n == 0) then
+		server_msg(pid, "world_editor: no components on this map.");
+	end
 end
 register_command(cmd, mod);
 
