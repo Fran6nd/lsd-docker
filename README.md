@@ -41,8 +41,10 @@ instance, `hostage`. Add more with `./lsdctl new <name>`:
 
 The server is up when the logs show maps loading and masterlist
 connections; it announces itself to the LSD author's masterlist and to
-master.buildandshoot.com (drop entries from `masterlist_remotes` in
-`config.lua`, or remove `load "masterlist"`, to stay private).
+master.buildandshoot.com. `./lsdctl <name> masterlist off` takes it off
+those lists — live, without disconnecting anyone — and remembers the
+choice. Being unlisted is not access control: anyone who knows the
+`ip:port` can still join.
 
 Day-to-day management goes through `lsdctl`. Per-instance commands take
 the instance name first (`lsdctl <name> <command>`):
@@ -54,6 +56,9 @@ the instance name first (`lsdctl <name> <command>`):
 ./lsdctl hostage map load BusanPort          # switch the live map now, no restart
 ./lsdctl hostage set LSD_NAME "my server"    # any .env setting, restarts to apply
 ./lsdctl hostage load rifle_is_a_rail_gun    # hot-reload a script, no restart
+./lsdctl hostage masterlist off              # unlist the server, live
+./lsdctl hostage dev off                     # run released scripts only
+./lsdctl promote world_editor                # scripts.dev/ -> scripts.local/
 ./lsdctl hostage console                     # in-game admin console (Ctrl-C leaves)
 ./lsdctl update                              # rebuild + restart every instance
 ```
@@ -69,9 +74,37 @@ instances (`<command>All`, or `all <command>`):
 ./lsdctl all set LSD_MAPS "hallway pinpoint" # any command works: upAll, logsAll, ...
 ```
 
-Maps (`maps/`) and custom scripts (`scripts.local/`) are a shared pool
-by default; an instance can point at its own via `LSD_MAPS_DIR` /
-`LSD_SCRIPTS_DIR` in its `.env`.
+Maps (`maps/`) and custom scripts are a shared pool by default; an
+instance can point at its own via `LSD_MAPS_DIR` / `LSD_SCRIPTS_DIR` /
+`LSD_DEV_SCRIPTS_DIR` in its `.env`.
+
+## Released vs in-development scripts
+
+Custom scripts live in two committed trees:
+
+| tree | holds | who runs it |
+|---|---|---|
+| `scripts.local/` | released, known-good scripts | every instance |
+| `scripts.dev/` | work in progress | instances with `LSD_SCRIPTS_DEV=1` (the default) |
+
+They are overlay layers, stacked upstream → `scripts.local/` →
+`scripts.dev/`, and the last copy of a filename wins. So a
+`scripts.dev/world_editor.lua` shadows the released
+`scripts.local/world_editor.lua` on dev instances while the instances
+with `./lsdctl <name> dev off` keep running the released one — same
+image, same maps, different scripts.
+
+```sh
+./lsdctl hostage dev            # which layer this instance runs
+./lsdctl hostage dev off        # released scripts only (reassembles + reloads)
+./lsdctl hostage load hostage   # says when a module comes from scripts.dev/
+./lsdctl promote hostage        # graduate it: scripts.dev/ -> scripts.local/
+```
+
+`promote` moves the module's `.lua` and its companion directory (e.g.
+`world_editor/`) together, with `git mv` when they are tracked.
+Toggling `dev` is a scripts-only change: modules reload, nobody is
+disconnected.
 
 Everything an operator touches lives outside the image, so no rebuild
 is ever needed for content changes:
@@ -81,7 +114,9 @@ is ever needed for content changes:
 | settings (port, name, gamemode, map queue) | `instances/<name>.env` | on restart |
 | full config | `instances/<name>.config.lua` | on restart |
 | maps (`.vxl`) | `maps/` (shared) | next rotation |
-| custom/override scripts & gamemodes | `scripts.local/` (shared) | `./lsdctl <name> load [module...]` (hot, no restart) or on restart |
+| released custom/override scripts & gamemodes | `scripts.local/` (shared) | `./lsdctl <name> load [module...]` (hot, no restart) or on restart |
+| in-development scripts | `scripts.dev/` (shared) | same, on instances with the dev layer on |
+| public listing | `LSD_MASTERLIST` in `instances/<name>.env` | `./lsdctl <name> masterlist on\|off` (hot) |
 
 The top-level `config.lua` is the template `./lsdctl new` copies for a
 new instance; it is not itself loaded by any instance.
@@ -90,11 +125,16 @@ new instance; it is not itself loaded by any instance.
   together — they must match because the masterlist advertises the
   bound port. Each instance needs a distinct port; `lsdctl new` and
   `lsdctl <name> set LSD_PORT` refuse a port another instance already uses.
-- **Scripts**: at startup the container overlays `scripts.local/` on
-  the upstream scripts; a file with the same name as an upstream script
-  replaces it, new files (e.g. a custom gamemode you then select with
-  `./lsdctl <name> gamemode mymode`) are added. The `lsd/` submodule is
-  never modified.
+- **Scripts**: at startup the container overlays `scripts.local/` and
+  then `scripts.dev/` on the upstream scripts; a file with the same name
+  as an upstream script replaces it, new files (e.g. a custom gamemode
+  you then select with `./lsdctl <name> gamemode mymode`) are added. The
+  `lsd/` submodule is never modified.
+- **Settings drift**: an instance's `.env` is the source of truth, but a
+  running container keeps the values it was created with. `masterlist`
+  and `dev` apply their change live *and* record it; `reload` notices
+  when the two disagree and recreates the container instead of
+  restarting it in place, so a hot change is never silently reverted.
 - **Persistent data** (bans/auth databases): a per-instance named volume,
   `lsd-<name>-rw` (the migrated `hostage` instance keeps the legacy
   `lsd-rw`).

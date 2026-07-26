@@ -7,6 +7,11 @@
 # run as its own compose project (lsd-<name>) off the shared docker-compose.yml.
 # Per-instance commands take the instance name first: `lsdctl <name> <command>`.
 # The *All commands (and `all <command>`) fan a command out over every instance.
+#
+# The instance's .env file is the source of truth for its settings. A running
+# container keeps the values it was created with, so commands that apply a
+# setting live also record it in the .env; `reload` notices when the two have
+# drifted apart and recreates instead of restarting in place.
 set -eu
 
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -21,9 +26,13 @@ usage:
   lsdctl <global-command> [args]       act on the whole instance set
 
 instances
-  ls                  list instances (name, port, gamemode, state)
+  ls                  list instances (name, port, gamemode, listing, state)
   new <name> [-p N]   create instances/<name>.env + <name>.config.lua
   rm  <name>          stop and delete an instance
+
+scripts
+  promote <module>... move a module from scripts.dev/ to scripts.local/
+                      (released); takes its companion directory along
 
 all instances (every per-instance command below has an All twin)
   <command>All [args] run that per-instance command on every instance,
@@ -49,13 +58,18 @@ per-instance (first arg is the instance name)
   gamemode [name]     show or set the gamemode (ctf, arena, babel, ...)
   set KEY VALUE       set any .env setting (LSD_PORT, LSD_NAME, LSD_MAPS, ...)
 
-  load [module...]    sync scripts.local/ and hot-(re)load modules
+  load [module...]    sync the script layers and hot-(re)load modules
   unload <module>...  unload modules from the running server
   lsmod               list modules loaded in the running server
   edit [on|off]       enter/leave world_editor edit mode (console-only gate)
+  dev [on|off]        show/set whether this instance runs the scripts.dev/
+                      layer on top of the released scripts.local/ one
+  masterlist [on|off] show/set whether this instance is announced to the
+                      public server lists (off = unlisted, not private)
 
 Instance config lives in instances/<name>.config.lua; custom/overriding
-scripts go in scripts.local/ (same filename as an upstream script wins).
+scripts go in scripts.local/ (released) and scripts.dev/ (in development,
+wins over both scripts.local/ and the upstream script of the same name).
 EOF
 	exit "${1:-0}"
 }
@@ -63,7 +77,7 @@ EOF
 # the per-instance subcommands -- the set that also gets an All twin
 is_instance_command() {
 	case "$1" in
-	up|down|restart|reload|status|logs|console|shell|load|unload|lsmod|edit|map|gamemode|set) return 0 ;;
+	up|down|restart|reload|status|logs|console|shell|load|unload|lsmod|edit|map|gamemode|set|dev|masterlist) return 0 ;;
 	*) return 1 ;;
 	esac
 }
@@ -71,7 +85,7 @@ is_instance_command() {
 # names that would shadow a global verb or a <command>All fan-out
 reserved_name() {
 	case "$1" in
-	ls|list|new|rm|update|help|-h|--help|all) return 0 ;;
+	ls|list|new|rm|update|promote|help|-h|--help|all) return 0 ;;
 	esac
 	case "$1" in
 	*All) is_instance_command "${1%All}" && return 0 ;;
@@ -88,6 +102,15 @@ env_get_file() {
 	[ -f "$2" ] && sed -n "s/^$1=//p" "$2" | tail -1 || true
 }
 
+# on/off settings: anything but an explicit off value counts as on, so an
+# unset key means on (matching the compose defaults)
+flag_on() {
+	case "${1:-}" in
+	0|false|no|off|FALSE|NO|OFF) return 1 ;;
+	*) return 0 ;;
+	esac
+}
+
 # ports already claimed by any instance's env file
 used_ports() {
 	for f in "$INSTANCES_DIR"/*.env; do
@@ -99,19 +122,30 @@ used_ports() {
 list_instances() {
 	[ -d "$INSTANCES_DIR" ] || { echo "no instances (lsdctl new <name>)"; return 0; }
 	found=
-	printf '%-16s %-7s %-10s %s\n' NAME PORT GAMEMODE STATE
+	printf '%-16s %-7s %-10s %-8s %-4s %s\n' NAME PORT GAMEMODE LISTING DEV STATE
 	for f in "$INSTANCES_DIR"/*.env; do
 		[ -f "$f" ] || continue
 		found=1
 		name=$(basename "$f" .env)
 		port=$(env_get_file LSD_PORT "$f")
 		mode=$(env_get_file LSD_GAMEMODE "$f")
+		if flag_on "$(env_get_file LSD_MASTERLIST "$f")"; then
+			listing=public
+		else
+			listing=private
+		fi
+		if flag_on "$(env_get_file LSD_SCRIPTS_DEV "$f")"; then
+			dev=on
+		else
+			dev=off
+		fi
 		if [ -n "$(docker compose -p "lsd-$name" ps -q lsd 2>/dev/null)" ]; then
 			state=running
 		else
 			state=stopped
 		fi
-		printf '%-16s %-7s %-10s %s\n' "$name" "${port:--}" "${mode:--}" "$state"
+		printf '%-16s %-7s %-10s %-8s %-4s %s\n' \
+			"$name" "${port:--}" "${mode:--}" "$listing" "$dev" "$state"
 	done
 	[ -n "$found" ] || echo "no instances (lsdctl new <name>)"
 }
@@ -154,6 +188,10 @@ LSD_GAMEMODE=ctf
 LSD_MAPS=hallway bridgewars pinpoint
 LSD_CONFIG_FILE=./$(cfgf_for "$name")
 LSD_RW_VOLUME=lsd-$name-rw
+# run the in-development scripts.dev/ layer (0 = released scripts only)
+LSD_SCRIPTS_DEV=1
+# announce this instance to the public server lists (0 = unlisted)
+LSD_MASTERLIST=1
 EOF
 	echo "created instance '$name' on port $port:"
 	echo "  $(envf_for "$name")"
@@ -179,6 +217,41 @@ rm_instance() {
 	fi
 }
 
+# graduate a module from the in-development layer to the released one.
+# A module is a <name>.lua plus, optionally, a <name>/ directory of its
+# own submodules -- they move together or the module breaks.
+promote_module() {
+	[ $# -gt 0 ] || usage 1
+	# git mv keeps the file staged as a rename; outside a work tree (or
+	# for a file git doesn't know yet) a plain mv is all that's wanted
+	if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+		tracked=1
+	else
+		tracked=
+	fi
+	for m in "$@"; do
+		name=$(module_name "$m")
+		[ -f "scripts.dev/$name.lua" ] || {
+			echo "error: no scripts.dev/$name.lua to promote" >&2; exit 1; }
+		[ ! -e "scripts.local/$name" ] || [ -d "scripts.dev/$name" ] || {
+			echo "error: scripts.local/$name exists but scripts.dev/$name does not;" >&2
+			echo "       move it out of the way first" >&2; exit 1; }
+
+		for src in "scripts.dev/$name.lua" "scripts.dev/$name"; do
+			[ -e "$src" ] || continue
+			dst="scripts.local/${src#scripts.dev/}"
+			[ ! -e "$dst" ] || rm -rf "$dst"
+			if [ -n "$tracked" ] && git ls-files --error-unmatch "$src" >/dev/null 2>&1; then
+				git mv -f "$src" "$dst"
+			else
+				mv "$src" "$dst"
+			fi
+			echo "promoted $src -> $dst"
+		done
+	done
+	echo "released; instances running with the dev layer off pick it up on their next load"
+}
+
 # ---- per-instance helpers (operate on the current $INSTANCE / $ENVF) -----
 
 # every docker compose call for the current instance goes through here
@@ -196,16 +269,71 @@ env_set() {
 # pipe stdin into the current instance's in-game admin console, relaying replies
 console_pipe() { compose exec -T lsd socat - UNIX-CONNECT:rw/console.sock; }
 
+# on/off settings of the current instance, read from its .env
+dev_on() { flag_on "$(env_get LSD_SCRIPTS_DEV)"; }
+masterlist_on() { flag_on "$(env_get LSD_MASTERLIST)"; }
+
+# container id of the running instance, empty when it isn't up
+container_id() { compose ps -q lsd 2>/dev/null || true; }
+
+# value the running container was created with (empty if not running or unset)
+container_env() {
+	cid=$(container_id)
+	[ -n "$cid" ] || return 0
+	docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$cid" \
+		| sed -n "s/^$1=//p" | tail -1
+}
+
+# keys compose bakes into the container at create time: if the .env has
+# moved on since, restarting in place would quietly run the old values.
+# Prints the drifted keys and succeeds when there are any.
+env_drifted() {
+	drift=
+	for k in LSD_PORT LSD_NAME LSD_GAMEMODE LSD_MAPS LSD_SCRIPTS_DEV LSD_MASTERLIST; do
+		want=$(env_get "$k")
+		[ -n "$want" ] || continue	# unset: the compose default applies
+		got=$(container_env "$k")
+		[ -n "$got" ] || continue	# not running: nothing to drift from
+		[ "$want" = "$got" ] || drift="$drift $k"
+	done
+	[ -n "$drift" ] || return 1
+	echo "${drift# }"
+}
+
 # reassemble the running container's scripts/ dir (same recipe as the
-# entrypoint) so hotloads pick up the current scripts.local/ contents
+# entrypoint) so hotloads pick up the current script layers. The dev
+# layer follows the .env, not the container's stale copy of it.
 scripts_sync() {
-	compose exec -T lsd sh -c \
+	if dev_on; then dev=1; else dev=0; fi
+	compose exec -T -e LSD_SCRIPTS_DEV="$dev" lsd sh -c \
 		'find scripts -mindepth 1 -delete
 		 cp -R scripts.dist/. scripts/
-		 [ ! -d scripts.local ] || cp -R scripts.local/. scripts/'
+		 [ ! -d scripts.local ] || cp -R scripts.local/. scripts/
+		 case "$LSD_SCRIPTS_DEV" in
+		 0) ;;
+		 *) [ ! -d scripts.dev ] || cp -R scripts.dev/. scripts/ ;;
+		 esac'
 }
 
 module_name() { basename "$1" .lua; }
+
+# which layer a module resolves from, in the order the entrypoint stacks
+# them (last one copied wins). Fails with "!scripts.dev" when the only
+# copy is one this instance's dev layer is switched off from.
+module_layer() {
+	if dev_on && [ -f "scripts.dev/$1.lua" ]; then
+		echo scripts.dev
+	elif [ -f "scripts.local/$1.lua" ]; then
+		echo scripts.local
+	elif [ -f "lsd/scripts/$1.lua" ]; then
+		echo lsd/scripts
+	elif [ -f "scripts.dev/$1.lua" ]; then
+		echo '!scripts.dev'
+		return 1
+	else
+		return 1
+	fi
+}
 
 # run one per-instance subcommand against the current $INSTANCE / $ENVF
 dispatch() {
@@ -229,16 +357,26 @@ dispatch() {
 		# start timestamp, not the pipe status.
 		cid=$(compose ps -q lsd)
 		born=$(docker inspect -f '{{.State.StartedAt}}' "$cid")
+		# a restart in place reuses the environment the container was
+		# created with, so settings changed since then would silently
+		# revert -- recreate in that case instead
+		drifted=$(env_drifted) || drifted=
 		{
 			printf 'say %s\n' "$notice"
 			sleep 5
-			printf 'exec os.exit(0)\n'
+			[ -n "$drifted" ] || printf 'exec os.exit(0)\n'
 			sleep 1
 		} | console_pipe >/dev/null 2>&1 || true
-		sleep 2
-		if [ "$(docker inspect -f '{{.State.StartedAt}}' "$cid")" = "$born" ]; then
-			echo "console did not take the server down, restarting the hard way" >&2
-			compose restart lsd
+		if [ -n "$drifted" ]; then
+			echo "$(basename "$ENVF") changed since the container started ($drifted),"
+			echo "recreating it so the new values apply"
+			compose up -d --force-recreate
+		else
+			sleep 2
+			if [ "$(docker inspect -f '{{.State.StartedAt}}' "$cid")" = "$born" ]; then
+				echo "console did not take the server down, restarting the hard way" >&2
+				compose restart lsd
+			fi
 		fi
 		compose ps --format 'table {{.Name}}\t{{.State}}\t{{.Status}}'
 		;;
@@ -255,13 +393,28 @@ dispatch() {
 		compose exec lsd ash
 		;;
 	load)
-		# catch typos before touching the server
+		# catch typos before touching the server, and say which layer
+		# each module comes from -- a dev copy shadowing a released one
+		# is the whole point of the split, but it should never surprise
 		for name in "$@"; do
 			name=$(module_name "$name")
-			if [ ! -f "lsd/scripts/$name.lua" ] && [ ! -f "scripts.local/$name.lua" ]; then
-				echo "error: no module '$name' (no $name.lua in lsd/scripts/ or scripts.local/)" >&2
-				exit 1
+			if layer=$(module_layer "$name"); then
+				if [ "$layer" = scripts.dev ]; then
+					if [ -f "scripts.local/$name.lua" ]; then
+						echo "note: $name comes from scripts.dev/ (shadows scripts.local/$name.lua)"
+					else
+						echo "note: $name comes from scripts.dev/"
+					fi
+				fi
+				continue
 			fi
+			if [ "$layer" = '!scripts.dev' ]; then
+				echo "error: '$name' only exists in scripts.dev/ and the dev layer is off on '$INSTANCE'" >&2
+				echo "       turn it on with: ./lsdctl $INSTANCE dev on" >&2
+			else
+				echo "error: no module '$name' (no $name.lua in lsd/scripts/, scripts.local/ or scripts.dev/)" >&2
+			fi
+			exit 1
 		done
 		scripts_sync
 		{
@@ -303,6 +456,64 @@ dispatch() {
 			exit 1
 		fi
 		{ printf 'worldedit %s\n' "$what"; sleep 1; } | console_pipe
+		;;
+	dev)
+		# whether this instance stacks scripts.dev/ on scripts.local/.
+		# Toggling reassembles scripts/ and reloads every module, which
+		# is a script-level change only: nobody gets disconnected.
+		what=${1:-status}
+		case "$what" in
+		on) env_set LSD_SCRIPTS_DEV 1 >/dev/null ;;
+		off) env_set LSD_SCRIPTS_DEV 0 >/dev/null ;;
+		status) ;;
+		*) echo "usage: lsdctl <instance> dev [on|off|status]" >&2; exit 1 ;;
+		esac
+		if dev_on; then setting=on; else setting=off; fi
+		if [ -z "$(container_id)" ]; then
+			echo "dev layer: $setting (applies at next start)"
+		elif [ "$what" = status ]; then
+			echo "dev layer: $setting"
+			live=$(container_env LSD_SCRIPTS_DEV)
+			if [ -n "$live" ] && ! flag_on "$live" && [ "$setting" = on ]; then
+				echo "           (the container was created without it;" \
+				     "load/reload applies it anyway)"
+			fi
+		else
+			scripts_sync
+			{ echo reloadall; sleep 1; } | console_pipe
+			echo "dev layer $setting on '$INSTANCE' (scripts reassembled and reloaded)"
+		fi
+		;;
+	masterlist)
+		# public listing on/off. Applied live over the console so an
+		# instance can go quiet mid-game without dropping its players;
+		# the .env keeps it across restarts.
+		what=${1:-status}
+		case "$what" in
+		on) env_set LSD_MASTERLIST 1 >/dev/null ;;
+		off) env_set LSD_MASTERLIST 0 >/dev/null ;;
+		status) ;;
+		*) echo "usage: lsdctl <instance> masterlist [on|off|status]" >&2; exit 1 ;;
+		esac
+		if masterlist_on; then setting="on (public)"; else setting="off (unlisted)"; fi
+		if [ -z "$(container_id)" ]; then
+			echo "masterlist: $setting (applies at next start)"
+		elif [ "$what" = status ]; then
+			echo "masterlist: $setting"
+			if { echo lsmod; sleep 1; } | console_pipe 2>/dev/null | grep -q masterlist; then
+				echo "live:       announcing"
+			else
+				echo "live:       not announcing"
+			fi
+		else
+			# the console's load unloads first, so both ways are idempotent
+			if [ "$what" = on ]; then verb=load; else verb=unload; fi
+			{ printf '%s masterlist\n' "$verb"; sleep 1; } | console_pipe
+			echo "masterlist $setting on '$INSTANCE' (applied live, nobody disconnected)"
+			if [ "$what" = off ]; then
+				echo "note: unlisted is not private -- ip:port still lets anyone join"
+			fi
+		fi
 		;;
 	map)
 		msub=${1:-list}; [ $# -gt 0 ] && shift
@@ -350,8 +561,8 @@ dispatch() {
 			mode=${LSD_GAMEMODE:-$(env_get LSD_GAMEMODE)}
 			echo "${mode:-ctf}"
 		else
-			if [ ! -f "lsd/scripts/$1.lua" ] && [ ! -f "scripts.local/$1.lua" ]; then
-				echo "error: no gamemode '$1' (no $1.lua in lsd/scripts/ or scripts.local/)" >&2
+			if ! module_layer "$1" >/dev/null; then
+				echo "error: no gamemode '$1' (no $1.lua in lsd/scripts/, scripts.local/ or scripts.dev/)" >&2
 				exit 1
 			fi
 			env_set LSD_GAMEMODE "$1"
@@ -404,6 +615,7 @@ case "$cmd" in
 ls|list) list_instances; exit 0 ;;
 new) shift; new_instance "$@"; exit 0 ;;
 rm) shift; rm_instance "$@"; exit 0 ;;
+promote) shift; promote_module "$@"; exit 0 ;;
 update) exec ./update.sh ;;
 all) shift; for_all "$@"; exit 0 ;;
 help|-h|--help) usage ;;

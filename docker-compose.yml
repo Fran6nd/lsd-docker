@@ -19,6 +19,11 @@ services:
       LSD_NAME: ${LSD_NAME:-untitled LSd server}
       LSD_GAMEMODE: ${LSD_GAMEMODE:-ctf}
       LSD_MAPS: ${LSD_MAPS:-hallway bridgewars pinpoint}
+      # overlay the in-development scripts.dev/ layer on top of the
+      # released scripts.local/ one (0 to run released scripts only)
+      LSD_SCRIPTS_DEV: ${LSD_SCRIPTS_DEV:-1}
+      # 0 keeps the server off the public server lists (lsdctl masterlist)
+      LSD_MASTERLIST: ${LSD_MASTERLIST:-1}
     ports:
       - "${LSD_PORT:-32887}:${LSD_PORT:-32887}/udp"
     volumes:
@@ -28,7 +33,11 @@ services:
       # maps/ is writable: world_editor persists component layouts to
       # maps/<map>.json next to the .vxl it belongs to
       - ${LSD_MAPS_DIR:-./maps}:/lsd/maps
+      # scripts come in two layers, released then in-development; the
+      # entrypoint overlays them in that order, so a dev file shadows a
+      # released one of the same name (and both shadow upstream's)
       - ${LSD_SCRIPTS_DIR:-./scripts.local}:/lsd/scripts.local:ro
+      - ${LSD_DEV_SCRIPTS_DIR:-./scripts.dev}:/lsd/scripts.dev:ro
       - lsd-rw:/lsd/rw
 
 volumes:
