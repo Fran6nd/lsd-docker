@@ -1,4 +1,4 @@
--- world_editor/door.lua -- A surface that retracts to open.
+-- world_editor/door.lua -- A built surface that slides aside to open.
 --
 -- Placement: /place door up|down|left|right
 --   mark 1 -- one corner of the door box
@@ -14,24 +14,37 @@
 -- Mark a box with nothing in it and you get a plain solid panel in your
 -- block palette colour instead, which is what a door always used to be.
 --
--- Direction is the way the panel retracts:
---   up     pulls it into the ceiling  (gap grows from the floor)
---   down   sinks it into the floor    (gap grows from the top)
---   left   slides it to the low side  (gap grows from the low side)
---   right  slides it to the high side (gap grows from the high side)
+-- The panel moves as one rigid piece. It does not dissolve row by row:
+-- every block travels one step together, so the drawing stays whole and
+-- readable the entire way, and holes in it travel along with it.
 --
--- up/down retract along z; left/right retract along whichever
--- horizontal axis the door is widest on, so a door laid out along x
--- slides in x and one laid out along y slides in y. Closing runs the
--- same animation backwards.
+-- Direction is the way the panel slides:
+--   up     into the ceiling  (the gap opens from the floor up)
+--   down   into the floor    (the gap opens from the top down)
+--   left   toward the low side
+--   right  toward the high side
+--
+-- up/down slide along z; left/right slide along whichever horizontal
+-- axis the door is widest on, so a door laid out along x slides in x and
+-- one laid out along y slides in y.
+--
+-- Because it slides rather than dissolves, it needs somewhere to go: a
+-- pocket as deep as the panel is thick in that direction. That pocket is
+-- dug out of the terrain at placement and reserved, exactly as the
+-- elevator digs its shaft, and a door with no room for one is refused
+-- rather than placed half-working.
 --
 -- It opens while anyone stands near it and closes once they leave, so a
 -- door needs no switch -- walking up to it is the trigger.
 --
--- The motion is deliberately incremental: exactly one slice is added or
--- removed per step, never the whole panel at once, both so it reads as
--- a moving door and so a big door can't dump hundreds of block updates
--- into a single tick.
+-- One step moves the panel by one block, and a step only writes the
+-- blocks that actually change: the cells at the leading face of the
+-- drawing (which arrive one block further on) and the cells at its
+-- trailing face (which are given up). Everything between is already the
+-- right block in the right place. That is what keeps a big door from
+-- dumping hundreds of block updates into a single tick, and it is the
+-- same overlap trick the elevator uses -- see the block api in
+-- world_editor.lua for why re-sending an unchanged cell is not free.
 --
 -- The map's z axis points *down*: z1 is the top row, z2 the bottom.
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
@@ -39,23 +52,24 @@ local D = {name = "door"};
 
 local areas = require "world_editor.areas";
 
-getcfg("we_door_speed", 8);     -- slices opened/closed per second
+getcfg("we_door_speed", 8);     -- blocks moved per second
 getcfg("we_door_range", 4);     -- how close a player must be, in blocks
 
--- default panel colour, used for a door captured from an empty box when
--- the placer's palette read fails too
+-- default panel colour, used for a door placed on an empty box when the
+-- placer's palette read fails too
 local GREY = {r=170, g=170, b=185};
 
 local DIRS = {up=true, down=true, left=true, right=true};
 
-D.desc  = "an existing surface that retracts to open when someone is near.";
+D.desc  = "a built surface that slides aside when someone is near.";
 D.usage = "<up|down|left|right>";
 D.help  = {
 	"world_editor: door -- a built surface that slides open when a player nears it.",
 	"  usage: /place door <up|down|left|right>",
-	"  up/down retract into ceiling/floor; left/right slide aside.",
+	"  up/down slide into ceiling/floor; left/right slide aside.",
 	"  build the shape first, then mark two opposite corners around it:",
-	"  its blocks, colours and gaps all become the door.",
+	"  its blocks, colours and gaps all become the door and move together.",
+	"  it needs its own depth of clear space to slide into.",
 	"  an empty box gives a solid panel in your palette colour instead.",
 };
 
@@ -72,8 +86,11 @@ D.help  = {
 -- meaning empty. A door of a few hundred cells in a handful of colours
 -- comes to a couple of hundred bytes.
 
--- key for a cell within one slice: the two coordinates the retract axis
--- does not use. z tops out at 63 and x/y at 511, so this packs cleanly.
+-- Key for a cell within one plane of the panel: the two coordinates the
+-- slide axis does not use. Those two never change as the panel travels,
+-- which is what lets one key set describe a face of the drawing wherever
+-- it currently is. z tops out at 63 and x/y at 511, so this packs
+-- cleanly.
 local function okey(axis, x, y, z)
 	if (axis == "z") then return y*512 + x; end
 	if (axis == "x") then return z*512 + y; end
@@ -152,66 +169,51 @@ local function decode_pal(pal)
 	return out;
 end
 
--- Expand the run-length cells into what drawing actually needs: for each
--- slice along the retract axis, the cells of each colour in it.
---
--- Grouping by colour is the whole point. we.fill paints one colour per
--- call (it sets the anon pid's held colour once, deliberately -- see the
--- block api in world_editor.lua), so a slice costs one call per distinct
--- colour it contains rather than one per block.
---
--- Returns nil plus a reason when the stencil does not describe this box,
--- so a mismatch draws a plain panel instead of a misaligned mess.
-local function build_slices(inst, pal, cells)
-	local w = inst.x2 - inst.x1 + 1;
-	local h = inst.y2 - inst.y1 + 1;
-	local plane = w * h;
-	local total = plane * (inst.z2 - inst.z1 + 1);
-	local axis = inst.axis;
+-- ------------------------------------------------------------- geometry
 
-	local slice, groups = {}, {};
-	local i, ncells = 0, 0;
-
-	for count, idx in string.gmatch(cells, "(%d+)%*(%d+)") do
-		count, idx = tonumber(count), tonumber(idx);
-		if (i + count > total) then
-			return nil, "more cells than the box holds";
-		end
-
-		if (idx ~= 0) then
-			local col = pal[idx];
-			if (col == nil) then
-				return nil, "a run names colour "..idx..", which is not in the palette";
-			end
-			for n = i, i + count - 1 do
-				-- capture walked z, then y, then x; unwind that
-				local x = inst.x1 + (n % w);
-				local y = inst.y1 + (math.floor(n / w) % h);
-				local z = inst.z1 + math.floor(n / plane);
-				local c = (axis == "z") and z or ((axis == "x") and x or y);
-
-				local byidx = groups[c];
-				if (byidx == nil) then
-					byidx = {};
-					groups[c], slice[c] = byidx, {};
-				end
-				local g = byidx[idx];
-				if (g == nil) then
-					g = {color=col, has={}};
-					byidx[idx] = g;
-					table.insert(slice[c], g);
-				end
-				g.has[okey(axis, x, y, z)] = true;
-				ncells = ncells + 1;
-			end
-		end
-		i = i + count;
+-- which axis the panel slides along, and its span on that axis
+local function axis_of(d)
+	if (d.dir == "up" or d.dir == "down") then
+		return "z", d.z1, d.z2;
 	end
-
-	if (i ~= total) then
-		return nil, string.format("%d cells for a box of %d", i, total);
+	if ((d.x2 - d.x1) >= (d.y2 - d.y1)) then
+		return "x", d.x1, d.x2;
 	end
-	return slice, ncells;
+	return "y", d.y1, d.y2;
+end
+
+-- Which way along that axis the panel travels when it opens. "down" and
+-- "right" run toward the high end, "up" and "left" toward the low one --
+-- and remember z points down, so "up" (into the ceiling) is -1.
+local function step_of(dir)
+	if (dir == "down" or dir == "right") then
+		return 1;
+	end
+	return -1;
+end
+
+-- The axis span the panel sweeps: its own extent plus the pocket it
+-- retracts into, which is as deep as the panel is thick.
+local function sweep(lo, hi, step, travel)
+	if (step > 0) then
+		return lo, hi + travel;
+	end
+	return lo - travel, hi;
+end
+
+-- The furthest end of that sweep has to stay on the map -- and, on z,
+-- above the engine floor and the client's Root layer, the same limit
+-- every component writes under.
+local function sweep_fits(axis, lo, hi, step, travel, we)
+	local s1, s2 = sweep(lo, hi, step, travel);
+	local top = (axis == "z") and we.deepest or 511;
+	return s1 >= 0 and s2 <= top;
+end
+
+-- local index i of a plane -> the axis coordinate it sits at when the
+-- panel is `off` blocks open
+local function plane_at(inst, i, off)
+	return inst.lo + i + off * inst.step;
 end
 
 -- ------------------------------------------------------------ placement
@@ -247,8 +249,8 @@ function D.click(s, pos, we)
 	if (d.z2 > we.deepest) then d.z2 = we.deepest; end
 	if (d.z1 > d.z2) then d.z1 = d.z2; end
 
-	-- the panel has to have extent along whichever way it retracts,
-	-- otherwise there is nothing to slide out of the way
+	-- the panel has to have extent along whichever way it slides,
+	-- otherwise there is nothing to move out of the way
 	if (s.dir == "up" or s.dir == "down") then
 		if (d.z1 == d.z2) then
 			s.pts = {a};
@@ -259,16 +261,37 @@ function D.click(s, pos, we)
 		return false, "a sliding door needs width -- mark corners apart horizontally.";
 	end
 
+	-- It slides as one piece, so it needs a pocket its own depth to slide
+	-- into. Refuse rather than place a door that can only open part way:
+	-- a doorway you cannot walk through is worse than no door at all.
+	local axis, lo, hi = axis_of(d);
+	local step = step_of(s.dir);
+	local travel = hi - lo + 1;
+	if (not sweep_fits(axis, lo, hi, step, travel, we)) then
+		local s1, s2 = sweep(lo, hi, step, travel);
+		s.pts = {a};
+		return false, string.format(
+			"no room to slide %s: it needs %s %d..%d clear, and the map ends there. "
+			.."place it further from the edge, or slide it another way.",
+			s.dir, axis, s1, s2);
+	end
+
 	-- Another component's blocks must not be swallowed. D.render digs the
-	-- whole box to claim it, which would tear a hole through whatever
+	-- whole sweep to claim it, which would tear a hole through whatever
 	-- else lives in there while that component still believed it was
 	-- intact.
-	for z = d.z1, d.z2 do
-		for y = d.y1, d.y2 do
-			for x = d.x1, d.x2 do
+	local sx1, sy1, sz1 = d.x1, d.y1, d.z1;
+	local sx2, sy2, sz2 = d.x2, d.y2, d.z2;
+	if (axis == "z") then sz1, sz2 = sweep(lo, hi, step, travel);
+	elseif (axis == "x") then sx1, sx2 = sweep(lo, hi, step, travel);
+	else sy1, sy2 = sweep(lo, hi, step, travel); end
+
+	for z = sz1, sz2 do
+		for y = sy1, sy2 do
+			for x = sx1, sx2 do
 				if (we.is_guarded(x, y, z)) then
 					s.pts = {a};
-					return false, "that box overlaps another component -- mark clear of it.";
+					return false, "that door (or the space it slides into) overlaps another component.";
 				end
 			end
 		end
@@ -282,15 +305,160 @@ end
 
 -- ------------------------------------------------------------- lifecycle
 
--- which axis the panel retracts along, and its span on that axis
-local function axis_of(d)
-	if (d.dir == "up" or d.dir == "down") then
-		return "z", d.z1, d.z2;
+-- Expand the run-length cells into occupancy: for each plane of the
+-- panel, which cells are solid and what colour each is. Returns nil plus
+-- a reason when the stencil does not describe this box, so a mismatch
+-- draws a plain panel instead of a misaligned mess.
+local function decode_occ(inst, npal, cells)
+	local w = inst.x2 - inst.x1 + 1;
+	local h = inst.y2 - inst.y1 + 1;
+	local plane = w * h;
+	local total = plane * (inst.z2 - inst.z1 + 1);
+	local axis = inst.axis;
+
+	local occ, i, n = {}, 0, 0;
+
+	for count, idx in string.gmatch(cells, "(%d+)%*(%d+)") do
+		count, idx = tonumber(count), tonumber(idx);
+		if (i + count > total) then
+			return nil, "more cells than the box holds";
+		end
+
+		if (idx ~= 0) then
+			if (idx > npal) then
+				return nil, "a run names colour "..idx..", which is not in the palette";
+			end
+			for c = i, i + count - 1 do
+				-- capture walked z, then y, then x; unwind that
+				local x = inst.x1 + (c % w);
+				local y = inst.y1 + (math.floor(c / w) % h);
+				local z = inst.z1 + math.floor(c / plane);
+				local li = (axis == "z") and (z - inst.z1)
+				        or ((axis == "x") and (x - inst.x1) or (y - inst.y1));
+
+				local o = occ[li];
+				if (o == nil) then o = {}; occ[li] = o; end
+				o[okey(axis, x, y, z)] = idx;
+				n = n + 1;
+			end
+		end
+		i = i + count;
 	end
-	if ((d.x2 - d.x1) >= (d.y2 - d.y1)) then
-		return "x", d.x1, d.x2;
+
+	if (i ~= total) then
+		return nil, string.format("%d cells for a box of %d", i, total);
 	end
-	return "y", d.y1, d.y2;
+	return occ, n;
+end
+
+-- Occupancy for a door placed on an empty box: every cell solid, in the
+-- one colour the placer was holding. Building it here rather than
+-- special-casing it everywhere means the motion code below only ever
+-- deals with one representation.
+local function full_occ(inst)
+	local occ, n = {}, 0;
+	for z = inst.z1, inst.z2 do
+		for y = inst.y1, inst.y2 do
+			for x = inst.x1, inst.x2 do
+				local li = (inst.axis == "z") and (z - inst.z1)
+				        or ((inst.axis == "x") and (x - inst.x1) or (y - inst.y1));
+				local o = occ[li];
+				if (o == nil) then o = {}; occ[li] = o; end
+				o[okey(inst.axis, x, y, z)] = 1;
+				n = n + 1;
+			end
+		end
+	end
+	return occ, n;
+end
+
+-- Work out what a one-block move actually has to write.
+--
+-- Slide the drawing one block along its axis and most of its cells land
+-- where another of its own cells already was. The block is already there
+-- and already solid -- but it may be the wrong COLOUR, because the cell
+-- that used to sit there is a different cell of the drawing. That is the
+-- part a uniform panel never has to think about and a drawing always
+-- does.
+--
+-- So for a move of `mv` (one block along the axis, either way) each cell
+-- of the panel falls into exactly one of three jobs:
+--
+--   build  -- nothing of ours was at its destination, so a real block
+--             has to appear there
+--   paint  -- one of our blocks was already there but in another colour,
+--             so it only needs recolouring (we.paint, a build packet
+--             over a solid cell -- never a destroy plus a create on one
+--             cell in one tick)
+--   clear  -- nothing of ours follows it, so the cell it leaves behind
+--             becomes empty
+--
+-- and cells whose destination already holds the right colour are not
+-- touched at all, which is what keeps a big door off the packet budget.
+--
+-- The three sets are pairwise disjoint: a build target was empty before
+-- the move, a clear target is empty after it, and a paint target is
+-- occupied throughout. So no cell is written twice in a step, whichever
+-- way the door is going.
+--
+-- Precomputed once per direction, since a door only ever moves by one
+-- block and only ever two ways.
+local function motion_for(inst, occ, mv)
+	local m = {};
+
+	for i = 0, inst.len - 1 do
+		local o = occ[i];
+		if (o ~= nil) then
+			local onto = occ[i + mv];   -- what is at our destination now
+			local after = occ[i - mv];  -- what takes our place when we go
+
+			local build, paint, clear = {}, {}, {};
+			local nb, np, nc = 0, 0, 0;
+
+			for k, cidx in pairs(o) do
+				local was = onto and onto[k];
+				if (was == nil) then
+					local s = build[cidx];
+					if (s == nil) then s = {}; build[cidx] = s; end
+					s[k] = true; nb = nb + 1;
+				elseif (was ~= cidx) then
+					local s = paint[cidx];
+					if (s == nil) then s = {}; paint[cidx] = s; end
+					s[k] = true; np = np + 1;
+				end
+
+				if (after == nil or after[k] == nil) then
+					clear[k] = true; nc = nc + 1;
+				end
+			end
+
+			if (nb > 0 or np > 0 or nc > 0) then
+				m[i] = {build=(nb > 0) and build or nil,
+				        paint=(np > 0) and paint or nil,
+				        clear=(nc > 0) and clear or nil};
+			end
+		end
+	end
+
+	return m;
+end
+
+-- every cell of each plane, by colour -- what a full draw needs
+local function planes_of(inst, occ)
+	local plane = {};
+	for i = 0, inst.len - 1 do
+		local o = occ[i];
+		if (o ~= nil) then
+			local byc = {};
+			for k, cidx in pairs(o) do
+				local s = byc[cidx];
+				if (s == nil) then s = {}; byc[cidx] = s; end
+				s[k] = true;
+			end
+			plane[i] = byc;
+		end
+	end
+	return plane;
 end
 
 function D.spawn(d, we)
@@ -301,7 +469,7 @@ function D.spawn(d, we)
 	};
 
 	-- New doors were clamped at placement, so this only ever bites a
-	-- layout hand-edited (or written when we_deepest was different). The
+	-- layout hand-edited (or written when we.deepest was different). The
 	-- drawing is indexed by the box, so a box that moves invalidates it.
 	local cells = d.cells;
 	if (inst.z2 > we.deepest) then inst.z2 = we.deepest; cells = nil; end
@@ -317,32 +485,61 @@ function D.spawn(d, we)
 	inst.y = math.floor((inst.y1 + inst.y2) / 2);
 
 	inst.axis, inst.lo, inst.hi = axis_of(inst);
-	inst.slices = inst.hi - inst.lo + 1;
+	inst.step = step_of(inst.dir);
+	inst.len  = inst.hi - inst.lo + 1;
+
+	-- Placement refuses a door with nowhere to slide, so this only trims
+	-- a hand-edited layout. Opening part way is the graceful failure --
+	-- better than writing off the map.
+	inst.travel = inst.len;
+	while (inst.travel > 0
+	       and not sweep_fits(inst.axis, inst.lo, inst.hi, inst.step, inst.travel, we)) do
+		inst.travel = inst.travel - 1;
+	end
+	if (inst.travel < inst.len) then
+		log("world_editor: door at %d,%d has room to slide only %d of %d blocks",
+		    inst.x1, inst.y1, inst.travel, inst.len);
+	end
+
+	local s1, s2 = sweep(inst.lo, inst.hi, inst.step, inst.travel);
+	inst.sx1, inst.sy1, inst.sz1 = inst.x1, inst.y1, inst.z1;
+	inst.sx2, inst.sy2, inst.sz2 = inst.x2, inst.y2, inst.z2;
+	if (inst.axis == "z") then inst.sz1, inst.sz2 = s1, s2;
+	elseif (inst.axis == "x") then inst.sx1, inst.sx2 = s1, s2;
+	else inst.sy1, inst.sy2 = s1, s2; end
 
 	-- The captured drawing, if this door has one. Kept on the instance
 	-- only once it has proved to describe this box, so a stencil we
 	-- refused to draw is not written back out on the next save either.
+	local occ, n;
 	if (cells ~= nil) then
 		local pal = decode_pal(d.pal);
-		local slice, n;
+		local why;
 		if (pal == nil) then
-			n = "its palette is not a list of rrggbb strings";
+			why = "its palette is not a list of rrggbb strings";
 		else
-			slice, n = build_slices(inst, pal, cells);   -- cell count, or why not
+			occ, why = decode_occ(inst, #pal, cells);
 		end
-		if (slice == nil) then
+		if (occ == nil) then
 			log("world_editor: door at %d,%d has an unusable drawing (%s); using a solid panel",
-			    inst.x1, inst.y1, tostring(n));
+			    inst.x1, inst.y1, tostring(why));
 		else
-			inst.slice, inst.ncells = slice, n;
-			inst.pal, inst.cells = d.pal, cells;
+			n = why;                       -- decode_occ's second return: cell count
+			inst.pal = pal;                -- runtime colours
+			inst.palhex, inst.cells = d.pal, cells;   -- what goes back to json
 		end
 	end
+	if (occ == nil) then
+		occ, n = full_occ(inst);
+	end
+	inst.ncells = n;
 
-	-- "up" and "right" eat slices from the high end, "down" and "left"
-	-- from the low end
-	inst.from_hi = (d.dir == "up" or d.dir == "right");
-	inst.open = 0;      -- how many slices are currently retracted
+	inst.plane = planes_of(inst, occ);
+	-- one table per way the panel can travel along its axis
+	inst.motion = {[1] = motion_for(inst, occ, 1),
+	               [-1] = motion_for(inst, occ, -1)};
+
+	inst.off = 0;       -- how many blocks the panel has slid; 0 is shut
 	inst.t = 0;
 	return inst;
 end
@@ -350,68 +547,113 @@ end
 function D.save(inst)
 	return {x1=inst.x1, y1=inst.y1, z1=inst.z1,
 	        x2=inst.x2, y2=inst.y2, z2=inst.z2, dir=inst.dir,
-	        pal=inst.pal, cells=inst.cells};
+	        pal=inst.palhex, cells=inst.cells};
 end
 
--- the coordinate of the slice that the n-th step touches
-local function slice_at(inst, n)
-	if (inst.from_hi) then
-		return inst.hi - n;
+-- ---------------------------------------------------------------- draw
+
+-- a captured door draws each cell in the colour it was built in; a door
+-- placed on empty air is all one colour, and that colour is not known
+-- until the framework has set inst.color, which happens after spawn
+local function colour_of(inst, we, cidx)
+	if (inst.pal == nil) then
+		return we.tint(inst, GREY);
 	end
-	return inst.lo + n;
+	return inst.pal[cidx];
 end
 
-local function slice_open(inst, c)
-	if (inst.from_hi) then
-		return c > inst.hi - inst.open;
-	end
-	return c < inst.lo + inst.open;
-end
-
--- Draw (or clear) the slice sitting at coordinate c on the retract axis;
--- the other two axes are swept in full.
---
--- Clearing needs no drawing data at all: we.fill only destroys cells the
--- door owns, so the gaps in the drawing -- which it never owned -- come
--- through untouched for free, and the whole slice still culls once.
---
--- Building is where the drawing matters: one we.fill per colour in the
--- slice, each with a keep predicate picking out that colour's cells, so
--- the door goes back up exactly as it was captured, holes and all.
-local function draw_slice(inst, we, c, on)
+-- Draw (or clear) the cells named by `set` on one plane of the panel.
+-- The panel only ever moves along its own axis, so the other two extents
+-- are those of the box no matter how far it has slid; only the axis
+-- coordinate is passed in.
+local function fill_plane(inst, we, a, color, on, set)
 	local x1, x2 = inst.x1, inst.x2;
 	local y1, y2 = inst.y1, inst.y2;
 	local z1, z2 = inst.z1, inst.z2;
 
-	if (inst.axis == "z") then z1, z2 = c, c;
-	elseif (inst.axis == "x") then x1, x2 = c, c;
-	else y1, y2 = c, c; end
-
-	if (not on) then
-		we.fill(inst, x1, y1, z1, x2, y2, z2, nil, false, nil);
-		return;
-	end
-
-	if (inst.slice == nil) then
-		-- nothing was captured (the box was empty air): the panel is a
-		-- solid plane in the placer's colour, as a door always used to be
-		we.fill(inst, x1, y1, z1, x2, y2, z2, we.tint(inst, GREY), true, nil);
-		return;
-	end
-
-	local groups = inst.slice[c];
-	if (groups == nil) then
-		return;   -- this slice of the drawing is all gaps
-	end
+	if (inst.axis == "z") then z1, z2 = a, a;
+	elseif (inst.axis == "x") then x1, x2 = a, a;
+	else y1, y2 = a, a; end
 
 	local axis = inst.axis;
-	for i = 1, #groups do
-		local g = groups[i];
-		we.fill(inst, x1, y1, z1, x2, y2, z2, g.color, true, function(x, y, z)
-			return g.has[okey(axis, x, y, z)] ~= nil;
-		end);
+	we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, set and function(x, y, z)
+		return set[okey(axis, x, y, z)] ~= nil;
+	end or nil);
+end
+
+-- the whole panel, wherever it currently sits
+local function draw_panel(inst, we, off)
+	for i = 0, inst.len - 1 do
+		local byc = inst.plane[i];
+		if (byc ~= nil) then
+			local a = plane_at(inst, i, off);
+			for cidx, set in pairs(byc) do
+				fill_plane(inst, we, a, colour_of(inst, we, cidx), true, set);
+			end
+		end
 	end
 end
+
+-- recolour, in place, cells the door already owns (see we.paint)
+local function paint_plane(inst, we, a, color, set)
+	local x1, x2 = inst.x1, inst.x2;
+	local y1, y2 = inst.y1, inst.y2;
+	local z1, z2 = inst.z1, inst.z2;
+
+	if (inst.axis == "z") then z1, z2 = a, a;
+	elseif (inst.axis == "x") then x1, x2 = a, a;
+	else y1, y2 = a, a; end
+
+	local axis = inst.axis;
+	we.paint(inst, x1, y1, z1, x2, y2, z2, color, function(x, y, z)
+		return set[okey(axis, x, y, z)] ~= nil;
+	end);
+end
+
+-- Move the panel one block: build what has to appear, recolour what is
+-- already in place but wrong, and clear what is left behind. See
+-- motion_for for how those three sets are worked out and why they never
+-- overlap.
+--
+-- Arrivals and recolours go first, departures last. The sets never share
+-- a cell so the order is not a correctness requirement, but it means the
+-- panel is never momentarily thinner than it should be -- and a door is
+-- something players walk into.
+local function step(inst, we, delta)
+	local from = inst.off;
+	local to = from + delta;
+	-- position is lo + i + off*step, so an offset change of `delta` moves
+	-- the panel delta*step blocks along the axis
+	local m = inst.motion[delta * inst.step];
+
+	for i = 0, inst.len - 1 do
+		local e = m[i];
+		if (e ~= nil) then
+			local a = plane_at(inst, i, to);
+			if (e.build ~= nil) then
+				for cidx, set in pairs(e.build) do
+					fill_plane(inst, we, a, colour_of(inst, we, cidx), true, set);
+				end
+			end
+			if (e.paint ~= nil) then
+				for cidx, set in pairs(e.paint) do
+					paint_plane(inst, we, a, colour_of(inst, we, cidx), set);
+				end
+			end
+		end
+	end
+
+	for i = 0, inst.len - 1 do
+		local e = m[i];
+		if (e ~= nil and e.clear ~= nil) then
+			fill_plane(inst, we, plane_at(inst, i, from), nil, false, e.clear);
+		end
+	end
+
+	inst.off = to;
+end
+
+-- ------------------------------------------------------------- lifecycle
 
 -- A door has to OWN every cell of its panel, or it cannot move them.
 -- we.fill never paints over a solid cell (that is what stops it painting
@@ -419,38 +661,34 @@ end
 -- nothing at all: its state machine opened and closed happily while zero
 -- blocks moved, which reads as a completely dead door.
 --
--- So clear the panel volume first, exactly as the elevator clears its
--- shaft, and only then lay the panel down. For a captured door those are
+-- So clear the whole sweep first -- the panel's own footprint and the
+-- pocket it slides into -- exactly as the elevator clears its shaft, and
+-- only then lay the panel down. For a captured door the footprint holds
 -- the very blocks that were just read: digging them and drawing them
 -- back is what converts somebody's build into a component. dig_box skips
 -- cells we already own, so a re-render is not a destroy-rebuild cycle.
--- D.reserved keeps the volume ours afterwards.
---
--- Only the shut slices are then drawn; the retracted ones are air the
--- panel has already given up, and sweeping them cost a bulk-destroy cull
--- per slice for no writes.
+-- D.reserved keeps the sweep ours afterwards.
 function D.render(inst, we)
-	we.dig_box(inst.x1, inst.y1, inst.z1, inst.x2, inst.y2, inst.z2);
-
-	for c = inst.lo, inst.hi do
-		if (not slice_open(inst, c)) then
-			draw_slice(inst, we, c, true);
-		end
-	end
+	we.dig_box(inst.sx1, inst.sy1, inst.sz1, inst.sx2, inst.sy2, inst.sz2);
+	draw_panel(inst, we, inst.off);
 end
 
--- The whole panel comes down in one we.fill rather than slice by slice:
--- one bulk-destroy cull for the component instead of one per slice.
+-- The whole panel comes down in one we.fill over the sweep, wherever it
+-- happens to be sitting: clears go through the bulk-destroy path, which
+-- culls floating blocks once per call, and only cells the door owns are
+-- touched. /savemap and /delete both destroy every component, so this is
+-- the hot path for them.
 function D.destroy(inst, we)
-	we.fill(inst, inst.x1, inst.y1, inst.z1, inst.x2, inst.y2, inst.z2,
-	        nil, false, nil);
+	we.fill(inst, inst.sx1, inst.sy1, inst.sz1,
+	        inst.sx2, inst.sy2, inst.sz2, nil, false, nil);
 end
 
 -- ---------------------------------------------------------------- trigger
 
--- The panel fattened by we_door_range, so someone walking up to either
--- face sets it off. The panel never moves, so this is built once at
--- spawn rather than rebuilt 60 times a second.
+-- The doorway fattened by we_door_range, so someone walking up to either
+-- face sets it off. This is the shut box, not the sweep: the pocket is
+-- usually buried in a wall or a floor, and someone standing on the far
+-- side of that wall is not at the door.
 local function near_area(inst)
 	if (inst.trigger == nil) then
 		local r = we_door_range;
@@ -460,30 +698,31 @@ local function near_area(inst)
 	return inst.trigger;
 end
 
--- Nobody may build inside the panel or its retract path: a block left in
--- the way would be one we.fill refuses to repaint (it never paints over
--- solid), so the door would close with a hole in it and never recover.
--- The whole box is reserved, gaps in the drawing included -- filling
--- those in would wall up a window the door is supposed to keep open.
+-- Nobody may build inside the doorway or the pocket behind it: a block
+-- left in the way would be one we.fill refuses to paint over (it never
+-- paints over solid), so the panel would arrive with a hole in it and
+-- never recover. The gaps in the drawing are reserved too -- filling
+-- those in would wall up a window the door is supposed to carry.
 function D.reserved(inst)
-	return areas.box(inst.x1, inst.y1, inst.z1, inst.x2, inst.y2, inst.z2);
+	return areas.box(inst.sx1, inst.sy1, inst.sz1,
+	                 inst.sx2, inst.sy2, inst.sz2);
 end
 
 -- what /components reports for a door
 function D.status(inst, we)
-	return string.format("%s %s %d..%d open %d/%d %s near %s",
+	return string.format("%s %s %d..%d open %d/%d %d cells%s near %s",
 	                     inst.dir, inst.axis, inst.lo, inst.hi,
-	                     inst.open, inst.slices,
-	                     inst.ncells and (inst.ncells.." drawn") or "solid",
+	                     inst.off, inst.travel, inst.ncells,
+	                     inst.pal and "" or " (plain)",
 	                     tostring(areas.any_player_in(near_area(inst))));
 end
 
 -- ------------------------------------------------------------------ tick
 
 function D.tick(inst, we, dt)
-	local want = areas.any_player_in(near_area(inst)) and inst.slices or 0;
+	local want = areas.any_player_in(near_area(inst)) and inst.travel or 0;
 
-	if (inst.open == want) then
+	if (inst.off == want) then
 		inst.t = 0;
 		return;
 	end
@@ -492,15 +731,9 @@ function D.tick(inst, we, dt)
 		return;
 	end
 
-	-- exactly one slice per step, and only that slice is touched:
-	-- redrawing the whole panel every step would be a block storm
-	if (inst.open < want) then
-		draw_slice(inst, we, slice_at(inst, inst.open), false);
-		inst.open = inst.open + 1;
-	else
-		inst.open = inst.open - 1;
-		draw_slice(inst, we, slice_at(inst, inst.open), true);
-	end
+	-- exactly one block per step, and only the faces that change are
+	-- touched: redrawing the whole panel every step would be a block storm
+	step(inst, we, (inst.off < want) and 1 or -1);
 end
 
 return D;

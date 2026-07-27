@@ -400,6 +400,50 @@ function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep, line)
 	drawing = false;
 end
 
+-- Recolour cells this component already owns, without breaking them.
+--
+-- block_action type 0 is "Build", and lsd/src/main.c block_action()
+-- implements it as an unconditional set_solid() + set_vox_color() -- it
+-- never checks whether the cell was already solid. So a build packet
+-- aimed at a cell that is already solid is a pure colour change: no
+-- destroy, and therefore no destroy-then-create on one cell inside a
+-- single tick, which is the pattern that leaves client connectivity
+-- stale (see the block api above).
+--
+-- That matters for anything that MOVES a multicoloured structure. Slide
+-- a drawing one block along and most of its cells land where another of
+-- its own cells already was -- the block is in the right place but the
+-- wrong colour. Without this the only fix would be to destroy and
+-- rebuild those cells in the same tick, which is exactly what we cannot
+-- do.
+--
+-- Deliberately restricted to cells in `guarded` under this instance.
+-- Painting without breaking is precisely what players are not allowed to
+-- do, and this must not become a way around that: it can only ever
+-- recolour a block the calling component already put there itself.
+function we.paint(inst, x1, y1, z1, x2, y2, z2, color, keep)
+	x1 = math.max(0, x1); y1 = math.max(0, y1); z1 = math.max(0, z1);
+	x2 = math.min(511, x2); y2 = math.min(511, y2); z2 = math.min(WE_DEEPEST, z2);
+	if (x1 > x2 or y1 > y2 or z1 > z2) then return; end
+
+	drawing = true;
+	hold_color(color);
+
+	for z = z1, z2 do
+		for y = y1, y2 do
+			local base = (z*512 + y)*512;
+			for x = x1, x2 do
+				if (guarded[base + x] == inst.id
+				    and (keep == nil or keep(x, y, z))) then
+					block_action({x=x, y=y, z=z}, 0, get_anon_pid());
+				end
+			end
+		end
+	end
+
+	drawing = false;
+end
+
 function we.is_guarded(x, y, z)
 	return guarded[key(x, y, z)] ~= nil;
 end
