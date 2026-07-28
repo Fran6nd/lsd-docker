@@ -15,11 +15,11 @@
 -- box in your block palette colour, which is what an elevator platform
 -- always used to be.
 --
--- The third mark names a block the platform should come to rest ON, so
--- its underside lands just above it. Direction is where the platform
--- *goes* when someone stands on it, so it rests at the opposite end:
--- "up" waits at the bottom, "down" waits at the top, and it returns
--- there once empty.
+-- The third mark names the altitude to arrive at: the platform's
+-- underside comes to rest on that exact layer, so the pad ends up level
+-- with what you marked. Direction is where the platform *goes* when
+-- someone stands on it, so it rests at the opposite end: "up" waits at
+-- the bottom, "down" waits at the top, and it returns there once empty.
 --
 -- The piston is kept. It is the visible support column under the
 -- platform: the pad's own silhouette eroded on every side (see
@@ -74,7 +74,8 @@ E.help  = {
 	"  usage: /place elevator <up|down>",
 	"  up rests at the bottom and rises when stood on; down is the reverse.",
 	"  build the pad first, then mark two opposite corners around it,",
-	"  then a block at the altitude it should travel to.",
+	"  then mark the altitude it should travel to -- the pad comes to",
+	"  rest level with that mark.",
 	"  its blocks, colours and gaps all become the platform.",
 	"  the piston column under it takes the colour of the pad's core.",
 	"  an empty box gives a plain slab in your palette colour instead.",
@@ -123,9 +124,11 @@ function E.click(s, pos, we)
 
 	local thick = d.z2 - d.z1 + 1;
 
-	-- the third mark names a block to come to rest on, so the platform's
-	-- underside lands one above it and its top that much higher again
-	local dest = c.z - thick;
+	-- The third mark names the altitude to arrive AT, not to stop above:
+	-- the platform's underside comes to rest on that very layer, so what
+	-- you marked is where the pad ends up. (`dest` is the top layer, and
+	-- the pad hangs `thick` layers down from it.)
+	local dest = c.z - thick + 1;
 	if (dest < 0) then dest = 0; end
 	local floor_top = we.deepest - (thick - 1);
 	if (dest > floor_top) then dest = floor_top; end
