@@ -109,6 +109,7 @@ local msg = {
 	help_usage        = {en="  usage: /place %(name) %(usage)"},
 	prompt            = {en="world_editor: %(text)"},
 	nothing_placing   = {en="world_editor: nothing being placed -- start with /place or /chunk."},
+	select_box        = {en="world_editor: pick the two corners of the %(kind) -- aim and click each one."},
 	nothing_placing2  = {en="world_editor: nothing being placed -- start with /place, /chunk or /delete."},
 	delete_prompt     = {en="world_editor: spade or shoot a block of the component to delete."},
 	chunk_prompt_box  = {en="world_editor: spade two opposite corners."},
@@ -897,6 +898,45 @@ local function aim_target(pid)
 	return nil;
 end
 
+-- ------------------------------------------------------- selection input
+--
+-- A component is a box plus a rule, and sel.lua already owns "point at a
+-- box" -- since its corners are picked by aiming, at any range and
+-- without breaking anything, there is no reason for this script to keep a
+-- second way of doing the same job. /place hands the box to sel and waits
+-- for it, which makes the editor a layer on top of sel rather than a
+-- parallel one.
+--
+-- Only the marks sel cannot express stay ours: the elevator's altitude
+-- and /delete's block are single points, not boxes.
+local awaiting = {};   -- pid -> true while a placement is waiting for one
+
+-- Feed a finished selection into the placement as its first two marks,
+-- exactly as if they had been marked one at a time, so components keep
+-- taking their marks one at a time and none of them had to change.
+local function take_selection(pid)
+	local s = session[pid];
+	if (s == nil or not s.from_sel) then
+		awaiting[pid] = nil;
+		return;
+	end
+
+	local a, b = sel_corners(pid);
+	if (a == nil) then
+		return;            -- still being picked
+	end
+
+	s.from_sel = nil;
+	awaiting[pid] = nil;
+
+	l10n_send_chat(pid, msg.mark_at, a);
+	apply_mark(pid, a);
+	if (session[pid] ~= nil) then
+		l10n_send_chat(pid, msg.mark_at, b);
+		apply_mark(pid, b);
+	end
+end
+
 -- Feed one mark into the placement in progress. Marks arrive from a
 -- spade/gun swing (aim_target, works on water and misses too), or from
 -- /here for spectators who fly rather than spade.
@@ -904,6 +944,13 @@ local function apply_mark(pid, pos)
 	local s = session[pid];
 	if (s == nil) then
 		return false;
+	end
+
+	-- marking by hand answers the question the selection was asked, so
+	-- the two never both get to speak
+	if (s.from_sel) then
+		s.from_sel = nil;
+		awaiting[pid] = nil;
 	end
 
 	-- Every mark source funnels through here, so the in-map check lives
@@ -1228,6 +1275,9 @@ end
 local TICK_DT = 1/60;
 
 function mod.after.tick()
+	for pid in pairs(awaiting) do
+		take_selection(pid);
+	end
 	for _, inst in pairs(insts) do
 		kinds[inst.kind].tick(inst, we, TICK_DT);
 	end
@@ -1273,6 +1323,7 @@ end
 
 function mod.after.on_disconnect(pid)
 	session[pid] = nil;
+	awaiting[pid] = nil;
 end
 
 -- -------------------------------------------------------------- commands
@@ -1484,6 +1535,21 @@ function cmd.func(pid, argv)
 	-- colour comes from the placer's own block palette, not an argument
 	s.color = get_block_color(pid);
 	session[pid] = s;
+
+	-- The box comes from sel when it is there to ask. A selection already
+	-- finished is taken as-is -- that is what "place a door on this" means
+	-- when you have just selected something -- otherwise a fresh one is
+	-- armed and picked up the moment its second corner lands.
+	if (sel_begin ~= nil and sel_corners ~= nil) then
+		s.from_sel = true;
+		awaiting[pid] = true;
+		if (sel_corners(pid) == nil or sel_pending(pid)) then
+			sel_begin(pid);
+			l10n_send_chat(pid, msg.select_box, {kind=k.name});
+		end
+		return;
+	end
+
 	l10n_send_chat(pid, s.prompt or msg.prompt, {text="mark a block to place."});
 end
 register_command(cmd, mod);

@@ -65,6 +65,7 @@ local msg = {
 	needs_height = {en="a vertical door needs height -- mark corners at different heights."},
 	needs_width  = {en="a sliding door needs width -- mark corners apart horizontally."},
 	overlaps     = {en="that box overlaps another component -- mark clear of it."},
+	too_thick    = {en="a door is a panel, not a block of wall -- one of its two horizontal sides has to be a single block thick."},
 };
 
 getcfg("world_editor_door_speed", 8);     -- blocks moved per second
@@ -168,6 +169,15 @@ function D.click(s, pos, we)
 	-- be final before a single cell is read out of it.
 	if (d.z2 > we.deepest) then d.z2 = we.deepest; end
 	if (d.z1 > d.z2) then d.z1 = d.z2; end
+
+	-- A door is a plane. Given a solid slab there is no answer to which
+	-- way it faces, the retract axis is picked from whichever horizontal
+	-- side happens to be longer, and the thing that retracts is a lump of
+	-- wall rather than a door. One block thick horizontally, always.
+	if (d.x1 ~= d.x2 and d.y1 ~= d.y2) then
+		s.pts = {a};
+		return false, msg.too_thick;
+	end
 
 	-- the panel has to have extent along whichever way it retracts,
 	-- otherwise there is nothing to move out of the way
