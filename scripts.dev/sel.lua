@@ -11,16 +11,11 @@ local sel_shape   = pid_joined_table("cube");
 local sel_shapefn = pid_joined_table(function() return function() return bit.band(bit.bxor(bit.bxor(x, y), z), 1) == 1; end; end);
 local sel_noise   = pid_joined_table(0);
 
--- Set by /sel, which picks its two corners by aiming at them. /sel1 and
--- /sel2 keep taking their corner from a block action, so this is what
--- tells the two flows apart.
+-- true while /sel is picking: it aims, /sel1 and /sel2 still use a block
+-- action, and swallowing applies only to the former
 local sel_pick    = pid_joined_table(false);
 local sel_mouse   = pid_joined_table(0);
 
--- How far /sel may reach when picking a corner. A spade's own reach is a
--- couple of blocks and a gun only registers where the client says it hit,
--- so a corner taken from a block action could never be across the room.
--- This is a server-side cast and answers to nobody but this.
 getcfg("sel_pick_range", 160);
 
 local sel_begin_msg = {
@@ -192,12 +187,7 @@ local function in_shape(pos, start, endp, shape, pid)
 	end
 end
 
--- Arm the two-corner pick. Both corners are then taken from the fire
--- button, at any range and without breaking anything -- see
--- mod.on_mouse_input at the bottom of this file, which also notes the one
--- case where a click cannot be seen: the engine reports no mouse input
--- while sprinting or during a tool switch, so a corner cannot be picked
--- with sprint held.
+-- Arm the two-corner pick; mod.on_mouse_input takes it from there.
 local function begin_sel(pid)
 	sel[pid] = 0;
 	sel_pick[pid] = true;
@@ -206,18 +196,54 @@ local function begin_sel(pid)
 	l10n_send_chat(pid, sel_begin_msg);
 end
 
--- Arm a selection on somebody's behalf. A caller doing this should say in
--- its own words what the selection is for, since the player did not ask
--- for it.
+-- Arm a selection for another script. It should say in its own words what
+-- the selection is for, since the player did not ask for one.
 function mod.impl.sel_begin(pid)
 	begin_sel(pid);
 end
 
-local cmd = {name="sel", caps="sel", desc="Select a box."};
-function cmd.func(pid, argv)
-	cmd_assert(pid, cmd, #argv == 0);
+-- A corner given as numbers names the block containing the point, so
+-- fractional coordinates floor rather than being refused.
+local function corner_arg(pid, cmd, argv, i)
+	return {
+		x=math.floor(get_arg_num_range("x", pid, cmd, argv[i],     0, 511)),
+		y=math.floor(get_arg_num_range("y", pid, cmd, argv[i + 1], 0, 511)),
+		z=math.floor(get_arg_num_range("z", pid, cmd, argv[i + 2], 0, 63)),
+	};
+end
 
-	begin_sel(pid);
+local cmd = {name="sel", caps="sel", usage="[x y z [x y z]]",
+             desc="Select a box, by aiming at its corners or by naming them."};
+function cmd.func(pid, argv)
+	cmd_assert(pid, cmd, #argv == 0 or #argv == 3 or #argv == 6);
+
+	-- no arguments: both corners come from aiming, as before
+	if (#argv == 0) then
+		begin_sel(pid);
+		return;
+	end
+
+	-- read both before storing either: get_arg_num_range aborts on a bad
+	-- number, and a half-given box must not half-replace the old one
+	local a = corner_arg(pid, cmd, argv, 1);
+	local b = (#argv == 6) and corner_arg(pid, cmd, argv, 4) or nil;
+
+	sel_start[pid] = a;
+	l10n_send_chat(pid, sel_start_done_msg, a);
+
+	if (b == nil) then
+		-- one corner named, the other still to be picked
+		sel[pid] = 1;
+		sel_pick[pid] = true;
+		sel_end[pid] = nil;
+		l10n_send_chat(pid, sel_begin_end_msg);
+		return;
+	end
+
+	sel[pid] = nil;
+	sel_pick[pid] = false;
+	sel_end[pid] = b;
+	l10n_send_chat(pid, sel_end_done_msg, b);
 end
 register_command(cmd, mod);
 
@@ -478,19 +504,14 @@ local function linez(start, endp)
 	end
 end
 
--- True while this player still owes the selection a corner. Exported
--- because any other script acting on the same click has to be able to
--- stand aside while a selection is being made, or one click means two
--- things.
+-- True while a corner is still owed. A script acting on the same click
+-- must stand aside while this holds.
 function mod.impl.sel_pending(pid)
 	return sel[pid] ~= nil;
 end
 
 -- The two corners, or nil while either is missing. Copies, so a caller
--- cannot reach in and move the selection by accident. Exported together
--- with sel_begin() below so that a script wanting a box from a player can
--- ask for one in the way players already know, instead of inventing its
--- own way to point at two corners.
+-- cannot move the selection by accident.
 function mod.impl.sel_corners(pid)
 	local a, b = sel_start[pid], sel_end[pid];
 	if (a == nil or b == nil) then
@@ -1094,17 +1115,10 @@ local function take_corner(pid, pos)
 	end
 end
 
--- Undo, for this one client, a block change it has already drawn for
--- itself. /sel picks corners by clicking, and a click with a spade or a
--- gun is also a block action: the client removes the block locally the
--- moment it fires and waits to be told otherwise. Swallowing that action
--- server-side is not enough on its own -- without this the block survives
--- here and stays missing on the screen of whoever picked it, which is a
--- hole in the map only they can see.
---
--- A destroy is answered by rebuilding in the colour the map still holds
--- (safe to read precisely because the block is still solid here); a build
--- is answered by taking the block away again.
+-- Undo, for this one client, the change it has already drawn for itself:
+-- swallowing the action server-side does not put the block back on their
+-- screen. The colour is safe to read precisely because the block is still
+-- solid here.
 local function unbreak(pid, pos, type)
 	if (type == 0) then
 		send_block_action(pid, pos, 1, get_anon_pid());
@@ -1117,8 +1131,7 @@ local function unbreak(pid, pos, type)
 end
 
 function mod.on_block_action(pid, pos, type)
-	-- /sel: picking a corner must not cost the map a block, so nothing
-	-- this player does to a block happens while one is outstanding
+	-- picking a corner must not cost the map a block
 	if (sel_pick[pid]) then
 		unbreak(pid, pos, type);
 		-- a spade swing takes the block above and below with it
@@ -1137,7 +1150,7 @@ function mod.on_block_action(pid, pos, type)
 	end
 end
 
--- ...and a block line must not slip past either, for the same reason.
+-- ...nor may a block line slip past.
 function mod.on_block_line(pid, start, stop)
 	if (not sel_pick[pid]) then
 		mod.next.on_block_line(pid, start, stop);
@@ -1148,25 +1161,17 @@ function mod.on_block_line(pid, start, stop)
 	end
 end
 
--- /sel takes its corners from the fire button rather than from the block
--- action that button produces. Reading the input directly is what lets a
--- corner be picked at any range, with either tool, and without the map
--- losing a block -- none of which is possible when the corner is a side
--- effect of breaking something.
---
--- Note this is the one input the engine does not always report: no mouse
--- input arrives while sprinting or during a tool switch (see
--- on_mouse_input), so a corner cannot be picked with sprint held.
+-- Beware: the engine reports no mouse input while sprinting or during a
+-- tool switch (see on_mouse_input), so a corner cannot be picked with
+-- sprint held.
 function mod.on_mouse_input(pid, bitmask)
 	local held = bit.band(bitmask, 1) ~= 0;
 	local pressed = held and bit.band(sel_mouse[pid], 1) == 0;
 	sel_mouse[pid] = bitmask;
 
-	-- Stop swallowing only once the button is back up, not the instant the
-	-- last corner lands. One click is two separate packets -- the input
-	-- change and the block action it causes -- and nothing orders them, so
-	-- clearing this on the corner would let the block action of that very
-	-- click through and break the block the player just picked.
+	-- Released, not "last corner landed": the input change and the block
+	-- action of one click are separate packets in no fixed order, so
+	-- clearing on the corner lets that click's action through.
 	if (not held and sel[pid] == nil) then
 		sel_pick[pid] = false;
 	end
