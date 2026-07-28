@@ -1032,7 +1032,15 @@ function mod.on_mouse_input(pid, bits)
 	local pressed = bit.band(bits, 1) ~= 0 and bit.band(prevmouse[pid], 1) == 0;
 	prevmouse[pid] = bits;
 
-	if (pressed and editing and session[pid] ~= nil) then
+	-- A selection being made owns the click. sel picks its corners from
+	-- the same button we do, and it is loaded after us so its hook runs
+	-- first -- without this, one click would both pick a corner and drop
+	-- a placement mark. Placing a component is the thing you can restart
+	-- for free, so it is the one that gives way. (sel_pending comes from
+	-- sel.lua; it is absent when sel is not loaded, hence the guard.)
+	local picking = sel_pending ~= nil and sel_pending(pid);
+
+	if (pressed and editing and not picking and session[pid] ~= nil) then
 		local tool = get_tool(pid);
 		if (tool == 0 or tool == 2) then   -- spade or gun
 			local t = aim_target(pid);
