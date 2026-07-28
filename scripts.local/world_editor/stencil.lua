@@ -1,4 +1,4 @@
--- world_editor/stencil.lua -- Capturing an existing build as a component.
+-- world_editor/stencil.lua -- Capture an existing build as a component
 --
 -- Components that MOVE a piece of the map -- the door, the elevator --
 -- do not draw a shape of their own. Whatever is already built inside the
@@ -7,7 +7,7 @@
 -- so the packing is written and got right once.
 --
 -- The drawing lives in <map>.editor.json rather than in the map itself,
--- because /savemap takes every component down before dumping the .vxl --
+-- because /wesavemap takes every component down before dumping the .vxl --
 -- the terrain on disk has a component-shaped hole in it and this is the
 -- only record of what used to be there.
 --

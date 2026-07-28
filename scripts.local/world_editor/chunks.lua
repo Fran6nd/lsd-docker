@@ -1,4 +1,4 @@
--- world_editor/chunks.lua -- Spatial authorization: who may edit what.
+-- world_editor/chunks.lua -- Spatial authorization: who may edit what
 --
 -- A "chunk" is a named region of the map with a permission attached.
 -- Every block edit is resolved against them; anything not inside a

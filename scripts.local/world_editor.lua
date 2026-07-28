@@ -1,5 +1,4 @@
--- world_editor.lua -- Placeable map components (elevators, doors) plus
--- a spatial authorization system.
+-- world_editor.lua -- Place moving map components and spatial permissions
 --
 -- Editing is a server-wide mode that can only be switched on from the
 -- admin console (/worldedit on). While it is on the server takes itself
@@ -21,10 +20,24 @@
 --                         rewritten on every change
 --   * undo             -- /undo pops the last thing placed
 --
--- Terrain editing is not reimplemented here: edit mode loads the stock
--- sel.lua (selections, bulk fill/paint/remove/copy/move/swizzle) and
--- grants its "sel" cap for the duration. See the sel section below for
--- why that needs the anon-pid write guard to be safe.
+-- Nothing the stock scripts already do is reimplemented here. Edit mode
+-- switches those on and grants their caps for its duration instead:
+--
+--   sel.lua     -- selections and bulk fill/paint/remove/copy/move/swizzle,
+--                  i.e. all terrain editing. See the sel section below for
+--                  why that needs the anon-pid write guard to be safe.
+--   noclip.lua  -- free flight, for reaching awkward corners. Flying
+--                  through walls suits building better than colliding
+--                  with them, and it is somebody else's to maintain.
+--
+-- Two capabilities gate this script, following the pattern sel.lua sets:
+--
+--   worldedit       -- turn edit mode on and off, and set map-wide
+--                      policy. Console only; give it to admins.
+--   worldedit_build -- place, move and remove components. Granted
+--                      automatically to everyone present for as long as
+--                      edit mode is on, and dropped again after.
+--
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 
@@ -42,15 +55,98 @@ local bit    = require("bit");
 local areas  = require "world_editor.areas";
 local chunks = require "world_editor.chunks";
 require "lib_bulk_destroy";   -- bdestroy_block_action / bdestroy_finish
+require "lib_l10n";           -- l10n_send_chat / l10n_log
 
-getcfg("we_dir", "maps");          -- where <map>.json is read/written
-getcfg("we_default_perm", "rw");   -- authorization outside every chunk
-getcfg("we_readonly", false);      -- master lock: no player edits at all
-getcfg("we_autosave", true);       -- rewrite <map>.json on every change
-getcfg("we_fly", true);            -- free flight while edit mode is on
-getcfg("we_fly_speed", 16);        -- blocks per second, doubled by sprint
-getcfg("we_mark_range", 160);      -- how far a spade/gun mark reaches
-getcfg("we_water_level", 63);      -- z a mark lands on when aimed past all blocks
+getcfg("world_editor_dir", "maps");          -- where <map>.editor.json lives
+getcfg("world_editor_default_perm", "rw");   -- authorization outside every chunk
+getcfg("world_editor_readonly", false);      -- master lock: no player edits at all
+getcfg("world_editor_autosave", true);       -- rewrite the layout on every change
+getcfg("world_editor_mark_range", 160);      -- how far a spade/gun mark reaches
+getcfg("world_editor_water_level", 63);      -- z a mark lands on when aimed past all blocks
+
+-- Caps this script gates itself on, and the stock caps it borrows for the
+-- duration of edit mode. Named once here so the grant/drop loop and every
+-- command agree.
+local CAP_ADMIN = "worldedit";
+local CAP_BUILD = "worldedit_build";
+local BORROWED  = {"sel", "noclip"};
+
+-- Every string this script shows a player or writes to the log, as
+-- lib_l10n message tables so translations can be dropped in beside the
+-- English without touching code. Stock scripts declare one local per
+-- message; there are sixty here, so they are grouped instead -- same
+-- tables, one namespace. Interpolation is lib_l10n's %(name).
+local msg = {
+	-- log
+	cannot_write      = {en="world_editor: cannot write %(path) (%(err)) -- drop the :ro on the maps mount to persist"},
+	bad_json          = {en="world_editor: %(path) is not valid json, ignoring"},
+	layout_loaded     = {en="world_editor: loaded %(path)"},
+	borrow_failed     = {en="world_editor: could not load %(name) (%(err))"},
+	delist_failed     = {en="world_editor: could not delist (%(err))"},
+	relist_failed     = {en="world_editor: could not relist (%(err))"},
+	relisted_log      = {en="world_editor: relisted after a reload (edit mode did not survive it)"},
+	component_failed  = {en="world_editor: component %(name) failed to load: %(err)"},
+	edit_log          = {en="world_editor: edit mode %(state)"},
+	vxl_failed        = {en="world_editor: cannot write %(path) (%(err))"},
+
+	-- edit mode
+	not_editing       = {en="world_editor: not in edit mode (enable it from the console)."},
+	console_only      = {en="world_editor: edit mode can only be toggled from the console."},
+	edit_status       = {en="world_editor: edit mode is %(state) (map %(map))%(extra)"},
+	delisted_by_edit  = {en=", delisted by edit mode"},
+	created_layout    = {en="world_editor: created %(path)"},
+	tools_granted     = {en="world_editor: %(names) loaded -- terrain editing and flight for the session."},
+	delisted          = {en="world_editor: delisted from the public lists (ip:port still works, so you can invite builders in)"},
+	relisted          = {en="world_editor: listed publicly again."},
+	edit_enabled      = {en="world_editor: edit mode ENABLED -- the map is being built on."},
+	edit_disabled     = {en="world_editor: edit mode disabled."},
+
+	-- placement
+	placeable         = {en="world_editor: placeable -- %(names)"},
+	place_hint        = {en="  /place <component> for its help, e.g. /place elevator"},
+	no_such_component = {en="world_editor: no such component. placeable: %(names)"},
+	help_head         = {en="world_editor: %(name) -- %(desc)"},
+	help_usage        = {en="  usage: /place %(name) %(usage)"},
+	prompt            = {en="world_editor: %(text)"},
+	nothing_placing   = {en="world_editor: nothing being placed -- start with /place or /chunk."},
+	nothing_placing2  = {en="world_editor: nothing being placed -- start with /place, /chunk or /delete."},
+	delete_prompt     = {en="world_editor: spade or shoot a block of the component to delete."},
+	chunk_prompt_box  = {en="world_editor: spade two opposite corners."},
+	chunk_prompt_radial = {en="world_editor: spade the centre, then the edge."},
+	mark_at           = {en="world_editor: mark at %(x) %(y) %(z)"},
+	mark_outside      = {en="world_editor: that mark is outside the map."},
+	nothing_to_mark   = {en="world_editor: nothing to mark there -- aim at ground or water."},
+	bad_coord         = {en="world_editor: mark %(n) has a coordinate that is not a number."},
+	batch_finished    = {en="world_editor: placement finished on mark %(n) -- %(extra) extra ignored."},
+	placed            = {en="world_editor: %(kind) #%(id) placed."},
+
+	-- components
+	no_component_here = {en="world_editor: no component on that block -- aim right at one."},
+	no_components     = {en="world_editor: no components on this map."},
+	broke             = {en="world_editor: broke %(kind) #%(id)."},
+	released          = {en="world_editor: %(verb) %(kind) #%(id) -- its blocks stay, back at rest."},
+	nothing_to_undo   = {en="world_editor: nothing to undo."},
+	component_perm    = {en="world_editor: %(kind) #%(id) is now %(perm)"},
+	component_line    = {en="  #%(id) %(kind) at %(x),%(y) %(perm) blocks %(blocks) %(status)"},
+
+	-- chunks and policy
+	bad_perm          = {en="world_editor: perm must be ro, rw, or rw:<team>."},
+	chunk_created     = {en="world_editor: chunk %(name) (%(perm)) created."},
+	not_in_chunk      = {en="world_editor: you are not in a chunk (use /defaultperm for the open map)."},
+	chunk_perm        = {en="world_editor: %(name) is now %(perm)"},
+	chunk_removed     = {en="world_editor: removed chunk %(name)"},
+	chunks_head       = {en="world_editor: default %(perm)%(readonly)"},
+	chunks_readonly   = {en=", map READONLY"},
+	chunk_line        = {en="  #%(id) %(name) %(shape) %(perm)"},
+	default_perm      = {en="world_editor: default is now %(perm)"},
+	readonly_set      = {en="world_editor: map readonly %(state)"},
+
+	-- saving
+	no_map_name       = {en="world_editor: no map name known -- pass one: /wesavemap <name>."},
+	bad_map_name      = {en="world_editor: bad name (no / \\ or leading dot)."},
+	saved             = {en="world_editor: saved %(name).vxl + %(name).editor.json in %(dir)/"},
+	save_failed       = {en="world_editor: save failed -- see server log (is maps/ writable?)."},
+};
 
 local editing = false;
 local mapname = nil;
@@ -520,7 +616,7 @@ local function jsonpath()
 	if (mapname == nil) then
 		return nil;
 	end
-	return we_dir.."/"..mapname..".editor.json";
+	return world_editor_dir.."/"..mapname..".editor.json";
 end
 
 local function file_exists(path)
@@ -547,7 +643,7 @@ local function build_doc()
 
 	return {
 		default_perm = chunks.format_perm(chunks.get_default()),
-		readonly = we_readonly and true or false,
+		readonly = world_editor_readonly and true or false,
 		chunks = chunks.serialize(),
 		components = comps,
 	};
@@ -559,7 +655,7 @@ local function write_json(path)
 	if (f == nil) then
 		-- maps/ is mounted read-only in the stock compose file; say so
 		-- plainly rather than silently dropping the layout
-		log("world_editor: cannot write %s (%s) -- drop the :ro on the maps mount to persist", path, tostring(err));
+		l10n_log(msg.cannot_write, {path=path, err=tostring(err)});
 		return false, err;
 	end
 	f:write(jenc(build_doc()), "\n");
@@ -571,7 +667,7 @@ end
 -- off, so a brand-new map still gets its .editor.json
 local function save(force)
 	local path = jsonpath();
-	if (path == nil or (not we_autosave and not force)) then
+	if (path == nil or (not world_editor_autosave and not force)) then
 		return;
 	end
 	write_json(path);
@@ -591,7 +687,7 @@ end
 local function load_layout()
 	clear_all();
 	chunks.reset();
-	chunks.set_default(chunks.parse_perm(we_default_perm) or {mode="rw"});
+	chunks.set_default(chunks.parse_perm(world_editor_default_perm) or {mode="rw"});
 
 	local path = jsonpath();
 	if (path == nil) then
@@ -607,7 +703,7 @@ local function load_layout()
 
 	local ok, doc = pcall(function() return (jparse(body, 1)); end);
 	if (not ok or type(doc) ~= "table") then
-		log("world_editor: %s is not valid json, ignoring", path);
+		l10n_log(msg.bad_json, {path=path});
 		return;
 	end
 
@@ -615,7 +711,7 @@ local function load_layout()
 		chunks.set_default(chunks.parse_perm(doc.default_perm) or {mode="rw"});
 	end
 	if (doc.readonly ~= nil) then
-		we_readonly = doc.readonly;
+		world_editor_readonly = doc.readonly;
 	end
 	chunks.deserialize(doc.chunks);
 
@@ -635,7 +731,7 @@ local function load_layout()
 	end
 	reindex_reserved();
 
-	log("world_editor: loaded %s", path);
+	l10n_log(msg.layout_loaded, {path=path});
 end
 
 -- --------------------------------------------------------------- guard
@@ -673,7 +769,7 @@ local function may_edit(pid, x, y, z)
 		return "deny";
 	end
 
-	if (we_readonly) then
+	if (world_editor_readonly) then
 		return "deny";
 	end
 	if (not chunks.can_write(pid, x, y, z)) then
@@ -698,7 +794,7 @@ end
 -- settle is a single jump, not an animation -- see each component's
 -- settle for why that is still safe to send in one tick.
 --
--- This is deliberately NOT what destroy does. /savemap needs the blocks
+-- This is deliberately NOT what destroy does. /wesavemap needs the blocks
 -- genuinely gone so the .vxl it dumps is pure terrain, and a component
 -- broken by a player still comes down; both keep using destroy.
 local function release_component(inst)
@@ -726,7 +822,7 @@ local function break_component(id, by)
 		if (undo[i] == id) then table.remove(undo, i); end
 	end
 	if (by ~= nil) then
-		server_msg(by, string.format("world_editor: broke %s #%d.", inst.kind, id));
+		l10n_send_chat(by, msg.broke, {kind=inst.kind, id=id});
 	end
 	save();
 end
@@ -768,16 +864,16 @@ end
 local function aim_target(pid)
 	local s = get_position(pid);
 	local o = get_orientation(pid);
-	local e = {x=s.x + o.x*we_mark_range,
-	           y=s.y + o.y*we_mark_range,
-	           z=s.z + o.z*we_mark_range};
+	local e = {x=s.x + o.x*world_editor_mark_range,
+	           y=s.y + o.y*world_editor_mark_range,
+	           z=s.z + o.z*world_editor_mark_range};
 
 	-- where the ray crosses the water plane; z grows downward, so only a
 	-- downward look (o.z > 0) can meet it
 	local tw = nil;
 	if (o.z > 0.001) then
-		local t = (we_water_level - s.z) / o.z;
-		if (t > 0 and t <= we_mark_range) then
+		local t = (world_editor_water_level - s.z) / o.z;
+		if (t > 0 and t <= world_editor_mark_range) then
 			tw = t;
 		end
 	end
@@ -786,7 +882,7 @@ local function aim_target(pid)
 	if (vox ~= nil and (vox.z < 0 or vox.z > 63)) then
 		vox = nil;                       -- fell off the map, not a real block
 	end
-	if (vox ~= nil and tw ~= nil and vox.z > we_water_level) then
+	if (vox ~= nil and tw ~= nil and vox.z > world_editor_water_level) then
 		vox = nil;                       -- submerged; the surface came first
 	end
 	if (vox ~= nil) then
@@ -797,7 +893,7 @@ local function aim_target(pid)
 		-- cast2 wraps horizontally, so the plane hit wraps to match
 		return {x=math.floor(s.x + o.x*tw) % 512,
 		        y=math.floor(s.y + o.y*tw) % 512,
-		        z=we_water_level};
+		        z=world_editor_water_level};
 	end
 	return nil;
 end
@@ -815,7 +911,7 @@ local function apply_mark(pid, pos)
 	-- here too rather than in each of them.
 	if (pos.x < 0 or pos.x > 511 or pos.y < 0 or pos.y > 511
 	    or pos.z < 0 or pos.z > 63) then
-		server_msg(pid, "world_editor: that mark is outside the map.");
+		l10n_send_chat(pid, msg.mark_outside);
 		return true;
 	end
 
@@ -825,7 +921,7 @@ local function apply_mark(pid, pos)
 		local id = guarded[key(pos.x, pos.y, pos.z)];
 		local inst = id and insts[id];
 		if (inst == nil) then
-			server_msg(pid, "world_editor: no component on that block -- aim right at one.");
+			l10n_send_chat(pid, msg.no_component_here);
 			return true;   -- keep the session so they can try again
 		end
 		release_component(inst);
@@ -835,9 +931,7 @@ local function apply_mark(pid, pos)
 			if (undo[i] == id) then table.remove(undo, i); end
 		end
 		session[pid] = nil;
-		server_msg(pid, string.format(
-			"world_editor: deleted %s #%d -- its blocks stay, back at rest.",
-			inst.kind, id));
+		l10n_send_chat(pid, msg.released, {verb="deleted", kind=inst.kind, id=id});
 		save();
 		return true;
 	end
@@ -845,20 +939,20 @@ local function apply_mark(pid, pos)
 	local k = kinds[s.kind];
 	local done, err = k.click(s, pos, we);
 	if (err) then
-		server_msg(pid, "world_editor: "..err);
+		l10n_send_chat(pid, err);
 		return true;
 	end
 
 	if (not done) then
-		server_msg(pid, "world_editor: "..(s.prompt or "mark again."));
+		l10n_send_chat(pid, s.prompt or msg.prompt, {text="mark again."});
 		return true;
 	end
 
 	if (s.kind == "__chunk") then
 		session[pid] = nil;
 		local c = s.made;
-		server_msg(pid, string.format("world_editor: chunk %s (%s) created.",
-		                              c and c.name or "?", chunks.format_perm(s.perm)));
+		l10n_send_chat(pid, msg.chunk_created,
+		               {name=c and c.name or "?", perm=chunks.format_perm(s.perm)});
 		save();
 		return true;
 	end
@@ -874,7 +968,7 @@ local function apply_mark(pid, pos)
 	k.render(inst, we);
 	table.insert(undo, inst.id);
 	session[pid] = nil;
-	server_msg(pid, string.format("world_editor: %s #%d placed.", s.kind, inst.id));
+	l10n_send_chat(pid, msg.placed, {kind=s.kind, id=inst.id});
 	save();
 	return true;
 end
@@ -944,9 +1038,9 @@ function mod.on_mouse_input(pid, bits)
 		if (tool == 0 or tool == 2) then   -- spade or gun
 			local t = aim_target(pid);
 			if (t == nil) then
-				server_msg(pid, "world_editor: nothing to mark there -- aim at ground or water.");
+				l10n_send_chat(pid, msg.nothing_to_mark);
 			else
-				server_msg(pid, string.format("world_editor: mark at %d %d %d", t.x, t.y, t.z));
+				l10n_send_chat(pid, msg.mark_at, t);
 				apply_mark(pid, t);
 			end
 		end
@@ -1057,31 +1151,31 @@ end
 -- reload in the middle of a build session would strand the server
 -- delisted with nothing left that knew to put it back. Globals outlive
 -- the reload, so the bottom of this file can spot that and relist.
-if (we_editor_delisted == nil) then
-	we_editor_delisted = false;
+if (world_editor_delisted == nil) then
+	world_editor_delisted = false;
 end
 
 local function listing_hide()
-	if (we_editor_delisted or package.loaded["masterlist"] == nil) then
+	if (world_editor_delisted or package.loaded["masterlist"] == nil) then
 		return false;
 	end
 	local ok, err = pcall(unload, "masterlist");
 	if (not ok) then
-		log("world_editor: could not delist (%s)", tostring(err));
+		l10n_log(msg.delist_failed, {err=tostring(err)});
 		return false;
 	end
-	we_editor_delisted = true;
+	world_editor_delisted = true;
 	return true;
 end
 
 local function listing_show()
-	if (not we_editor_delisted) then
+	if (not world_editor_delisted) then
 		return false;
 	end
-	we_editor_delisted = false;
+	world_editor_delisted = false;
 	local ok, err = pcall(load, "masterlist");
 	if (not ok) then
-		log("world_editor: could not relist (%s)", tostring(err));
+		l10n_log(msg.relist_failed, {err=tostring(err)});
 		return false;
 	end
 	return true;
@@ -1147,7 +1241,7 @@ end
 -- dead -- check both before trusting this.
 function mod.damage_player(pid, hp, type, from)
 	if (type == 4 and is_alive(pid)) then
-		-- Building means dropping off things constantly, /fly can be
+		-- Building means dropping off things constantly, /noclip can be
 		-- toggled off mid-air, and a builder wading a lava-water map
 		-- would just bleed. Edit mode swallows the environment outright,
 		-- with no message: nobody building should think about landing or
@@ -1163,110 +1257,12 @@ function mod.damage_player(pid, hp, type, from)
 	mod.next.damage_player(pid, hp, type, from);
 end
 
--- ------------------------------------------------------------------ flight
---
--- Building means getting to awkward corners, so edit mode gives
--- everyone free flight. Input bits are Forward 1, Backward 2, Left 4,
--- Right 8, Jump 16, Crouch 32, Sneak 64, Sprint 128.
---
--- Vertical is sneak (up) and crouch (down). Jump is deliberately NOT
--- read, for two independent reasons: the engine strips that bit while
--- the player is airborne (on_move_input), so it only fires the instant
--- you leave the ground; and set_jump() below calls send_move_input(),
--- which sets the very same bit -- reading it would make the anti-jitter
--- nudge look like held input and fly you upward forever on its own.
-
-local jumpctr = pid_connected_table(0);
-local walking = pid_connected_table(false);  -- players who turned flight off
-
-local function flying(pid)
-	return editing and we_fly and is_alive(pid) and not walking[pid];
-end
-
-local function right_of(v)
-	local len = math.sqrt(v.x*v.x + v.y*v.y);
-	if (len == 0) then
-		return {x=0, y=0, z=0};
-	end
-	return {x=-v.y/len, y=v.x/len, z=0};
-end
-
--- is_solid PANICs above z=63 and treats z<0 as undefined; clamp both.
--- Below the world floor reads as solid so you can't fly out the bottom,
--- above the sky as empty.
-local function solid_at(x, y, z)
-	if (z < 0) then return false; end
-	if (z > 63) then return true; end
-	return is_solid({x=x, y=y, z=z});
-end
-
--- A player is ~3 blocks tall with pos.z at the head (feet ride at
--- pos.z+2.25, per demoncore's crouch maths). This is true when moving
--- the head to hz at column x,y would bury any of those cells in solid.
-local function body_in_solid(x, y, hz)
-	local ix, iy, iz = math.floor(x), math.floor(y), math.floor(hz);
-	return solid_at(ix, iy, iz)
-	    or solid_at(ix, iy, iz+1)
-	    or solid_at(ix, iy, iz+2);
-end
-
-function mod.tick_player_physics(pid, delta)
-	if (not flying(pid)) then
-		mod.next.tick_player_physics(pid, delta);
-		return;
-	end
-
-	local pos = get_position(pid);
-	local ori = get_orientation(pid);
-	local inp = get_inputs(pid);
-	local rt  = right_of(ori);
-
-	local speed = delta * we_fly_speed;
-	if (bit.band(inp, 128) ~= 0) then
-		speed = speed * 2;
-	end
-
-	local fwd    = (bit.band(inp, 1) ~= 0 and 1 or 0) - (bit.band(inp, 2) ~= 0 and 1 or 0);
-	local strafe = (bit.band(inp, 8) ~= 0 and 1 or 0) - (bit.band(inp, 4) ~= 0 and 1 or 0);
-	-- sneak rises, crouch sinks; z grows downward, so rising subtracts
-	local up     = (bit.band(inp, 64) ~= 0 and 1 or 0)
-	             - (bit.band(inp, 32) ~= 0 and 1 or 0);
-
-	local nx = (pos.x + (ori.x*fwd + rt.x*strafe) * speed) % 512;
-	local ny = (pos.y + (ori.y*fwd + rt.y*strafe) * speed) % 512;
-	local nz = pos.z + ori.z*fwd*speed - up*speed;
-	if (nz < 0) then nz = 0; end
-	if (nz > 63) then nz = 63; end
-
-	-- Collide instead of clipping: resolve each axis on its own so a
-	-- blocked direction stops while the others keep going -- you slide
-	-- along a wall and settle onto the floor rather than sinking through
-	-- it. Steps are a fraction of a block, so stopping short of solid
-	-- reads as landing.
-	local x, y, z = pos.x, pos.y, pos.z;
-	if (not body_in_solid(nx, y, z)) then x = nx; end
-	if (not body_in_solid(x, ny, z)) then y = ny; end
-	if (not body_in_solid(x, y, nz)) then z = nz; end
-
-	set_position(pid, {x=x, y=y, z=z});
-
-	-- the client keeps trying to fall; nudging jump keeps its view from
-	-- settling into a drop and jittering against us
-	jumpctr[pid] = jumpctr[pid] + delta;
-	if (jumpctr[pid] >= 0.5) then
-		set_jump(pid);
-		jumpctr[pid] = jumpctr[pid] - 0.5;
-	end
-end
-
--- while we are driving the position, the client's own idea of where it
--- is would fight us every packet
-function mod.on_position(pid, pos)
-	if (flying(pid)) then
-		return;
-	end
-	mod.next.on_position(pid, pos);
-end
+-- Building means getting to awkward corners, so edit mode hands out
+-- stock noclip.lua's flight rather than growing its own: /noclip is
+-- already a maintained, capability-gated free-flight implementation
+-- loaded by group_commands, and one that passes through walls suits
+-- building better than one that collides with them. Edit mode simply
+-- grants the cap, exactly as it does for sel -- see edit_start below.
 
 function mod.after.on_disconnect(pid)
 	session[pid] = nil;
@@ -1276,78 +1272,89 @@ end
 
 local function need_edit(pid)
 	if (not editing) then
-		server_msg(pid, "world_editor: not in edit mode (enable it from the console).");
+		l10n_send_chat(pid, msg.not_editing);
 		return false;
 	end
 	return true;
 end
 
--- Flight is on by default in edit mode; /fly drops you into normal
--- physics so you can walk and jump, and toggles back. Per-player, so
--- one builder walking around doesn't ground everyone.
-local cmd = {name="fly", desc="Toggle your flight in edit mode (walk/jump when off)."};
-function cmd.func(pid, argv)
-	if (not need_edit(pid)) then return; end
-	if (not we_fly) then
-		server_msg(pid, "world_editor: flight is disabled here (we_fly).");
-		return;
-	end
-	walking[pid] = not walking[pid];
-	if (walking[pid]) then
-		server_msg(pid, "world_editor: flight OFF -- walk and jump normally. /fly to fly again.");
-	else
-		server_msg(pid, "world_editor: flight ON -- sneak to rise, crouch to sink, sprint to speed up.");
+-- --------------------------------------------------------- edit session
+--
+-- Turning edit mode on is what hands out the tools. Everything a builder
+-- needs beyond this script already exists as a stock script, so edit mode
+-- loads those and grants their caps rather than growing its own copies:
+--
+--   sel.lua     -- selections and bulk fill / replace / paint / remove /
+--                  copy / move / swizzle: all terrain editing.
+--   noclip.lua  -- free flight, for reaching awkward corners.
+--
+-- Its own commands are gated the same way, on CAP_BUILD, which is
+-- likewise granted only while edit mode is on. Before that existed, every
+-- command here was open to anybody holding "default_commands" -- which is
+-- everybody, by default (see caps.lua) -- and edit mode no longer refuses
+-- joins, so a passer-by could /delete somebody's work.
+--
+-- One thing needs care with sel in particular: its bulk ops write through
+-- the anon pid and consult nothing -- not chunks, not
+-- world_editor_readonly, not `guarded`. /selrm across an elevator would
+-- delete its blocks while we still believed they existed. The
+-- block_action / block_action_rm guards above are what make that safe, by
+-- refusing any anon-pid write we did not issue.
+--
+-- A borrowed script is only unloaded again if we were the one who loaded
+-- it, so a server that loads sel or noclip itself keeps them.
+local borrowed_ours = {};
+
+local function grant_all(pid)
+	if (not has_cap(pid, CAP_BUILD)) then grant_cap(pid, CAP_BUILD); end
+	for _, cap in ipairs(BORROWED) do
+		if (not has_cap(pid, cap)) then grant_cap(pid, cap); end
 	end
 end
-register_command(cmd, mod);
 
--- ------------------------------------------------------------------ sel
---
--- sel.lua is the stock bulk-edit script: two-corner selections plus
--- fill / replace / paint / remove / copy / move / swizzle over them. It
--- is everything an editor wants for terrain and none of it is worth
--- reimplementing here, so edit mode simply switches it on.
---
--- Two things stand in the way of just loading it, both handled here:
---
---   * Its commands are gated on caps="sel", which no default player
---     has, so the cap is granted for the duration.
---   * Its bulk ops write through the anon pid and consult nothing --
---     not chunks, not we_readonly, not `guarded`. /selrm across an
---     elevator would delete its blocks while we still believed they
---     existed. The block_action / block_action_rm guards above are what
---     make that safe, by refusing any anon-pid write we did not issue.
---
--- We only unload it again if we were the ones who loaded it, so a
--- server that loads sel itself keeps it.
-local sel_ours = false;
-
-local function sel_start()
-	if (package.loaded["sel"] == nil) then
-		local ok, err = pcall(load, "sel");
-		if (not ok) then
-			log("world_editor: could not load sel (%s)", tostring(err));
-			return false;
+local function edit_start()
+	local loaded = {};
+	for _, name in ipairs(BORROWED) do
+		if (package.loaded[name] == nil) then
+			local ok, err = pcall(load, name);
+			if (ok) then
+				borrowed_ours[name] = true;
+			else
+				l10n_log(msg.borrow_failed, {name=name, err=tostring(err)});
+			end
 		end
-		sel_ours = true;
+		if (package.loaded[name] ~= nil) then
+			table.insert(loaded, name);
+		end
 	end
+
 	for i in piditer(PID_BROADCAST) do
-		if (is_joined(i) and not has_cap(i, "sel")) then
-			grant_cap(i, "sel");
-		end
+		if (is_joined(i)) then grant_all(i); end
 	end
-	return true;
+	return loaded;
 end
 
-local function sel_stop()
+local function edit_stop()
 	for i in piditer(PID_BROADCAST) do
-		if (is_joined(i) and has_cap(i, "sel")) then
-			drop_cap(i, "sel");
+		if (is_joined(i)) then
+			if (has_cap(i, CAP_BUILD)) then drop_cap(i, CAP_BUILD); end
+			for _, cap in ipairs(BORROWED) do
+				if (has_cap(i, cap)) then drop_cap(i, cap); end
+			end
 		end
 	end
-	if (sel_ours) then
-		pcall(unload, "sel");
-		sel_ours = false;
+	for name in pairs(borrowed_ours) do
+		pcall(unload, name);
+	end
+	borrowed_ours = {};
+end
+
+-- Someone joining mid-session is here to build like everybody else --
+-- edit mode stopped refusing joins precisely so builders could be invited
+-- in, and they would otherwise arrive without a single usable command.
+function mod.after.on_join(pid, team, gun, name)
+	if (editing) then
+		grant_all(pid);
 	end
 end
 
@@ -1359,15 +1366,18 @@ function cmd.func(pid, argv)
 	cmd_assert(pid, cmd, #argv <= 1);
 
 	if (not is_fakepid(pid)) then
-		server_msg(pid, "world_editor: edit mode can only be toggled from the console.");
+		l10n_send_chat(pid, msg.console_only);
 		return;
 	end
 
 	local what = string.lower(argv[1] or "status");
 	if (what == "status") then
-		server_msg(pid, "world_editor: edit mode is "..(editing and "ON" or "off")
-		                .." (map "..tostring(mapname)..")"
-		                ..(we_editor_delisted and ", delisted by edit mode" or ""));
+		l10n_send_chat(pid, msg.edit_status, {
+			state = editing and "ON" or "off",
+			map   = tostring(mapname),
+			extra = world_editor_delisted
+			        and l10n_get_str_pid(pid, msg.delisted_by_edit, {}) or "",
+		});
 		return;
 	end
 
@@ -1380,31 +1390,24 @@ function cmd.func(pid, argv)
 		local path = jsonpath();
 		if (path ~= nil and not file_exists(path)) then
 			save(true);
-			server_msg(pid, "world_editor: created "..path);
+			l10n_send_chat(pid, msg.created_layout, {path=path});
 		end
-		if (sel_start()) then
-			server_msg(pid, "world_editor: sel loaded -- /sel /sel1 /sel2 then "
-			                .."/selfill /selrm /selpaint /selcpy /selmv /selswiz");
+		local tools = edit_start();
+		if (#tools > 0) then
+			l10n_send_chat(pid, msg.tools_granted, {names=table.concat(tools, " + ")});
 		end
 		if (listing_hide()) then
-			server_msg(pid, "world_editor: delisted from the public server lists "
-			                .."(ip:port still works, so you can invite builders in)");
+			l10n_send_chat(pid, msg.delisted);
 		end
 	else
-		sel_stop();
+		edit_stop();
 		if (listing_show()) then
-			server_msg(pid, "world_editor: listed publicly again.");
+			l10n_send_chat(pid, msg.relisted);
 		end
 	end
 
-	for i in piditer(PID_BROADCAST) do
-		if (is_joined(i)) then
-			server_msg(i, "world_editor: edit mode "
-			              ..(editing and "ENABLED -- the map is being built on."
-			                          or "disabled."));
-		end
-	end
-	log("world_editor: edit mode %s", editing and "on" or "off");
+	l10n_send_chat(PID_BROADCAST, editing and msg.edit_enabled or msg.edit_disabled);
+	l10n_log(msg.edit_log, {state=editing and "on" or "off"});
 end
 register_command(cmd, mod);
 
@@ -1423,32 +1426,32 @@ end
 local function show_help(pid, k)
 	if (type(k.help) == "table") then
 		for _, line in ipairs(k.help) do
-			server_msg(pid, line);
+			l10n_send_chat(pid, line);
 		end
 		return;
 	end
-	server_msg(pid, string.format("world_editor: %s -- %s", k.name, k.desc or ""));
+	l10n_send_chat(pid, msg.help_head, {name=k.name, desc=k.desc or ""});
 	if (k.usage) then
-		server_msg(pid, "  usage: /place "..k.name.." "..k.usage);
+		l10n_send_chat(pid, msg.help_usage, {name=k.name, usage=k.usage});
 	end
 end
 
-local cmd = {name="place", usage="[component] [args...]",
+local cmd = {name={"place", "weplace"}, caps=CAP_BUILD, usage="[component] [args...]",
              desc="Place a component; /place alone lists them, /place <c> shows help."};
 function cmd.func(pid, argv)
 	if (not need_edit(pid)) then return; end
 
 	-- bare /place lists everything placeable and how to get each one's help
 	if (#argv == 0) then
-		server_msg(pid, "world_editor: placeable -- "..table.concat(component_names(), ", "));
-		server_msg(pid, "  /place <component> for its help, e.g. /place elevator");
+		l10n_send_chat(pid, msg.placeable, {names=table.concat(component_names(), ", ")});
+		l10n_send_chat(pid, msg.place_hint);
 		return;
 	end
 
 	local k = kinds[string.lower(argv[1])];
 	if (k == nil or k.name == "__chunk") then
-		server_msg(pid, "world_editor: no such component. placeable: "
-		                ..table.concat(component_names(), ", "));
+		l10n_send_chat(pid, msg.no_such_component,
+		               {names=table.concat(component_names(), ", ")});
 		return;
 	end
 
@@ -1464,7 +1467,7 @@ function cmd.func(pid, argv)
 
 	local s, err = k.start(pid, args);
 	if (s == nil) then
-		if (err) then server_msg(pid, "world_editor: "..err); end
+		if (err) then l10n_send_chat(pid, err); end
 		show_help(pid, k);
 		return;
 	end
@@ -1474,44 +1477,38 @@ function cmd.func(pid, argv)
 	-- colour comes from the placer's own block palette, not an argument
 	s.color = get_block_color(pid);
 	session[pid] = s;
-	server_msg(pid, "world_editor: "..(s.prompt or "mark a block to place."));
+	l10n_send_chat(pid, s.prompt or msg.prompt, {text="mark a block to place."});
 end
 register_command(cmd, mod);
 
 -- Spectators can't spade, and spectating is the natural way to build:
 -- you can fly to the exact spot instead of standing on it. /here drops
 -- the mark at your own position, so the whole editor works from spec.
-local cmd = {name={"here", "mark"}, usage="[x y z]",
+local cmd = {name={"here", "mark"}, caps=CAP_BUILD, usage="[x y z]",
              desc="Drop a placement mark where you are (or at x y z)."};
 function cmd.func(pid, argv)
 	if (not need_edit(pid)) then return; end
 	cmd_assert(pid, cmd, #argv == 0 or #argv == 3);
 
 	if (session[pid] == nil) then
-		server_msg(pid, "world_editor: nothing being placed -- start with /place or /chunk.");
+		l10n_send_chat(pid, msg.nothing_placing);
 		return;
 	end
 
+	-- commands.lua's helpers validate, report the offending bound and
+	-- abort for us, so every command in the server rejects a bad number
+	-- the same way
 	local pos;
 	if (#argv == 3) then
-		local x, y, z = tonumber(argv[1]), tonumber(argv[2]), tonumber(argv[3]);
-		if (x == nil or y == nil or z == nil) then
-			server_msg(pid, "world_editor: x y z must be numbers.");
-			return;
-		end
-		pos = {x=math.floor(x), y=math.floor(y), z=math.floor(z)};
+		pos = {x=math.floor(get_arg_num_range("x", pid, cmd, argv[1], 0, 511)),
+		       y=math.floor(get_arg_num_range("y", pid, cmd, argv[2], 0, 511)),
+		       z=math.floor(get_arg_num_range("z", pid, cmd, argv[3], 0, 63))};
 	else
 		local p = get_position(pid);
 		pos = {x=math.floor(p.x), y=math.floor(p.y), z=math.floor(p.z)};
 	end
 
-	if (pos.x < 0 or pos.x > 511 or pos.y < 0 or pos.y > 511
-	    or pos.z < 0 or pos.z > 63) then
-		server_msg(pid, "world_editor: that is outside the map.");
-		return;
-	end
-
-	server_msg(pid, string.format("world_editor: mark at %d %d %d", pos.x, pos.y, pos.z));
+	l10n_send_chat(pid, msg.mark_at, pos);
 	apply_mark(pid, pos);
 end
 register_command(cmd, mod);
@@ -1532,48 +1529,44 @@ register_command(cmd, mod);
 -- float positions, and rejecting 34.5 would just make it round for us --
 -- so each is floored to the block that contains it, exactly as /here
 -- treats its arguments and as the engine maps a position to a voxel.
-local cmd = {name="marks", usage="<x y z> [x y z ...]",
+local cmd = {name="marks", caps=CAP_BUILD, usage="<x y z> [x y z ...]",
              desc="Place one or more placement marks by coordinate."};
 function cmd.func(pid, argv)
 	if (not need_edit(pid)) then return; end
 	cmd_assert(pid, cmd, #argv >= 3 and #argv % 3 == 0);
 
 	if (session[pid] == nil) then
-		server_msg(pid, "world_editor: nothing being placed -- start with /place, /chunk or /delete.");
+		l10n_send_chat(pid, msg.nothing_placing2);
 		return;
 	end
 
 	-- Parse the whole list before placing any of it. A batch that got
 	-- half way and then hit a typo would leave the placement in a state
 	-- the caller has no way to reason about, which is exactly what an
-	-- automated caller cannot recover from.
+	-- automated caller cannot recover from. commands.lua's helpers abort
+	-- the command outright on a bad number, which is precisely that.
 	local pts = {};
 	for i = 1, #argv, 3 do
-		local x, y, z = tonumber(argv[i]), tonumber(argv[i+1]), tonumber(argv[i+2]);
-		if (x == nil or y == nil or z == nil) then
-			server_msg(pid, string.format(
-				"world_editor: mark %d has a coordinate that is not a number.",
-				(i + 2) / 3));
-			return;
-		end
-		pts[#pts+1] = {x=math.floor(x), y=math.floor(y), z=math.floor(z)};
+		pts[#pts+1] = {
+			x=math.floor(get_arg_num_range("x", pid, cmd, argv[i],   0, 511)),
+			y=math.floor(get_arg_num_range("y", pid, cmd, argv[i+1], 0, 511)),
+			z=math.floor(get_arg_num_range("z", pid, cmd, argv[i+2], 0, 63)),
+		};
 	end
 
 	for n, p in ipairs(pts) do
 		-- a component takes itself out of the session on its last mark
 		if (session[pid] == nil) then
-			server_msg(pid, string.format(
-				"world_editor: placement finished on mark %d -- %d extra ignored.",
-				n - 1, #pts - n + 1));
+			l10n_send_chat(pid, msg.batch_finished, {n=n - 1, extra=#pts - n + 1});
 			return;
 		end
-		server_msg(pid, string.format("world_editor: mark at %d %d %d", p.x, p.y, p.z));
+		l10n_send_chat(pid, msg.mark_at, p);
 		apply_mark(pid, p);
 	end
 end
 register_command(cmd, mod);
 
-local cmd = {name="componentperm", usage="ro|rw|rw:<team>",
+local cmd = {name="componentperm", caps=CAP_BUILD, usage="ro|rw|rw:<team>",
              desc="Set protection on the nearest component."};
 function cmd.func(pid, argv)
 	if (not need_edit(pid)) then return; end
@@ -1581,7 +1574,7 @@ function cmd.func(pid, argv)
 
 	local perm = chunks.parse_perm(argv[1]);
 	if (perm == nil) then
-		server_msg(pid, "world_editor: perm must be ro, rw, or rw:<team>.");
+		l10n_send_chat(pid, msg.bad_perm);
 		return;
 	end
 
@@ -1592,45 +1585,44 @@ function cmd.func(pid, argv)
 		if (bestd == nil or d < bestd) then best, bestd = inst, d; end
 	end
 	if (best == nil) then
-		server_msg(pid, "world_editor: no components on this map.");
+		l10n_send_chat(pid, msg.no_components);
 		return;
 	end
 
 	best.perm = perm;
-	server_msg(pid, string.format("world_editor: %s #%d is now %s",
-	                              best.kind, best.id, chunks.format_perm(perm)));
+	l10n_send_chat(pid, msg.component_perm,
+	               {kind=best.kind, id=best.id, perm=chunks.format_perm(perm)});
 	save();
 end
 register_command(cmd, mod);
 
-local cmd = {name="undo", desc="Un-place the most recent component (its blocks stay)."};
+local cmd = {name={"undo", "weundo"}, caps=CAP_BUILD,
+             desc="Un-place the most recent component (its blocks stay)."};
 function cmd.func(pid, argv)
 	if (not need_edit(pid)) then return; end
 
 	local id = table.remove(undo);
 	if (id == nil or insts[id] == nil) then
-		server_msg(pid, "world_editor: nothing to undo.");
+		l10n_send_chat(pid, msg.nothing_to_undo);
 		return;
 	end
 	local inst = insts[id];
 	release_component(inst);
 	insts[id] = nil;
 	reindex_reserved();
-	server_msg(pid, string.format(
-		"world_editor: removed %s #%d -- its blocks stay, back at rest.",
-		inst.kind, id));
+	l10n_send_chat(pid, msg.released, {verb="removed", kind=inst.kind, id=id});
 	save();
 end
 register_command(cmd, mod);
 
 -- Delete by pointing: start a mark, then spade/shoot a block belonging
 -- to the component you want gone.
-local cmd = {name="delete", desc="Un-place the component whose block you mark (its blocks stay)."};
+local cmd = {name={"delete", "wedelete"}, caps=CAP_BUILD,
+             desc="Un-place the component whose block you mark (its blocks stay)."};
 function cmd.func(pid, argv)
 	if (not need_edit(pid)) then return; end
-	session[pid] = {kind="__delete",
-	                prompt="spade or shoot a block of the component to delete."};
-	server_msg(pid, "world_editor: "..session[pid].prompt);
+	session[pid] = {kind="__delete", prompt=msg.delete_prompt};
+	l10n_send_chat(pid, session[pid].prompt);
 end
 register_command(cmd, mod);
 
@@ -1638,7 +1630,11 @@ register_command(cmd, mod);
 -- lift them out first, dump pure terrain to <name>.vxl, put them back,
 -- then write <name>.editor.json alongside -- reloading the map restores
 -- terrain from the vxl and components from the json.
-local cmd = {name="savemap", fakepid=true, usage="[name]",
+-- NOT called "savemap": command_savemap.lua already owns that name, and
+-- register_command overwrites silently, so whichever loaded last would
+-- quietly win. This one lifts the components out first so the .vxl is
+-- pure terrain, which the stock one cannot do.
+local cmd = {name={"wesavemap", "wesave"}, caps=CAP_BUILD, fakepid=true, usage="[name]",
              desc="Save the map (.vxl) and its components (.editor.json) to maps/."};
 function cmd.func(pid, argv)
 	if (not is_fakepid(pid) and not need_edit(pid)) then return; end
@@ -1646,16 +1642,16 @@ function cmd.func(pid, argv)
 
 	local name = argv[1] or mapname;
 	if (name == nil) then
-		server_msg(pid, "world_editor: no map name known -- pass one: /savemap <name>.");
+		l10n_send_chat(pid, msg.no_map_name);
 		return;
 	end
 	if (string.find(name, "[/\\]") or string.find(name, "^%.")) then
-		server_msg(pid, "world_editor: bad name (no / \\ or leading dot).");
+		l10n_send_chat(pid, msg.bad_map_name);
 		return;
 	end
 
-	local vxlpath = we_dir.."/"..name..".vxl";
-	local jsonpath2 = we_dir.."/"..name..".editor.json";
+	local vxlpath = world_editor_dir.."/"..name..".vxl";
+	local jsonpath2 = world_editor_dir.."/"..name..".editor.json";
 
 	-- take component blocks out so the vxl is pure terrain (+ the shafts
 	-- dug for elevators, which are genuine terrain changes)
@@ -1666,7 +1662,7 @@ function cmd.func(pid, argv)
 	local ok = true;
 	local f, err = io.open(vxlpath..".new", "wb");
 	if (f == nil) then
-		log("world_editor: cannot write %s (%s)", vxlpath, tostring(err));
+		l10n_log(msg.vxl_failed, {path=vxlpath, err=tostring(err)});
 		ok = false;
 	else
 		f:setvbuf("no");
@@ -1685,15 +1681,14 @@ function cmd.func(pid, argv)
 	local jok = write_json(jsonpath2);
 
 	if (ok and jok) then
-		server_msg(pid, string.format("world_editor: saved %s.vxl + %s.editor.json in %s/",
-		                              name, name, we_dir));
+		l10n_send_chat(pid, msg.saved, {name=name, dir=world_editor_dir});
 	else
-		server_msg(pid, "world_editor: save failed -- see server log (is maps/ writable?).");
+		l10n_send_chat(pid, msg.save_failed);
 	end
 end
 register_command(cmd, mod);
 
-local cmd = {name="chunk", usage="box|cylinder|sphere|circle|rect <perm> [name]",
+local cmd = {name="chunk", caps=CAP_BUILD, usage="box|cylinder|sphere|circle|rect <perm> [name]",
              desc="Create an authorization chunk (spade two marks to set its extent)."};
 function cmd.func(pid, argv)
 	if (not need_edit(pid)) then return; end
@@ -1702,18 +1697,18 @@ function cmd.func(pid, argv)
 	local shape = string.lower(argv[1]);
 	local perm = chunks.parse_perm(argv[2]);
 	if (perm == nil) then
-		server_msg(pid, "world_editor: perm must be ro, rw, or rw:<team>.");
+		l10n_send_chat(pid, msg.bad_perm);
 		return;
 	end
 
 	session[pid] = {kind="__chunk", shape=shape, perm=perm, name=argv[3], pts={},
-	                prompt=(shape == "box") and "spade two opposite corners."
-	                                        or "spade the centre, then the edge."};
-	server_msg(pid, "world_editor: "..session[pid].prompt);
+	                prompt=(shape == "box") and msg.chunk_prompt_box
+	                                        or msg.chunk_prompt_radial};
+	l10n_send_chat(pid, session[pid].prompt);
 end
 register_command(cmd, mod);
 
-local cmd = {name="chunkperm", usage="ro|rw|rw:<team>",
+local cmd = {name="chunkperm", caps=CAP_BUILD, usage="ro|rw|rw:<team>",
              desc="Set the authorization of the chunk you are standing in."};
 function cmd.func(pid, argv)
 	if (not need_edit(pid)) then return; end
@@ -1721,34 +1716,34 @@ function cmd.func(pid, argv)
 
 	local perm = chunks.parse_perm(argv[1]);
 	if (perm == nil) then
-		server_msg(pid, "world_editor: perm must be ro, rw, or rw:<team>.");
+		l10n_send_chat(pid, msg.bad_perm);
 		return;
 	end
 
 	local p = get_position(pid);
 	local c = chunks.at(math.floor(p.x), math.floor(p.y), math.floor(p.z));
 	if (c == nil) then
-		server_msg(pid, "world_editor: you are not in a chunk (use /defaultperm for open map).");
+		l10n_send_chat(pid, msg.not_in_chunk);
 		return;
 	end
 	c.perm = perm;
-	server_msg(pid, string.format("world_editor: %s is now %s", c.name, chunks.format_perm(perm)));
+	l10n_send_chat(pid, msg.chunk_perm, {name=c.name, perm=chunks.format_perm(perm)});
 	save();
 end
 register_command(cmd, mod);
 
-local cmd = {name="chunkrm", desc="Delete the chunk you are standing in."};
+local cmd = {name="chunkrm", caps=CAP_BUILD, desc="Delete the chunk you are standing in."};
 function cmd.func(pid, argv)
 	if (not need_edit(pid)) then return; end
 
 	local p = get_position(pid);
 	local c = chunks.at(math.floor(p.x), math.floor(p.y), math.floor(p.z));
 	if (c == nil) then
-		server_msg(pid, "world_editor: you are not in a chunk.");
+		l10n_send_chat(pid, msg.not_in_chunk);
 		return;
 	end
 	chunks.remove(c.id);
-	server_msg(pid, "world_editor: removed chunk "..c.name);
+	l10n_send_chat(pid, msg.chunk_removed, {name=c.name});
 	save();
 end
 register_command(cmd, mod);
@@ -1757,7 +1752,7 @@ register_command(cmd, mod);
 -- its own live state through an optional status(inst, we), so a door
 -- that will not open can be told apart from a door that thinks nobody
 -- is near it without guessing from the outside.
-local cmd = {name={"components", "comps"}, fakepid=true,
+local cmd = {name={"components", "comps"}, caps=CAP_BUILD, fakepid=true,
              desc="List placed components and their live state."};
 function cmd.func(pid, argv)
 	-- how many blocks each instance actually owns. A component whose
@@ -1773,51 +1768,63 @@ function cmd.func(pid, argv)
 	for _, inst in pairs(insts) do
 		n = n + 1;
 		local k = kinds[inst.kind];
-		server_msg(pid, string.format("  #%d %s at %s,%s %s blocks %d %s",
-		                              inst.id, inst.kind,
-		                              tostring(inst.x), tostring(inst.y),
-		                              chunks.format_perm(inst.perm or {mode="ro"}),
-		                              owned[inst.id] or 0,
-		                              k.status and k.status(inst, we) or ""));
+		l10n_send_chat(pid, msg.component_line, {
+			id=inst.id, kind=inst.kind,
+			x=tostring(inst.x), y=tostring(inst.y),
+			perm=chunks.format_perm(inst.perm or {mode="ro"}),
+			blocks=owned[inst.id] or 0,
+			status=k.status and k.status(inst, we) or "",
+		});
 	end
 	if (n == 0) then
-		server_msg(pid, "world_editor: no components on this map.");
+		l10n_send_chat(pid, msg.no_components);
 	end
 end
 register_command(cmd, mod);
 
-local cmd = {name="chunks", fakepid=true, desc="List authorization chunks."};
+local cmd = {name="chunks", caps=CAP_BUILD, fakepid=true,
+             desc="List authorization chunks."};
 function cmd.func(pid, argv)
-	server_msg(pid, "world_editor: default "..chunks.format_perm(chunks.get_default())
-	                ..(we_readonly and ", map READONLY" or ""));
+	l10n_send_chat(pid, msg.chunks_head,
+	               {perm=chunks.format_perm(chunks.get_default()),
+	                readonly=world_editor_readonly
+	                         and l10n_get_str_pid(pid, msg.chunks_readonly, {}) or ""});
 	for _, c in pairs(chunks.all()) do
-		server_msg(pid, string.format("  #%d %s %s %s", c.id, c.name, c.shape,
-		                              chunks.format_perm(c.perm)));
+		l10n_send_chat(pid, msg.chunk_line,
+		               {id=c.id, name=c.name, shape=c.shape, perm=chunks.format_perm(c.perm)});
 	end
 end
 register_command(cmd, mod);
 
-local cmd = {name="defaultperm", fakepid=true, usage="ro|rw|rw:<team>",
-             desc="Authorization for blocks outside every chunk."};
+local cmd = {name="defaultperm", caps=CAP_ADMIN, fakepid=true, usage="ro|rw|rw:<team>",
+             desc="Authorization for blocks outside every chunk (console only)."};
 function cmd.func(pid, argv)
 	cmd_assert(pid, cmd, #argv == 1);
+	if (not is_fakepid(pid)) then
+		l10n_send_chat(pid, msg.console_only);
+		return;
+	end
 	local perm = chunks.parse_perm(argv[1]);
 	if (perm == nil) then
-		server_msg(pid, "world_editor: perm must be ro, rw, or rw:<team>.");
+		l10n_send_chat(pid, msg.bad_perm);
 		return;
 	end
 	chunks.set_default(perm);
-	server_msg(pid, "world_editor: default is now "..chunks.format_perm(perm));
+	l10n_send_chat(pid, msg.default_perm, {perm=chunks.format_perm(perm)});
 	save();
 end
 register_command(cmd, mod);
 
-local cmd = {name="mapreadonly", fakepid=true, usage="on|off",
-             desc="Master lock: refuse every player block edit."};
+local cmd = {name="mapreadonly", caps=CAP_ADMIN, fakepid=true, usage="on|off",
+             desc="Master lock: refuse every player block edit (console only)."};
 function cmd.func(pid, argv)
 	cmd_assert(pid, cmd, #argv == 1);
-	we_readonly = (string.lower(argv[1]) == "on");
-	server_msg(pid, "world_editor: map readonly "..(we_readonly and "ON" or "off"));
+	if (not is_fakepid(pid)) then
+		l10n_send_chat(pid, msg.console_only);
+		return;
+	end
+	world_editor_readonly = (string.lower(argv[1]) == "on");
+	l10n_send_chat(pid, msg.readonly_set, {state=world_editor_readonly and "ON" or "off"});
 	save();
 end
 register_command(cmd, mod);
@@ -1862,31 +1869,62 @@ for _, name in ipairs({"elevator", "door"}) do
 	if (ok and type(k) == "table") then
 		kinds[k.name] = k;
 	else
-		log("world_editor: component %s failed to load: %s", name, tostring(k));
+		l10n_log(msg.component_failed, {name=name, err=tostring(k)});
 	end
 end
 kinds["__chunk"] = chunkkind;
 
--- Hot-load restore: when the script is (re)loaded onto an already-running
--- map, load_map fired long before us, so nothing would restore the saved
--- layout. Now that mapname is recovered and the components are
--- registered, load <map>.editor.json here. (On a normal boot mapname is
--- still nil at this point -- the map loads after us -- so this is skipped
--- and load_map does the load.)
-if (mapname ~= nil) then
-	load_layout();
+-- ------------------------------------------------------------ lifecycle
+--
+-- The module system calls these, so everything that has to happen when
+-- this script comes and goes lives here rather than at file scope --
+-- which is both where the rest of the server puts it and the only place
+-- that runs on an unload.
+
+function mod.on_load()
+	-- Hot-load restore: when the script is (re)loaded onto an
+	-- already-running map, load_map fired long before us, so nothing
+	-- would restore the saved layout. mapname is recovered above and the
+	-- components are registered, so load <map>.editor.json now. (On a
+	-- normal boot mapname is still nil here -- the map loads after us --
+	-- so this is skipped and load_map does it.)
+	if (mapname ~= nil) then
+		load_layout();
+	end
+
+	-- Recover the public listing. `editing` is false in this fresh
+	-- incarnation whatever the last one was doing, so if that one had
+	-- taken the server off the server lists, edit mode is over and the
+	-- listing is owed back. Without this a reload mid-build left the
+	-- server unlisted with nothing remembering why.
+	if (world_editor_delisted and listing_show()) then
+		l10n_log(msg.relisted_log);
+	end
 end
 
--- Hot-load recovery for the public listing. `editing` is false in this
--- fresh incarnation whatever the last one was doing, so if that one had
--- taken the server off the server lists, edit mode is over and the
--- listing is owed back. Without this a reload mid-build left the server
--- unlisted with nothing remembering why, and only a manual
--- `lsdctl <instance> masterlist on` would bring it back.
-if (we_editor_delisted) then
-	if (listing_show()) then
-		log("world_editor: relisted after a reload (edit mode did not survive it)");
+-- Leave nothing of ours behind.
+--
+-- Components are drawn into the live map and tracked in `guarded`, which
+-- does not survive the unload -- so blocks nobody is guarding any more
+-- would sit there pretending to be a door. Hand them back to the map the
+-- way /undo does: settled at rest, and plain terrain again.
+--
+-- Edit mode ends with us, which means dropping the caps we handed out
+-- and putting back the borrowed scripts and the public listing.
+function mod.on_unload()
+	if (editing) then
+		editing = false;
+		edit_stop();
+		listing_show();
 	end
+
+	for _, inst in pairs(insts) do
+		release_component(inst);
+	end
+	insts = {};
+	guarded = {};
+	undo = {};
+	reindex_reserved();
 end
 
 return mod;

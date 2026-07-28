@@ -1,4 +1,4 @@
--- world_editor/elevator.lua -- A built platform that lifts riders.
+-- world_editor/elevator.lua -- A built platform that lifts riders
 --
 -- Placement: /place elevator <up|down>
 --   mark 1 -- one corner of the platform
@@ -23,7 +23,7 @@
 --
 -- The piston is kept. It is the visible support column under the
 -- platform: the pad's own silhouette eroded on every side (see
--- we_elevator_piston), running from just beneath the platform down to
+-- world_editor_elevator_piston), running from just beneath the platform down to
 -- the shaft base, so the wider platform appears to ride on a narrower
 -- column. Because the pad is now a drawing rather than one flat colour,
 -- the column is drawn in the colour of the platform's CORE -- the block
@@ -53,13 +53,24 @@ local E = {name = "elevator"};
 
 local areas   = require "world_editor.areas";
 local stencil = require "world_editor.stencil";
+require "lib_l10n";
 
-getcfg("we_elevator_speed", 6);    -- layers per second
-getcfg("we_elevator_wait", 1.0);   -- seconds held at the far end
-getcfg("we_elevator_abort", 0.6);  -- empty this long mid-travel -> return
-getcfg("we_elevator_headroom", 3); -- rider headroom reserved above the top
-getcfg("we_elevator_piston", 0.4); -- piston width as a fraction of the platform
-getcfg("we_elevator_stand", 2.4);  -- head-to-feet: pos.z when stood on the top
+-- see door.lua: prompts and refusals travel as message tables
+local msg = {
+	bad_dir     = {en="direction must be up or down."},
+	mark_first  = {en="mark one corner of the platform."},
+	mark_second = {en="now mark the opposite corner of the platform."},
+	mark_alt    = {en="now mark a block at the altitude to travel to."},
+	same_level  = {en="that altitude is the platform's own level -- mark a different height."},
+	shaft_busy  = {en="the shaft would run through another component -- pick another altitude."},
+};
+
+getcfg("world_editor_elevator_speed", 6);    -- layers per second
+getcfg("world_editor_elevator_wait", 1.0);   -- seconds held at the far end
+getcfg("world_editor_elevator_abort", 0.6);  -- empty this long mid-travel -> return
+getcfg("world_editor_elevator_headroom", 3); -- rider headroom reserved above the top
+getcfg("world_editor_elevator_piston", 0.4); -- piston width as a fraction of the platform
+getcfg("world_editor_elevator_stand", 2.4);  -- head-to-feet: pos.z when stood on the top
 
 local RED = {r=255, g=32, b=32};   -- fallback if the palette read fails
 
@@ -70,15 +81,15 @@ local RIDER_REACH = 6;
 E.desc  = "a built platform that lifts riders between two altitudes.";
 E.usage = "<up|down>";
 E.help  = {
-	"world_editor: elevator -- a built platform that carries riders up or down.",
-	"  usage: /place elevator <up|down>",
-	"  up rests at the bottom and rises when stood on; down is the reverse.",
-	"  build the pad first, then mark two opposite corners around it,",
-	"  then mark the altitude it should travel to -- the pad comes to",
-	"  rest level with that mark.",
-	"  its blocks, colours and gaps all become the platform.",
-	"  the piston column under it takes the colour of the pad's core.",
-	"  an empty box gives a plain slab in your palette colour instead.",
+	{en="world_editor: elevator -- a built platform that carries riders up or down."},
+	{en="  usage: /place elevator <up|down>"},
+	{en="  up rests at the bottom and rises when stood on; down is the reverse."},
+	{en="  build the pad first, then mark two opposite corners around it,"},
+	{en="  then mark the altitude it should travel to -- the pad comes to"},
+	{en="  rest level with that mark."},
+	{en="  its blocks, colours and gaps all become the platform."},
+	{en="  the piston column under it takes the colour of the pad's core."},
+	{en="  an empty box gives a plain slab in your palette colour instead."},
 };
 
 -- a cell of a layer, keyed on the two coordinates that do not change as
@@ -92,20 +103,20 @@ end
 function E.start(pid, args)
 	local dir = string.lower(args[1] or "");
 	if (dir ~= "up" and dir ~= "down") then
-		return nil, "direction must be up or down.";
+		return nil, msg.bad_dir;
 	end
-	return {dir=dir, pts={}, prompt="mark one corner of the platform."};
+	return {dir=dir, pts={}, prompt=msg.mark_first};
 end
 
 function E.click(s, pos, we)
 	table.insert(s.pts, {x=pos.x, y=pos.y, z=pos.z});
 
 	if (#s.pts == 1) then
-		s.prompt = "now mark the opposite corner of the platform.";
+		s.prompt = msg.mark_second;
 		return false;
 	end
 	if (#s.pts == 2) then
-		s.prompt = "now mark a block at the altitude to travel to.";
+		s.prompt = msg.mark_alt;
 		return false;
 	end
 
@@ -135,7 +146,7 @@ function E.click(s, pos, we)
 
 	if (dest == d.z1) then
 		s.pts = {a, b};
-		return false, "that altitude is the platform's own level -- mark a different height.";
+		return false, msg.same_level;
 	end
 
 	d.zlo = math.min(d.z1, dest);
@@ -144,14 +155,14 @@ function E.click(s, pos, we)
 	-- Nothing of another component may be inside the shaft: E.render digs
 	-- the whole column to give the platform a free path, which would tear
 	-- a hole through whatever else lives there.
-	local st = math.max(0, d.zlo - we_elevator_headroom);
+	local st = math.max(0, d.zlo - world_editor_elevator_headroom);
 	local sb = math.min(we.deepest, d.zhi + thick - 1);
 	for z = st, sb do
 		for y = d.y1, d.y2 do
 			for x = d.x1, d.x2 do
 				if (we.is_guarded(x, y, z)) then
 					s.pts = {a, b};
-					return false, "the shaft would run through another component -- pick another altitude.";
+					return false, msg.shaft_busy;
 				end
 			end
 		end
@@ -371,7 +382,7 @@ end
 -- top of the shaft: the highest layer the platform can reach, plus the
 -- headroom a rider standing on it needs
 local function shaft_top(inst)
-	return inst.zlo - we_elevator_headroom;
+	return inst.zlo - world_editor_elevator_headroom;
 end
 
 function E.spawn(d, we)
@@ -451,7 +462,7 @@ function E.spawn(d, we)
 	-- leaving the piston at least one block narrower, and nil when there
 	-- is no room to inset at all.
 	local half = math.min(inst.x2 - inst.x1, inst.y2 - inst.y1) / 2;
-	local target = math.floor(half * we_elevator_piston);
+	local target = math.floor(half * world_editor_elevator_piston);
 	if (target < 1) then target = 1; end
 	if (target > half - 1) then target = half - 1; end
 	inst.piston = (target >= 1)
@@ -609,7 +620,7 @@ end
 -- sink, where relative motion plus client jitter buries them a little
 -- deeper each step. inst.z is already the new top layer here.
 local function carry(inst, riding, dz)
-	local top = inst.z - we_elevator_stand;   -- pos.z of feet-on-surface
+	local top = inst.z - world_editor_elevator_stand;   -- pos.z of feet-on-surface
 	for _, pid in ipairs(riding) do
 		local p = get_position(pid);
 		local nz = p.z + dz;
@@ -753,7 +764,7 @@ function E.tick(inst, we, dt)
 	if (inst.state == "going") then
 		if (not has_riders(inst, we)) then
 			inst.empty = (inst.empty or 0) + dt;
-			if (inst.empty >= we_elevator_abort) then
+			if (inst.empty >= world_editor_elevator_abort) then
 				inst.state = "returning";
 				inst.t = 0;
 			end
@@ -766,14 +777,14 @@ function E.tick(inst, we, dt)
 	if (inst.z == target) then
 		if (inst.state == "going") then
 			inst.state = "holding";
-			inst.hold = we_elevator_wait;
+			inst.hold = world_editor_elevator_wait;
 		else
 			inst.state = "rest";
 		end
 		return;
 	end
 
-	if (we.due(inst, "t", we_elevator_speed, dt)) then
+	if (we.due(inst, "t", world_editor_elevator_speed, dt)) then
 		step(inst, we, (target < inst.z) and -1 or 1);
 	end
 end
