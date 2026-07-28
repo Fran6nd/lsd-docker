@@ -395,6 +395,9 @@ function D.spawn(d, we)
 	end
 	inst.ncells = n;
 
+	-- kept for D.settle, which needs to diff an arbitrary jump rather
+	-- than the single steps the tables below cover
+	inst.occ = occ;
 	inst.bycol = bycolour_of(inst, occ);
 	-- one table per way the panel can travel along its axis
 	inst.motion = {[1] = motion_for(inst, occ, 1),
@@ -517,6 +520,39 @@ local function step(inst, we, delta)
 	end
 
 	inst.off = to;
+end
+
+-- Put the panel back where it was captured, in one go.
+--
+-- Used when the door is being dropped but its blocks are being handed
+-- back to the map (see release_component in world_editor.lua): the
+-- drawing has to be whole, and in the place it was built, before it
+-- stops being ours. Deleting a door caught half-open would otherwise
+-- leave a half-open door frozen into the terrain.
+--
+-- motion_for is general in the size of the shift -- a jump straight to
+-- shut is the same three disjoint sets a single step uses -- so however
+-- far the panel has to come back, no cell is destroyed and recreated in
+-- the same tick.
+function D.settle(inst, we)
+	if (inst.off == 0) then
+		return;
+	end
+
+	local from = inst.off;
+	local m = motion_for(inst, inst.occ, -from * inst.step);
+
+	for cidx, byplane in pairs(m.build) do
+		span(inst, we, byplane, 0, colour_of(inst, we, cidx), "build");
+	end
+	for cidx, byplane in pairs(m.paint) do
+		span(inst, we, byplane, 0, colour_of(inst, we, cidx), "paint");
+	end
+	if (m.clear ~= nil) then
+		span(inst, we, m.clear, from, nil, "clear");
+	end
+
+	inst.off = 0;
 end
 
 -- ------------------------------------------------------------- lifecycle
