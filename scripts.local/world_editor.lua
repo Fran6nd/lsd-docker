@@ -116,7 +116,6 @@ local msg = {
 	mark_at           = {en="world_editor: mark at %(x) %(y) %(z)"},
 	mark_outside      = {en="world_editor: that mark is outside the map."},
 	nothing_to_mark   = {en="world_editor: nothing to mark there -- aim at ground or water."},
-	bad_coord         = {en="world_editor: mark %(n) has a coordinate that is not a number."},
 	batch_finished    = {en="world_editor: placement finished on mark %(n) -- %(extra) extra ignored."},
 	placed            = {en="world_editor: %(kind) #%(id) placed."},
 
