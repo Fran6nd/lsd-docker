@@ -2,8 +2,11 @@
 -- a spatial authorization system.
 --
 -- Editing is a server-wide mode that can only be switched on from the
--- admin console (/worldedit on). While it is on, nobody new may join,
--- so the only people present are whoever was already there to build.
+-- admin console (/worldedit on). While it is on the server takes itself
+-- off the public server lists, so nobody browsing drops into a half-built
+-- map -- but the door is not shut: anyone already here stays, and anyone
+-- who knows the address can still join to help build. See the listing
+-- section below.
 --
 -- Components live one-per-file in world_editor/ and register themselves
 -- here; this file owns the shared machinery they all need:
@@ -997,6 +1000,51 @@ function mod.block_action_rm(pos, type, from)
 	return mod.next.block_action_rm(pos, type, from);
 end
 
+-- ------------------------------------------------------------ listing
+--
+-- Edit mode takes the server off the public lists rather than shutting
+-- the door: a half-built map is not what anyone browsing wants to drop
+-- into, but the people already here (and anyone who knows the address)
+-- can carry on. Delisting is not access control -- ip:port still works,
+-- which is exactly what makes it usable for inviting someone in to help
+-- build.
+--
+-- The stock masterlist script is the switch. Its on_unload disconnects
+-- every masterlist peer (lsd/scripts/masterlist.lua), so unloading it
+-- really does delist rather than leaving a stale entry behind, and the
+-- console's load unloads first, so putting it back is idempotent.
+--
+-- Only ever put back what we took away: a server deliberately run
+-- unlisted (LSD_MASTERLIST=0, so the config never loaded masterlist at
+-- all) must not find itself published because someone edited a map.
+local listing_ours = false;
+
+local function listing_hide()
+	if (listing_ours or package.loaded["masterlist"] == nil) then
+		return false;
+	end
+	local ok, err = pcall(unload, "masterlist");
+	if (not ok) then
+		log("world_editor: could not delist (%s)", tostring(err));
+		return false;
+	end
+	listing_ours = true;
+	return true;
+end
+
+local function listing_show()
+	if (not listing_ours) then
+		return false;
+	end
+	listing_ours = false;
+	local ok, err = pcall(load, "masterlist");
+	if (not ok) then
+		log("world_editor: could not relist (%s)", tostring(err));
+		return false;
+	end
+	return true;
+end
+
 -- ---------------------------------------------------------------- events
 
 -- strip directory and extension so "maps/hallway.vxl" keys the same
@@ -1010,7 +1058,13 @@ end
 
 function mod.after.load_map(name)
 	mapname = mapkey(name);
-	editing = false;   -- a fresh map always comes up in play mode
+	-- A fresh map always comes up in play mode, so anything edit mode
+	-- switched off has to come back on -- otherwise a map change during a
+	-- build session would leave the server quietly unlisted for good.
+	if (editing) then
+		editing = false;
+		listing_show();
+	end
 	load_layout();
 end
 
@@ -1023,15 +1077,6 @@ if (mapname == nil) then
 	if (ok and type(m) == "string" and m ~= "" and m ~= "???") then
 		mapname = mapkey(m);
 	end
-end
-
-function mod.on_join(pid, team, gun, name)
-	if (editing) then
-		server_msg(pid, "This server is in world-edit mode; try again shortly.");
-		disconnect(pid, 3);
-		return;
-	end
-	mod.next.on_join(pid, team, gun, name);
 end
 
 -- tick() is called at TICKRATE Hz (60, per src/main.c) and Lua is not
@@ -1279,7 +1324,8 @@ function cmd.func(pid, argv)
 	local what = string.lower(argv[1] or "status");
 	if (what == "status") then
 		server_msg(pid, "world_editor: edit mode is "..(editing and "ON" or "off")
-		                .." (map "..tostring(mapname)..")");
+		                .." (map "..tostring(mapname)..")"
+		                ..(listing_ours and ", delisted by edit mode" or ""));
 		return;
 	end
 
@@ -1298,13 +1344,22 @@ function cmd.func(pid, argv)
 			server_msg(pid, "world_editor: sel loaded -- /sel /sel1 /sel2 then "
 			                .."/selfill /selrm /selpaint /selcpy /selmv /selswiz");
 		end
+		if (listing_hide()) then
+			server_msg(pid, "world_editor: delisted from the public server lists "
+			                .."(ip:port still works, so you can invite builders in)");
+		end
 	else
 		sel_stop();
+		if (listing_show()) then
+			server_msg(pid, "world_editor: listed publicly again.");
+		end
 	end
 
 	for i in piditer(PID_BROADCAST) do
 		if (is_joined(i)) then
-			server_msg(i, "world_editor: edit mode "..(editing and "ENABLED -- no new players may join." or "disabled."));
+			server_msg(i, "world_editor: edit mode "
+			              ..(editing and "ENABLED -- the map is being built on."
+			                          or "disabled."));
 		end
 	end
 	log("world_editor: edit mode %s", editing and "on" or "off");
