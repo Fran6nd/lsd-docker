@@ -1516,6 +1516,63 @@ function cmd.func(pid, argv)
 end
 register_command(cmd, mod);
 
+-- Marks by coordinate, in bulk -- the machine-facing way in.
+--
+-- /here covers a person standing where they want the mark, and the
+-- spade covers a person pointing at it. Neither suits a client with a
+-- GUI on top: it already knows every corner it wants and should not have
+-- to fly a player to each one in turn. This takes a whole component's
+-- worth of marks in one message, so a placement can be driven start to
+-- finish without any tool ever being swung:
+--
+--   /place door left
+--   /marks 121 264 59 121 266 60
+--
+-- Coordinates may be fractional. A client working in world space has
+-- float positions, and rejecting 34.5 would just make it round for us --
+-- so each is floored to the block that contains it, exactly as /here
+-- treats its arguments and as the engine maps a position to a voxel.
+local cmd = {name="marks", usage="<x y z> [x y z ...]",
+             desc="Place one or more placement marks by coordinate."};
+function cmd.func(pid, argv)
+	if (not need_edit(pid)) then return; end
+	cmd_assert(pid, cmd, #argv >= 3 and #argv % 3 == 0);
+
+	if (session[pid] == nil) then
+		server_msg(pid, "world_editor: nothing being placed -- start with /place, /chunk or /delete.");
+		return;
+	end
+
+	-- Parse the whole list before placing any of it. A batch that got
+	-- half way and then hit a typo would leave the placement in a state
+	-- the caller has no way to reason about, which is exactly what an
+	-- automated caller cannot recover from.
+	local pts = {};
+	for i = 1, #argv, 3 do
+		local x, y, z = tonumber(argv[i]), tonumber(argv[i+1]), tonumber(argv[i+2]);
+		if (x == nil or y == nil or z == nil) then
+			server_msg(pid, string.format(
+				"world_editor: mark %d has a coordinate that is not a number.",
+				(i + 2) / 3));
+			return;
+		end
+		pts[#pts+1] = {x=math.floor(x), y=math.floor(y), z=math.floor(z)};
+	end
+
+	for n, p in ipairs(pts) do
+		-- a component takes itself out of the session on its last mark
+		if (session[pid] == nil) then
+			server_msg(pid, string.format(
+				"world_editor: placement finished on mark %d -- %d extra ignored.",
+				n - 1, #pts - n + 1));
+			return;
+		end
+		server_msg(pid, string.format("world_editor: mark at %d %d %d", p.x, p.y, p.z));
+		apply_mark(pid, p);
+	end
+end
+register_command(cmd, mod);
+
 local cmd = {name="componentperm", usage="ro|rw|rw:<team>",
              desc="Set protection on the nearest component."};
 function cmd.func(pid, argv)
