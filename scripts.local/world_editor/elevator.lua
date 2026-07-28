@@ -264,9 +264,15 @@ end
 -- What belongs at column `k`, `d` layers below the platform's top: a
 -- palette index, or nil for air. d<0 is above the platform; d>=T is the
 -- piston column, which is the same all the way down.
-local function state(inst, d, k)
+--
+-- `nopiston` asks for the pad alone, with no column under it. That is
+-- the shape the elevator leaves behind when it is un-placed: the pad was
+-- somebody's build and stays, the column never existed before the
+-- elevator did and must not be left standing.
+local function state(inst, d, k, nopiston)
 	if (d < 0) then return nil; end
 	if (d < inst.T) then return inst.occ[d][k]; end
+	if (nopiston) then return nil; end
 	if (inst.piston ~= nil and inst.piston[k]) then return inst.coreidx; end
 	return nil;
 end
@@ -304,6 +310,10 @@ local function motion_for(inst, dz)
 		s[k] = true;
 	end
 
+	-- Only the layers a one-layer move disturbs. Above the platform
+	-- everything is air both before and after; below it, past the pad's
+	-- own depth, it is piston both before and after -- which is what
+	-- keeps a step's cost independent of how deep the shaft is.
 	for r = -1, inst.T do
 		for k in pairs(inst.silh) do
 			local a = state(inst, r, k);
@@ -643,6 +653,74 @@ local function step(inst, we, dz)
 	if (dz > 0) then
 		carry(inst, riding, dz);
 	end
+end
+
+-- Leave the map holding exactly what the builder put there: the pad,
+-- back at the altitude it was built at, and nothing else.
+--
+-- Called when the elevator is being un-placed but its blocks are being
+-- handed back (see release_component in world_editor.lua). Two things
+-- have to happen and they have to happen together:
+--
+--   * the pad returns to its resting altitude, or an elevator deleted
+--     mid-ride would strand its platform halfway up the shaft as
+--     permanent terrain;
+--   * the piston column goes, because unlike the pad it was never in
+--     the map before -- the elevator drew it -- so leaving it would turn
+--     the shaft into a solid pillar.
+--
+-- Done as ONE diff of "everything we own now" against "pad at rest, no
+-- column", rather than settling and then taking the column down: that
+-- keeps the three sets disjoint, so no cell is written twice in the tick
+-- -- in particular none is created and then destroyed again. The loop
+-- walks the whole shaft, which is fine for something that happens once.
+function E.settle(inst, we)
+	local from = inst.z;
+	local dz = rest_z(inst) - from;
+
+	local build, paint, clear = {}, {}, {};
+	local nc = 0;
+
+	local function put(t, cidx, r, k)
+		local byr = t[cidx];
+		if (byr == nil) then byr = {}; t[cidx] = byr; end
+		local s = byr[r];
+		if (s == nil) then s = {}; byr[r] = s; end
+		s[k] = true;
+	end
+
+	for r = shaft_top(inst) - from, shaft_bottom(inst) - from do
+		for k in pairs(inst.silh) do
+			local a = state(inst, r, k, false);        -- what stands there now
+			local b = state(inst, r - dz, k, true);    -- pad at rest, no column
+			if (a ~= b) then
+				if (b == nil) then
+					local s = clear[r];
+					if (s == nil) then s = {}; clear[r] = s; end
+					s[k] = true; nc = nc + 1;
+				elseif (a == nil) then
+					put(build, b, r, k);
+				else
+					put(paint, b, r, k);
+				end
+			end
+		end
+	end
+
+	inst.z = rest_z(inst);
+
+	for cidx, byr in pairs(build) do
+		span(inst, we, byr, from, colour_of(inst, we, cidx), "build");
+	end
+	for cidx, byr in pairs(paint) do
+		span(inst, we, byr, from, colour_of(inst, we, cidx), "paint");
+	end
+	if (nc > 0) then
+		span(inst, we, clear, from, nil, "clear");
+	end
+
+	inst.state = "rest";
+	inst.t = 0;
 end
 
 function E.tick(inst, we, dt)

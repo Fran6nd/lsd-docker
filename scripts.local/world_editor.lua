@@ -683,6 +683,37 @@ local function may_edit(pid, x, y, z)
 end
 
 -- take a whole component down because one of its blocks was broken
+-- Hand a component's blocks back to the map instead of taking them down
+-- with it.
+--
+-- A component is made OUT OF somebody's build: placement captures the
+-- marked box and render digs those very blocks and re-lays them as ours
+-- (see world_editor/stencil.lua). Deleting one must therefore not delete
+-- them -- /undo on a misplaced door would otherwise eat the door
+-- somebody had just drawn, which is the opposite of an undo.
+--
+-- So the component is first settled back to rest, putting the drawing
+-- exactly where it was captured, and then simply forgotten: the blocks
+-- stay in the map as ordinary terrain that anybody may edit again. The
+-- settle is a single jump, not an animation -- see each component's
+-- settle for why that is still safe to send in one tick.
+--
+-- This is deliberately NOT what destroy does. /savemap needs the blocks
+-- genuinely gone so the .vxl it dumps is pure terrain, and a component
+-- broken by a player still comes down; both keep using destroy.
+local function release_component(inst)
+	local k = kinds[inst.kind];
+	if (k.settle ~= nil) then
+		k.settle(inst, we);
+	end
+	-- clearing fields of the table being traversed is fine in Lua; it is
+	-- adding them that is not
+	local id = inst.id;
+	for cell, owner in pairs(guarded) do
+		if (owner == id) then guarded[cell] = nil; end
+	end
+end
+
 local function break_component(id, by)
 	local inst = insts[id];
 	if (inst == nil) then
@@ -797,14 +828,16 @@ local function apply_mark(pid, pos)
 			server_msg(pid, "world_editor: no component on that block -- aim right at one.");
 			return true;   -- keep the session so they can try again
 		end
-		kinds[inst.kind].destroy(inst, we);
+		release_component(inst);
 		insts[id] = nil;
 		reindex_reserved();
 		for i = #undo, 1, -1 do
 			if (undo[i] == id) then table.remove(undo, i); end
 		end
 		session[pid] = nil;
-		server_msg(pid, string.format("world_editor: deleted %s #%d.", inst.kind, id));
+		server_msg(pid, string.format(
+			"world_editor: deleted %s #%d -- its blocks stay, back at rest.",
+			inst.kind, id));
 		save();
 		return true;
 	end
@@ -1513,7 +1546,7 @@ function cmd.func(pid, argv)
 end
 register_command(cmd, mod);
 
-local cmd = {name="undo", desc="Remove the most recently placed component."};
+local cmd = {name="undo", desc="Un-place the most recent component (its blocks stay)."};
 function cmd.func(pid, argv)
 	if (not need_edit(pid)) then return; end
 
@@ -1522,17 +1555,20 @@ function cmd.func(pid, argv)
 		server_msg(pid, "world_editor: nothing to undo.");
 		return;
 	end
-	kinds[insts[id].kind].destroy(insts[id], we);
+	local inst = insts[id];
+	release_component(inst);
 	insts[id] = nil;
 	reindex_reserved();
-	server_msg(pid, string.format("world_editor: removed #%d.", id));
+	server_msg(pid, string.format(
+		"world_editor: removed %s #%d -- its blocks stay, back at rest.",
+		inst.kind, id));
 	save();
 end
 register_command(cmd, mod);
 
 -- Delete by pointing: start a mark, then spade/shoot a block belonging
 -- to the component you want gone.
-local cmd = {name="delete", desc="Delete the component whose block you mark."};
+local cmd = {name="delete", desc="Un-place the component whose block you mark (its blocks stay)."};
 function cmd.func(pid, argv)
 	if (not need_edit(pid)) then return; end
 	session[pid] = {kind="__delete",
