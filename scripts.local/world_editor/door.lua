@@ -355,18 +355,40 @@ end
 --   clear  -- nothing of ours follows it, so the cell it leaves behind
 --             becomes empty
 --
--- and cells whose destination already holds the right colour are not
--- touched at all, which is what keeps a big door off the packet budget.
+-- A cell whose destination already holds one of our blocks in the RIGHT
+-- colour is not touched at all: the block is already there and already
+-- correct, so moving the panel over it is free. Only a genuine
+-- replacement -- a different colour arriving on top of what is there --
+-- costs anything, and it costs one repaint rather than a destroy and a
+-- rebuild.
 --
 -- The three sets are pairwise disjoint: a build target was empty before
 -- the move, a clear target is empty after it, and a paint target is
 -- occupied throughout. So no cell is written twice in a step, whichever
 -- way the door is going.
 --
+-- Everything is keyed by COLOUR first and plane second, because that is
+-- how the writes are issued: one call per colour covering every plane it
+-- appears on. we.fill sends the block colour once per call (deliberately
+-- -- see the block api in world_editor.lua) and ends a clear with one
+-- floating-block cull, so grouping this way makes a step cost one colour
+-- packet per colour and exactly one cull, instead of one of each per
+-- plane.
+--
 -- Precomputed once per direction, since a door only ever moves by one
 -- block and only ever two ways.
 local function motion_for(inst, occ, mv)
-	local m = {};
+	local build, paint, clear = {}, {}, {};
+	local nb, np, nc = 0, 0, 0;
+
+	-- set[cidx][i] -- cells of colour cidx on plane i
+	local function put(t, cidx, i, k)
+		local byplane = t[cidx];
+		if (byplane == nil) then byplane = {}; t[cidx] = byplane; end
+		local s = byplane[i];
+		if (s == nil) then s = {}; byplane[i] = s; end
+		s[k] = true;
+	end
 
 	for i = 0, inst.len - 1 do
 		local o = occ[i];
@@ -374,53 +396,44 @@ local function motion_for(inst, occ, mv)
 			local onto = occ[i + mv];   -- what is at our destination now
 			local after = occ[i - mv];  -- what takes our place when we go
 
-			local build, paint, clear = {}, {}, {};
-			local nb, np, nc = 0, 0, 0;
-
 			for k, cidx in pairs(o) do
 				local was = onto and onto[k];
 				if (was == nil) then
-					local s = build[cidx];
-					if (s == nil) then s = {}; build[cidx] = s; end
-					s[k] = true; nb = nb + 1;
+					put(build, cidx, i, k); nb = nb + 1;
 				elseif (was ~= cidx) then
-					local s = paint[cidx];
-					if (s == nil) then s = {}; paint[cidx] = s; end
-					s[k] = true; np = np + 1;
+					-- something of ours is there, but the wrong colour
+					put(paint, cidx, i, k); np = np + 1;
 				end
 
 				if (after == nil or after[k] == nil) then
-					clear[k] = true; nc = nc + 1;
+					local s = clear[i];
+					if (s == nil) then s = {}; clear[i] = s; end
+					s[k] = true; nc = nc + 1;
 				end
-			end
-
-			if (nb > 0 or np > 0 or nc > 0) then
-				m[i] = {build=(nb > 0) and build or nil,
-				        paint=(np > 0) and paint or nil,
-				        clear=(nc > 0) and clear or nil};
 			end
 		end
 	end
 
-	return m;
+	return {build=build, paint=paint, clear=(nc > 0) and clear or nil,
+	        nbuild=nb, npaint=np, nclear=nc};
 end
 
--- every cell of each plane, by colour -- what a full draw needs
-local function planes_of(inst, occ)
-	local plane = {};
+-- every cell of the panel, by colour then plane -- what a full draw needs
+local function bycolour_of(inst, occ)
+	local byc = {};
 	for i = 0, inst.len - 1 do
 		local o = occ[i];
 		if (o ~= nil) then
-			local byc = {};
 			for k, cidx in pairs(o) do
-				local s = byc[cidx];
-				if (s == nil) then s = {}; byc[cidx] = s; end
+				local byplane = byc[cidx];
+				if (byplane == nil) then byplane = {}; byc[cidx] = byplane; end
+				local s = byplane[i];
+				if (s == nil) then s = {}; byplane[i] = s; end
 				s[k] = true;
 			end
-			plane[i] = byc;
 		end
 	end
-	return plane;
+	return byc;
 end
 
 function D.spawn(d, we)
@@ -482,7 +495,7 @@ function D.spawn(d, we)
 	end
 	inst.ncells = n;
 
-	inst.plane = planes_of(inst, occ);
+	inst.bycol = bycolour_of(inst, occ);
 	-- one table per way the panel can travel along its axis
 	inst.motion = {[1] = motion_for(inst, occ, 1),
 	               [-1] = motion_for(inst, occ, -1)};
@@ -510,73 +523,73 @@ local function colour_of(inst, we, cidx)
 	return inst.pal[cidx];
 end
 
+-- Issue one bulk write for a group of cells, however many planes of the
+-- panel they are spread across.
+--
+-- `byplane` maps a local plane index to the cells wanted on it, and
+-- `off` says where the panel is, which together give each cell its real
+-- coordinate. The call covers the whole axis range those planes occupy
+-- and a keep predicate picks the cells out of it, so the write is ONE
+-- we.fill / we.paint: one block-colour packet for the group, and for a
+-- clear one floating-block cull for the group, rather than one of each
+-- per plane.
+--
 -- The frame is the box the door was marked in, and the panel is only
--- ever drawn inside it. A plane that has retracted past either edge is
--- simply not there any more -- that is what makes it a retractable door
--- rather than a slab that has to be given somewhere to go, and it is why
--- a door can sit flush against a ceiling, a wall, or the bottom of the
--- map. It also means no write can ever land outside the volume the
--- component reserved.
-local function in_frame(inst, a)
-	return a >= inst.lo and a <= inst.hi;
-end
-
--- Draw (or clear) the cells named by `set` on one plane of the panel.
--- The panel only ever moves along its own axis, so the other two extents
--- are those of the box wherever it has got to; only the axis coordinate
--- is passed in.
-local function fill_plane(inst, we, a, color, on, set)
-	if (not in_frame(inst, a)) then return; end
-
-	local x1, x2 = inst.x1, inst.x2;
-	local y1, y2 = inst.y1, inst.y2;
-	local z1, z2 = inst.z1, inst.z2;
-
-	if (inst.axis == "z") then z1, z2 = a, a;
-	elseif (inst.axis == "x") then x1, x2 = a, a;
-	else y1, y2 = a, a; end
-
-	local axis = inst.axis;
-	we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, set and function(x, y, z)
-		return set[okey(axis, x, y, z)] ~= nil;
-	end or nil);
-end
-
--- recolour, in place, cells the door already owns (see we.paint)
-local function paint_plane(inst, we, a, color, set)
-	if (not in_frame(inst, a)) then return; end
-
-	local x1, x2 = inst.x1, inst.x2;
-	local y1, y2 = inst.y1, inst.y2;
-	local z1, z2 = inst.z1, inst.z2;
-
-	if (inst.axis == "z") then z1, z2 = a, a;
-	elseif (inst.axis == "x") then x1, x2 = a, a;
-	else y1, y2 = a, a; end
-
-	local axis = inst.axis;
-	we.paint(inst, x1, y1, z1, x2, y2, z2, color, function(x, y, z)
-		return set[okey(axis, x, y, z)] ~= nil;
-	end);
-end
-
--- the whole panel, as much of it as is still inside the frame
-local function draw_panel(inst, we, off)
-	for i = 0, inst.len - 1 do
-		local byc = inst.plane[i];
-		if (byc ~= nil) then
-			local a = plane_at(inst, i, off);
-			for cidx, set in pairs(byc) do
-				fill_plane(inst, we, a, colour_of(inst, we, cidx), true, set);
-			end
+-- ever drawn inside it: planes that have retracted past either edge are
+-- clipped straight off the range here. That is what makes it a
+-- retractable door rather than a slab that has to be given somewhere to
+-- go, it is why a door can sit flush against a ceiling, a wall or the
+-- bottom of the map, and it means no write can ever land outside the
+-- volume the component reserved.
+local function span(inst, we, byplane, off, color, mode)
+	local a1, a2;
+	for i in pairs(byplane) do
+		local a = plane_at(inst, i, off);
+		if (a >= inst.lo and a <= inst.hi) then
+			if (a1 == nil or a < a1) then a1 = a; end
+			if (a2 == nil or a > a2) then a2 = a; end
 		end
+	end
+	if (a1 == nil) then
+		return;    -- every plane of this group is out of the frame
+	end
+
+	local x1, x2 = inst.x1, inst.x2;
+	local y1, y2 = inst.y1, inst.y2;
+	local z1, z2 = inst.z1, inst.z2;
+
+	if (inst.axis == "z") then z1, z2 = a1, a2;
+	elseif (inst.axis == "x") then x1, x2 = a1, a2;
+	else y1, y2 = a1, a2; end
+
+	-- a cell's plane index is recoverable from its axis coordinate, so
+	-- one predicate serves the whole range
+	local axis, base = inst.axis, inst.lo + off * inst.step;
+	local function keep(x, y, z)
+		local a = (axis == "z") and z or ((axis == "x") and x or y);
+		local set = byplane[a - base];
+		return set ~= nil and set[okey(axis, x, y, z)] ~= nil;
+	end
+
+	if (mode == "paint") then
+		we.paint(inst, x1, y1, z1, x2, y2, z2, color, keep);
+	else
+		we.fill(inst, x1, y1, z1, x2, y2, z2, color, mode == "build", keep);
+	end
+end
+
+-- the whole panel, as much of it as is still inside the frame: one call
+-- per colour, whatever shape the drawing is
+local function draw_panel(inst, we, off)
+	for cidx, byplane in pairs(inst.bycol) do
+		span(inst, we, byplane, off, colour_of(inst, we, cidx), "build");
 	end
 end
 
 -- Move the panel one block: build what has to appear, recolour what is
 -- already in place but wrong, and clear what is left behind. See
 -- motion_for for how those three sets are worked out and why they never
--- overlap, and in_frame for what happens to the parts that have
+-- overlap, and span for what happens to the parts that have
 -- retracted out of sight.
 --
 -- Arrivals and recolours go first, departures last. The sets never share
@@ -590,28 +603,17 @@ local function step(inst, we, delta)
 	-- the panel delta*step blocks along the axis
 	local m = inst.motion[delta * inst.step];
 
-	for i = 0, inst.len - 1 do
-		local e = m[i];
-		if (e ~= nil) then
-			local a = plane_at(inst, i, to);
-			if (e.build ~= nil) then
-				for cidx, set in pairs(e.build) do
-					fill_plane(inst, we, a, colour_of(inst, we, cidx), true, set);
-				end
-			end
-			if (e.paint ~= nil) then
-				for cidx, set in pairs(e.paint) do
-					paint_plane(inst, we, a, colour_of(inst, we, cidx), set);
-				end
-			end
-		end
+	for cidx, byplane in pairs(m.build) do
+		span(inst, we, byplane, to, colour_of(inst, we, cidx), "build");
+	end
+	for cidx, byplane in pairs(m.paint) do
+		span(inst, we, byplane, to, colour_of(inst, we, cidx), "paint");
 	end
 
-	for i = 0, inst.len - 1 do
-		local e = m[i];
-		if (e ~= nil and e.clear ~= nil) then
-			fill_plane(inst, we, plane_at(inst, i, from), nil, false, e.clear);
-		end
+	-- every departing cell in one call, so the whole step costs a single
+	-- floating-block cull
+	if (m.clear ~= nil) then
+		span(inst, we, m.clear, from, nil, "clear");
 	end
 
 	inst.off = to;
