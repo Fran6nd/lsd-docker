@@ -1017,10 +1017,19 @@ end
 -- Only ever put back what we took away: a server deliberately run
 -- unlisted (LSD_MASTERLIST=0, so the config never loaded masterlist at
 -- all) must not find itself published because someone edited a map.
-local listing_ours = false;
+--
+-- That "did we take it away" flag is a GLOBAL, not a local, and
+-- deliberately so. A hot `load world_editor` re-runs this file from
+-- scratch: `editing` comes back false and every local is new, so a
+-- reload in the middle of a build session would strand the server
+-- delisted with nothing left that knew to put it back. Globals outlive
+-- the reload, so the bottom of this file can spot that and relist.
+if (we_editor_delisted == nil) then
+	we_editor_delisted = false;
+end
 
 local function listing_hide()
-	if (listing_ours or package.loaded["masterlist"] == nil) then
+	if (we_editor_delisted or package.loaded["masterlist"] == nil) then
 		return false;
 	end
 	local ok, err = pcall(unload, "masterlist");
@@ -1028,15 +1037,15 @@ local function listing_hide()
 		log("world_editor: could not delist (%s)", tostring(err));
 		return false;
 	end
-	listing_ours = true;
+	we_editor_delisted = true;
 	return true;
 end
 
 local function listing_show()
-	if (not listing_ours) then
+	if (not we_editor_delisted) then
 		return false;
 	end
-	listing_ours = false;
+	we_editor_delisted = false;
 	local ok, err = pcall(load, "masterlist");
 	if (not ok) then
 		log("world_editor: could not relist (%s)", tostring(err));
@@ -1325,7 +1334,7 @@ function cmd.func(pid, argv)
 	if (what == "status") then
 		server_msg(pid, "world_editor: edit mode is "..(editing and "ON" or "off")
 		                .." (map "..tostring(mapname)..")"
-		                ..(listing_ours and ", delisted by edit mode" or ""));
+		                ..(we_editor_delisted and ", delisted by edit mode" or ""));
 		return;
 	end
 
@@ -1773,6 +1782,18 @@ kinds["__chunk"] = chunkkind;
 -- and load_map does the load.)
 if (mapname ~= nil) then
 	load_layout();
+end
+
+-- Hot-load recovery for the public listing. `editing` is false in this
+-- fresh incarnation whatever the last one was doing, so if that one had
+-- taken the server off the server lists, edit mode is over and the
+-- listing is owed back. Without this a reload mid-build left the server
+-- unlisted with nothing remembering why, and only a manual
+-- `lsdctl <instance> masterlist on` would bring it back.
+if (we_editor_delisted) then
+	if (listing_show()) then
+		log("world_editor: relisted after a reload (edit mode did not survive it)");
+	end
 end
 
 return mod;
