@@ -1,4 +1,4 @@
--- world_editor/door.lua -- A built surface that retracts to open.
+-- world_editor/door.lua -- A built surface that retracts to open
 --
 -- Placement: /place door up|down|left|right
 --   mark 1 -- one corner of the door box
@@ -53,9 +53,22 @@ local D = {name = "door"};
 
 local areas   = require "world_editor.areas";
 local stencil = require "world_editor.stencil";
+require "lib_l10n";
 
-getcfg("we_door_speed", 8);     -- blocks moved per second
-getcfg("we_door_range", 4);     -- how close a player must be, in blocks
+-- Prompts and refusals go back to world_editor as lib_l10n message
+-- tables, not strings, so a component's voice is translatable like
+-- everything else the editor says.
+local msg = {
+	bad_dir      = {en="direction must be up, down, left or right."},
+	mark_first   = {en="mark one corner of the door."},
+	mark_second  = {en="now mark the opposite corner."},
+	needs_height = {en="a vertical door needs height -- mark corners at different heights."},
+	needs_width  = {en="a sliding door needs width -- mark corners apart horizontally."},
+	overlaps     = {en="that box overlaps another component -- mark clear of it."},
+};
+
+getcfg("world_editor_door_speed", 8);     -- blocks moved per second
+getcfg("world_editor_door_range", 4);     -- how close a player must be, in blocks
 
 -- default panel colour, used for a door placed on an empty box when the
 -- placer's palette read fails too
@@ -66,13 +79,13 @@ local DIRS = {up=true, down=true, left=true, right=true};
 D.desc  = "a built surface that retracts into its frame when someone is near.";
 D.usage = "<up|down|left|right>";
 D.help  = {
-	"world_editor: door -- a built surface that retracts when a player nears it.",
-	"  usage: /place door <up|down|left|right>",
-	"  up/down retract into ceiling/floor; left/right retract aside.",
-	"  build the shape first, then mark two opposite corners around it:",
-	"  its blocks, colours and gaps all become the door and move together.",
-	"  the panel retracts into the marked box and needs no room behind it.",
-	"  an empty box gives a solid panel in your palette colour instead.",
+	{en="world_editor: door -- a built surface that retracts when a player nears it."},
+	{en="  usage: /place door <up|down|left|right>"},
+	{en="  up/down retract into ceiling/floor; left/right retract aside."},
+	{en="  build the shape first, then mark two opposite corners around it:"},
+	{en="  its blocks, colours and gaps all become the door and move together."},
+	{en="  the panel retracts into the marked box and needs no room behind it."},
+	{en="  an empty box gives a solid panel in your palette colour instead."},
 };
 
 -- --------------------------------------------------------------- stencil
@@ -128,17 +141,17 @@ end
 function D.start(pid, args)
 	local dir = string.lower(args[1] or "");
 	if (not DIRS[dir]) then
-		return nil, "direction must be up, down, left or right.";
+		return nil, msg.bad_dir;
 	end
 	return {dir=dir, pts={}, data=nil,
-	        prompt="mark one corner of the door."};
+	        prompt=msg.mark_first};
 end
 
 function D.click(s, pos, we)
 	table.insert(s.pts, {x=pos.x, y=pos.y, z=pos.z});
 
 	if (#s.pts == 1) then
-		s.prompt = "now mark the opposite corner.";
+		s.prompt = msg.mark_second;
 		return false;
 	end
 
@@ -161,11 +174,11 @@ function D.click(s, pos, we)
 	if (s.dir == "up" or s.dir == "down") then
 		if (d.z1 == d.z2) then
 			s.pts = {a};
-			return false, "a vertical door needs height -- mark corners at different heights.";
+			return false, msg.needs_height;
 		end
 	elseif (d.x1 == d.x2 and d.y1 == d.y2) then
 		s.pts = {a};
-		return false, "a sliding door needs width -- mark corners apart horizontally.";
+		return false, msg.needs_width;
 	end
 
 	-- Another component's blocks must not be swallowed. D.render digs the
@@ -177,7 +190,7 @@ function D.click(s, pos, we)
 			for x = d.x1, d.x2 do
 				if (we.is_guarded(x, y, z)) then
 					s.pts = {a};
-					return false, "that box overlaps another component -- mark clear of it.";
+					return false, msg.overlaps;
 				end
 			end
 		end
@@ -586,12 +599,12 @@ end
 
 -- ---------------------------------------------------------------- trigger
 
--- The doorway fattened by we_door_range, so someone walking up to either
+-- The doorway fattened by world_editor_door_range, so someone walking up to either
 -- face sets it off. The panel never leaves the frame, so this is built
 -- once at spawn rather than rebuilt 60 times a second.
 local function near_area(inst)
 	if (inst.trigger == nil) then
-		local r = we_door_range;
+		local r = world_editor_door_range;
 		inst.trigger = areas.box(inst.x1-r, inst.y1-r, inst.z1-r,
 		                         inst.x2+r, inst.y2+r, inst.z2+r);
 	end
@@ -626,7 +639,7 @@ function D.tick(inst, we, dt)
 		return;
 	end
 
-	if (not we.due(inst, "t", we_door_speed, dt)) then
+	if (not we.due(inst, "t", world_editor_door_speed, dt)) then
 		return;
 	end
 

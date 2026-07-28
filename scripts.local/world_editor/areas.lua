@@ -1,4 +1,4 @@
--- world_editor/areas.lua -- Shapes, containment, and area triggers.
+-- world_editor/areas.lua -- Shapes, containment and area triggers
 --
 -- One shape vocabulary serves the whole editor: authorization chunks
 -- test blocks against it, components test *players* against it. Keeping
