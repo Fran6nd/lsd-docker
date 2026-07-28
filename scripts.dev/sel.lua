@@ -43,6 +43,10 @@ local sel_end_done_msg = {
 	en="Selection ended at {x=%(x), y=%(y), z=%(z)}."
 };
 
+local sel_unbegan_msg = {
+	en="Begin a selection first."
+};
+
 local sel_unstarted_msg = {
 	en="Start the selection first."
 };
@@ -62,10 +66,6 @@ local invalid_dir_msg = {
 
 local missing_component_msg = {
 	en="Swizzle must map all of x, y and z"
-};
-
-local sel_autobegan_msg = {
-	en="No selection yet -- beginning one. Pick your two corners, then run that again."
 };
 
 local pick_not_hit_msg = {
@@ -198,18 +198,19 @@ end
 -- case where a click cannot be seen: the engine reports no mouse input
 -- while sprinting or during a tool switch, so a corner cannot be picked
 -- with sprint held.
-local function begin_sel(pid, why)
+local function begin_sel(pid)
 	sel[pid] = 0;
 	sel_pick[pid] = true;
 	sel_start[pid] = nil;
 	sel_end[pid] = nil;
-	l10n_send_chat(pid, why or sel_begin_msg);
+	l10n_send_chat(pid, sel_begin_msg);
 end
 
--- Arm a selection on somebody's behalf. `why` lets the caller say what it
--- is for, since a selection the player did not ask for needs explaining.
-function mod.impl.sel_begin(pid, why)
-	begin_sel(pid, why);
+-- Arm a selection on somebody's behalf. A caller doing this should say in
+-- its own words what the selection is for, since the player did not ask
+-- for it.
+function mod.impl.sel_begin(pid)
+	begin_sel(pid);
 end
 
 local cmd = {name="sel", caps="sel", desc="Select a box."};
@@ -386,11 +387,7 @@ register_command(cmd, mod);
 local function require_sel(pid)
 	if (sel_start[pid] == nil or sel_end[pid] == nil) then
 		if (sel[pid] == nil and sel_start[pid] == nil and sel_end[pid] == nil) then
-			-- Nothing begun at all. Asking for an operation on a selection
-			-- says plainly enough that one is wanted, so start it rather
-			-- than answer with a refusal the player then has to undo by
-			-- typing /sel anyway.
-			begin_sel(pid, sel_autobegan_msg);
+			l10n_send_chat(pid, sel_unbegan_msg);
 		elseif (sel_start[pid] == nil) then
 			l10n_send_chat(pid, sel_unstarted_msg);
 		else
@@ -1095,10 +1092,6 @@ local function take_corner(pid, pos)
 		l10n_send_chat(pid, sel_end_done_msg, pos);
 		sel[pid] = nil;
 	end
-
-	if (sel[pid] == nil) then
-		sel_pick[pid] = false;
-	end
 end
 
 -- Undo, for this one client, a block change it has already drawn for
@@ -1165,8 +1158,18 @@ end
 -- input arrives while sprinting or during a tool switch (see
 -- on_mouse_input), so a corner cannot be picked with sprint held.
 function mod.on_mouse_input(pid, bitmask)
-	local pressed = bit.band(bitmask, 1) ~= 0 and bit.band(sel_mouse[pid], 1) == 0;
+	local held = bit.band(bitmask, 1) ~= 0;
+	local pressed = held and bit.band(sel_mouse[pid], 1) == 0;
 	sel_mouse[pid] = bitmask;
+
+	-- Stop swallowing only once the button is back up, not the instant the
+	-- last corner lands. One click is two separate packets -- the input
+	-- change and the block action it causes -- and nothing orders them, so
+	-- clearing this on the corner would let the block action of that very
+	-- click through and break the block the player just picked.
+	if (not held and sel[pid] == nil) then
+		sel_pick[pid] = false;
+	end
 
 	if (pressed and sel_pick[pid] and sel[pid] ~= nil) then
 		local from = get_position(pid);
