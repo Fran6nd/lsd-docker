@@ -51,7 +51,8 @@
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local D = {name = "door"};
 
-local areas = require "world_editor.areas";
+local areas   = require "world_editor.areas";
+local stencil = require "world_editor.stencil";
 
 getcfg("we_door_speed", 8);     -- blocks moved per second
 getcfg("we_door_range", 4);     -- how close a player must be, in blocks
@@ -76,16 +77,10 @@ D.help  = {
 
 -- --------------------------------------------------------------- stencil
 --
--- The drawing is stored in the layout json rather than in the map,
--- because /savemap takes every component down before dumping the .vxl --
--- so the terrain on disk has a door-shaped hole in it and this is the
--- only record of what used to be there.
---
--- It is kept small enough to live comfortably in that json: a palette of
--- the distinct colours, plus one run-length string over the box in
--- z,y,x order, each run written "<count>*<palette index>" with index 0
--- meaning empty. A door of a few hundred cells in a handful of colours
--- comes to a couple of hundred bytes.
+-- Reading the marked box off the map and packing it for the layout json
+-- is shared with the elevator; see world_editor/stencil.lua. What is the
+-- door's own is how that drawing is indexed once decoded: by plane along
+-- the retract axis, so a move is a shift of plane indices.
 
 -- Key for a cell within one plane of the panel: the two coordinates the
 -- retract axis does not use. Those two never change as the panel
@@ -98,77 +93,6 @@ local function okey(axis, x, y, z)
 	return z*512 + x;
 end
 
--- Read the box out of the live map: which cells are solid, and what
--- colour each solid one carries. This has to run before D.render digs
--- the box, because digging is exactly what turns that terrain into
--- blocks the door owns.
---
--- get_map_block_color reads colorData straight (lsd/src/lua.c
--- get_map_block_color), so it means nothing for a cell that is not
--- solid -- hence reading it only behind is_solid.
---
--- Returns nil for a box with nothing in it, which is the caller's cue to
--- fall back to a plain solid panel.
-local function capture(x1, y1, z1, x2, y2, z2)
-	local pal, index, runs = {}, {}, {};
-	local prev, count, solid = nil, 0, 0;
-
-	for z = z1, z2 do
-		for y = y1, y2 do
-			for x = x1, x2 do
-				local idx = 0;
-				if (is_solid({x=x, y=y, z=z})) then
-					local c = get_map_block_color({x=x, y=y, z=z});
-					local hex = string.format("%02x%02x%02x", c.r, c.g, c.b);
-					idx = index[hex];
-					if (idx == nil) then
-						table.insert(pal, hex);
-						idx = #pal;
-						index[hex] = idx;
-					end
-					solid = solid + 1;
-				end
-
-				if (idx == prev) then
-					count = count + 1;
-				else
-					if (prev ~= nil) then
-						table.insert(runs, count.."*"..prev);
-					end
-					prev, count = idx, 1;
-				end
-			end
-		end
-	end
-	if (prev ~= nil) then
-		table.insert(runs, count.."*"..prev);
-	end
-
-	if (solid == 0) then
-		return nil;
-	end
-	return pal, table.concat(runs, ",");
-end
-
-local function decode_pal(pal)
-	if (type(pal) ~= "table") then
-		return nil;
-	end
-	local out = {};
-	for i, s in ipairs(pal) do
-		if (type(s) ~= "string" or string.len(s) ~= 6) then
-			return nil;
-		end
-		local r = tonumber(string.sub(s, 1, 2), 16);
-		local g = tonumber(string.sub(s, 3, 4), 16);
-		local b = tonumber(string.sub(s, 5, 6), 16);
-		if (r == nil or g == nil or b == nil) then
-			return nil;
-		end
-		out[i] = {r=r, g=g, b=b};
-	end
-	return out;
-end
 
 -- ------------------------------------------------------------- geometry
 
@@ -259,7 +183,7 @@ function D.click(s, pos, we)
 		end
 	end
 
-	d.pal, d.cells = capture(d.x1, d.y1, d.z1, d.x2, d.y2, d.z2);
+	d.pal, d.cells = stencil.capture(d.x1, d.y1, d.z1, d.x2, d.y2, d.z2);
 
 	s.data = d;
 	return true;
@@ -272,43 +196,19 @@ end
 -- a reason when the stencil does not describe this box, so a mismatch
 -- draws a plain panel instead of a misaligned mess.
 local function decode_occ(inst, npal, cells)
-	local w = inst.x2 - inst.x1 + 1;
-	local h = inst.y2 - inst.y1 + 1;
-	local plane = w * h;
-	local total = plane * (inst.z2 - inst.z1 + 1);
 	local axis = inst.axis;
+	local occ = {};
 
-	local occ, i, n = {}, 0, 0;
+	local n, why = stencil.each(inst, npal, cells, function(x, y, z, cidx)
+		local li = (axis == "z") and (z - inst.z1)
+		        or ((axis == "x") and (x - inst.x1) or (y - inst.y1));
+		local o = occ[li];
+		if (o == nil) then o = {}; occ[li] = o; end
+		o[okey(axis, x, y, z)] = cidx;
+	end);
 
-	for count, idx in string.gmatch(cells, "(%d+)%*(%d+)") do
-		count, idx = tonumber(count), tonumber(idx);
-		if (i + count > total) then
-			return nil, "more cells than the box holds";
-		end
-
-		if (idx ~= 0) then
-			if (idx > npal) then
-				return nil, "a run names colour "..idx..", which is not in the palette";
-			end
-			for c = i, i + count - 1 do
-				-- capture walked z, then y, then x; unwind that
-				local x = inst.x1 + (c % w);
-				local y = inst.y1 + (math.floor(c / w) % h);
-				local z = inst.z1 + math.floor(c / plane);
-				local li = (axis == "z") and (z - inst.z1)
-				        or ((axis == "x") and (x - inst.x1) or (y - inst.y1));
-
-				local o = occ[li];
-				if (o == nil) then o = {}; occ[li] = o; end
-				o[okey(axis, x, y, z)] = idx;
-				n = n + 1;
-			end
-		end
-		i = i + count;
-	end
-
-	if (i ~= total) then
-		return nil, string.format("%d cells for a box of %d", i, total);
+	if (n == nil) then
+		return nil, why;
 	end
 	return occ, n;
 end
@@ -474,7 +374,7 @@ function D.spawn(d, we)
 	-- refused to draw is not written back out on the next save either.
 	local occ, n;
 	if (cells ~= nil) then
-		local pal = decode_pal(d.pal);
+		local pal = stencil.decode_pal(d.pal);
 		local why;
 		if (pal == nil) then
 			why = "its palette is not a list of rrggbb strings";
