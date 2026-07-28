@@ -911,32 +911,6 @@ end
 -- and /delete's block are single points, not boxes.
 local awaiting = {};   -- pid -> true while a placement is waiting for one
 
--- Feed a finished selection into the placement as its first two marks,
--- exactly as if they had been marked one at a time, so components keep
--- taking their marks one at a time and none of them had to change.
-local function take_selection(pid)
-	local s = session[pid];
-	if (s == nil or not s.from_sel) then
-		awaiting[pid] = nil;
-		return;
-	end
-
-	local a, b = sel_corners(pid);
-	if (a == nil) then
-		return;            -- still being picked
-	end
-
-	s.from_sel = nil;
-	awaiting[pid] = nil;
-
-	l10n_send_chat(pid, msg.mark_at, a);
-	apply_mark(pid, a);
-	if (session[pid] ~= nil) then
-		l10n_send_chat(pid, msg.mark_at, b);
-		apply_mark(pid, b);
-	end
-end
-
 -- Feed one mark into the placement in progress. Marks arrive from a
 -- spade/gun swing (aim_target, works on water and misses too), or from
 -- /here for spectators who fly rather than spade.
@@ -1017,6 +991,32 @@ local function apply_mark(pid, pos)
 	l10n_send_chat(pid, msg.placed, {kind=s.kind, id=inst.id});
 	save();
 	return true;
+end
+
+-- Feed a finished selection into the placement as its first two marks,
+-- exactly as if they had been marked one at a time, so components keep
+-- taking their marks one at a time and none of them had to change.
+local function take_selection(pid)
+	local s = session[pid];
+	if (s == nil or not s.from_sel) then
+		awaiting[pid] = nil;
+		return;
+	end
+
+	local a, b = sel_corners(pid);
+	if (a == nil) then
+		return;            -- still being picked
+	end
+
+	s.from_sel = nil;
+	awaiting[pid] = nil;
+
+	l10n_send_chat(pid, msg.mark_at, a);
+	apply_mark(pid, a);
+	if (session[pid] ~= nil) then
+		l10n_send_chat(pid, msg.mark_at, b);
+		apply_mark(pid, b);
+	end
 end
 
 -- undo whatever the client just did to a block or three, given the
