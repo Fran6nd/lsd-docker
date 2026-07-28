@@ -1087,7 +1087,17 @@ function mod.on_mouse_input(pid, bits)
 	-- sel.lua; it is absent when sel is not loaded, hence the guard.)
 	local picking = sel_pending ~= nil and sel_pending(pid);
 
-	if (pressed and editing and not picking and session[pid] ~= nil) then
+	-- A placement waiting on a selection must not also take the click as
+	-- one of its own marks. On the click that lands the second corner sel
+	-- has already finished, so `picking` is false again by the time we are
+	-- asked -- without this the door would be placed from one aimed mark
+	-- instead of the box that was just picked.
+	local s = session[pid];
+	if (s ~= nil and s.from_sel) then
+		picking = true;
+	end
+
+	if (pressed and editing and not picking and s ~= nil) then
 		local tool = get_tool(pid);
 		if (tool == 0 or tool == 2) then   -- spade or gun
 			local t = aim_target(pid);
