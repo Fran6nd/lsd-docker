@@ -29,10 +29,3 @@ load "lib_bulk_destroy"
 load "lib_l10n"
 
 load "world_editor"
-
--- Lets a client drive the editor itself: it stops the server refusing
--- block packets that break the placement rules, so a client with its own
--- select/copy/paste UX can express the result as plain block packets.
--- Inert unless edit mode is on and the sender holds worldedit_build, so
--- loading it costs a normal round nothing.
-load "world_editor_freebuild"

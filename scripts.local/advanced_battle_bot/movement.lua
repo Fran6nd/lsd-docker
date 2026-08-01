@@ -7,10 +7,18 @@
 -- tricks -- those caused the "little hop then rocket up" jump.
 -- (The original's BOT_junkai_route waypoint patrol needs map-authored
 -- route graphs and is not ported; this local handling works anywhere.)
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 require "lib_bulk_destroy"; -- bdestroy_* for the dig
 
 local M = {};
 local floor, sqrt = math.floor, math.sqrt;
+
+-- is_solid only guards z < 0; z > 63 is out of bounds and PANICs, so
+-- wrap it
+local function solid(x, y, z)
+	if (z < 0 or z > 63) then return false; end
+	return is_solid({x=x, y=y, z=z});
+end
 
 local STUCK_CHECK = 0.5;  -- seconds between progress checks
 local STUCK_MOVE = 0.7;   -- blocks of progress that count as moving
@@ -24,7 +32,7 @@ local function dig(pid, p)
 	local fx, fy = floor(p.x + o.x/h), floor(p.y + o.y/h);
 	local iz = floor(p.z);
 	for _, z in ipairs({iz-1, iz, iz+1, iz+2}) do
-		if (z >= 0 and z < 62 and is_solid({x=fx, y=fy, z=z})) then
+		if (z >= 0 and z < 62 and solid(fx, fy, z)) then
 			bdestroy_block_action({x=fx, y=fy, z=z}, 1);
 		end
 	end
@@ -37,7 +45,7 @@ function M.navigate(pid, d, dest, now, dt)
 	local p = get_position(pid);
 	local ix, iy, iz = floor(p.x), floor(p.y), floor(p.z);
 	-- z is down: iz+2/iz+3 catch the floor below the feet
-	local grounded = is_solid({x=ix, y=iy, z=iz+2}) or is_solid({x=ix, y=iy, z=iz+3});
+	local grounded = solid(ix, iy, iz+2) or solid(ix, iy, iz+3);
 
 	local jump, crouch = false, false;
 
