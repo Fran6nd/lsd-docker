@@ -1,4 +1,5 @@
 -- world_editor/stencil.lua -- Capture an existing build as a component
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- Components that MOVE a piece of the map -- the door, the elevator --
 -- do not draw a shape of their own. Whatever is already built inside the
@@ -16,7 +17,6 @@
 -- z,y,x order, each run written "<count>*<palette index>" with index 0
 -- meaning empty. A few hundred cells in a handful of colours comes to a
 -- couple of hundred bytes.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local S = {};
 
 -- Read a box off the live map: which cells are solid, and what colour

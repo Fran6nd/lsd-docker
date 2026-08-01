@@ -1,4 +1,5 @@
 -- unrestricted_blocks.lua -- Accept block packets the server would refuse
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- Sibling of stock infinite_blocks.lua: that one lifts the supply limit,
 -- this one lifts the placement rules.
@@ -45,7 +46,6 @@
 -- on and drops it again afterwards, which is the intended pairing --
 -- but this script does not depend on world_editor and works with any
 -- scheme that hands out the cap.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 
 local bit = require("bit");

@@ -1,4 +1,5 @@
 -- world_editor.lua -- Place moving map components and spatial permissions
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- Editing is a server-wide mode that can only be switched on from the
 -- admin console (/worldedit on). While it is on the server takes itself
@@ -43,8 +44,6 @@
 --   worldedit_build -- place, move and remove components. Granted
 --                      automatically to everyone present for as long as
 --                      edit mode is on, and dropped again after.
---
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 
 -- Hot-reload correctness: require() caches modules in package.loaded, so

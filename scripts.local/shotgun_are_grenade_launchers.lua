@@ -1,11 +1,11 @@
 -- shotgun_are_grenade_launchers.lua -- One random shotgun pellet per
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 -- shot detonates a grenade where it lands.
 --
 -- The client never reports where pellets hit the world (spread is
 -- client-side RNG; the server only sees player hits and block
 -- destroys), so the chosen pellet is simulated here: jitter the aim
 -- direction by the shotgun's spread, raycast it, boom.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 
 getcfg("sgl_pellets", 8);     -- pellets per shell

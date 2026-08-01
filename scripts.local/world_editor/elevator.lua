@@ -1,4 +1,5 @@
 -- world_editor/elevator.lua -- A built platform that lifts riders
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- Placement: /place elevator <up|down>
 --   mark 1 -- one corner of the platform
@@ -48,7 +49,6 @@
 --
 -- The map's z axis points *down* (z=0 sky, z=63 floor), so travelling
 -- "up" steps z downward.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local E = {name = "elevator"};
 
 local areas   = require "world_editor.areas";

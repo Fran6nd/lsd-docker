@@ -1,4 +1,5 @@
 -- rifle_is_a_rail_gun.lua -- Rifle shots pierce the whole map: every
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 -- block on the trajectory is destroyed (only the unbreakable
 -- water-level floor survives, and even that doesn't stop the bullet)
 -- and every enemy on the line dies in one hit, behind cover or not.
@@ -10,7 +11,6 @@
 -- matters: block actions are batched per client frame and a build and
 -- destroy landing in the same frame get processed in the wrong order,
 -- leaving phantom blocks.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 require "lib_bulk_destroy";
 

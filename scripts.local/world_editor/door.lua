@@ -1,4 +1,5 @@
 -- world_editor/door.lua -- A built surface that retracts to open
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- Placement: /place door up|down|left|right
 --   mark 1 -- one corner of the door box
@@ -48,7 +49,6 @@
 -- in world_editor.lua for why re-sending an unchanged cell is not free.
 --
 -- The map's z axis points *down*: z1 is the top row, z2 the bottom.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local D = {name = "door"};
 
 local areas   = require "world_editor.areas";

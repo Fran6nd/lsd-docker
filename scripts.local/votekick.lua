@@ -1,4 +1,5 @@
 -- votekick.lua -- Player-driven kick votes.
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- Any in-game player can start a vote with /votekick <player>; others
 -- add their voice with /y (or /votekick again). Reach the needed count
@@ -9,7 +10,6 @@
 -- "kick" cap (admins/mods) or "votekick_immune" can't be targeted, and
 -- votekicks are refused below votekick_min_players so a near-empty
 -- server can't gang up on one person.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 
 getcfg("votekick_ratio", 0.5);      -- fraction of players past which a kick carries

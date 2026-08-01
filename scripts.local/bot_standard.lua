@@ -1,4 +1,5 @@
 -- bot_standard.lua -- Combat guard bots on lib_bot, a Lua port of
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 -- piqueserver's example_bot.py. Keeps guard_count fighters alive per
 -- team; each one:
 --   ROAM    -- no enemy in sight: march on the enemy tent
@@ -12,7 +13,6 @@
 --
 -- DEPENDENCIES: lib_bot loaded first (config.lua does this), and a
 -- tent gamemode (ctf) for the roam target. It never load()s its deps.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 require "lib_bulk_destroy"; -- global bdestroy_* for the dig-out stage
 
 local mod = init_mod();
