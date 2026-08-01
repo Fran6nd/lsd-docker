@@ -1,4 +1,5 @@
 -- world_editor/areas.lua -- Shapes, containment and area triggers
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- One shape vocabulary serves the whole editor: authorization chunks
 -- test blocks against it, components test *players* against it. Keeping
@@ -15,7 +16,6 @@
 -- Note the map's z axis points *down*: z=0 is sky, z=63 is the floor.
 -- So "higher up" means a smaller z, and z1/z2 are stored min/max with
 -- no assumption about which end is the top.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local A = {};
 
 local defs = {};

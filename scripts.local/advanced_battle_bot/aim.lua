@@ -1,11 +1,11 @@
 -- advanced_battle_bot/aim.lua -- the "gosa" (aim-error) model, ported
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 -- from new_gosa/late_gosa/tebure_gosa/moving_target_gosa. A bot never
 -- aims perfectly: its aim carries a skill-scaled error that converges
 -- toward the target but never fully settles (the "terminator fix"),
 -- a gaussian hand tremor, a recoil kick on every shot, and a
 -- skill-scaled lead on moving targets. Higher skill (0..1) = smaller
 -- errors, tighter settle, less tremor.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local M = {};
 
 local sin, cos, atan2, sqrt, pi = math.sin, math.cos, math.atan2, math.sqrt, math.pi;

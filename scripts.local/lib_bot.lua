@@ -1,4 +1,5 @@
 -- lib_bot.lua -- Base API for server-side bots, so bot scripts read
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 -- as intent instead of protocol calls.
 --
 -- A bot is an ordinary player slot with no ENet peer: the C core
@@ -76,7 +77,6 @@
 --   (lsdctl load lib_bot hostage ...): reloading the lib alone
 --   destroys the registry under its dependents' feet, which is also
 --   why bot_destroy is idempotent.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 
 getcfg("bot_fidget_secs", 45);      -- idle keepalive period

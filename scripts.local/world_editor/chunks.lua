@@ -1,4 +1,5 @@
 -- world_editor/chunks.lua -- Spatial authorization: who may edit what
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- A "chunk" is a named region of the map with a permission attached.
 -- Every block edit is resolved against them; anything not inside a
@@ -19,7 +20,6 @@
 --     creation order (later wins). That makes exceptions natural:
 --     drop a small rw chunk inside a big ro one and it carves a hole
 --     rather than fighting it.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local M = {};
 
 local areas = require "world_editor.areas";

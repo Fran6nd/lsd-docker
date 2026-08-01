@@ -1,4 +1,5 @@
 -- grenades_teleport_to_eol_fall.lua -- A bottomless pit at map centre,
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 -- and grenades that fling their victims down it.
 --
 -- A cylindrical shaft (diameter 25) is carved from the top of the map to
@@ -10,7 +11,6 @@
 -- thrower too if they're close enough) is teleported over the shaft and
 -- left to plummet down it. The fatal landing at the bottom is rewritten
 -- into the thrower's grenade kill, so the drop counts for them.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 require "lib_bulk_destroy";
 

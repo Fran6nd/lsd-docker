@@ -1,4 +1,5 @@
 -- advanced_battle_bot.lua -- Advanced battle bots, a Lua port of
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 -- tmp-bot-script-advanced.py (TDM + CTF scope) built on lib_bot.
 --
 -- Keeps abb_count fighters per team. Each bot has a rolled skill
@@ -18,7 +19,6 @@
 --
 -- DEPENDENCIES: lib_bot loaded first; ctf (or babel) for the intel and
 -- tents. Command: /abots -- list the bots, their skill and state.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 local mod = init_mod();
 
 local cfg = require "advanced_battle_bot.config";
