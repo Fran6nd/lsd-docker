@@ -1130,30 +1130,41 @@ local function unbreak(pid, pos, type)
 	end
 end
 
+-- /sel1 and /sel2 still take their corner from the block action.
 function mod.on_block_action(pid, pos, type)
-	-- picking a corner must not cost the map a block
-	if (sel_pick[pid]) then
-		unbreak(pid, pos, type);
-		-- a spade swing takes the block above and below with it
-		if (type == 2) then
-			unbreak(pid, {x=pos.x, y=pos.y, z=pos.z-1}, type);
-			unbreak(pid, {x=pos.x, y=pos.y, z=pos.z+1}, type);
-		end
+	if (not sel_pick[pid] and type <= 1 and sel[pid]) then
+		take_corner(pid, pos);
+		return;
+	end
+	mod.next.on_block_action(pid, pos, type);
+end
+
+-- Picking a corner must not cost the map a block. This swallow sits in
+-- the `late` chain rather than the default one so that scripts which
+-- merely observe block actions still see them: refusing to break a block
+-- does not mean the shot never happened, and a script animating gunfire
+-- or correcting the engine's magazine estimate from it would otherwise
+-- go blind for as long as a corner is outstanding. Dispatch runs
+-- xearly -> early -> std -> late -> impl, so this is the last word before
+-- the engine while everything above still runs.
+function mod.late.on_block_action(pid, pos, type)
+	if (not sel_pick[pid]) then
+		mod.late.next.on_block_action(pid, pos, type);
 		return;
 	end
 
-	-- /sel1 and /sel2 still take their corner from the block action
-	if (type <= 1 and sel[pid]) then
-		take_corner(pid, pos);
-	else
-		mod.next.on_block_action(pid, pos, type);
+	unbreak(pid, pos, type);
+	-- a spade swing takes the block above and below with it
+	if (type == 2) then
+		unbreak(pid, {x=pos.x, y=pos.y, z=pos.z-1}, type);
+		unbreak(pid, {x=pos.x, y=pos.y, z=pos.z+1}, type);
 	end
 end
 
 -- ...nor may a block line slip past.
-function mod.on_block_line(pid, start, stop)
+function mod.late.on_block_line(pid, start, stop)
 	if (not sel_pick[pid]) then
-		mod.next.on_block_line(pid, start, stop);
+		mod.late.next.on_block_line(pid, start, stop);
 		return;
 	end
 	for p in iter_block_line(start, stop) do
