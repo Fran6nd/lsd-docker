@@ -1029,7 +1029,24 @@ local function revert_action(pid, pos, type)
 	end
 end
 
-function mod.on_block_action(pid, pos, type)
+-- The guard runs in the `late` callchain, not the default one, and that
+-- is load-bearing rather than tidiness.
+--
+-- Vetoing means returning without calling next, which hides the event
+-- from every handler further down. Scripts that only *observe* block
+-- actions are entitled to see one even when it changes no block: a
+-- bullet that hit a protected door was still a bullet. Two here depend
+-- on exactly that -- rifle_is_a_rail_gun and shotgun_are_grenade_launchers
+-- take a block action as proof the gun really fired, and use it to
+-- correct the engine's magazine estimate (get_mag_ammo is estMagAmmo,
+-- documented as prone to desync). Starve them and their effects stop
+-- once the estimate drifts to empty.
+--
+-- Dispatch runs xearly -> early -> std -> late -> impl (core.lua
+-- init_chains), so a guard in `late` is the last word before the engine
+-- while every std observer above it still runs. Leaving it in `std` made
+-- the outcome depend on which script the config happened to load first.
+function mod.late.on_block_action(pid, pos, type)
 	-- while placing, no block action edits anything -- the destroy is
 	-- swallowed and the mark comes from the fire input (on_mouse_input),
 	-- so it also works on water and on empty misses
@@ -1067,7 +1084,7 @@ function mod.on_block_action(pid, pos, type)
 		return;
 	end
 
-	mod.next.on_block_action(pid, pos, type);
+	mod.late.next.on_block_action(pid, pos, type);
 end
 
 -- Marking is driven by the fire button so it works with a spade or a
@@ -1113,7 +1130,8 @@ function mod.on_mouse_input(pid, bits)
 	mod.next.on_mouse_input(pid, bits);
 end
 
-function mod.on_block_line(pid, start, stop)
+-- ...and the same for a block line, for the same reason.
+function mod.late.on_block_line(pid, start, stop)
 	local broke = nil;
 	for p in iter_block_line(start, stop) do
 		local act, id = may_edit(pid, p.x, p.y, p.z);
@@ -1131,7 +1149,7 @@ function mod.on_block_line(pid, start, stop)
 		break_component(broke, pid);
 		return;
 	end
-	mod.next.on_block_line(pid, start, stop);
+	mod.late.next.on_block_line(pid, start, stop);
 end
 
 -- A cell another script must not write: one a component occupies, or a
