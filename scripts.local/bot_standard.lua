@@ -1,7 +1,8 @@
--- bot_standard.lua -- Combat guard bots on lib_bot, a Lua port of
+-- bot_standard.lua -- Combat guard bots on lib_bot
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
--- piqueserver's example_bot.py. Keeps guard_count fighters alive per
--- team; each one:
+--
+-- A Lua port of piqueserver's example_bot.py. Keeps guard_count fighters
+-- alive per team; each one:
 --   ROAM    -- no enemy in sight: march on the enemy tent
 --   PURSUE  -- enemy seen but out of shoot range: sprint to close in
 --   ENGAGE  -- enemy in range: stand, aim, fire, grenade up close

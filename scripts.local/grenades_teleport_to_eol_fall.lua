@@ -1,6 +1,7 @@
--- grenades_teleport_to_eol_fall.lua -- A bottomless pit at map centre,
+-- grenades_teleport_to_eol_fall.lua -- A bottomless pit at map centre
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
--- and grenades that fling their victims down it.
+--
+-- ...and grenades that fling their victims down it.
 --
 -- A cylindrical shaft (diameter 25) is carved from the top of the map to
 -- the bottom every time a map loads -- the map files on disk are never

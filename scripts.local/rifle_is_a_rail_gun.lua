@@ -1,6 +1,7 @@
--- rifle_is_a_rail_gun.lua -- Rifle shots pierce the whole map: every
+-- rifle_is_a_rail_gun.lua -- Rifle shots pierce the whole map
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
--- block on the trajectory is destroyed (only the unbreakable
+--
+-- Every block on the trajectory is destroyed (only the unbreakable
 -- water-level floor survives, and even that doesn't stop the bullet)
 -- and every enemy on the line dies in one hit, behind cover or not.
 -- Shots leave a dashed tracer trail of blocks along the trajectory
