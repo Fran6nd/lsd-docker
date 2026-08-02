@@ -1,6 +1,7 @@
--- lib_bot.lua -- Base API for server-side bots, so bot scripts read
+-- lib_bot.lua -- Base API for server-side bots
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
--- as intent instead of protocol calls.
+--
+-- So bot scripts read as intent instead of protocol calls.
 --
 -- A bot is an ordinary player slot with no ENet peer: the C core
 -- already sends packets for peerless players to /dev/null, runs full

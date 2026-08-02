@@ -1,6 +1,7 @@
--- shotgun_are_grenade_launchers.lua -- One random shotgun pellet per
+-- shotgun_are_grenade_launchers.lua -- Shotgun pellets are grenades
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
--- shot detonates a grenade where it lands.
+--
+-- One random pellet per shot detonates a grenade where it lands.
 --
 -- The client never reports where pellets hit the world (spread is
 -- client-side RNG; the server only sees player hits and block

@@ -1,6 +1,7 @@
--- advanced_battle_bot/config.lua -- tunables and difficulty, ported
+-- advanced_battle_bot/config.lua -- Tunables and difficulty
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
--- from the header of tmp-bot-script-advanced.py (TDM + CTF scope).
+--
+-- Ported from the header of tmp-bot-script-advanced.py (TDM + CTF scope).
 --
 -- Skill is the old CPU_LV: a 0..100 "level" plus a +/- spread, which
 -- each bot rolls once into abb.skill in 0..1 (higher = sharper aim,

@@ -1,7 +1,8 @@
--- hostage.lua -- The Hostage gamemode. Each team has a hostage (a
+-- hostage.lua -- The Hostage gamemode
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
--- lib_bot) held prisoner at the enemy tent, standing with a block in
--- its team's color. Come closer than hostage_engage_dist and it walks
+--
+-- Each team has a hostage (a lib_bot) held prisoner at the enemy tent,
+-- standing with a block in its team's color. Come closer than
 -- after you (hostages are too weary to run) -- but only while you keep
 -- moving; stop, stray past hostage_lose_dist, or die and it gives up
 -- and stands where it is. Walk it

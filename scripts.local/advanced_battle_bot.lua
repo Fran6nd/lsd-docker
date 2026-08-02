@@ -1,6 +1,7 @@
--- advanced_battle_bot.lua -- Advanced battle bots, a Lua port of
+-- advanced_battle_bot.lua -- Advanced battle bots
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
--- tmp-bot-script-advanced.py (TDM + CTF scope) built on lib_bot.
+--
+-- A Lua port of tmp-bot-script-advanced.py (TDM + CTF scope), built on lib_bot.
 --
 -- Keeps abb_count fighters per team. Each bot has a rolled skill
 -- (0..1) that drives a human-like aim-error model (see aim.lua), and a
