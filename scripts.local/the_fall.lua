@@ -709,12 +709,27 @@ end
 -- are every way one player hurts another.
 
 -- The team a faller must LOOK like to `viewer`: never the viewer's own.
--- Spectators have no side to be an enemy of, so they get the truth.
 -- 1-based, the base get_team() and send_spawn_player() both speak.
+--
+-- Anyone without a side of their own gets the truth instead, and there
+-- are two of them. Spectators, obviously. And -- less obviously, but it
+-- is the case that matters -- anyone still in limbo, which is exactly
+-- who send_existing_player is talking to: a client is sent the roster
+-- while it is still choosing a team, and that roster is what its team
+-- picker counts. Disguise the fallers there and the newcomer is shown
+-- four enemies and no allies, so they pick the empty side every time.
+-- The truth is an even split (faller_census keeps it that way), which is
+-- what the picker should see; the moment they spawn into a team,
+-- spawn_player above re-announces every faller with the disguise on.
+--
+-- is_joined is the test rather than the team, because the team of a
+-- player who has not joined is not meaningful: nothing resets it on
+-- connect or disconnect, so a fresh slot reads as whatever the last
+-- occupant left behind -- or team 1 on a slot nobody has used yet.
 local function enemy_of(viewer, real)
 	local t = get_team(viewer);
 
-	if (t ~= 1 and t ~= 2) then
+	if (not is_joined(viewer) or (t ~= 1 and t ~= 2)) then
 		return real;
 	end
 	return t == 1 and 2 or 1;
