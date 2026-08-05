@@ -27,7 +27,9 @@ usage:
 
 instances
   ls                  list instances (name, port, gamemode, listing, state)
-  new <name> [-p N]   create instances/<name>.env + <name>.config.lua
+  new <name> [-p N]   create instances/<name>.env, <name>.config.lua
+                      and <name>.map/ (its own maps, seeded from an
+                      existing instance)
   rm  <name>          stop and delete an instance
 
 scripts
@@ -51,7 +53,7 @@ per-instance (first arg is the instance name)
   console             attach to the in-game admin console (Ctrl-C to leave)
   shell               open a shell inside the container
 
-  map list            list installed maps (shared pool)
+  map list            list this instance's installed maps
   map add <src>...    install maps from local files or http(s) URLs
   map rm <name>...    remove maps
   map load <name>     switch this instance's live map now (no restart)
@@ -66,6 +68,9 @@ per-instance (first arg is the instance name)
                       layer on top of the released scripts.local/ one
   masterlist [on|off] show/set whether this instance is announced to the
                       public server lists (off = unlisted, not private)
+
+Each instance owns its maps in instances/<name>.map/ -- editing a map on
+one server never touches another's. Override with LSD_MAPS_DIR in its .env.
 
 Instance config lives in instances/<name>.config.lua; custom/overriding
 scripts go in scripts.local/ (released) and scripts.dev/ (in development,
@@ -96,6 +101,12 @@ reserved_name() {
 
 envf_for() { printf '%s/%s.env' "$INSTANCES_DIR" "$1"; }
 cfgf_for() { printf '%s/%s.config.lua' "$INSTANCES_DIR" "$1"; }
+# Maps belong to one server, not to all of them. An instance owns
+# instances/<name>.map/ and nothing else reads or writes it, so editing a
+# map on one server cannot change what another is playing. The container
+# always mounts it at /lsd/maps whatever the host path is, so nothing
+# inside the server -- world_editor's layouts included -- has to care.
+mapsd_for() { printf '%s/%s.map' "$INSTANCES_DIR" "$1"; }
 
 # read a key from an env file, empty if unset
 env_get_file() {
@@ -180,13 +191,45 @@ new_instance() {
 	fi
 
 	cp config.lua "$(cfgf_for "$name")"
+
+	# Every server gets its own maps. Seed the new folder by copying an
+	# existing one, so a fresh instance can actually boot -- LSD_MAPS names
+	# maps that have to exist somewhere. Preference goes to the legacy
+	# shared pool if it is still around, else any other instance's folder.
+	maps=$(mapsd_for "$name")
+	mkdir -p "$maps"
+	seed=
+	if [ -d maps ] && ls maps/*.vxl >/dev/null 2>&1; then
+		seed=maps
+	else
+		for other in "$INSTANCES_DIR"/*.map; do
+			[ -d "$other" ] || continue
+			[ "$other" = "$maps" ] && continue
+			if ls "$other"/*.vxl >/dev/null 2>&1; then seed=$other; break; fi
+		done
+	fi
+	maplist="hallway bridgewars pinpoint"
+	if [ -n "$seed" ]; then
+		cp -R "$seed/." "$maps/"
+		# queue what was actually seeded: the stock default names maps
+		# that may not exist here, and the server cannot rotate onto a
+		# map that is not in its folder
+		found=$(ls "$maps"/*.vxl 2>/dev/null | sed 's|.*/||; s|\.vxl$||' | tr '\n' ' ')
+		[ -z "${found% }" ] || maplist=${found% }
+		echo "seeded $maps from $seed: $maplist"
+	else
+		echo "note: $maps is empty -- add maps with: ./lsdctl $name map add <file|url>"
+	fi
+
 	cat > "$(envf_for "$name")" <<EOF
 # $name instance
 LSD_PORT=$port
 LSD_NAME=$name
 LSD_GAMEMODE=ctf
-LSD_MAPS=hallway bridgewars pinpoint
+LSD_MAPS=$maplist
 LSD_CONFIG_FILE=./$(cfgf_for "$name")
+# this server's own maps; nothing else reads or writes them
+LSD_MAPS_DIR=./$(mapsd_for "$name")
 LSD_RW_VOLUME=lsd-$name-rw
 # run the in-development scripts.dev/ layer (0 = released scripts only)
 LSD_SCRIPTS_DEV=1
@@ -196,6 +239,7 @@ EOF
 	echo "created instance '$name' on port $port:"
 	echo "  $(envf_for "$name")"
 	echo "  $(cfgf_for "$name")"
+	echo "  $maps/"
 	echo "next: edit $(cfgf_for "$name"), then  ./lsdctl $name up"
 }
 
@@ -207,6 +251,16 @@ rm_instance() {
 	docker compose -p "lsd-$name" --env-file "$envf" down || true
 	rm -f "$envf" "$(cfgf_for "$name")"
 	echo "removed instance '$name' (config + env deleted)"
+	maps=$(mapsd_for "$name")
+	if [ -d "$maps" ]; then
+		printf "also delete its maps '%s' (%s files)? [y/N] " \
+		       "$maps" "$(ls -1 "$maps" 2>/dev/null | wc -l)"
+		read -r ans || ans=n
+		case "$ans" in
+		y|Y) rm -rf "$maps"; echo "$maps removed" ;;
+		*) echo "kept $maps" ;;
+		esac
+	fi
 	if [ -n "$vol" ]; then
 		printf "also delete its data volume '%s'? [y/N] " "$vol"
 		read -r ans || ans=n
@@ -270,6 +324,15 @@ env_set() {
 console_pipe() { compose exec -T lsd socat - UNIX-CONNECT:rw/console.sock; }
 
 # on/off settings of the current instance, read from its .env
+# this instance's map directory: an explicit LSD_MAPS_DIR wins, else the
+# per-instance default. Instances created before maps were split have no
+# LSD_MAPS_DIR and fall back to the old shared pool.
+mapsd() {
+	d=$(env_get LSD_MAPS_DIR)
+	[ -n "$d" ] || d=$(mapsd_for "$INSTANCE")
+	printf '%s' "${d#./}"
+}
+
 dev_on() { flag_on "$(env_get LSD_SCRIPTS_DEV)"; }
 masterlist_on() { flag_on "$(env_get LSD_MASTERLIST)"; }
 
@@ -516,36 +579,40 @@ dispatch() {
 		fi
 		;;
 	map)
+		# every path here is this instance's own map folder; another
+		# server's maps are none of its business
+		md=$(mapsd)
 		msub=${1:-list}; [ $# -gt 0 ] && shift
 		case "$msub" in
 		list)
-			ls -lh maps/*.vxl 2>/dev/null || echo "no maps installed"
+			echo "$md:"
+			ls -lh "$md"/*.vxl 2>/dev/null || echo "  no maps installed"
 			;;
 		add)
 			[ $# -gt 0 ] || usage 1
-			mkdir -p maps
+			mkdir -p "$md"
 			for src in "$@"; do
 				case "$src" in
 				http://*|https://*)
-					curl -fSL -o "maps/$(basename "$src")" "$src";;
+					curl -fSL -o "$md/$(basename "$src")" "$src";;
 				*)
-					cp -v "$src" maps/;;
+					cp -v "$src" "$md/";;
 				esac
 			done
-			echo "installed; maps are picked up at the next rotation," \
+			echo "installed into $md; maps are picked up at the next rotation," \
 			     "add them to LSD_MAPS to queue them: ./lsdctl $INSTANCE set LSD_MAPS '...'"
 			;;
 		rm)
 			[ $# -gt 0 ] || usage 1
 			for name in "$@"; do
-				rm -v "maps/${name%.vxl}.vxl"
+				rm -v "$md/${name%.vxl}.vxl"
 			done
 			;;
 		load)
 			[ $# -eq 1 ] || usage 1
 			name=${1%.vxl}
-			if [ ! -f "maps/$name.vxl" ]; then
-				echo "error: no map 'maps/$name.vxl' (see ./lsdctl $INSTANCE map list)" >&2
+			if [ ! -f "$md/$name.vxl" ]; then
+				echo "error: no map '$md/$name.vxl' (see ./lsdctl $INSTANCE map list)" >&2
 				exit 1
 			fi
 			# switch the running server's map now -- no restart, nobody
