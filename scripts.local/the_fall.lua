@@ -8,18 +8,20 @@
 --
 -- From there the only way out is to kill somebody. Do that and you are
 -- healed, restocked and put back at your team's spawn, in the game
--- again. Nothing else gets you out. The floor at the bottom doesn't kill
--- you, it just picks you up and drops you in again from the top, over
--- and over. Being shot by somebody else falling beside you does kill you
--- -- they earn the point, and they have earned their way out if they
--- were down here too -- but you respawn at the top of the shaft, still
--- falling, still owing a kill.
+-- again. Nothing else gets you out. You never even reach the floor: a
+-- few blocks short of it you are snatched back to the top, whole and
+-- restocked, with clear air still under you -- no landing, no impact,
+-- just the same drop again, over and over. Being shot by somebody else
+-- falling beside you does kill you -- they earn the point, and they have
+-- earned their way out if they were down here too -- but you respawn at
+-- the top of the shaft, still falling, still owing a kill.
 --
--- Bots ride the shaft permanently, and they are prisoners on the same
--- terms: the floor never kills them either. They land, wait out a random
--- second or three so they never fall in formation, and go again. A
--- bullet does kill them, which is the entire reason they are down there
--- -- they are what a player shoots to buy their way out.
+-- Bots ride the shaft permanently, on exactly the same terms: caught
+-- short of the floor like everybody else, round and round. Each one
+-- enters at its own height, redrawn every lap, so they never fall in
+-- formation. A bullet does kill them, which is the entire reason they
+-- are down there -- they are what a player shoots to buy their way out,
+-- and the only thing that ever puts one on the ground.
 --
 -- And they are everyone's enemy: whatever side a faller is really on,
 -- every client is told it is on the other side from them, so a Blue
@@ -45,12 +47,19 @@ getcfg("thefall_edge_margin", 3);
 -- enemy to everybody (see DISGUISE), so this is a flat total and the
 -- side they are really on is an internal detail
 getcfg("thefall_bots", 4);
--- seconds a bot waits at the bottom before its next drop, drawn fresh
--- each time. Without the jitter they would all fall in lockstep: every
--- bot's lap is the same fixed drop, so any two that ever touch down on
--- the same tick stay glued together from then on
+-- seconds a SHOT bot lies there before being dropped in again, drawn
+-- fresh each time. Only shooting one ever puts a bot on the ground; the
+-- floor never does
 getcfg("thefall_bot_delay_min", 1);
 getcfg("thefall_bot_delay_max", 3);
+-- how many blocks short of the shaft's floor a faller is snatched back
+-- to the top. Big enough that the catch happens with clear air still
+-- underneath -- a fall at terminal velocity covers about half a block
+-- per tick, so this is several ticks of margin, not one
+getcfg("thefall_floor_clearance", 5);
+-- bots enter within this many blocks of the top, at a fresh random
+-- height every lap, so their laps never fall into step (see bot_drop_pos)
+getcfg("thefall_drop_spread", 24);
 
 local CX = thefall_center_x;
 local CY = thefall_center_y;
@@ -64,6 +73,9 @@ local DROP_R = math.max(R - thefall_edge_margin, 0.5);
 local DIG_Z_BOTTOM = 62;
 -- where a dropped player appears: the top of the shaft
 local DROP_Z = 1;
+-- and where the drop ends: anyone at or below this is close enough to
+-- the floor to be caught and sent back up, still in mid-air
+local CATCH_Z = DIG_Z_BOTTOM - thefall_floor_clearance;
 -- KillType: 3 is a grenade, and 5 up is the bookkeeping behind a team or
 -- gun change rather than a death anybody had
 local KILL_GRENADE = 3;
@@ -84,9 +96,9 @@ local no_build_msg = "You can't build in the Fall.";
 -- same rules but are recognised by being fallers, not by this -- their
 -- sentence never ends, so there is nothing to mark or clear.
 local falling = pid_connected_table();
--- bots serving their pause at the bottom: redrop[pid] = when to drop it
--- in again. Usually they are standing there alive, having simply landed;
--- shoot one and it waits the same pause out dead instead
+-- bots that were shot: redrop[pid] = when to drop the body in again.
+-- Only ever set for a bot somebody killed, since nothing else in the
+-- shaft can put one on the ground
 local redrop = pid_connected_table();
 
 -- (wx, wy) are continuous world coords; test a voxel with its centre,
@@ -117,16 +129,42 @@ local function clear_hole()
 	bdestroy_finish();
 end
 
--- a random point at the top of the shaft, uniform over the disc of
+local function is_faller(pid)
+	local b = bot_get(pid);
+	return b ~= nil and b.data.faller;
+end
+
+-- a random point in the shaft at height z, uniform over the disc of
 -- radius DROP_R: the sqrt undoes the area bias a flat random radius has,
 -- which would bunch everyone into the middle
-local function drop_pos()
+local function drop_at(z)
 	local ang = math.random() * 2 * math.pi;
 	local rad = DROP_R * math.sqrt(math.random());
 
 	return {x = CX + rad*math.cos(ang),
 	        y = CY + rad*math.sin(ang),
-	        z = DROP_Z};
+	        z = z};
+end
+
+-- players always enter at the very top: the whole drop, every time
+local function drop_pos()
+	return drop_at(DROP_Z);
+end
+
+-- bots enter somewhere in the top thefall_drop_spread blocks instead.
+-- That randomness is the ONLY thing keeping them out of formation now
+-- that nothing in here lands: every lap is otherwise identical, so four
+-- bots entering at the same height would fall as a block forever. A
+-- different entry height is a different lap length, redrawn every time,
+-- and they drift apart on their own with no packets spent on it.
+local function bot_drop_pos()
+	return drop_at(DROP_Z + math.random()*thefall_drop_spread);
+end
+
+-- back to the top, right now, whole. Nothing in the shaft ever dies of
+-- the shaft, so this is a teleport and not a respawn -- see recycle().
+local function drop_in(pid)
+	return is_faller(pid) and bot_drop_pos() or drop_pos();
 end
 
 -- Dig on every map load, while the map is still "loading" so the change
@@ -179,7 +217,7 @@ end
 -- grenades, and any scheduled respawn cancelled so nothing yanks it to a
 -- tent mid-drop.
 local function throw_in(pid)
-	spawn_player(pid, drop_pos());
+	spawn_player(pid, drop_in(pid));
 end
 
 -- A bot's pause at the bottom before its next drop, drawn fresh every
@@ -204,7 +242,7 @@ end
 -- they were caught.
 local function recycle(pid)
 	restock(pid);
-	set_position(pid, drop_pos());
+	set_position(pid, drop_in(pid));
 end
 
 -- pid killed somebody, which is the one way out. Healed, restocked and
@@ -275,8 +313,7 @@ function mod.kill(pid, type, killer)
 
 	if (falling[pid] ~= nil or faller) then
 		if (killer == pid) then
-			restock(pid);
-			if (faller) then stagger(pid); else set_position(pid, drop_pos()); end
+			recycle(pid);
 			return;
 		end
 
@@ -323,11 +360,6 @@ end
 -- four of them don't fall in formation. They still carry a spawn_at, for
 -- the respawns this script isn't the one asking for -- coming back from
 -- map-change limbo, most of all.
-
-local function is_faller(pid)
-	local b = bot_get(pid);
-	return b ~= nil and b.data.faller;
-end
 
 -- how many fallers there are, how they are split over the two real
 -- teams, and which name slots are taken
@@ -416,39 +448,41 @@ function mod.after.tick()
 	local now = get_time();
 
 	for i in piditer(PID_BROADCAST) do
-		-- a bot's pause at the bottom is up. Alive means it walked its
-		-- lap out and only needs moving; dead means somebody shot it,
-		-- and it needs bringing back first
+		-- a shot bot's pause is up: back on its feet at the top
 		if (redrop[i] ~= nil and now >= redrop[i]) then
 			redrop[i] = nil;
-			if (is_alive(i)) then
-				recycle(i);
-			else
-				throw_in(i);
-			end
+			throw_in(i);
 		end
 
-		-- Feet down, lap over. This is the loop, and it deliberately
-		-- does not lean on the landing being fatal -- nothing in the
-		-- shaft dies of the shaft any more, and even before that a
-		-- landing could be survivable: the top of the shaft is high
-		-- above the terrain, so anyone with enough air control can drift
-		-- out over open ground and come down outside from a height that
-		-- wouldn't hurt. Feet down is feet down; the shaft doesn't care
-		-- where or how hard.
-		--
-		-- The height test keeps the tick right after a drop from
-		-- counting: they are placed at DROP_Z with no ground under them
-		-- and are not airborne until the physics says so.
-		if (is_alive(i) and not is_airborne(i)
-		    and get_position(i).z > DROP_Z + 2) then
-			if (falling[i] ~= nil) then
+		if ((falling[i] ~= nil or is_faller(i)) and is_alive(i)) then
+			local p = get_position(i);
+
+			-- The catch, and the end of every lap: near enough to the
+			-- floor and they are snatched back to the top with clear air
+			-- still under them. Nobody in the Fall ever touches the
+			-- bottom -- no landing, no impact, no standing about down
+			-- there. Checked by height rather than by contact precisely
+			-- so that it happens BEFORE contact: waiting for the feet to
+			-- land is waiting one tick too long.
+			--
+			-- Height alone would be a trap for the drop tick itself,
+			-- when they are placed at the top with nothing under them
+			-- yet -- but the top is nowhere near CATCH_Z, so it can't
+			-- fire there.
+			if (p.z >= CATCH_Z) then
 				recycle(i);
-			elseif (is_faller(i) and redrop[i] == nil) then
-				-- bots serve their pause where they landed, so the four
-				-- of them drift apart instead of falling in formation
-				restock(i);
-				stagger(i);
+
+			-- Feet down anywhere else. The top of the shaft is high
+			-- above the terrain, so a player with enough air control can
+			-- drift out over open ground and come down outside it, from
+			-- a height that may not even hurt -- and would then be
+			-- walking around a live game while still serving a sentence.
+			-- Feet down is feet down; back you go.
+			--
+			-- Here the drop tick DOES need excluding: freshly placed at
+			-- DROP_Z, the physics has not called them airborne yet.
+			elseif (not is_airborne(i) and p.z > DROP_Z + 2) then
+				recycle(i);
 			end
 		end
 	end
