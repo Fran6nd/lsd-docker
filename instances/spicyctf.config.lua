@@ -101,7 +101,8 @@ register(maptime);
 motd = [[
 Welcome to [Spicy CTF] on [LSd].
 Grab the enemy intel and run it back to your tent to score.
-The catch: the guns are spiced.
+The catch: the guns are spiced, and dying drops you down the Fall.
+Kill someone before you land and it never happened.
 Have fun and expect some chaos.
 I recommend using ZeroSpades as client.
 ]]
@@ -111,6 +112,8 @@ tips = {
 	"Objective: steal the enemy intel and return it to your tent.",
 	"Spicy: every shotgun blast drops a grenade pellet -- mind the splash.",
 	"Spicy: rifles are railguns, they pierce blocks and leave a tracer.",
+	"The Fall: dying drops you down the central pit instead of killing you.",
+	"In the Fall, kill anyone before you land and you go back where you died.",
 	"Use /kill to die.",
 	function() for i in piditer(PID_BROADCAST) do
 		server_msg(i, string.format(
@@ -133,10 +136,6 @@ load "rifle_is_a_rail_gun"
 -- player-driven kick votes: /votekick <player>, /y to vote (scripts.local/)
 load "votekick"
 
--- central pit dug on every map load: hand grenades lose their blast and
--- instead drop everyone over the shaft to their death (scripts.local/)
-load "grenades_teleport_to_eol_fall"
-
 -- Plain CTF (this is the spicyctf instance -- same scripts as hostage,
 -- minus the hostage gamemode). Load the base gamemode and lib_bot, each
 -- exactly once. "hostage" folds onto ctf, so guard against it here too.
@@ -152,6 +151,12 @@ load "lib_bot"
 -- combat guard bots, 5 per team (scripts.local/) -- disabled for now;
 -- uncomment to bring them back (./lsdctl spicyctf load lib_bot bot_standard)
 -- load "bot_standard"
+
+-- The Fall: a central pit dug on every map load, and every death drops
+-- the corpse down it with the kill held back until it lands -- kill on
+-- the way down and it never happened. Needs lib_bot above it: it keeps
+-- four bots falling in the shaft as targets. (scripts.local/)
+load "the_fall"
 
 -- in-game map/component editor (scripts.local/). Loading it is inert on
 -- its own: edit mode is console-gated (./lsdctl spicyctf edit on), it
