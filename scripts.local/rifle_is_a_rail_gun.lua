@@ -5,7 +5,8 @@
 -- water-level floor survives, and even that doesn't stop the bullet)
 -- and every enemy on the line dies in one hit, behind cover or not.
 -- Shots leave a dashed tracer trail of blocks along the trajectory
--- that are destroyed right after being placed.
+-- that are destroyed right after being placed, colored with the
+-- shooter's team color.
 --
 -- The trail blocks are send-only (never in the server map): built for
 -- all clients on one tick, destroyed on a later one. The one-tick gap
@@ -54,9 +55,7 @@ end
 -- clips the body from 1.35 above pos to 2.25 below with a 0.45
 -- half-width, so sample that span and call it a hit when the ray
 -- passes within rig_hit_radius of any sample
-local function rail_kill(pid, start, dir)
-	local team = get_team(pid);
-
+local function rail_kill(pid, team, start, dir)
 	for i in piditer(PID_BROADCAST_EXCEPT(pid)) do
 		if (is_alive(i) and get_team(i) ~= team) then
 			local p = get_position(i);
@@ -85,6 +84,7 @@ end
 local function shoot(pid)
 	local start = get_position(pid);
 	local dir = get_orientation(pid);
+	local team = get_team(pid);
 	local traversed = 0;
 
 	lastanim[pid] = get_time();
@@ -98,11 +98,13 @@ local function shoot(pid)
 		z = (vox.z - start.z + math.max(step.z, 0))/dir.z,
 	};
 
-	-- each shot traces in a random shade of red
-	send_set_block_color(PID_BROADCAST,
-		{r=math.random(128, 255), g=0, b=0}, get_anon_pid());
+	-- the trail wears the shooter's team color, so a ray tells you at a
+	-- glance who fired it. set here, right before this shot's dashes go
+	-- out: the color applies to every following block_action from the
+	-- anonymous pid, so two shots in the same tick each keep their own
+	send_set_block_color(PID_BROADCAST, get_team_color(team), get_anon_pid());
 
-	rail_kill(pid, start, dir);
+	rail_kill(pid, team, start, dir);
 
 	while (traversed < rig_range) do
 		if (vox.x < 0 or vox.x > 511 or vox.y < 0 or vox.y > 511 or
