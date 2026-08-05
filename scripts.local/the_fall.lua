@@ -561,23 +561,37 @@ end
 --     same one are processed in the wrong order, which leaves the ring
 --     standing forever -- hence a life counted in ticks.
 --
--- The destroy is sent for every block rather than just the one that
--- triggers the collapse. On a client that animates the fall the rest are
--- no-ops against blocks it has already dropped; on one that doesn't,
--- they are what stops the ring hanging there. Per-block block_action
--- either way -- block_line and bulk destroys are what crash zerospades
--- on structures that are moving.
+-- Only ONE block of the ring is ever destroyed. That single destroy is
+-- the whole trigger: the client re-checks what is still standing, finds
+-- the remaining eighty-odd blocks holding on to nothing, and drops them
+-- as one structure. Sending the other destroys would buy nothing -- by
+-- the time they arrived the client would have dropped those blocks
+-- already, and against a client that somehow didn't, destroying them one
+-- by one would take the ring apart in place instead of dropping it,
+-- which is the animation we are here for.
+--
+-- Server-side there is no difference between destroying one and
+-- destroying all: none of these blocks were ever in the server's map to
+-- begin with. The difference is entirely in what the client is left to
+-- work out, and that is the point.
 
 -- One ring, computed once. Sampling the circle four times per voxel
 -- lands consecutive samples at most one step apart, and where a step
 -- moves diagonally a connector voxel is inserted, because a diagonal
 -- touch is not a touch: connectivity is by faces, and a ring that breaks
 -- into arcs falls as arcs. Verified as a single closed loop -- every
--- voxel with at least two face-neighbours, all of it one component, none
--- of it inside the rock.
+-- voxel with at least two face-neighbours, all of it one component.
+--
+-- R - 2, and the 2 is not cosmetic. At R - 1 fifty-two of the ninety-two
+-- blocks come out face-adjacent to the rock of the shaft wall, which
+-- welds the ring to the ground: the client then sees a structure that is
+-- supported, nothing is floating, and destroying it drops nothing. One
+-- block of contact anywhere is enough to hold the whole loop up. Two
+-- blocks in from the wall the ring touches nothing at all, which is the
+-- entire basis of the trick below.
 local RING = (function()
 	local out, seen = {}, {};
-	local r = math.max(R - 1, 1);
+	local r = math.max(R - 2, 1);
 	local steps = math.max(math.ceil(2*math.pi*r*4), 16);
 	local px, py;
 
@@ -652,14 +666,15 @@ function draw_ring(pid)
 		end
 	end
 
-	for _,p in ipairs(gen) do
-		ring_newborn[#ring_newborn+1] = p;
-	end
+	-- one block is remembered, not ninety-odd: it is the only one that
+	-- will be destroyed, and the rest are the client's to drop
+	ring_newborn[#ring_newborn+1] = gen[1];
 end
 
--- take down every ring still standing, without waiting out its life.
--- Send-only blocks are the client's problem until we say otherwise, so
--- an unload that skipped this would leave them hanging in the shaft
+-- Pull the trigger on every ring still standing, without waiting out its
+-- life. Send-only blocks are the client's problem until we say
+-- otherwise, so an unload that skipped this would leave rings hanging in
+-- the shaft; one destroy apiece drops them exactly as the timer would.
 local function clear_rings()
 	for _,gen in ipairs(ring_pending) do
 		for _,v in ipairs(gen) do
