@@ -8,18 +8,50 @@
 -- "Fran6nd's Spicy CTF server under LSd"
 masterlist_name = os.getenv("LSD_NAME")
 
--- whitespace-separated map names, e.g. LSD_MAPS="hallway pinpoint"
--- (parsed into a table here: upstream map_queue.lua only splits
--- strings on newlines/tabs, so spaces would end up inside one name)
-local maps_env = os.getenv("LSD_MAPS")
-if maps_env then
-	map_queue = {}
-	for m in string.gmatch(maps_env, "%S+") do
-		table.insert(map_queue, m)
-	end
-else
-	map_queue = {"hallway", "bridgewars", "pinpoint"}
+-- Which maps rotate, and in what order.
+--
+-- By default: every map installed in this server's own folder, in name
+-- order. Dropping a .vxl in puts it into rotation and deleting the file
+-- takes it out, with nothing to keep in step by hand -- the folder is
+-- the single source of truth. (map_queue.lua carries a
+-- "TODO: list dirs in lua?" for exactly this.)
+--
+-- LSD_MAPS overrides that with an explicit whitespace-separated list,
+-- for when the order matters or only some of the installed maps should
+-- play. Parsed here rather than passed straight through: upstream
+-- map_queue.lua splits only on newlines and tabs, so spaces would end up
+-- inside a single name.
+--
+-- The path is the container's, which is always /lsd/maps whatever the
+-- host directory behind it is (see LSD_MAPS_DIR).
+local function queue_from_env()
+	local env = os.getenv("LSD_MAPS")
+	if (env == nil) then return nil end
+
+	local q = {}
+	for m in string.gmatch(env, "%S+") do table.insert(q, m) end
+	return #q > 0 and q or nil
 end
+
+local function queue_from_folder()
+	local ok, lfs = pcall(require, "lfs")
+	if (not ok) then return nil end
+
+	local q = {}
+	local scan = pcall(function()
+		for f in lfs.dir("maps") do
+			local name = string.match(f, "^(.+)%.vxl$")
+			if (name) then table.insert(q, name) end
+		end
+	end)
+	if (not scan) then return nil end
+
+	table.sort(q)
+	return #q > 0 and q or nil
+end
+
+-- left nil if both come up empty, so map_queue.lua's own default applies
+map_queue = queue_from_env() or queue_from_folder()
 
 set_team_name (1, "Blue")
 set_team_color(1, {r=  0, g=  0, b=196})

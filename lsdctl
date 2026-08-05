@@ -211,15 +211,10 @@ new_instance() {
 			if ls "$other"/*.vxl >/dev/null 2>&1; then seed=$other; break; fi
 		done
 	fi
-	maplist="hallway bridgewars pinpoint"
 	if [ -n "$seed" ]; then
 		cp -R "$seed/." "$maps/"
-		# queue what was actually seeded: the stock default names maps
-		# that may not exist here, and the server cannot rotate onto a
-		# map that is not in its folder
-		found=$(ls "$maps"/*.vxl 2>/dev/null | sed 's|.*/||; s|\.vxl$||' | tr '\n' ' ')
-		[ -z "${found% }" ] || maplist=${found% }
-		echo "seeded $maps from $seed: $maplist"
+		echo "seeded $maps from $seed:" \
+		     "$(ls "$maps"/*.vxl 2>/dev/null | sed 's|.*/||; s|\.vxl$||' | tr '\n' ' ')"
 	else
 		echo "note: $maps is empty -- add maps with: ./lsdctl $name map add <file|url>"
 	fi
@@ -229,7 +224,6 @@ new_instance() {
 	sed -e '/^#T#/d' \
 	    -e "s|@NAME@|$name|g" \
 	    -e "s|@PORT@|$port|g" \
-	    -e "s|@MAPS@|$maplist|g" \
 	    -e "s|@CONFIG@|$(cfgf_for "$name")|g" \
 	    -e "s|@MAPSDIR@|$(mapsd_for "$name")|g" \
 	    "$TEMPLATES_DIR/instance.env" > "$(envf_for "$name")"
@@ -582,8 +576,32 @@ dispatch() {
 		msub=${1:-list}; [ $# -gt 0 ] && shift
 		case "$msub" in
 		list)
+			# The folder IS the rotation unless LSD_MAPS pins one, so show
+			# both and say where they disagree -- a queue naming a map that
+			# is not installed is a rotation that dead-ends on it.
+			queue=$(env_get LSD_MAPS)
 			echo "$md:"
-			ls -lh "$md"/*.vxl 2>/dev/null || echo "  no maps installed"
+			if ls "$md"/*.vxl >/dev/null 2>&1; then
+				for f in "$md"/*.vxl; do
+					n=$(basename "$f" .vxl)
+					mark="  "
+					if [ -n "$queue" ]; then
+						case " $queue " in *" $n "*) mark="* " ;; *) mark="- " ;; esac
+					fi
+					printf '  %s%-24s %s\n' "$mark" "$n" "$(du -h "$f" | cut -f1)"
+				done
+			else
+				echo "  no maps installed"
+			fi
+			if [ -z "$queue" ]; then
+				echo "rotation: every map above, in name order (LSD_MAPS unset)"
+			else
+				echo "rotation: $queue"
+				echo "          (* in rotation, - installed but not played)"
+				for n in $queue; do
+					[ -f "$md/$n.vxl" ] || echo "  warning: '$n' is in LSD_MAPS but not installed" >&2
+				done
+			fi
 			;;
 		add)
 			[ $# -gt 0 ] || usage 1

@@ -76,7 +76,20 @@ instances (`<command>All`, or `all <command>`):
 
 Each instance owns its maps in `instances/<name>.map/`, created and
 seeded when you `lsdctl new` it — editing a map on one server never
-touches what another is playing. Custom scripts are still a shared pool.
+touches what another is playing.
+
+**The folder is the rotation.** Drop a `.vxl` in and it plays; delete it
+and it stops. Nothing to keep in step by hand:
+
+```sh
+./lsdctl spicyctf map add ~/maps/mesa.vxl   # in rotation from the next restart
+./lsdctl spicyctf map list                  # what is installed, and what rotates
+```
+
+Set `LSD_MAPS` in the instance's `.env` only when the *order* matters or
+you want a subset — it then wins over the folder, and `map list` marks
+which installed maps are actually played and warns about queue entries
+with no `.vxl` behind them. Custom scripts are still a shared pool.
 Both are overridable per instance via `LSD_MAPS_DIR` / `LSD_SCRIPTS_DIR` /
 `LSD_DEV_SCRIPTS_DIR` in its `.env`. Whatever the host path, the
 container always sees its maps at `/lsd/maps`.
@@ -117,6 +130,7 @@ is ever needed for content changes:
 | settings (port, name, gamemode, map queue) | `instances/<name>.env` | on restart |
 | full config | `instances/<name>.config.lua` | on restart |
 | maps (`.vxl`) | `instances/<name>.map/` (per instance) | next rotation |
+| map rotation | the folder itself — or `LSD_MAPS` to pin it | next rotation |
 | released custom/override scripts & gamemodes | `scripts.local/` (shared) | `./lsdctl <name> load [module...]` (hot, no restart) or on restart |
 | in-development scripts | `scripts.dev/` (shared) | same, on instances with the dev layer on |
 | public listing | `LSD_MASTERLIST` in `instances/<name>.env` | `./lsdctl <name> masterlist on\|off` (hot) |
