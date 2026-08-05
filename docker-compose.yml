@@ -27,11 +27,13 @@ services:
     ports:
       - "${LSD_PORT:-32887}:${LSD_PORT:-32887}/udp"
     volumes:
-      # per-instance config; the shared maps/ and scripts.local/ pools
-      # are the defaults, an instance may override either in its .env
+      # per-instance config. Maps are per-instance too: lsdctl points
+      # LSD_MAPS_DIR at instances/<name>.map/, and ./maps is only the
+      # fallback for an instance created before maps were split.
       - ${LSD_CONFIG_FILE:-./config.lua}:/lsd/config.lua:ro
-      # maps/ is writable: world_editor persists component layouts to
-      # maps/<map>.json next to the .vxl it belongs to
+      # the map dir is writable: world_editor persists component layouts
+      # to <map>.editor.json next to the .vxl it belongs to. Whatever the
+      # host path, the container always sees it as /lsd/maps.
       - ${LSD_MAPS_DIR:-./maps}:/lsd/maps
       # scripts come in two layers, released then in-development; the
       # entrypoint overlays them in that order, so a dev file shadows a

@@ -74,9 +74,12 @@ instances (`<command>All`, or `all <command>`):
 ./lsdctl all set LSD_MAPS "hallway pinpoint" # any command works: upAll, logsAll, ...
 ```
 
-Maps (`maps/`) and custom scripts are a shared pool by default; an
-instance can point at its own via `LSD_MAPS_DIR` / `LSD_SCRIPTS_DIR` /
-`LSD_DEV_SCRIPTS_DIR` in its `.env`.
+Each instance owns its maps in `instances/<name>.map/`, created and
+seeded when you `lsdctl new` it — editing a map on one server never
+touches what another is playing. Custom scripts are still a shared pool.
+Both are overridable per instance via `LSD_MAPS_DIR` / `LSD_SCRIPTS_DIR` /
+`LSD_DEV_SCRIPTS_DIR` in its `.env`. Whatever the host path, the
+container always sees its maps at `/lsd/maps`.
 
 ## Released vs in-development scripts
 
@@ -113,7 +116,7 @@ is ever needed for content changes:
 |---|---|---|
 | settings (port, name, gamemode, map queue) | `instances/<name>.env` | on restart |
 | full config | `instances/<name>.config.lua` | on restart |
-| maps (`.vxl`) | `maps/` (shared) | next rotation |
+| maps (`.vxl`) | `instances/<name>.map/` (per instance) | next rotation |
 | released custom/override scripts & gamemodes | `scripts.local/` (shared) | `./lsdctl <name> load [module...]` (hot, no restart) or on restart |
 | in-development scripts | `scripts.dev/` (shared) | same, on instances with the dev layer on |
 | public listing | `LSD_MASTERLIST` in `instances/<name>.env` | `./lsdctl <name> masterlist on\|off` (hot) |

@@ -1,7 +1,10 @@
 .env
 
-# map pool: heavy binary .vxl files are content, not source
+# maps are content, not source: heavy binary .vxl files stay out of git.
+# Each instance owns instances/<name>.map/; the layouts world_editor
+# writes beside them are small text and are kept.
 maps/*.vxl
+instances/*.map/*.vxl
 
 # local tooling / scratch
 .claude/
