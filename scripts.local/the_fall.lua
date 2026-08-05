@@ -13,10 +13,13 @@
 -- restocked, with clear air still under you -- no landing, no impact,
 -- and the same column you were already falling down. Only the arrival
 -- is placed at random; every lap after it is a loop, not a reshuffle.
--- Being shot by somebody else
--- falling beside you does kill you -- they earn the point, and they have
--- earned their way out if they were down here too -- but you respawn at
--- the top of the shaft, still falling, still owing a kill.
+-- Being shot by somebody else falling beside you does kill you -- they
+-- earn the point, and they have earned their way out if they were down
+-- here too -- but you respawn at the top of the shaft, still falling,
+-- still owing a kill.
+--
+-- A ring of blocks the width of the shaft falls with each player, in
+-- their team's colour, drawn a stamp at a time (see RINGS).
 --
 -- Bots ride the shaft permanently, on exactly the same terms: caught
 -- short of the floor like everybody else, round and round their own
@@ -63,6 +66,14 @@ getcfg("thefall_floor_clearance", 5);
 -- how far below the top a bot may ENTER the shaft. Only ever applied to
 -- an entry, never to a lap -- see entry_pos for why it has to exist
 getcfg("thefall_bot_entry_spread", 24);
+-- the ring that falls with each player (see RINGS). points is how many
+-- blocks it is drawn with -- they must stay well apart, see the section
+-- -- step how many ticks between one ring and the next, and life how
+-- many ticks each stays up. step is the packet dial: every dot costs two
+-- reliable broadcasts per falling player
+getcfg("thefall_ring_points", 12);
+getcfg("thefall_ring_step", 6);
+getcfg("thefall_ring_life", 7);
 
 local CX = thefall_center_x;
 local CY = thefall_center_y;
@@ -105,6 +116,14 @@ local falling = pid_connected_table();
 -- Only ever set for a bot somebody killed, since nothing else in the
 -- shaft can put one on the ground
 local redrop = pid_connected_table();
+-- the falling rings (see RINGS): the dots stamped this tick, a FIFO of
+-- older generations oldest-first, and the countdown to the next stamp.
+-- Declared up here with the rest of the state because finish_map_load
+-- below clears them -- as locals further down they would be globals to
+-- everything written above them, and the clear would silently miss.
+local ring_newborn = {};
+local ring_pending = {};
+local ring_ticks = 0;
 
 -- (wx, wy) are continuous world coords; test a voxel with its centre,
 -- i.e. in_zone(x + 0.5, y + 0.5)
@@ -189,6 +208,10 @@ end
 -- packets. Nobody's sentence survives a map: the shaft they were falling
 -- down is gone, and the new one is dug from scratch.
 function mod.before.finish_map_load()
+	-- the rings go with it: the map that was holding them is gone, and
+	-- the clients drop every send-only block along with it
+	ring_pending = {};
+	ring_newborn = {};
 	for i=0,MAX_PLAYERS-1 do
 		falling[i] = nil;
 		redrop[i] = nil;
@@ -456,13 +479,117 @@ function mod.after.spawn_player(pid)
 	end
 end
 
--- Two jobs a tick: drop the fallers whose wait at the bottom is up, and
--- top the population back up to thefall_bots, one bot per tick. A dead
--- faller still counts towards that (it is only waiting its turn), so
--- this never over-spawns, and bot_create returning nil on a full server
--- or a loading map just means we try again next tick.
+--=============================== RINGS ==============================--
+-- A ring of blocks the width of the shaft, falling with each player in
+-- their team's colour: stamped one tick, destroyed a few ticks later,
+-- restamped lower down. The client draws each stamp where it is told and
+-- the succession of them is the animation -- nothing moves, blocks only
+-- appear and disappear.
+--
+-- Same technique as rifle_is_a_rail_gun.lua's tracer, and the same two
+-- hard rules come with it:
+--
+--   * The blocks are SEND-ONLY. They never enter the server's map, so
+--     they can't be stood on, shot, or left behind by a crash.
+--   * No two blocks in a ring may be face-adjacent. Destroying a
+--     connected run makes zerospades treat the rest of it as one big
+--     falling structure and collapse it; a dotted ring destroys as
+--     isolated voxels, which is the case the client handles cleanly.
+--     thefall_ring_points is what keeps them apart -- raising it past
+--     the point where the dots touch (about 70 at this radius) trades a
+--     prettier ring for that bug.
+--
+-- The build and the destroy must also land on different client frames.
+-- Block actions are batched per frame, and a build and destroy in the
+-- same one get processed in the wrong order, leaving the ring behind
+-- forever -- hence a life measured in ticks, not one tick.
+--
+-- Cost is the thing to watch: every dot is two reliable broadcasts, and
+-- this runs for every falling player at once. At the defaults that is
+-- 12 dots ten times a second each, i.e. 240 packets a second per player
+-- in the shaft. Widen thefall_ring_step first if a busy server feels it.
+
+-- just inside the rock, so the ring reads as the width of the shaft
+-- without any of it being buried in the wall
+local RING_R = math.max(R - 1, 1);
+
+local function draw_ring(pid)
+	local p = get_position(pid);
+	local z = math.floor(p.z);
+
+	-- a ring is only meaningful inside the shaft, and z is about to be
+	-- sent as a voxel coordinate
+	if (z < 0 or z > DIG_Z_BOTTOM or not in_zone(p.x, p.y)) then
+		return;
+	end
+
+	-- the colour applies to every block action from the anonymous pid
+	-- that follows it, so it is set per player, immediately before that
+	-- player's dots go out
+	send_set_block_color(PID_BROADCAST, get_team_color(get_team(pid)),
+		get_anon_pid());
+
+	for k = 0, thefall_ring_points-1 do
+		local a = 2*math.pi*k/thefall_ring_points;
+		local v = {x = math.floor(CX + RING_R*math.cos(a)),
+		           y = math.floor(CY + RING_R*math.sin(a)),
+		           z = z};
+
+		send_block_action(PID_BROADCAST, v, 0, get_anon_pid());
+		table.insert(ring_newborn, v);
+	end
+end
+
+-- take down every ring still standing. Send-only blocks are the client's
+-- problem until we tell it otherwise, so an unload that skipped this
+-- would leave them hanging in the shaft until the next map.
+local function clear_rings()
+	for _,gen in ipairs(ring_pending) do
+		for _,v in ipairs(gen) do
+			send_block_action(PID_BROADCAST, v, 1, get_anon_pid());
+		end
+	end
+	for _,v in ipairs(ring_newborn) do
+		send_block_action(PID_BROADCAST, v, 1, get_anon_pid());
+	end
+	ring_pending = {};
+	ring_newborn = {};
+end
+
+local function tick_rings()
+	ring_ticks = ring_ticks + 1;
+	if (ring_ticks >= thefall_ring_step) then
+		ring_ticks = 0;
+		for i in piditer(PID_BROADCAST) do
+			-- players only: four bots ringed as well would quintuple the
+			-- packet bill for scenery
+			if (falling[i] ~= nil and is_alive(i) and not is_faller(i)) then
+				draw_ring(i);
+			end
+		end
+	end
+
+	-- age the queue by a tick. An empty generation still ages it, so a
+	-- ring's life is measured in ticks and not in rings
+	table.insert(ring_pending, ring_newborn);
+	ring_newborn = {};
+
+	if (#ring_pending > thefall_ring_life) then
+		for _,v in ipairs(table.remove(ring_pending, 1)) do
+			send_block_action(PID_BROADCAST, v, 1, get_anon_pid());
+		end
+	end
+end
+
+-- Three jobs a tick: run the rings, drop the fallers whose wait at the
+-- bottom is up, and top the population back up to thefall_bots, one bot
+-- per tick. A dead faller still counts towards that (it is only waiting
+-- its turn), so this never over-spawns, and bot_create returning nil on
+-- a full server or a loading map just means we try again next tick.
 function mod.after.tick()
 	local now = get_time();
+
+	tick_rings();
 
 	for i in piditer(PID_BROADCAST) do
 		-- a shot bot's pause is up: back on its feet at the top
@@ -687,6 +814,7 @@ function mod.on_load()
 end
 
 function mod.on_unload()
+	clear_rings();
 	sweep_fallers();
 end
 
