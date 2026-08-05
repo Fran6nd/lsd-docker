@@ -18,7 +18,10 @@ services:
       LSD_CONFIG: config.lua
       LSD_NAME: ${LSD_NAME:-untitled LSd server}
       LSD_GAMEMODE: ${LSD_GAMEMODE:-ctf}
-      LSD_MAPS: ${LSD_MAPS:-hallway bridgewars pinpoint}
+      # no default: unset means "rotate whatever is in the map folder",
+      # which the instance config resolves by listing it (see
+      # templates/config.lua). A default here would silently pin a queue.
+      LSD_MAPS: ${LSD_MAPS:-}
       # overlay the in-development scripts.dev/ layer on top of the
       # released scripts.local/ one (0 to run released scripts only)
       LSD_SCRIPTS_DEV: ${LSD_SCRIPTS_DEV:-1}
