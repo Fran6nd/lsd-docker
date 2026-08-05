@@ -101,8 +101,8 @@ register(maptime);
 motd = [[
 Welcome to [Spicy CTF] on [LSd].
 Grab the enemy intel and run it back to your tent to score.
-The catch: the guns are spiced, and dying drops you down the Fall.
-Kill someone before you land and it never happened.
+The catch: the guns are spiced, and your first death drops you into
+the Fall. Only a kill gets you out of it.
 Have fun and expect some chaos.
 I recommend using ZeroSpades as client.
 ]]
@@ -112,8 +112,8 @@ tips = {
 	"Objective: steal the enemy intel and return it to your tent.",
 	"Spicy: every shotgun blast drops a grenade pellet -- mind the splash.",
 	"Spicy: rifles are railguns, they pierce blocks and leave a tracer.",
-	"The Fall: dying drops you down the central pit instead of killing you.",
-	"In the Fall, kill anyone before you land and you go back where you died.",
+	"The Fall: when you die you respawn falling down the central pit.",
+	"Kill someone while falling and you are put back in the game, healed and restocked.",
 	"Use /kill to die.",
 	function() for i in piditer(PID_BROADCAST) do
 		server_msg(i, string.format(
@@ -152,10 +152,11 @@ load "lib_bot"
 -- uncomment to bring them back (./lsdctl spicyctf load lib_bot bot_standard)
 -- load "bot_standard"
 
--- The Fall: a central pit dug on every map load, and every death drops
--- the corpse down it with the kill held back until it lands -- kill on
--- the way down and it never happened. Needs lib_bot above it: it keeps
--- four bots falling in the shaft as targets. (scripts.local/)
+-- The Fall: a central pit dug on every map load. Death is ordinary and
+-- counts, but it respawns you falling down the pit instead of at your
+-- tent, and only a kill buys you back out of it.
+-- Needs lib_bot above it: it keeps four bots falling in the shaft as
+-- targets, disguised as the enemy team to everyone. (scripts.local/)
 load "the_fall"
 
 -- in-game map/component editor (scripts.local/). Loading it is inert on
