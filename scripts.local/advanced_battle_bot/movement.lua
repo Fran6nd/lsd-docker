@@ -9,17 +9,14 @@
 -- tricks -- those caused the "little hop then rocket up" jump.
 -- (The original's BOT_junkai_route waypoint patrol needs map-authored
 -- route graphs and is not ported; this local handling works anywhere.)
-require "lib_bulk_destroy"; -- bdestroy_* for the dig
-
 local M = {};
 local floor, sqrt = math.floor, math.sqrt;
 
--- is_solid only guards z < 0; z > 63 is out of bounds and PANICs, so
--- wrap it
-local function solid(x, y, z)
-	if (z < 0 or z > 63) then return false; end
-	return is_solid({x=x, y=y, z=z});
-end
+-- lib_bot's guarded probe: a cell outside the map answers "not solid"
+-- instead of raising. See bot_solid for why that matters. Resolved at
+-- call time, not bound here, so it does not depend on lib_bot having
+-- been loaded before this file was required.
+local function solid(x, y, z) return bot_solid(x, y, z); end
 
 local STUCK_CHECK = 0.5;  -- seconds between progress checks
 local STUCK_MOVE = 0.7;   -- blocks of progress that count as moving
@@ -33,9 +30,7 @@ local function dig(pid, p)
 	local fx, fy = floor(p.x + o.x/h), floor(p.y + o.y/h);
 	local iz = floor(p.z);
 	for _, z in ipairs({iz-1, iz, iz+1, iz+2}) do
-		if (z >= 0 and z < 62 and solid(fx, fy, z)) then
-			bdestroy_block_action({x=fx, y=fy, z=z}, 1);
-		end
+		if (z < 62) then bot_dig_block(fx, fy, z); end
 	end
 	bdestroy_finish();
 end
