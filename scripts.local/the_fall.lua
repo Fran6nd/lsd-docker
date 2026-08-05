@@ -1,28 +1,31 @@
--- the_fall.lua -- Death drops you down the Fall; a kill on the way buys you back
+-- the_fall.lua -- Die once, then fall until you kill your way out
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
--- Nobody just dies here. Every death instead puts you back on your feet
--- at the top of a bottomless shaft dug through the middle of the map --
--- at a random spot well clear of its walls -- and lets go. You keep your
--- gun on the way down: kill anyone before you hit the bottom and you are
--- teleported straight back to the spot you died on, restocked. Miss, and
--- the landing is the death you dodged.
+-- Death works normally here, exactly once. You are killed, the killer
+-- gets their point and their line in the feed, and then you respawn --
+-- not at your tent, but at the top of a bottomless shaft dug through the
+-- middle of the map, at a random spot well clear of its walls, falling.
 --
--- The kill is HELD, not scored, while you fall (same trick as
--- grenades_teleport_to_eol_fall.lua, which this script replaces): the
--- shot that dropped you never kills you, it hands you to the shaft. The
--- landing at the bottom is then rewritten into that shot -- the killer's
--- name, their weapon, their one point, several seconds late. So a kill
--- counts exactly once, and redeeming yourself on the way down doesn't
--- just save you, it robs them of it. Get shot out of the air instead and
--- the kill belongs to whoever did that, not to whoever threw you in.
+-- From there the only way out is to kill somebody. Do that and you are
+-- healed, restocked and put back at your team's spawn, in the game
+-- again. Nothing else gets you out. The floor at the bottom doesn't kill
+-- you, it just picks you up and drops you in again from the top, over
+-- and over. Being shot by somebody else falling beside you does kill you
+-- -- they earn the point, and they have earned their way out if they
+-- were down here too -- but you respawn at the top of the shaft, still
+-- falling, still owing a kill.
 --
--- Bots ride the shaft permanently, thefall_bots_per_team of them on each
--- side, so whichever team you are on there is always an enemy falling
--- with you. They fall, splat, wait out a random second or three at the
--- bottom so the four of them never drop in formation, and go again --
--- which costs a steady trickle of fall deaths in the kill feed. Turn the
--- count down if it drowns out the real ones.
+-- Bots ride the shaft permanently. They fall, splat, wait out a random
+-- second or three at the bottom so they never drop in formation, and go
+-- again -- which costs a steady trickle of fall deaths in the kill feed.
+-- Turn thefall_bots down if it drowns out the real ones.
+--
+-- And they are everyone's enemy: whatever side a faller is really on,
+-- every client is told it is on the other side from them, so a Blue
+-- player sees four Greens falling and a Green player sees the same four
+-- as Blue. Nobody ever falls past a teammate they can't shoot. See the
+-- DISGUISE section for what that takes -- it is not just cosmetic, since
+-- the server's own damage rules still go by the real team.
 --
 -- The shaft is carved at runtime on every map load (the .vxl on disk is
 -- never touched) and nobody can build inside it.
@@ -37,17 +40,16 @@ getcfg("thefall_diameter", 25);
 -- how far in from the wall the nearest possible drop point is, so nobody
 -- starts the fall scraping the rock
 getcfg("thefall_edge_margin", 3);
--- bots permanently riding the shaft, per team. Two a side means every
--- faller has enemies to shoot at whichever team they are on
-getcfg("thefall_bots_per_team", 2);
+-- bots permanently riding the shaft. Every one of them looks like an
+-- enemy to everybody (see DISGUISE), so this is a flat total and the
+-- side they are really on is an internal detail
+getcfg("thefall_bots", 4);
 -- seconds a splatted bot waits at the bottom before the next drop, drawn
 -- fresh each time. Without the jitter they would all fall in lockstep:
 -- every bot's cycle is the same fixed drop, so any two that ever splat
 -- on the same tick stay glued together from then on
 getcfg("thefall_bot_delay_min", 1);
 getcfg("thefall_bot_delay_max", 3);
--- how long after a rescue the landing is on the house (see damage_player)
-getcfg("thefall_grace", 2);
 
 local CX = thefall_center_x;
 local CY = thefall_center_y;
@@ -57,25 +59,29 @@ local R2 = R * R;
 -- floored at a point so a silly margin can't invert it
 local DROP_R = math.max(R - thefall_edge_margin, 0.5);
 
--- z 0..62 is carved; z 63 is left as the floor they splat onto
+-- z 0..62 is carved; z 63 is left as the floor at the bottom
 local DIG_Z_BOTTOM = 62;
 -- where a dropped player appears: the top of the shaft
 local DROP_Z = 1;
--- KillType: <4 credits the killer; 4 = fall, and every other
--- environmental death; 5+ is team/gun change bookkeeping
-local KILL_FALL = 4;
+-- KillType: 3 is a grenade, and 5 up is the bookkeeping behind a team or
+-- gun change rather than a death anybody had
+local KILL_GRENADE = 3;
 local KILL_TEAMCHANGE = 5;
+-- HitType, as the client reports it: 4 is the spade, 1 is a headshot
+local HIT_MELEE = 4;
+local HIT_HEAD = 1;
+-- how far a blast reaches on each axis, and its damage at square
+-- distance d2 -- main.c's detonate_grenade, mirrored in blast_fallers
+local BLAST_REACH = 16;
+local BLAST_SCALE = 4096;
 
 local no_build_msg = "You can't build in the Fall.";
 
--- everyone currently on their way down:
---   falling[pid] = {at=<where they died>, killer=<pid>, type=<KillType>}
--- i.e. where a kill scored on the way down sends them back to, and the
--- kill that is owed at the bottom if they don't score one. Bots ride the
--- shaft too, but they owe nobody anything, so they never appear here.
+-- who is in the shaft. Set on death, cleared by the kill that buys them
+-- out; while it is set they respawn at the top, land at the top, and
+-- cannot be killed. Bots ride the shaft too but play by the ordinary
+-- rules, so they never appear here.
 local falling = pid_connected_table();
--- rescued players whose next landing must not hurt (see damage_player)
-local grace = pid_connected_table();
 -- splatted bots waiting at the bottom: redrop[pid] = when to drop it in
 local redrop = pid_connected_table();
 
@@ -126,7 +132,6 @@ end
 function mod.before.finish_map_load()
 	for i=0,MAX_PLAYERS-1 do
 		falling[i] = nil;
-		grace[i] = nil;
 		redrop[i] = nil;
 	end
 	clear_hole();
@@ -164,26 +169,40 @@ end
 
 --============================= THE FALL =============================--
 
--- Put pid on their feet at the top of the shaft and let go.
---
--- spawn_player rather than set_position, for all of what it hands back:
--- full HP (whoever arrives here is on 0 and never got killed for it),
--- ammo, blocks, grenades -- and it clears any respawn the engine has
--- scheduled, so nobody gets yanked to their tent mid-drop.
+-- Drop a dead body back in from the top -- the bots' way round the
+-- cycle. spawn_player for what it hands back: alive, full HP, ammo,
+-- blocks, grenades, and any scheduled respawn cancelled so nothing
+-- yanks it to a tent mid-drop.
 local function throw_in(pid)
 	spawn_player(pid, drop_pos());
 end
 
--- pid scored a kill on the way down: back to where they died, whole, and
--- the kill that was waiting for them at the bottom is written off.
-local function rescue(pid)
-	local back = falling[pid].at;
-
-	falling[pid] = nil;
+-- Somebody in the shaft touched down, or took a hit that should have
+-- been the end of them. Neither is: patch them up and let go again from
+-- a fresh spot at the top. The restock is not generosity, it is the only
+-- thing keeping the shaft from becoming a trap -- a faller out of ammo
+-- has no way left to kill, and the only door out is a kill.
+--
+-- set_position rather than spawn_player: they never died, so there is
+-- nothing to respawn, and a CreatePlayer here would announce a death
+-- that didn't happen. fall_damage.lua's apex follows a set_position
+-- down, so the next lap measures from the top and not from wherever
+-- they were caught.
+local function recycle(pid)
 	restock(pid);
-	set_position(pid, back);
-	grace[pid] = get_time() + thefall_grace;
-	server_msg(pid, "Redeemed -- back where you fell.");
+	set_position(pid, drop_pos());
+end
+
+-- pid killed somebody, which is the one way out. Healed, restocked and
+-- put back where they would have spawned if none of this had happened.
+--
+-- falling is cleared FIRST: our own get_spawn_position answers "the top
+-- of the shaft" for anyone still marked, so asking before clearing would
+-- send them right back down.
+local function rescue(pid)
+	falling[pid] = nil;
+	spawn_player(pid, get_spawn_position(pid));
+	server_msg(pid, "You killed your way out. Back in the game.");
 end
 
 -- did this kill belong to someone who is falling? Then they just bought
@@ -195,70 +214,58 @@ local function try_rescue(killer, victim)
 	end
 end
 
--- A rescued player was teleported, not falling -- but fall_damage.lua
--- measures a drop from the apex it tracks, which is still the top of the
--- shaft, so it would splat them the instant they touch ground. Swallow
--- the environment for a moment after a rescue.
---
--- Kill type 4 is the environment: BOTH stock hazards report it, so this
--- one branch covers both.
---
---   * fall_damage.lua  -- damage_player(i, damage, 4, i) on landing
---   * water_damage.lua -- damage_player(i, damage, 4, i) per second of
---                         wading, on maps whose meta sets water_damage
---
--- The window is short and self-clearing: fall_damage.lua resets its own
--- apex on that first landing, so one swallowed hit is all it ever takes.
-function mod.damage_player(pid, hp, type, from)
-	if (type == KILL_FALL and grace[pid] ~= nil) then
-		if (get_time() < grace[pid]) then
-			return;
-		end
-		grace[pid] = nil;
+-- Where the engine puts someone it is respawning. For anyone in the
+-- shaft that is the top of the shaft, which is what turns an ordinary
+-- death into a trip down the Fall: the death itself is left completely
+-- alone, and only the destination changes.
+function mod.get_spawn_position(pid)
+	if (falling[pid] ~= nil) then
+		return drop_pos();
 	end
-	mod.next.damage_player(pid, hp, type, from);
+	return mod.next.get_spawn_position(pid);
 end
 
--- Every death in the game comes through here, and this is where it is
--- decided whether it is a death at all.
+-- Every death in the game comes through here.
 function mod.kill(pid, type, killer)
-	-- read before chaining anything: after it, pid is dead and moved on
+	-- read before chaining: after it, pid is dead
 	local wasalive = is_alive(pid);
-	local at = wasalive and get_position(pid) or nil;
-	local debt = falling[pid];
 
 	-- killing a corpse extra dead, and the bookkeeping kills behind a
-	-- team or gun switch, drop nobody down anything
+	-- team or gun switch, are nobody's business but the engine's
 	if (not wasalive or type >= KILL_TEAMCHANGE) then
 		falling[pid] = nil;
 		mod.next.kill(pid, type, killer);
 		return;
 	end
 
-	-- Someone already in the shaft. If this is the landing, the Fall
-	-- collects: the kill it has been holding since the top is paid out
-	-- now, to the player who threw them in and under the weapon that did
-	-- it, so what the feed shows is the shot that started all this and
-	-- not a fall. (Only if that player is still here -- a slot that has
-	-- gone quiet since then may already belong to somebody else.)
-	-- Anything else -- shot out of the air -- is a normal kill and
-	-- belongs to whoever landed it, not to whoever threw them in.
-	if (debt ~= nil) then
-		falling[pid] = nil;
-		if (type == KILL_FALL and killer == pid and is_joined(debt.killer)) then
-			type = debt.type;
-			killer = debt.killer;
+	-- Already in the shaft, and it depends entirely on who did it.
+	--
+	-- Somebody shot them: that is a real kill and is chained as one --
+	-- feed line, point, respawn timer, the lot. What it does NOT do is
+	-- let them out. falling stays set, so the respawn it schedules lands
+	-- them right back at the top of the shaft (get_spawn_position) and
+	-- the fall starts over. Being killed down here costs you your
+	-- height, not your sentence. The shooter, if they were falling too,
+	-- gets the only thing worth having: the door.
+	--
+	-- The shaft itself -- the floor at the bottom, the water, a fall --
+	-- reports the victim as its own killer, and that is not a death at
+	-- all. It is not chained: no feed, no point, no timer. They are
+	-- patched up and dropped in again from the top.
+	if (falling[pid] ~= nil) then
+		if (killer ~= pid) then
+			mod.next.kill(pid, type, killer);
+			try_rescue(killer, pid);
+			return;
 		end
-		mod.next.kill(pid, type, killer);
-		try_rescue(killer, pid);
+		recycle(pid);
 		return;
 	end
 
-	-- Bots are furniture: nothing is owed for them, and none of them can
-	-- shoot its way back out, so they die where they are like anything
-	-- else. Ours then lie at the bottom for a randomly drawn moment
-	-- before tick() drops them in again; any other script's bots just
-	-- respawn the way that script meant them to.
+	-- Bots die like anything else -- none of them can shoot its way out,
+	-- so the shaft's rules would only strand them. Ours then lie at the
+	-- bottom for a randomly drawn moment before tick() drops them back
+	-- in; any other script's bots respawn the way that script meant.
 	local bot = bot_get(pid);
 	if (bot ~= nil) then
 		mod.next.kill(pid, type, killer);
@@ -270,38 +277,24 @@ function mod.kill(pid, type, killer)
 		return;
 	end
 
-	-- An ordinary death, and the whole point of the mode: the kill is
-	-- NOT chained. Nobody died, nobody scored, no feed line, no respawn
-	-- timer -- the shot is written down and the body is dropped down the
-	-- shaft to find out whether it was ever a kill at all.
-	--
-	-- after_player_destroy is still owed to the gamemode: it is what
-	-- makes a carried intel drop, and it has to drop HERE, where they
-	-- were shot, rather than at the bottom of the pit where nobody can
-	-- pick it up again. ctf.lua and babel.lua both hang their try_drop
-	-- off it (arena.lua only recounts the living, which is unchanged),
-	-- and it is the only public way to ask for that cleanup -- try_drop
-	-- itself is a local in each of them.
-	--
-	-- nil-checked because core.lua only publishes a global for an event
-	-- some loaded module hooks: no global here means nothing is
-	-- listening, and so nothing to tell.
-	falling[pid] = {at=at, killer=killer, type=type};
-	if (after_player_destroy ~= nil) then
-		after_player_destroy(pid);
-	end
-	throw_in(pid);
+	-- An ordinary death, and it counts for everything a death normally
+	-- counts for: the feed, the killer's point, the gamemode's own
+	-- cleanup (a carried intel dropping where they fell), the respawn
+	-- timer. All of it is the engine's, untouched. The only thing this
+	-- mode changes is where that respawn lands -- see
+	-- get_spawn_position above.
+	mod.next.kill(pid, type, killer);
 	try_rescue(killer, pid);
-	server_msg(pid, "Into the Fall. Kill someone before you land, or that death counts.");
+	falling[pid] = true;
+	server_msg(pid, "You're going into the Fall. Kill someone to get out.");
 end
 
 function mod.after.on_join(pid)
 	falling[pid] = nil;
-	grace[pid] = nil;
 	redrop[pid] = nil;
 	if (not bot_is_bot(pid)) then
-		server_msg(pid, "warning: here dying drops you down the Fall. "
-			.."Kill on the way down and it never happened.");
+		server_msg(pid, "warning: here your first death drops you into the "
+			.."Fall, and only a kill gets you out.");
 	end
 end
 
@@ -314,15 +307,33 @@ end
 -- the respawns this script isn't the one asking for -- coming back from
 -- map-change limbo, most of all.
 
-local function faller_count(team)
-	local n = 0;
+local function is_faller(pid)
+	local b = bot_get(pid);
+	return b ~= nil and b.data.faller;
+end
+
+-- how many fallers there are, how they are split over the two real
+-- teams, and which name slots are taken
+local function faller_census()
+	local n, per, used = 0, {0, 0}, {};
+
 	for i in piditer(PID_BROADCAST) do
 		local b = bot_get(i);
-		if (b ~= nil and b.data.faller and b.team == team) then
+		if (b ~= nil and b.data.faller) then
 			n = n + 1;
+			per[b.team] = per[b.team] + 1;
+			-- nil-guarded: a faller left behind by an older build of
+			-- this module has no slot, and `used[nil] = true` is a hard
+			-- error that would take the tick down every frame from then
+			-- on -- with the sweep that should have cleared it already
+			-- past
+			if (b.data.slot ~= nil) then
+				used[b.data.slot] = true;
+			end
 		end
 	end
-	return n;
+
+	return n, per, used;
 end
 
 -- A splatted faller does not use the engine's respawn at all: its next
@@ -348,20 +359,42 @@ function mod.get_spawn_time(pid)
 	return mod.next.get_spawn_time(pid);
 end
 
--- head first, so they read as falling rather than standing in mid-air.
--- Once per drop rather than per tick: orientation is broadcast.
 function mod.after.spawn_player(pid)
-	local b = bot_get(pid);
-	if (b ~= nil and b.data.faller) then
+	-- head first, so they read as falling rather than standing in
+	-- mid-air. Once per drop rather than per tick: orientation is
+	-- broadcast.
+	if (is_faller(pid)) then
 		bot_look_toward(pid, {x=0, y=0, z=1});
+		return;
+	end
+
+	-- A human just spawned, and this is the only moment we are told
+	-- about a team switch: on_switch sets the team a player WILL have,
+	-- and it isn't theirs until they respawn into it. Their client is
+	-- still holding whatever side it was told the fallers were on last
+	-- time, which is now the side it thinks it is on -- so it would
+	-- refuse to shoot them. Re-announce every faller to that one client
+	-- and let send_spawn_player below pick the new opposite.
+	--
+	-- CreatePlayer is what tells a client somebody changed sides
+	-- (spawn_player broadcasts one on every respawn, which is exactly
+	-- how a switch reaches everyone else), so this is that same
+	-- mechanism, aimed at one viewer. Only for fallers that are up: one
+	-- for a bot waiting at the bottom would draw a corpse standing
+	-- there until its next drop.
+	for i in piditer(PID_BROADCAST) do
+		if (is_faller(i) and is_alive(i)) then
+			send_spawn_player(pid, get_position(i), get_gun(i),
+				get_team(i), get_name(i), i);
+		end
 	end
 end
 
 -- Two jobs a tick: drop the fallers whose wait at the bottom is up, and
--- top the population back up to thefall_bots_per_team a side, one bot
--- per tick. A dead faller still counts towards that (it is only waiting
--- its turn), so this never over-spawns, and bot_create returning nil on
--- a full server or a loading map just means we try again next tick.
+-- top the population back up to thefall_bots, one bot per tick. A dead
+-- faller still counts towards that (it is only waiting its turn), so
+-- this never over-spawns, and bot_create returning nil on a full server
+-- or a loading map just means we try again next tick.
 function mod.after.tick()
 	local now = get_time();
 
@@ -370,21 +403,180 @@ function mod.after.tick()
 			redrop[i] = nil;
 			throw_in(i);
 		end
-	end
 
-	for team=1,2 do
-		local n = faller_count(team);
-		if (n < thefall_bots_per_team) then
-			bot_create{
-				team = team,
-				name = "Faller-"..get_team_name(team).."-"..n,
-				gun = 0,
-				tool = "gun",
-				spawn_at = drop_pos,
-				data = {faller=true},
-			};
+		-- The loop, and the reason it doesn't lean on the landing being
+		-- fatal: the instant a faller's feet touch ANYTHING they go back
+		-- to the top. The floor of the shaft is the usual thing, but the
+		-- top of it is high above the terrain, so a player with enough
+		-- air control can drift out over open ground and come down
+		-- outside -- from a height that may not even hurt. Feet down is
+		-- feet down; the shaft doesn't care where.
+		--
+		-- The height test keeps the tick right after a drop from
+		-- counting: they are placed at DROP_Z with no ground under them
+		-- and are not airborne until the physics says so.
+		if (falling[i] ~= nil and is_alive(i) and not is_airborne(i)
+		    and get_position(i).z > DROP_Z + 2) then
+			recycle(i);
 		end
 	end
+
+	local n, per, used = faller_census();
+	if (n < thefall_bots) then
+		-- the thinner side, to keep the real split even -- nothing in
+		-- the game can see it (the disguise overwrites the team on the
+		-- way out to every client), but an even split keeps both halves
+		-- of the damage overrides in use instead of one going cold.
+		--
+		-- the name must not leak it either: "Faller-Blue-1" rendered in
+		-- green is the one thing that would give the trick away.
+		local slot = 1;
+		while (used[slot]) do slot = slot + 1; end
+
+		bot_create{
+			team = per[1] <= per[2] and 1 or 2,
+			name = "Faller-"..slot,
+			gun = 0,
+			tool = "gun",
+			spawn_at = drop_pos,
+			data = {faller=true, slot=slot},
+		};
+	end
+end
+
+--============================= DISGUISE =============================--
+-- Every faller is everyone's enemy. A player's team reaches a client in
+-- exactly two packets -- CreatePlayer (send_spawn_player) and
+-- ExistingPlayer (send_existing_player, sent once per player to whoever
+-- is joining) -- so rewriting the team in both, per recipient, is the
+-- whole of the illusion. ffa.lua does the same thing to put everybody on
+-- opposite sides; this is that trick pointed at four bots.
+--
+-- What it is NOT is a change of team: server-side the bot is still on
+-- team 1 or 2, and the server's own damage rules go by that. So half the
+-- time a client shoots what it has been told is an enemy and the server
+-- sees a teammate and drops the damage on the floor -- which is worse
+-- than no disguise at all, since the bot visibly shrugs off a magazine.
+-- on_hit and detonate_grenade below close that hole; between them they
+-- are every way one player hurts another.
+
+-- The team a faller must LOOK like to `viewer`: never the viewer's own.
+-- Spectators have no side to be an enemy of, so they get the truth.
+-- 1-based, the base get_team() and send_spawn_player() both speak.
+local function enemy_of(viewer, real)
+	local t = get_team(viewer);
+
+	if (t ~= 1 and t ~= 2) then
+		return real;
+	end
+	return t == 1 and 2 or 1;
+end
+
+-- All four hooks below sit in the LATE chain, i.e. underneath every
+-- other module and just above the C implementation. That is deliberate,
+-- and it is what makes this compose with the rest of the server:
+--
+--   * the two send_ hooks fan a broadcast out into one packet per
+--     recipient. Being last means no other module ever has to deal with
+--     that form -- they still see the single broadcast they expect.
+--   * on_hit is a damage rule, and it must be the LAST word on damage,
+--     never the first. shotgun_are_grenade_launchers.lua swallows
+--     shotgun pellet hits up in the std chain so that only its grenade
+--     hurts; from down here we never see a swallowed hit, so pellets
+--     stay harmless against fallers exactly like against anyone else.
+--     Same for toggles.lua's nodamage cap. Put this in std and it would
+--     quietly hand shotguns their pellet damage back, but only against
+--     half the bots.
+
+-- CreatePlayer. Fan the broadcast out by hand so each client can be told
+-- a different team; everyone else's spawns go out untouched, as one
+-- broadcast, the way they came in.
+function mod.late.send_spawn_player(pid, pos, gun, team, name, from)
+	if (not is_faller(from)) then
+		return mod.late.next.send_spawn_player(pid, pos, gun, team, name, from);
+	end
+
+	for i in piditer(pid) do
+		mod.late.next.send_spawn_player(i, pos, gun, enemy_of(i, team), name, from);
+	end
+end
+
+-- ExistingPlayer, i.e. what a joining client is told about everyone
+-- already here. Same rewrite -- and mind the base: this team is 0-based
+-- (luaawk.h's csend/lsend_existing_player pass it raw both ways) while
+-- send_spawn_player's above is 1-based. Same concept, two bases, no
+-- warning in the apidoc.
+function mod.late.send_existing_player(pid, team, gun, tool, score, color, name, from)
+	if (not is_faller(from)) then
+		return mod.late.next.send_existing_player(pid, team, gun, tool, score,
+			color, name, from);
+	end
+
+	for i in piditer(pid) do
+		mod.late.next.send_existing_player(i, enemy_of(i, team + 1) - 1, gun,
+			tool, score, color, name, from);
+	end
+end
+
+-- Bullets and the spade. The stock on_hit (funcs_event.c) drops any hit
+-- where shooter and target share a team, which for a disguised faller is
+-- half of them; deal the damage ourselves in that case. The damage and
+-- the kill type are the stock ones -- get_hit_damage is what the engine
+-- would have asked for, and the type mapping is lifted from ffa.lua,
+-- which overrides on_hit for the same reason.
+--
+-- Still chained afterwards rather than returned out of: the C on_hit
+-- will drop this hit on the same team check that made it our problem,
+-- so it costs nothing, and anything below us keeps seeing the hit.
+function mod.late.on_hit(pid, type, hitPlayer)
+	if (is_faller(hitPlayer) and get_team(pid) == get_team(hitPlayer)) then
+		damage_player_directional(
+			hitPlayer,
+			get_hit_damage(pid, type),
+			get_position(pid),
+			type == HIT_MELEE and 2 or (type == HIT_HEAD and 1 or 0),
+			pid
+		);
+	end
+	mod.late.next.on_hit(pid, type, hitPlayer);
+end
+
+-- Grenades, which the server resolves itself and gates on the team the
+-- same way. main.c's detonate_grenade skips every player on the
+-- thrower's team; this is that loop again, run over the fallers it
+-- skipped, with its numbers: within 16 on each axis, a clear line to the
+-- body, 4096/d2 damage with d2 floored at 1 (safe_sqr_dist3). If those
+-- ever drift apart, a grenade will hurt half the fallers differently
+-- from the other half -- which is exactly the tell this section exists
+-- to remove.
+local function blast_fallers(at, team, from)
+	for i in piditer(PID_BROADCAST) do
+		if (is_faller(i) and is_alive(i) and get_team(i) == team) then
+			local p = get_position(i);
+			local dx, dy, dz = p.x-at.x, p.y-at.y, p.z-at.z;
+
+			if (math.abs(dx) < BLAST_REACH and math.abs(dy) < BLAST_REACH
+			    and math.abs(dz) < BLAST_REACH
+			    -- line of sight is symmetric, so ask from the bot's end:
+			    -- bot_can_see wants a pid for the eye it looks out of
+			    and bot_can_see(i, at)) then
+				local d2 = dx*dx + dy*dy + dz*dz;
+				if (d2 == 0) then d2 = 1; end
+
+				damage_player_directional(i, BLAST_SCALE/d2, at, KILL_GRENADE, from);
+			end
+		end
+	end
+end
+
+function mod.late.detonate_grenade(index)
+	-- read first: chaining removes the grenade
+	local at = get_grenade_position(index);
+	local team = get_grenade_team(index);
+	local from = get_grenade_pid(index);
+
+	mod.late.next.detonate_grenade(index);
+	blast_fallers(at, team, from);
 end
 
 -- collect first, then destroy: bot_destroy disconnects the slot, and
