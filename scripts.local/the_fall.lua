@@ -15,10 +15,11 @@
 -- were down here too -- but you respawn at the top of the shaft, still
 -- falling, still owing a kill.
 --
--- Bots ride the shaft permanently. They fall, splat, wait out a random
--- second or three at the bottom so they never drop in formation, and go
--- again -- which costs a steady trickle of fall deaths in the kill feed.
--- Turn thefall_bots down if it drowns out the real ones.
+-- Bots ride the shaft permanently, and they are prisoners on the same
+-- terms: the floor never kills them either. They land, wait out a random
+-- second or three so they never fall in formation, and go again. A
+-- bullet does kill them, which is the entire reason they are down there
+-- -- they are what a player shoots to buy their way out.
 --
 -- And they are everyone's enemy: whatever side a faller is really on,
 -- every client is told it is on the other side from them, so a Blue
@@ -44,10 +45,10 @@ getcfg("thefall_edge_margin", 3);
 -- enemy to everybody (see DISGUISE), so this is a flat total and the
 -- side they are really on is an internal detail
 getcfg("thefall_bots", 4);
--- seconds a splatted bot waits at the bottom before the next drop, drawn
--- fresh each time. Without the jitter they would all fall in lockstep:
--- every bot's cycle is the same fixed drop, so any two that ever splat
--- on the same tick stay glued together from then on
+-- seconds a bot waits at the bottom before its next drop, drawn fresh
+-- each time. Without the jitter they would all fall in lockstep: every
+-- bot's lap is the same fixed drop, so any two that ever touch down on
+-- the same tick stay glued together from then on
 getcfg("thefall_bot_delay_min", 1);
 getcfg("thefall_bot_delay_max", 3);
 
@@ -77,12 +78,15 @@ local BLAST_SCALE = 4096;
 
 local no_build_msg = "You can't build in the Fall.";
 
--- who is in the shaft. Set on death, cleared by the kill that buys them
--- out; while it is set they respawn at the top, land at the top, and
--- cannot be killed. Bots ride the shaft too but play by the ordinary
--- rules, so they never appear here.
+-- which PLAYERS are in the shaft. Set on death, cleared by the kill that
+-- buys them out; while it is set the shaft itself can't kill them and
+-- every respawn they get lands at the top of it. The bots live by the
+-- same rules but are recognised by being fallers, not by this -- their
+-- sentence never ends, so there is nothing to mark or clear.
 local falling = pid_connected_table();
--- splatted bots waiting at the bottom: redrop[pid] = when to drop it in
+-- bots serving their pause at the bottom: redrop[pid] = when to drop it
+-- in again. Usually they are standing there alive, having simply landed;
+-- shoot one and it waits the same pause out dead instead
 local redrop = pid_connected_table();
 
 -- (wx, wy) are continuous world coords; test a voxel with its centre,
@@ -127,8 +131,8 @@ end
 
 -- Dig on every map load, while the map is still "loading" so the change
 -- rides along inside the map that's about to be sent -- no per-block
--- packets. Debts don't survive a map: the shaft everyone was falling
--- down is gone.
+-- packets. Nobody's sentence survives a map: the shaft they were falling
+-- down is gone, and the new one is dug from scratch.
 function mod.before.finish_map_load()
 	for i=0,MAX_PLAYERS-1 do
 		falling[i] = nil;
@@ -169,12 +173,22 @@ end
 
 --============================= THE FALL =============================--
 
--- Drop a dead body back in from the top -- the bots' way round the
--- cycle. spawn_player for what it hands back: alive, full HP, ammo,
--- blocks, grenades, and any scheduled respawn cancelled so nothing
--- yanks it to a tent mid-drop.
+-- Drop a body back in from the top. Only ever needed for a bot that was
+-- shot, since that is the one way anything in here actually dies.
+-- spawn_player for what it hands back: alive, full HP, ammo, blocks,
+-- grenades, and any scheduled respawn cancelled so nothing yanks it to a
+-- tent mid-drop.
 local function throw_in(pid)
 	spawn_player(pid, drop_pos());
+end
+
+-- A bot's pause at the bottom before its next drop, drawn fresh every
+-- time. This is the whole staggering mechanism: without it every bot's
+-- lap is the same fixed length, so any two that ever touch down on the
+-- same tick stay glued together from then on.
+local function stagger(pid)
+	redrop[pid] = get_time() + thefall_bot_delay_min
+		+ math.random()*(thefall_bot_delay_max - thefall_bot_delay_min);
 end
 
 -- Somebody in the shaft touched down, or took a hit that should have
@@ -238,42 +252,45 @@ function mod.kill(pid, type, killer)
 		return;
 	end
 
-	-- Already in the shaft, and it depends entirely on who did it.
+	-- Anything inside the shaft, sentenced player or resident bot, lives
+	-- by the same rule, and it turns on who did it.
 	--
-	-- Somebody shot them: that is a real kill and is chained as one --
-	-- feed line, point, respawn timer, the lot. What it does NOT do is
-	-- let them out. falling stays set, so the respawn it schedules lands
-	-- them right back at the top of the shaft (get_spawn_position) and
-	-- the fall starts over. Being killed down here costs you your
-	-- height, not your sentence. The shooter, if they were falling too,
-	-- gets the only thing worth having: the door.
+	-- The shaft itself -- the floor at the bottom, the water, the drop
+	-- -- reports the victim as its own killer, and it does not get to
+	-- kill anybody. Not chained at all: no feed line, no point, no
+	-- respawn timer, no death. They are patched up and go round again.
+	-- This is what "in prison" means for both of them, and it is why the
+	-- kill feed isn't a wall of bots falling to their deaths.
 	--
-	-- The shaft itself -- the floor at the bottom, the water, a fall --
-	-- reports the victim as its own killer, and that is not a death at
-	-- all. It is not chained: no feed, no point, no timer. They are
-	-- patched up and dropped in again from the top.
-	if (falling[pid] ~= nil) then
-		if (killer ~= pid) then
-			mod.next.kill(pid, type, killer);
-			try_rescue(killer, pid);
+	-- A bullet is different. That is a real kill and is chained as one,
+	-- with everything a kill carries -- which is the entire reason the
+	-- bots are down here to be shot at. What it does NOT do is let the
+	-- victim out: a player keeps their falling mark, so the respawn it
+	-- schedules lands them right back at the top (get_spawn_position),
+	-- and a bot is dropped in again after its pause. Being killed in
+	-- here costs you your height, not your sentence. The shooter, if
+	-- they were falling too, gets the only thing worth having: the door.
+	local bot = bot_get(pid);
+	local faller = bot ~= nil and bot.data.faller;
+
+	if (falling[pid] ~= nil or faller) then
+		if (killer == pid) then
+			restock(pid);
+			if (faller) then stagger(pid); else set_position(pid, drop_pos()); end
 			return;
 		end
-		recycle(pid);
+
+		mod.next.kill(pid, type, killer);
+		try_rescue(killer, pid);
+		if (faller) then stagger(pid); end
 		return;
 	end
 
-	-- Bots die like anything else -- none of them can shoot its way out,
-	-- so the shaft's rules would only strand them. Ours then lie at the
-	-- bottom for a randomly drawn moment before tick() drops them back
-	-- in; any other script's bots respawn the way that script meant.
-	local bot = bot_get(pid);
+	-- another script's bots, which know nothing about any of this and
+	-- respawn the way that script meant them to
 	if (bot ~= nil) then
 		mod.next.kill(pid, type, killer);
 		try_rescue(killer, pid);
-		if (bot.data.faller) then
-			redrop[pid] = get_time() + thefall_bot_delay_min
-				+ math.random()*(thefall_bot_delay_max - thefall_bot_delay_min);
-		end
 		return;
 	end
 
@@ -399,25 +416,40 @@ function mod.after.tick()
 	local now = get_time();
 
 	for i in piditer(PID_BROADCAST) do
+		-- a bot's pause at the bottom is up. Alive means it walked its
+		-- lap out and only needs moving; dead means somebody shot it,
+		-- and it needs bringing back first
 		if (redrop[i] ~= nil and now >= redrop[i]) then
 			redrop[i] = nil;
-			throw_in(i);
+			if (is_alive(i)) then
+				recycle(i);
+			else
+				throw_in(i);
+			end
 		end
 
-		-- The loop, and the reason it doesn't lean on the landing being
-		-- fatal: the instant a faller's feet touch ANYTHING they go back
-		-- to the top. The floor of the shaft is the usual thing, but the
-		-- top of it is high above the terrain, so a player with enough
-		-- air control can drift out over open ground and come down
-		-- outside -- from a height that may not even hurt. Feet down is
-		-- feet down; the shaft doesn't care where.
+		-- Feet down, lap over. This is the loop, and it deliberately
+		-- does not lean on the landing being fatal -- nothing in the
+		-- shaft dies of the shaft any more, and even before that a
+		-- landing could be survivable: the top of the shaft is high
+		-- above the terrain, so anyone with enough air control can drift
+		-- out over open ground and come down outside from a height that
+		-- wouldn't hurt. Feet down is feet down; the shaft doesn't care
+		-- where or how hard.
 		--
 		-- The height test keeps the tick right after a drop from
 		-- counting: they are placed at DROP_Z with no ground under them
 		-- and are not airborne until the physics says so.
-		if (falling[i] ~= nil and is_alive(i) and not is_airborne(i)
+		if (is_alive(i) and not is_airborne(i)
 		    and get_position(i).z > DROP_Z + 2) then
-			recycle(i);
+			if (falling[i] ~= nil) then
+				recycle(i);
+			elseif (is_faller(i) and redrop[i] == nil) then
+				-- bots serve their pause where they landed, so the four
+				-- of them drift apart instead of falling in formation
+				restock(i);
+				stagger(i);
+			end
 		end
 	end
 
