@@ -5,6 +5,13 @@
 # writes beside them are small text and are kept.
 maps/*.vxl
 instances/*.map/*.vxl
+# world_editor's component layouts sit beside the .vxl they belong to and
+# are map content in the same way -- authored per server, not source
+maps/*.editor.json
+instances/*.map/*.editor.json
+
+# patches exported for upstream (regenerate: git -C lsd format-patch -1)
+/*.patch
 
 # local tooling / scratch
 .claude/

@@ -4,7 +4,7 @@
 --
 -- Common settings can be overridden from the environment
 -- (see .env / docker-compose.yml): LSD_NAME, LSD_MAPS, LSD_GAMEMODE
-masterlist_name = "Fran6nd's LSd server under LSD"
+masterlist_name = os.getenv("LSD_NAME")
 
 -- whitespace-separated map names, e.g. LSD_MAPS="hallway pinpoint"
 -- (parsed into a table here: upstream map_queue.lua only splits
@@ -35,14 +35,22 @@ load "group_commands"
 load "group_moderation"
 load "group_feature"
 
--- Don't load masterlist if you don't want your server to be public.
--- The upstream default only announces to the LSD author's masterlist;
--- master.buildandshoot.com is the official Build and Shoot list.
+-- Public listing. The upstream default only announces to the LSD
+-- author's masterlist; master.buildandshoot.com is the official Build
+-- and Shoot list. LSD_MASTERLIST=0 keeps the server unlisted:
+-- ./lsdctl <instance> masterlist off (delisting is not access control
+-- though -- anyone who knows ip:port can still join).
+--
+-- The name and remotes are set even when the listing is off, on
+-- purpose: getcfg only fills globals that are nil, so a later live
+-- `load masterlist` would otherwise fall back to upstream's defaults.
 masterlist_remotes = {
 	"66.135.15.57",
 	"master.buildandshoot.com",
 }
-load "masterlist"
+if (os.getenv("LSD_MASTERLIST") ~= "0") then
+	load "masterlist"
+end
 
 -- stdio_console wedges the whole server when stdin is a docker TTY or
 -- closed pipe; the container sets LSD_NO_STDIO_CONSOLE=1 to skip it
@@ -59,7 +67,7 @@ register(maptime);
 motd = [[
 This server runs [LSd] from [totally not a burner].
 It is meant to test this server and have fun.
-You might see some weird stuff though as i like experimenting.
+I recommend using ZeroSpades as client.
 ]]
 load "motd"
 
@@ -80,11 +88,8 @@ tips = {
 tip_frequency = 5*60
 load "tip_spam"
 
--- one random shotgun pellet per shot explodes (scripts.local/)
-load "shotgun_are_grenade_launchers"
-
--- rifles pierce 5 blocks and leave a tracer trail (scripts.local/)
-load "rifle_is_a_rail_gun"
+-- (spicy guns live on the spicyctf instance, not here: hostage keeps
+-- vanilla weapons)
 
 -- player-driven kick votes: /votekick <player>, /y to vote (scripts.local/)
 load "votekick"
@@ -112,3 +117,11 @@ load "hostage"
 -- combat guard bots, 5 per team (scripts.local/) -- disabled for now;
 -- uncomment to bring them back (./lsdctl load lib_bot hostage bot_standard)
 -- load "bot_standard"
+
+-- in-game map/component editor (scripts.local/). Loading it is inert on
+-- its own: edit mode is console-gated (./lsdctl hostage edit on), it
+-- pulls its own deps through require, and it restores each map's
+-- maps/<map>.editor.json on load. Listed here so a restart keeps it --
+-- a hot `./lsdctl hostage load world_editor` only lives in the running
+-- server's Lua state and is lost the next time the container is recreated.
+load "world_editor"
