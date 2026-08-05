@@ -30,7 +30,7 @@ services:
       # per-instance config. Maps are per-instance too: lsdctl points
       # LSD_MAPS_DIR at instances/<name>.map/, and ./maps is only the
       # fallback for an instance created before maps were split.
-      - ${LSD_CONFIG_FILE:-./config.lua}:/lsd/config.lua:ro
+      - ${LSD_CONFIG_FILE:-./templates/config.lua}:/lsd/config.lua:ro
       # the map dir is writable: world_editor persists component layouts
       # to <map>.editor.json next to the .vxl it belongs to. Whatever the
       # host path, the container always sees it as /lsd/maps.

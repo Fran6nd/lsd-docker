@@ -75,7 +75,7 @@ COPY --from=build /build/exec ./exec
 # the runtime scripts/ dir from them plus the scripts.local/ mount
 COPY --from=build /build/scripts ./scripts.dist
 # default config baked in; compose mounts the live one from the host
-COPY config.lua ./config.lua
+COPY templates/config.lua ./config.lua
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
  && mkdir -p rw maps scripts && chown lsd:lsd rw maps scripts

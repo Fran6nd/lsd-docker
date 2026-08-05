@@ -1,10 +1,18 @@
--- config.lua -- Lua script executed on server start
--- Pass the -c option on the command line to use a
--- different path for the config file
+-- config.lua -- Template every new instance is created from
 --
--- Common settings can be overridden from the environment
--- (see .env / docker-compose.yml): LSD_NAME, LSD_MAPS, LSD_GAMEMODE
-masterlist_name = "Fran6nd's LSd server under LSD"
+-- `lsdctl new <name>` copies this to instances/<name>.config.lua, which
+-- is then that server's own to edit. Keep this file NEUTRAL: anything
+-- specific to one server belongs in that server's copy, not here, or
+-- every server created afterwards inherits it.
+--
+-- Settings that differ per instance come from its .env rather than being
+-- written in: LSD_NAME, LSD_MAPS, LSD_GAMEMODE, LSD_MASTERLIST.
+--
+-- Pass -c on the command line to use a different config path.
+
+-- The masterlist caps a name at 31 characters. The fallback is only for
+-- running the server by hand outside docker, where nothing sets the env.
+masterlist_name = os.getenv("LSD_NAME") or "LSd server"
 
 -- whitespace-separated map names, e.g. LSD_MAPS="hallway pinpoint"
 -- (parsed into a table here: upstream map_queue.lua only splits
@@ -65,15 +73,12 @@ load "trashheap"
 register(maptime);
 
 motd = [[
-This server runs [LSd] from [totally not a burner].
-It is meant to test this server and have fun.
-You might see some weird stuff though as i like experimenting.
+Welcome to ]]..masterlist_name..[[, running [LSd].
+Have fun.
 ]]
 load "motd"
 
 tips = {
-	"Tip: use smg to avoid injuring the hostage.",
-	"Did you learn something new today?",
 	"Use /kill to die.",
 	function() for i in piditer(PID_BROADCAST) do
 		server_msg(i, string.format(
@@ -83,35 +88,48 @@ tips = {
 	end end,
 	"Block color won't change? Try the arrow keys and E.",
 	"This is not Build and Shoot. This is ACE OF SPADES.",
-	"Some day I'll add a /tutor"
 }
 tip_frequency = 5*60
 load "tip_spam"
 
--- one random shotgun pellet per shot explodes (scripts.local/)
-load "shotgun_are_grenade_launchers"
-
--- rifles pierce 5 blocks and leave a tracer trail (scripts.local/)
-load "rifle_is_a_rail_gun"
-
 -- player-driven kick votes: /votekick <player>, /y to vote (scripts.local/)
 load "votekick"
 
--- Hostage rides on top of ctf (it uses ctf's tents and intel-based
--- scoring). Load the base gamemode and lib_bot FIRST, each exactly
--- once, then hostage -- it only *uses* their globals, never load()s
--- them, so nothing is registered twice. A double register makes a
--- hook's `next` point at itself and stack-overflows the tick chain.
--- Also try "arena", "babel" (hostage stays idle without tents).
+-- In-game map editor: components (doors, elevators), spatial permissions
+-- and the terrain tools. Inert until switched on from the console with
+-- ./lsdctl <instance> edit on, so loading it costs a normal round
+-- nothing. The group pulls in its dependencies.
+load "group_world_editor"
+
+-- Flavour, off by default -- uncomment per server that wants it:
+-- one random shotgun pellet per shot explodes, and rifles pierce the
+-- whole map leaving a tracer (both scripts.local/)
+-- load "shotgun_are_grenade_launchers"
+-- load "rifle_is_a_rail_gun"
+
+-- The gamemode is whatever the instance asks for: ctf, arena, babel,
+-- ffa, dd... plus "hostage" from scripts.local/, which is not a gamemode
+-- of its own but rides on top of ctf (it uses ctf's tents and
+-- intel-based scoring).
+--
+-- Load the base gamemode and lib_bot FIRST, each exactly once, and only
+-- then hostage -- it only *uses* their globals, never load()s them, so
+-- nothing is registered twice. A double register makes a hook's `next`
+-- point at itself and stack-overflows the tick chain.
 local gamemode = os.getenv("LSD_GAMEMODE") or "ctf"
-if (gamemode == "hostage") then gamemode = "ctf" end
+local hostage = (gamemode == "hostage");
+if (hostage) then gamemode = "ctf" end
 load(gamemode)
--- random spawn around the team tent; BEFORE lib_bot so lib_bot's bot
--- spawn_at (the hostage's enemy-tent post) stays outermost and wins,
--- while real players fall through to the random tent spawn
+
+-- random spawn around the team tent; BEFORE lib_bot so a bot's own
+-- spawn_at stays outermost and wins, while real players fall through to
+-- the random tent spawn
 load "tentspawns"
 load "lib_bot"
-load "hostage"
--- combat guard bots, 5 per team (scripts.local/) -- disabled for now;
--- uncomment to bring them back (./lsdctl load lib_bot hostage bot_standard)
+if (hostage) then
+	load "hostage"
+end
+
+-- combat guard bots, 5 per team (scripts.local/) -- off by default:
+-- ./lsdctl <instance> load bot_standard  to try them on a running server
 -- load "bot_standard"

@@ -121,8 +121,18 @@ is ever needed for content changes:
 | in-development scripts | `scripts.dev/` (shared) | same, on instances with the dev layer on |
 | public listing | `LSD_MASTERLIST` in `instances/<name>.env` | `./lsdctl <name> masterlist on\|off` (hot) |
 
-The top-level `config.lua` is the template `./lsdctl new` copies for a
-new instance; it is not itself loaded by any instance.
+`./lsdctl new` stamps a new instance out of `templates/`:
+
+| template | becomes |
+|---|---|
+| `templates/config.lua` | `instances/<name>.config.lua` |
+| `templates/instance.env` | `instances/<name>.env` (`@PLACEHOLDERS@` filled in, `#T#` lines dropped) |
+| — | `instances/<name>.map/`, seeded from an existing instance |
+
+Neither template is loaded by any instance: they are copied once, and the
+copy is then that server's own to edit. Keep them neutral — anything
+specific to one server belongs in that server's copy, or every server
+created afterwards inherits it.
 
 - **Port**: `LSD_PORT` changes the container *and* published port
   together — they must match because the masterlist advertises the

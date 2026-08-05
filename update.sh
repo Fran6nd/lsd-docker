@@ -2,7 +2,7 @@
 # Nightly update for the dockerized LSD server: bump the lsd submodule
 # to upstream master, rebuild the image, restart the container (compose
 # only recreates it when the image actually changed). The submodule
-# stays pristine -- config.lua lives in this project and is mounted
+# stays pristine -- the instance config lives in this project and is mounted
 # into the container, so there is nothing to stash, ever.
 #
 # Run from root's crontab:
