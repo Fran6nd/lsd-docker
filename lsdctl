@@ -18,6 +18,9 @@ DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$DIR"
 
 INSTANCES_DIR=instances
+# what a new instance is stamped out of; keep these neutral, anything
+# specific to one server belongs in that server's copy
+TEMPLATES_DIR=templates
 
 usage() {
 	cat <<'EOF'
@@ -28,8 +31,8 @@ usage:
 instances
   ls                  list instances (name, port, gamemode, listing, state)
   new <name> [-p N]   create instances/<name>.env, <name>.config.lua
-                      and <name>.map/ (its own maps, seeded from an
-                      existing instance)
+                      and <name>.map/ from templates/ (maps seeded from
+                      an existing instance)
   rm  <name>          stop and delete an instance
 
 scripts
@@ -190,7 +193,7 @@ new_instance() {
 		echo "error: port $port is already used by another instance (lsdctl ls)" >&2; exit 1
 	fi
 
-	cp config.lua "$(cfgf_for "$name")"
+	cp "$TEMPLATES_DIR/config.lua" "$(cfgf_for "$name")"
 
 	# Every server gets its own maps. Seed the new folder by copying an
 	# existing one, so a fresh instance can actually boot -- LSD_MAPS names
@@ -221,21 +224,15 @@ new_instance() {
 		echo "note: $maps is empty -- add maps with: ./lsdctl $name map add <file|url>"
 	fi
 
-	cat > "$(envf_for "$name")" <<EOF
-# $name instance
-LSD_PORT=$port
-LSD_NAME=$name
-LSD_GAMEMODE=ctf
-LSD_MAPS=$maplist
-LSD_CONFIG_FILE=./$(cfgf_for "$name")
-# this server's own maps; nothing else reads or writes them
-LSD_MAPS_DIR=./$(mapsd_for "$name")
-LSD_RW_VOLUME=lsd-$name-rw
-# run the in-development scripts.dev/ layer (0 = released scripts only)
-LSD_SCRIPTS_DEV=1
-# announce this instance to the public server lists (0 = unlisted)
-LSD_MASTERLIST=1
-EOF
+	# the env is a template too, so a new setting is added in one place
+	# rather than buried in this script
+	sed -e '/^#T#/d' \
+	    -e "s|@NAME@|$name|g" \
+	    -e "s|@PORT@|$port|g" \
+	    -e "s|@MAPS@|$maplist|g" \
+	    -e "s|@CONFIG@|$(cfgf_for "$name")|g" \
+	    -e "s|@MAPSDIR@|$(mapsd_for "$name")|g" \
+	    "$TEMPLATES_DIR/instance.env" > "$(envf_for "$name")"
 	echo "created instance '$name' on port $port:"
 	echo "  $(envf_for "$name")"
 	echo "  $(cfgf_for "$name")"
