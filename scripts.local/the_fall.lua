@@ -72,9 +72,13 @@ getcfg("thefall_bot_entry_spread", 24);
 -- ticks the ring stands at the top before it is taken down and left to
 -- fall (see RINGS). It only has to outlast a client frame, not be seen
 getcfg("thefall_ring_life", 6);
--- whether the bots get one too. Off by default for the packet bill: a
--- ring is ~180 broadcasts and the bots drop far more often than anyone
-getcfg("thefall_ring_bots", false);
+-- whether the bots get one too. On, because they are disguised as
+-- players and a bot is the only thing in the shaft that would arrive
+-- without a ring -- that is a tell, and the disguise is worth more than
+-- the packets. It is not nothing though: a ring is ~180 broadcasts and
+-- the bots drop far more often than any player, so this is the first
+-- thing to turn off if a full server starts to feel it
+getcfg("thefall_ring_bots", true);
 
 local CX = thefall_center_x;
 local CY = thefall_center_y;
@@ -158,6 +162,45 @@ local function is_faller(pid)
 	local b = bot_get(pid);
 	return b ~= nil and b.data.faller;
 end
+
+-- The team a faller must LOOK like to `viewer`: never the viewer's own.
+-- 1-based, the base get_team() and send_spawn_player() both speak.
+--
+-- Anyone without a side of their own gets the truth instead, and there
+-- are two of them. Spectators, obviously. And -- less obviously, but it
+-- is the case that matters -- anyone still in limbo, which is exactly
+-- who send_existing_player is talking to: a client is sent the roster
+-- while it is still choosing a team, and that roster is what its team
+-- picker counts. Disguise the fallers there and the newcomer is shown
+-- four enemies and no allies, so they pick the empty side every time.
+-- The truth is an even split (faller_census keeps it that way), which is
+-- what the picker should see; the moment they spawn into a team,
+-- spawn_player above re-announces every faller with the disguise on.
+--
+-- is_joined is the test rather than the team, because the team of a
+-- player who has not joined is not meaningful: nothing resets it on
+-- connect or disconnect, so a fresh slot reads as whatever the last
+-- occupant left behind -- or team 1 on a slot nobody has used yet.
+local function enemy_of(viewer, real)
+	local t = get_team(viewer);
+
+	if (not is_joined(viewer) or (t ~= 1 and t ~= 2)) then
+		return real;
+	end
+	return t == 1 and 2 or 1;
+end
+
+-- The team pid APPEARS to be to viewer, which for everybody except a
+-- faller is simply the team they are on. Both the packets that carry a
+-- team and the rings have to agree with this, or the disagreement is
+-- what gives the disguise away.
+local function apparent_team(pid, viewer)
+	if (is_faller(pid)) then
+		return enemy_of(viewer, get_team(pid));
+	end
+	return get_team(pid);
+end
+
 
 -- ENTERING the shaft: a random point on the disc, uniform over its area
 -- (the sqrt undoes the bias a flat random radius has, which would bunch
@@ -575,16 +618,41 @@ function draw_ring(pid)
 		return;
 	end
 
-	-- the colour applies to every block action from the anonymous pid
-	-- that follows it, so it is set immediately before this ring's
-	-- blocks and nobody else's
-	send_set_block_color(PID_BROADCAST, get_team_color(get_team(pid)),
-		get_anon_pid());
-
+	local gen = {};
 	for _,v in ipairs(RING) do
-		local p = {x=v.x, y=v.y, z=z};
+		gen[#gen+1] = {x=v.x, y=v.y, z=z};
+	end
 
-		send_block_action(PID_BROADCAST, p, 0, get_anon_pid());
+	-- The colour has to be the one the dropper is WEARING, which for a
+	-- faller is a different team for every viewer -- so the ring is a
+	-- different colour for every viewer too. A bot disguised as the
+	-- enemy dropping a ring in its real colours would give the whole
+	-- thing away, and give it away most clearly to the half of the
+	-- server it is lying to.
+	--
+	-- Fanning the broadcast out per recipient costs nothing on the wire:
+	-- a broadcast is already one packet per client. Only the colour
+	-- itself is sent more than once, once per client instead of once.
+	--
+	-- A player is not disguised and looks the same to everybody, so
+	-- theirs goes out as the single broadcast it can be.
+	if (is_faller(pid)) then
+		for i in piditer(PID_BROADCAST) do
+			send_set_block_color(i, get_team_color(apparent_team(pid, i)),
+				get_anon_pid());
+			for _,p in ipairs(gen) do
+				send_block_action(i, p, 0, get_anon_pid());
+			end
+		end
+	else
+		send_set_block_color(PID_BROADCAST, get_team_color(get_team(pid)),
+			get_anon_pid());
+		for _,p in ipairs(gen) do
+			send_block_action(PID_BROADCAST, p, 0, get_anon_pid());
+		end
+	end
+
+	for _,p in ipairs(gen) do
 		ring_newborn[#ring_newborn+1] = p;
 	end
 end
@@ -700,6 +768,10 @@ end
 -- whole of the illusion. ffa.lua does the same thing to put everybody on
 -- opposite sides; this is that trick pointed at four bots.
 --
+-- enemy_of and apparent_team, which decide it, live up at the top of the
+-- file rather than here: the rings need them too, and a ring in the
+-- wrong colour would break the disguise as surely as a wrong packet.
+--
 -- What it is NOT is a change of team: server-side the bot is still on
 -- team 1 or 2, and the server's own damage rules go by that. So half the
 -- time a client shoots what it has been told is an enemy and the server
@@ -707,33 +779,6 @@ end
 -- than no disguise at all, since the bot visibly shrugs off a magazine.
 -- on_hit and detonate_grenade below close that hole; between them they
 -- are every way one player hurts another.
-
--- The team a faller must LOOK like to `viewer`: never the viewer's own.
--- 1-based, the base get_team() and send_spawn_player() both speak.
---
--- Anyone without a side of their own gets the truth instead, and there
--- are two of them. Spectators, obviously. And -- less obviously, but it
--- is the case that matters -- anyone still in limbo, which is exactly
--- who send_existing_player is talking to: a client is sent the roster
--- while it is still choosing a team, and that roster is what its team
--- picker counts. Disguise the fallers there and the newcomer is shown
--- four enemies and no allies, so they pick the empty side every time.
--- The truth is an even split (faller_census keeps it that way), which is
--- what the picker should see; the moment they spawn into a team,
--- spawn_player above re-announces every faller with the disguise on.
---
--- is_joined is the test rather than the team, because the team of a
--- player who has not joined is not meaningful: nothing resets it on
--- connect or disconnect, so a fresh slot reads as whatever the last
--- occupant left behind -- or team 1 on a slot nobody has used yet.
-local function enemy_of(viewer, real)
-	local t = get_team(viewer);
-
-	if (not is_joined(viewer) or (t ~= 1 and t ~= 2)) then
-		return real;
-	end
-	return t == 1 and 2 or 1;
-end
 
 -- All four hooks below sit in the LATE chain, i.e. underneath every
 -- other module and just above the C implementation. That is deliberate,
