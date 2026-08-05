@@ -9,19 +9,22 @@
 -- From there the only way out is to kill somebody. Do that and you are
 -- healed, restocked and put back at your team's spawn, in the game
 -- again. Nothing else gets you out. You never even reach the floor: a
--- few blocks short of it you are snatched back to the top, whole and
+-- few blocks short of it you are snatched straight back up, whole and
 -- restocked, with clear air still under you -- no landing, no impact,
--- just the same drop again, over and over. Being shot by somebody else
+-- and the same column you were already falling down. Only the arrival
+-- is placed at random; every lap after it is a loop, not a reshuffle.
+-- Being shot by somebody else
 -- falling beside you does kill you -- they earn the point, and they have
 -- earned their way out if they were down here too -- but you respawn at
 -- the top of the shaft, still falling, still owing a kill.
 --
 -- Bots ride the shaft permanently, on exactly the same terms: caught
--- short of the floor like everybody else, round and round. Each one
--- enters at its own height, redrawn every lap, so they never fall in
--- formation. A bullet does kill them, which is the entire reason they
--- are down there -- they are what a player shoots to buy their way out,
--- and the only thing that ever puts one on the ground.
+-- short of the floor like everybody else, round and round their own
+-- column. They arrive at their own height, which is the one and only
+-- reason the four of them don't fall in formation -- see entry_pos. A
+-- bullet does kill them, which is the entire reason they are down there
+-- -- they are what a player shoots to buy their way out, and the only
+-- thing that ever puts one on the ground.
 --
 -- And they are everyone's enemy: whatever side a faller is really on,
 -- every client is told it is on the other side from them, so a Blue
@@ -57,9 +60,9 @@ getcfg("thefall_bot_delay_max", 3);
 -- underneath -- a fall at terminal velocity covers about half a block
 -- per tick, so this is several ticks of margin, not one
 getcfg("thefall_floor_clearance", 5);
--- bots enter within this many blocks of the top, at a fresh random
--- height every lap, so their laps never fall into step (see bot_drop_pos)
-getcfg("thefall_drop_spread", 24);
+-- how far below the top a bot may ENTER the shaft. Only ever applied to
+-- an entry, never to a lap -- see entry_pos for why it has to exist
+getcfg("thefall_bot_entry_spread", 24);
 
 local CX = thefall_center_x;
 local CY = thefall_center_y;
@@ -71,8 +74,10 @@ local DROP_R = math.max(R - thefall_edge_margin, 0.5);
 
 -- z 0..62 is carved; z 63 is left as the floor at the bottom
 local DIG_Z_BOTTOM = 62;
--- where a dropped player appears: the top of the shaft
-local DROP_Z = 1;
+-- where a drop starts: z 0 is the ceiling of the world, so this is the
+-- highest point there is. demoncore's phys_solid answers "air" for any
+-- z below 0, so a head poking out above the map is not a problem.
+local DROP_Z = 0;
 -- and where the drop ends: anyone at or below this is close enough to
 -- the floor to be caught and sent back up, still in mid-air
 local CATCH_Z = DIG_Z_BOTTOM - thefall_floor_clearance;
@@ -134,37 +139,49 @@ local function is_faller(pid)
 	return b ~= nil and b.data.faller;
 end
 
--- a random point in the shaft at height z, uniform over the disc of
--- radius DROP_R: the sqrt undoes the area bias a flat random radius has,
--- which would bunch everyone into the middle
-local function drop_at(z)
+-- ENTERING the shaft: a random point on the disc, uniform over its area
+-- (the sqrt undoes the bias a flat random radius has, which would bunch
+-- everyone into the middle), at the very top. This is the only placement
+-- that is random at all, and only an arrival gets it -- a death that
+-- sends a player down here, or a shot bot being put back in.
+--
+-- The one exception is a bot's height, and it is load-bearing. Every lap
+-- runs from the top to the same catch height, so every lap takes exactly
+-- as long as every other: laps preserve whatever spacing the fallers
+-- already have and can never create any. A bot's arrival is the single
+-- chance to space the four of them out, and that spacing then has to
+-- last for as long as they keep falling -- which it does, precisely
+-- because nothing afterwards disturbs it.
+local function entry_pos(pid)
 	local ang = math.random() * 2 * math.pi;
 	local rad = DROP_R * math.sqrt(math.random());
+	local z = DROP_Z;
+
+	if (is_faller(pid)) then
+		z = z + math.random()*thefall_bot_entry_spread;
+	end
 
 	return {x = CX + rad*math.cos(ang),
 	        y = CY + rad*math.sin(ang),
 	        z = z};
 end
 
--- players always enter at the very top: the whole drop, every time
-local function drop_pos()
-	return drop_at(DROP_Z);
-end
+-- Going round again: straight up. Whoever is already in here keeps the
+-- column they were falling down -- same x, same y, back to the top -- so
+-- a lap is a loop and not a reshuffle.
+--
+-- Unless they have left the shaft. Its top is far above the terrain, so
+-- enough air control drifts a player out over open ground, and lifting
+-- them straight up from out there would only drop them onto the same
+-- roof again, forever. Out there the shaft takes them back the way it
+-- takes anyone in.
+local function loop_pos(pid)
+	local p = get_position(pid);
 
--- bots enter somewhere in the top thefall_drop_spread blocks instead.
--- That randomness is the ONLY thing keeping them out of formation now
--- that nothing in here lands: every lap is otherwise identical, so four
--- bots entering at the same height would fall as a block forever. A
--- different entry height is a different lap length, redrawn every time,
--- and they drift apart on their own with no packets spent on it.
-local function bot_drop_pos()
-	return drop_at(DROP_Z + math.random()*thefall_drop_spread);
-end
-
--- back to the top, right now, whole. Nothing in the shaft ever dies of
--- the shaft, so this is a teleport and not a respawn -- see recycle().
-local function drop_in(pid)
-	return is_faller(pid) and bot_drop_pos() or drop_pos();
+	if (not in_zone(p.x, p.y)) then
+		return entry_pos(pid);
+	end
+	return {x = p.x, y = p.y, z = DROP_Z};
 end
 
 -- Dig on every map load, while the map is still "loading" so the change
@@ -217,7 +234,7 @@ end
 -- grenades, and any scheduled respawn cancelled so nothing yanks it to a
 -- tent mid-drop.
 local function throw_in(pid)
-	spawn_player(pid, drop_in(pid));
+	spawn_player(pid, entry_pos(pid));
 end
 
 -- A bot's pause at the bottom before its next drop, drawn fresh every
@@ -242,7 +259,7 @@ end
 -- they were caught.
 local function recycle(pid)
 	restock(pid);
-	set_position(pid, drop_in(pid));
+	set_position(pid, loop_pos(pid));
 end
 
 -- pid killed somebody, which is the one way out. Healed, restocked and
@@ -272,7 +289,7 @@ end
 -- alone, and only the destination changes.
 function mod.get_spawn_position(pid)
 	if (falling[pid] ~= nil) then
-		return drop_pos();
+		return entry_pos(pid);
 	end
 	return mod.next.get_spawn_position(pid);
 end
@@ -504,7 +521,7 @@ function mod.after.tick()
 			name = "Faller-"..slot,
 			gun = 0,
 			tool = "gun",
-			spawn_at = drop_pos,
+			spawn_at = entry_pos,
 			data = {faller=true, slot=slot},
 		};
 	end
