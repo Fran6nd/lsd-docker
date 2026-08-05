@@ -80,6 +80,8 @@
 --   why bot_destroy is idempotent.
 local mod = init_mod();
 
+require "lib_bulk_destroy";   -- bdestroy_* for bot_dig_block below
+
 getcfg("bot_fidget_secs", 45);      -- idle keepalive period
 getcfg("bot_shoot_range", 128);     -- max bullet reach, in blocks
 getcfg("bot_grenade_speed", 1.0);   -- throw speed (|vel|); a client's orientation throw is ~1
@@ -229,6 +231,34 @@ end
 
 function bot_heal(pid)
 	set_hp(pid, 100);
+end
+
+-- Is that voxel solid? Off the map, the answer is no.
+--
+-- is_solid does NOT tolerate being asked about a cell outside the world:
+-- get_ivec3 (lsd/src/lua.c) raises a Lua error for x or y outside
+-- [0,512) and for z >= 64, which surfaces as
+--   PANIC: unprotected error in call to Lua API (ivec3 is out of bounds)
+-- and takes the server with it. Only z < 0 is answered gracefully, by
+-- is_solid itself.
+--
+-- Bots probe the cell in front of them, under their feet, above their
+-- head -- all derived from a float position and an orientation, so all
+-- capable of landing a block outside the map when a bot walks near an
+-- edge. Every such probe goes through here.
+function bot_solid(x, y, z)
+	if (x < 0 or x >= 512) then return false; end
+	if (y < 0 or y >= 512) then return false; end
+	if (z < 0 or z >= 64) then return false; end
+	return is_solid({x=x, y=y, z=z});
+end
+
+-- Same guard for a cell a bot wants to dig: silently skip anything off
+-- the map rather than letting bdestroy_block_action raise.
+function bot_dig_block(x, y, z)
+	if (not bot_solid(x, y, z)) then return false; end
+	bdestroy_block_action({x=x, y=y, z=z}, 1);
+	return true;
 end
 
 function bot_distance_to(pid, target)

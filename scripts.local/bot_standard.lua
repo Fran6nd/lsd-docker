@@ -64,11 +64,13 @@ local function dig_forward(pid, p, iz)
 	if (h < 0.001) then
 		return;
 	end
+	-- bot_dig_block guards the coordinates: fx/fy come from a float
+	-- position plus an orientation, so they land off the map whenever a
+	-- bot faces an edge, and an ivec3 out of bounds raises rather than
+	-- returning (see bot_solid)
 	local fx, fy = math.floor(p.x + o.x/h), math.floor(p.y + o.y/h);
 	for _, fz in ipairs({iz, iz+1, iz-1}) do
-		if (fz >= 0 and fz < 64) then
-			bdestroy_block_action({x=fx, y=fy, z=fz}, 1);
-		end
+		bot_dig_block(fx, fy, fz);
 	end
 	bdestroy_finish();
 end
@@ -104,8 +106,8 @@ local function try_unstick(pid, dt, d)
 
 	-- z is down: iz-1 is head height, iz+2/iz+3 catch the floor below
 	local ix, iy, iz = math.floor(p.x), math.floor(p.y), math.floor(p.z);
-	local above_clear = not is_solid({x=ix, y=iy, z=iz-1});
-	local on_ground = is_solid({x=ix, y=iy, z=iz+2}) or is_solid({x=ix, y=iy, z=iz+3});
+	local above_clear = not bot_solid(ix, iy, iz-1);
+	local on_ground = bot_solid(ix, iy, iz+2) or bot_solid(ix, iy, iz+3);
 
 	if (d.crouch_tried) then
 		d.crouch_tried = false; d.jump_tried = false;
@@ -122,7 +124,7 @@ local function try_unstick(pid, dt, d)
 		elseif (hl > 0.001) then
 			local fx = math.floor(p.x + o2.x/hl);
 			local fy = math.floor(p.y + o2.y/hl);
-			if (is_solid({x=fx, y=fy, z=iz-1}) or is_solid({x=fx, y=fy, z=iz+1})) then
+			if (bot_solid(fx, fy, iz-1) or bot_solid(fx, fy, iz+1)) then
 				set_position(pid, {x=p.x, y=p.y, z=p.z-2}); -- 2-block wall
 			end
 		end
