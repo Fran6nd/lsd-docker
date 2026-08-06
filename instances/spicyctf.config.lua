@@ -127,6 +127,12 @@ tips = {
 tip_frequency = 5*60
 load "tip_spam"
 
+-- Works out when a bullet was actually fired, for every gun, and hands
+-- that one answer to both of the weapon scripts below -- neither of
+-- which can tell on its own (see the file). Must be loaded before them.
+-- (scripts.local/)
+load "lib_fire"
+
 -- one random shotgun pellet per shot explodes (scripts.local/)
 load "shotgun_are_grenade_launchers"
 

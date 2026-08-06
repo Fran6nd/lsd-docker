@@ -7,18 +7,15 @@
 -- client-side RNG; the server only sees player hits and block
 -- destroys), so the chosen pellet is simulated here: jitter the aim
 -- direction by the shotgun's spread, raycast it, boom.
+--
+-- Knowing that a shell was fired at all is lib_fire's job, not this
+-- one's -- it is the same problem the railgun script has, and it is
+-- harder than it looks. Load lib_fire before this.
 local mod = init_mod();
 
 getcfg("sgl_pellets", 8);     -- pellets per shell
 getcfg("sgl_spread", 0.024);  -- 0.75 shotgun spread
 getcfg("sgl_range", 128);     -- max pellet travel, in blocks
-
--- when a real pellet of theirs last provably existed (block break or
--- player hit): the engine's mag estimate drains on *estimated* shots
--- and the estimator is sprint- and release-blind, so it can phantom
--- its way to an empty magazine while the real one is half full --
--- fresh evidence overrules it
-local lastreal = pid_connected_table(0);
 
 local function jitter(dir)
 	return {
@@ -115,7 +112,6 @@ end
 -- pellets don't hurt players: only the grenade does damage
 function mod.on_hit(pid, type, hitPlayer)
 	if (is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 2) then
-		lastreal[pid] = get_time();
 		return;
 	end
 	mod.next.on_hit(pid, type, hitPlayer);
@@ -125,7 +121,6 @@ end
 -- holders and rebuild the block on the client that chewed it locally
 function mod.on_block_action(pid, pos, type)
 	if (type == 1 and is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 2) then
-		lastreal[pid] = get_time();
 		send_set_block_color(pid, get_map_block_color(pos), get_anon_pid());
 		send_block_action(pid, pos, 0, get_anon_pid());
 		return;
@@ -133,27 +128,30 @@ function mod.on_block_action(pid, pos, type)
 	mod.next.on_block_action(pid, pos, type);
 end
 
--- the server estimates gun cycling from the held inputs (rifle 0.5s,
--- smg 0.1s, shotgun 1s) and calls this per estimated shot, so holding
--- the trigger keeps launching -- clients send nothing while held
-function mod.after.before_estimated_fire(pid)
-	if (not is_alive(pid) or get_gun(pid) ~= 2) then
-		return;
-	end
-	-- the estimator is release-blind, so it keeps "firing" straight
-	-- through a reload -- but a real trigger-press cancels the reload
-	-- first, so any shot estimated while one is pending is a phantom.
-	-- don't burst a grenade for it. (crucially, don't touch the mag
-	-- either: the engine's own estimate tracks it correctly, so let
-	-- reload_player run the shell-by-shell reload untouched.)
-	if (get_reload_time(pid) ~= 0) then
-		return;
-	end
-	if (get_mag_ammo(pid) == 0 and get_time() - lastreal[pid] > 2) then
-		return; -- estimated empty and no recent proof to the contrary
+-- One shell, one live pellet, whoever worked out that a shell was fired.
+--
+-- The swallowing hooks above are why lib_fire watches from the xearly
+-- chain: they take a pellet's hit and its block destroy out of the chain
+-- entirely, and those two packets are the only proof a shell was fired
+-- that survives a sprinting player.
+function mod.on_load()
+	if (fire_listen == nil) then
+		error("shotgun_are_grenade_launchers needs lib_fire loaded first "
+			.."(config.lua loads it, or: lsdctl load lib_fire "
+			.."shotgun_are_grenade_launchers)", 0);
 	end
 
-	explode_pellet(pid);
+	fire_listen("shotgun_are_grenade_launchers", function(pid, gun)
+		if (gun == 2) then
+			explode_pellet(pid);
+		end
+	end);
+end
+
+function mod.on_unload()
+	if (fire_unlisten ~= nil) then
+		fire_unlisten("shotgun_are_grenade_launchers");
+	end
 end
 
 return mod;
