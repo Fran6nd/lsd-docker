@@ -33,11 +33,11 @@
 -- thing that ever puts one on the ground.
 --
 -- And they are everyone's enemy: whatever side a faller is really on,
--- every client is told it is on a team that belongs to nobody, so no
--- player ever falls past a teammate they can't shoot. See the DISGUISE
--- section -- it is not just cosmetic, since the server's own damage
--- rules still go by the real team, and it rests on an untested reading
--- of what clients do with an out-of-range team id.
+-- every client is told it is on the other side from them, so a Blue
+-- player sees four Greens falling and a Green player sees the same four
+-- as Blue. Nobody ever falls past a teammate they can't shoot. See the
+-- DISGUISE section for what that takes -- it is not just cosmetic, since
+-- the server's own damage rules still go by the real team.
 --
 -- The shaft is carved at runtime on every map load (the .vxl on disk is
 -- never touched) and nobody can build inside it.
@@ -72,14 +72,6 @@ getcfg("thefall_bot_entry_spread", 24);
 -- ticks the ring stands at the top before it is taken down and left to
 -- fall (see RINGS). It only has to outlast a client frame, not be seen
 getcfg("thefall_ring_life", 6);
--- The team id every faller is shown on: one that belongs to nobody, so
--- that every client reads them as hostile without being told anything
--- different from anyone else. An nteamid, so 1-based -- 3 is raw team 2.
--- Per aosprotocol#57 the two ranges worth trying are raw > 1, i.e. 3 or
--- above here, and raw negative-but-not-255, i.e. 129..255 here, which
--- voxlap reads as a signed team below zero (and which reportedly lands
--- you in a pseudospectator mode, so start with 3).
-getcfg("thefall_outsider_team", 3);
 -- whether the bots get a ring too. On, because they are disguised as
 -- players and a bot is the only thing in the shaft that would arrive
 -- without a ring -- that is a tell, and the disguise is worth more than
@@ -171,6 +163,45 @@ local function is_faller(pid)
 	return b ~= nil and b.data.faller;
 end
 
+-- The team a faller must LOOK like to `viewer`: never the viewer's own.
+-- 1-based, the base get_team() and send_spawn_player() both speak.
+--
+-- Anyone without a side of their own gets the truth instead, and there
+-- are two of them. Spectators, obviously. And -- less obviously, but it
+-- is the case that matters -- anyone still in limbo, which is exactly
+-- who send_existing_player is talking to: a client is sent the roster
+-- while it is still choosing a team, and that roster is what its team
+-- picker counts. Disguise the fallers there and the newcomer is shown
+-- four enemies and no allies, so they pick the empty side every time.
+-- The truth is an even split (faller_census keeps it that way), which is
+-- what the picker should see; the moment they spawn into a team,
+-- spawn_player above re-announces every faller with the disguise on.
+--
+-- is_joined is the test rather than the team, because the team of a
+-- player who has not joined is not meaningful: nothing resets it on
+-- connect or disconnect, so a fresh slot reads as whatever the last
+-- occupant left behind -- or team 1 on a slot nobody has used yet.
+local function enemy_of(viewer, real)
+	local t = get_team(viewer);
+
+	if (not is_joined(viewer) or (t ~= 1 and t ~= 2)) then
+		return real;
+	end
+	return t == 1 and 2 or 1;
+end
+
+-- The team pid APPEARS to be to viewer, which for everybody except a
+-- faller is simply the team they are on. Both the packets that carry a
+-- team and the rings have to agree with this, or the disagreement is
+-- what gives the disguise away.
+local function apparent_team(pid, viewer)
+	if (is_faller(pid)) then
+		return enemy_of(viewer, get_team(pid));
+	end
+	return get_team(pid);
+end
+
+
 -- ENTERING the shaft: a random point on the disc, uniform over its area
 -- (the sqrt undoes the bias a flat random radius has, which would bunch
 -- everyone into the middle), at the very top. This is the only placement
@@ -214,18 +245,6 @@ local function loop_pos(pid)
 		return entry_pos(pid);
 	end
 	return {x = p.x, y = p.y, z = DROP_Z};
-end
-
--- The colour a faller's blocks are drawn in. An outsider team has no
--- colour to look up -- get_team_color accepts only 1, 2 and SPECTATOR
--- (lua.c:78-83) and would raise on anything else -- and white is not a
--- stand-in but that function's own answer for a team it does not know
--- (lua.c:1432). Anyone who is not a faller is simply their own team.
-local function shown_color(pid)
-	if (is_faller(pid)) then
-		return {r=255, g=255, b=255};
-	end
-	return get_team_color(get_team(pid));
 end
 
 -- Dig on every map load, while the map is still "loading" so the change
@@ -491,6 +510,28 @@ function mod.after.spawn_player(pid)
 	-- broadcast.
 	if (is_faller(pid)) then
 		bot_look_toward(pid, {x=0, y=0, z=1});
+		return;
+	end
+
+	-- A human just spawned, and this is the only moment we are told
+	-- about a team switch: on_switch sets the team a player WILL have,
+	-- and it isn't theirs until they respawn into it. Their client is
+	-- still holding whatever side it was told the fallers were on last
+	-- time, which is now the side it thinks it is on -- so it would
+	-- refuse to shoot them. Re-announce every faller to that one client
+	-- and let send_spawn_player below pick the new opposite.
+	--
+	-- CreatePlayer is what tells a client somebody changed sides
+	-- (spawn_player broadcasts one on every respawn, which is exactly
+	-- how a switch reaches everyone else), so this is that same
+	-- mechanism, aimed at one viewer. Only for fallers that are up: one
+	-- for a bot waiting at the bottom would draw a corpse standing
+	-- there until its next drop.
+	for i in piditer(PID_BROADCAST) do
+		if (is_faller(i) and is_alive(i)) then
+			send_spawn_player(pid, get_position(i), get_gun(i),
+				get_team(i), get_name(i), i);
+		end
 	end
 end
 
@@ -611,9 +652,20 @@ function draw_ring(pid)
 		gen[#gen+1] = {x=v.x, y=v.y, z=z};
 	end
 
-	send_set_block_color(PID_BROADCAST, shown_color(pid), get_anon_pid());
-	for _,b in ipairs(gen) do
-		send_block_action(PID_BROADCAST, b, 0, get_anon_pid());
+	if (is_faller(pid)) then
+		for i in piditer(PID_BROADCAST) do
+			send_set_block_color(i, get_team_color(apparent_team(pid, i)),
+				get_anon_pid());
+			for _,b in ipairs(gen) do
+				send_block_action(i, b, 0, get_anon_pid());
+			end
+		end
+	else
+		send_set_block_color(PID_BROADCAST, get_team_color(get_team(pid)),
+			get_anon_pid());
+		for _,b in ipairs(gen) do
+			send_block_action(PID_BROADCAST, b, 0, get_anon_pid());
+		end
 	end
 
 	-- one block is remembered, not the whole ring: it is the only one
@@ -726,26 +778,32 @@ function mod.after.tick()
 end
 
 --============================= DISGUISE =============================--
--- Every faller is everyone's enemy, and the way that is done is to put
--- them on a team that is nobody's. A player's team reaches a client in
+-- Every faller is everyone's enemy. A player's team reaches a client in
 -- exactly two packets -- CreatePlayer (send_spawn_player) and
 -- ExistingPlayer (send_existing_player, sent once per player to whoever
--- is joining) -- so an id outside {0,1} in both is the whole of it.
+-- is joining) -- so rewriting the team in both, per recipient, is the
+-- whole of the illusion. ffa.lua does the same thing to put everybody on
+-- opposite sides; this is that trick pointed at four bots.
 --
--- EXPERIMENTAL, and this is where to look first if the fallers render
--- wrong. The idea is from aosprotocol#57: team ids are signed in the
--- voxlap client, and an id of raw > 1, or raw < 0 other than -1, is
--- reportedly read as "not one of the two teams" rather than rejected.
--- Nothing in this tree proves what any client does with it -- go and
--- look at them in game.
+-- enemy_of and apparent_team, which decide it, live up at the top of the
+-- file rather than here: the rings need them too, and a ring in the
+-- wrong colour would break the disguise as surely as a wrong packet.
 --
--- What it buys, if it holds: one broadcast instead of one packet per
--- client, no re-announcing when somebody switches sides (the answer no
--- longer depends on who is asking), and a joining client's team picker
--- counts the fallers on neither side rather than stacked on one.
+-- TRIED AND REJECTED: announcing every faller on one team id that
+-- belongs to nobody -- raw 2, i.e. outside the two real teams -- so that
+-- a single broadcast could say "hostile" to everybody at once. The idea
+-- is aosprotocol#57's: team ids are signed in the voxlap client, and
+-- raw > 1 or raw < 0 (other than -1) reportedly reads as neither team.
+-- It would have deleted enemy_of, all three of the per-recipient
+-- fan-outs below, and the re-announce in spawn_player -- twice as much
+-- code out as in. It does not work in practice; tested in game, put
+-- back. If anyone tries again, the other range from that PR is raw
+-- negative-but-not-255 (nteamid 129..255 through send_spawn_player),
+-- which is untried -- but the reported "pseudospectator mode" down there
+-- is not encouraging, and the per-viewer rewrite below is known to work.
 --
--- What it does NOT change is the server: a faller is still really on
--- team 1 or 2, and the server's damage rules go by that. So half the
+-- What it is NOT is a change of team: server-side the bot is still on
+-- team 1 or 2, and the server's own damage rules go by that. So half the
 -- time a client shoots what it has been told is an enemy and the server
 -- sees a teammate and drops the damage on the floor -- which is worse
 -- than no disguise at all, since the bot visibly shrugs off a magazine.
@@ -775,13 +833,15 @@ function mod.late.send_spawn_player(pid, pos, gun, team, name, from)
 	if (not is_faller(from)) then
 		return mod.late.next.send_spawn_player(pid, pos, gun, team, name, from);
 	end
-	return mod.late.next.send_spawn_player(pid, pos, gun,
-		thefall_outsider_team, name, from);
+
+	for i in piditer(pid) do
+		mod.late.next.send_spawn_player(i, pos, gun, enemy_of(i, team), name, from);
+	end
 end
 
 -- ExistingPlayer, i.e. what a joining client is told about everyone
--- already here. Mind the base: this team is 0-based (luaawk.h's
--- csend/lsend_existing_player pass it raw both ways) while
+-- already here. Same rewrite -- and mind the base: this team is 0-based
+-- (luaawk.h's csend/lsend_existing_player pass it raw both ways) while
 -- send_spawn_player's above is 1-based. Same concept, two bases, no
 -- warning in the apidoc.
 function mod.late.send_existing_player(pid, team, gun, tool, score, color, name, from)
@@ -789,8 +849,11 @@ function mod.late.send_existing_player(pid, team, gun, tool, score, color, name,
 		return mod.late.next.send_existing_player(pid, team, gun, tool, score,
 			color, name, from);
 	end
-	return mod.late.next.send_existing_player(pid, thefall_outsider_team - 1,
-		gun, tool, score, color, name, from);
+
+	for i in piditer(pid) do
+		mod.late.next.send_existing_player(i, enemy_of(i, team + 1) - 1, gun,
+			tool, score, color, name, from);
+	end
 end
 
 -- Bullets and the spade. The stock on_hit (funcs_event.c) drops any hit
