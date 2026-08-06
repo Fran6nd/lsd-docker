@@ -1,4 +1,4 @@
--- lib_fire.lua -- One reliable "that was a shot", for every gun
+-- lib_shot_detect.lua -- Works out when a player actually fired a bullet
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- Scripts that replace what a bullet does -- railguns, exploding pellets
@@ -8,11 +8,11 @@
 -- it instead of each growing its own half of it.
 --
 -- API (globals; register on load, drop on unload):
---   fire_listen(name, fn)   -- fn(pid, gun) once per shot. Registering
+--   shot_listen(name, fn)   -- fn(pid, gun) once per shot. Registering
 --                              the same name again replaces, so a
 --                              hot-reload cannot leave two of you
---   fire_unlisten(name)
---   fire_shot_time(pid)     -- when this pid was last credited, or 0
+--   shot_unlisten(name)
+--   shot_last_time(pid)     -- when this pid was last credited, or 0
 --
 -- gun is 0 rifle, 1 smg, 2 shotgun -- filter on it yourself.
 --
@@ -65,8 +65,17 @@
 --     a real trigger press starts a cycle (funcs_event.c:174), so a
 --     cycle still running underneath a scheduled reload was not started
 --     by anybody.
---   * the player is sprinting, which is precisely when the bitmask
---     driving it is stale. Their real shots still arrive as proof.
+--   * the player is RUNNING. A player cannot shoot while running, so
+--     every shot the cadence claims during one is invented -- and
+--     running is exactly when the bitmask behind it went stale, which is
+--     where the invention comes from. Both halves of that point the same
+--     way: don't believe it.
+--
+--     Running is not the same as holding the sprint key. Run into a wall
+--     and you are pinned there, not running, and you can shoot again --
+--     so this asks the physics rather than the keyboard. Terminal speeds
+--     out of demoncore.c's calc_acceleration are 0.325 sprinting, 0.25
+--     walking, 0.075 crouched; pinned against something is nought.
 --   * the magazine is out. Two readings, and they answer different
 --     questions: get_max_mag_ammo only ever falls on proof, so zero
 --     there means the bullets are provably spent; get_estimated_mag_ammo
@@ -74,11 +83,12 @@
 --     recent proof overrules it, since a bullet that provably existed
 --     proves the magazine wasn't empty.
 --
--- LIMIT, stated plainly: a shot fired while sprinting that hits nothing
--- at all is invisible here, because it is invisible to the server. There
--- is no packet for it and no timer running. Everything else -- running,
--- falling, wading, being teleported mid-burst, switching weapons, dying
--- mid-trigger -- is covered.
+-- LIMIT, stated plainly: a shot that both misses everything AND is fired
+-- while the cadence is distrusted is invisible here, because it is
+-- invisible to the server -- no packet, no timer. Everything else --
+-- running, running into a wall and firing from it, falling, wading,
+-- being teleported mid-burst, switching weapons, dying mid-trigger -- is
+-- covered.
 local mod = init_mod();
 local bit = require("bit");
 
@@ -89,26 +99,32 @@ local TOOL_GUN = 2;
 local HIT_SPADE = 4;      -- get_hit_damage type 4; the rest are bullets
 local DESTROY = 1;        -- send_block_action type 1
 local SPRINT = 128;       -- send_move_input bit (apidoc/src/send:87)
-local FIRE = 1;           -- get_mouse_inputs bit 1 is primary
+local PKT_GUNRELOAD = 28; -- protocol.h:788
 
 -- Evidence closer together than this fraction of a weapon cycle is one
 -- shot. Under 1 because two real shots are a whole cycle apart and this
 -- has to survive the jitter on top of that; well over the few
 -- milliseconds that separate one shell's pellets.
-getcfg("fire_dedup", 0.75);
+getcfg("shot_dedup", 0.75);
 -- How long a proven bullet vouches for the magazine, and for the trigger
 -- still being held. In weapon cycles, so an smg forgets in a tenth of a
 -- second and a shotgun takes a couple.
-getcfg("fire_proof_ttl", 2);
+getcfg("shot_proof_ttl", 2);
 -- Cycles of silence from the engine's estimator, while proof keeps
 -- arriving, before this module decides the estimator is broken and takes
 -- the cadence over itself.
-getcfg("fire_takeover_after", 1.5);
--- Whether the cadence may be trusted while a player sprints. It is
--- exactly then that the bitmask behind it is stale, so: no. Turn it on
--- only for a client you know reports mouse input while sprinting -- and
--- expect invented shots from every client that doesn't.
-getcfg("fire_trust_sprint", false);
+getcfg("shot_takeover_after", 1.5);
+-- Whether the cadence may be trusted while a player is running. It is
+-- exactly then that the bitmask behind it is stale, and a running player
+-- cannot shoot anyway, so: no. Turn it on only for a client you know
+-- both fires and reports mouse input while running.
+getcfg("shot_trust_running", false);
+-- Horizontal speed, in demoncore's own units, below which a player with
+-- the sprint key down counts as pinned rather than running -- and so as
+-- someone who can shoot after all. Well under a crouch (0.075) so that
+-- nothing that is actually moving, even scraping along a wall, is
+-- mistaken for stuck.
+getcfg("shot_stuck_speed", 0.05);
 
 -- All three reset on every spawn, which is what makes a respawn, a
 -- weapon switch and a teleport-by-spawn_player all clean slates: fresh
@@ -119,7 +135,7 @@ local est   = pid_spawn_table(0);  -- when the engine last estimated one
 
 local listeners = {};
 
-local function fire_time(pid)
+local function cycle_time(pid)
 	return FIRE_TIME[get_gun(pid)] or FIRE_TIME[0];
 end
 
@@ -128,8 +144,16 @@ local function armed(pid)
 	return is_alive(pid) and get_tool(pid) == TOOL_GUN;
 end
 
-local function sprinting(pid)
-	return bit.band(get_inputs(pid), SPRINT) ~= 0;
+-- Actually running, as opposed to merely holding the key. A player
+-- pinned against an obstacle is not running and can shoot from there, so
+-- the cadence is worth believing again -- see the RUNNING note above.
+local function running(pid)
+	if (bit.band(get_inputs(pid), SPRINT) == 0) then
+		return false;
+	end
+
+	local v = get_velocity(pid);
+	return math.sqrt(v.x*v.x + v.y*v.y) > shot_stuck_speed;
 end
 
 -- Could this player still have a bullet? get_max_mag_ammo is the hard
@@ -143,7 +167,7 @@ local function has_ammo(pid)
 	if (get_estimated_mag_ammo(pid) > 0) then
 		return true;
 	end
-	return get_time() - proof[pid] <= fire_time(pid)*fire_proof_ttl;
+	return get_time() - proof[pid] <= cycle_time(pid)*shot_proof_ttl;
 end
 
 -- Credit pid with one shot, unless we already credited one inside this
@@ -152,7 +176,7 @@ end
 local function credit(pid)
 	local now = get_time();
 
-	if (now - last[pid] < fire_time(pid)*fire_dedup) then
+	if (now - last[pid] < cycle_time(pid)*shot_dedup) then
 		return;
 	end
 	last[pid] = now;
@@ -165,7 +189,7 @@ local function credit(pid)
 		local ok, err = pcall(fn, pid, gun);
 		if (not ok) then
 			listeners[name] = nil;
-			log("lib_fire: %s crashed on a shot, dropped: %s", name, tostring(err));
+			log("lib_shot_detect: %s crashed on a shot, dropped: %s", name, tostring(err));
 		end
 	end
 end
@@ -215,7 +239,7 @@ function mod.xearly.before.before_estimated_fire(pid)
 	if (get_reload_time(pid) ~= 0) then
 		return;
 	end
-	if (not fire_trust_sprint and sprinting(pid)) then
+	if (not shot_trust_running and running(pid)) then
 		return;
 	end
 	if (not has_ammo(pid)) then
@@ -236,10 +260,10 @@ function mod.after.tick()
 
 	for pid in piditer(PID_BROADCAST) do
 		if (armed(pid)) then
-			local cycle = fire_time(pid);
+			local cycle = cycle_time(pid);
 
-			if (now - proof[pid] <= cycle*fire_proof_ttl
-			    and now - est[pid] > cycle*fire_takeover_after
+			if (now - proof[pid] <= cycle*shot_proof_ttl
+			    and now - est[pid] > cycle*shot_takeover_after
 			    and has_ammo(pid)) then
 				credit(pid);
 			end
@@ -255,30 +279,65 @@ function mod.after.on_tool_change(pid, tool)
 	est[pid] = 0;
 end
 
+--=========================== STUCK RELOAD ===========================--
+-- The same stale bitmask breaks reloading outright, and this is the only
+-- place that knows enough to say so.
+--
+-- funcs_packetrecv.c:444 throws away a GunReload from anyone the server
+-- believes is holding a mouse button. So once the bitmask has gone stale
+-- with the trigger down -- a sprint, a toolswitch -- every reload that
+-- player asks for is discarded, in silence. Their client plays the
+-- animation it predicted locally and then waits for ammunition that is
+-- never coming, which is what "the reload plays once and then I am stuck
+-- for a whole reload" looks like from the inside. It does not clear
+-- itself either: the same stale bit is still there next time.
+--
+-- A client that asks to reload is a client that is not holding the
+-- trigger -- no client reloads mid-shot. So the request is the proof
+-- that the bitmask is wrong. Clear it and honour the reload.
+--
+-- Clearing it is worth as much as the reload: it also stops the engine's
+-- estimator inventing shots off that same bit, and stops everyone else
+-- seeing the player's muzzle flashing forever.
+function mod.after.on_crap_packet(pid, data)
+	if (string.byte(data, 1) ~= PKT_GUNRELOAD) then
+		return;
+	end
+	-- the only other thing that rejects a well-formed reload is not
+	-- holding a gun, and that one deserves to be rejected
+	if (not is_alive(pid) or get_tool(pid) ~= TOOL_GUN
+	    or get_mouse_inputs(pid) == 0) then
+		return;
+	end
+
+	on_mouse_input(pid, 0);
+	on_reload(pid);
+end
+
 --============================ LISTENERS =============================--
 
-function fire_listen(name, fn)
+function shot_listen(name, fn)
 	if (type(name) ~= "string") then
-		error("fire_listen: name required (use your module's name)", 2);
+		error("shot_listen: name required (use your module's name)", 2);
 	end
 	if (type(fn) ~= "function") then
-		error("fire_listen: fn required", 2);
+		error("shot_listen: fn required", 2);
 	end
 	listeners[name] = fn;
 end
 
-function fire_unlisten(name)
+function shot_unlisten(name)
 	listeners[name] = nil;
 end
 
-function fire_shot_time(pid)
+function shot_last_time(pid)
 	return last[pid];
 end
 
 -- Reloading this lib drops its listeners with it, so every module that
 -- registered has to register again -- which is exactly what their own
 -- on_load does. Reload them together:
---   ./lsdctl <instance> load lib_fire rifle_is_a_rail_gun ...
+--   ./lsdctl <instance> load lib_shot_detect rifle_is_a_rail_gun ...
 function mod.on_unload()
 	listeners = {};
 end
