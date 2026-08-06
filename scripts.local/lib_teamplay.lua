@@ -51,6 +51,14 @@ local SUB_CONFIG = 0;   -- S->C  [PKT][0][features]
 local SUB_PING = 1;     -- S<->C [PKT][1][pid][x f32][y f32][z f32][reason]
 local SUB_MARK = 2;     -- S->C  [PKT][2][target][duration][flags][reason]
 
+-- Direction is part of the specification, not a detail of it. Ping is
+-- the only sub-packet a client may send; Config and ESP Mark are Server
+-- to Client, one way. A client sending an ESP Mark would be claiming an
+-- authority it does not have -- to reveal any player it names, through
+-- walls, to itself -- so nothing that is not in this table is read at
+-- all, let alone acted on.
+local CLIENT_MAY_SEND = {[SUB_PING] = true};
+
 local PING_FIXED = 15;  -- bytes before the reason text
 local MARK_FIXED = 5;
 
@@ -265,9 +273,14 @@ function mod.on_any_packet(pid, data)
 	end
 
 	if (id == PKT) then
-		-- Config and ESP Mark are server-to-client only; a client
-		-- sending either is talking nonsense and gets ignored
-		if (string.byte(data, 2) == SUB_PING) then
+		local sub = string.byte(data, 2);
+
+		-- one way only, see CLIENT_MAY_SEND
+		if (sub == nil or not CLIENT_MAY_SEND[sub]) then
+			return 0;
+		end
+
+		if (sub == SUB_PING) then
 			on_ping(pid, data);
 		end
 		return 0;
