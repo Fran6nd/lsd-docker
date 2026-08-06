@@ -19,12 +19,10 @@
 -- still owing a kill.
 --
 -- Every arrival at the top is marked with a ring of blocks the width of
--- the shaft, and every arrival at the BOTTOM with a solid platform just
--- above the water, both in the colour of whoever caused them. Each is
--- built and then has a single block of it destroyed; the client works
--- out that what is left is holding on to nothing and drops the whole
--- thing itself. So the shaft is rung at the top as somebody enters it
--- and floored at the bottom as somebody runs out of it (see RINGS).
+-- the shaft, in the arriving player's colour. It is built, and a moment
+-- later a single block of it is destroyed; the client works out that
+-- what is left is holding on to nothing and drops the whole ring down
+-- the shaft itself (see RINGS).
 --
 -- Bots ride the shaft permanently, on exactly the same terms: caught
 -- short of the floor like everybody else, round and round their own
@@ -74,20 +72,6 @@ getcfg("thefall_bot_entry_spread", 24);
 -- ticks the ring stands at the top before it is taken down and left to
 -- fall (see RINGS). It only has to outlast a client frame, not be seen
 getcfg("thefall_ring_life", 6);
--- the platform that drops out from under anyone who reaches the bottom.
--- z is where it sits, and 61 is not arbitrary: the shaft's floor is 63,
--- so this leaves layer 62 clear beneath it. A platform resting ON the
--- ground is supported, and a supported platform can never fall -- the
--- same trap the ring's radius avoids sideways, avoided here downwards.
--- It also sits well below CATCH_Z, so nobody is ever falling low enough
--- to stand on a thing the server does not believe in.
-getcfg("thefall_platform_z", 61);
--- whether the bots get a platform. Off, and this one is not close: a
--- platform is ~330 blocks against the ring's ~84, and four bots reach
--- the bottom every couple of seconds between them. Turning it on is
--- roughly half a thousand packets a second before a single player has
--- fallen anywhere
-getcfg("thefall_platform_bots", false);
 -- whether the bots get a ring too. On, because they are disguised as
 -- players and a bot is the only thing in the shaft that would arrive
 -- without a ring -- that is a tell, and the disguise is worth more than
@@ -634,27 +618,6 @@ local RING = (function()
 	return out;
 end)();
 
--- The platform, computed once the same way. A filled disc rather than a
--- loop, and it needs the same clearance for the same reason: R - 2 keeps
--- every block of it a clear voxel from the rock, and thefall_platform_z
--- keeps a clear layer under it. Touch either and the client counts it as
--- supported, and a supported platform does not fall.
-local PLATFORM = (function()
-	local out = {};
-	local r = math.max(R - 2, 1);
-
-	for x = math.floor(CX - r) - 1, math.ceil(CX + r) + 1 do
-		for y = math.floor(CY - r) - 1, math.ceil(CY + r) + 1 do
-			local dx, dy = x + 0.5 - CX, y + 0.5 - CY;
-			if (dx*dx + dy*dy <= r*r) then
-				out[#out+1] = {x=x, y=y};
-			end
-		end
-	end
-
-	return out;
-end)();
-
 function wants_ring(pid)
 	if (is_faller(pid)) then
 		return thefall_ring_bots;
@@ -662,15 +625,8 @@ function wants_ring(pid)
 	return falling[pid] ~= nil;
 end
 
-local function wants_platform(pid)
-	if (is_faller(pid)) then
-		return thefall_platform_bots;
-	end
-	return falling[pid] ~= nil;
-end
-
--- Build one shape at one height in pid's colours, and remember the one
--- block that will bring it down.
+-- Build the ring at the height of whoever just arrived, in their
+-- colours, and remember the one block that will bring it down.
 --
 -- The colour has to be the one the builder is WEARING, which for a
 -- faller is a different team for every viewer -- so the blocks are a
@@ -684,13 +640,15 @@ end
 -- sent more than once, once per client instead of once. A player is not
 -- disguised and looks the same to everybody, so theirs goes out as the
 -- single broadcast it can be.
-local function stamp(pid, shape, z)
+function draw_ring(pid)
+	local z = math.floor(get_position(pid).z);
+
 	if (z < 0 or z > DIG_Z_BOTTOM) then
 		return;
 	end
 
 	local gen = {};
-	for _,v in ipairs(shape) do
+	for _,v in ipairs(RING) do
 		gen[#gen+1] = {x=v.x, y=v.y, z=z};
 	end
 
@@ -710,19 +668,9 @@ local function stamp(pid, shape, z)
 		end
 	end
 
-	-- one block is remembered, not the whole shape: it is the only one
+	-- one block is remembered, not the whole ring: it is the only one
 	-- that will be destroyed, and the rest are the client's to drop
 	ring_newborn[#ring_newborn+1] = gen[1];
-end
-
--- the ring, at the height of whoever just arrived at the top
-function draw_ring(pid)
-	stamp(pid, RING, math.floor(get_position(pid).z));
-end
-
--- the platform, at the bottom, under whoever just reached it
-function draw_platform(pid)
-	stamp(pid, PLATFORM, thefall_platform_z);
 end
 
 -- Pull the trigger on every ring still standing, without waiting out its
@@ -789,14 +737,6 @@ function mod.after.tick()
 			-- yet -- but the top is nowhere near CATCH_Z, so it can't
 			-- fire there.
 			if (p.z >= CATCH_Z) then
-				-- the bottom. A platform is laid under them and left to
-				-- drop away a moment later, so that reaching the floor
-				-- reads as the floor giving out rather than as a
-				-- teleport -- and it drops in their colours, so a shaft
-				-- with several people in it says who got how far.
-				if (wants_platform(i)) then
-					draw_platform(i);
-				end
 				recycle(i);
 
 			-- Feet down anywhere else. The top of the shaft is high
