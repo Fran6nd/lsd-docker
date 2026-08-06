@@ -8,9 +8,9 @@
 -- destroys), so the chosen pellet is simulated here: jitter the aim
 -- direction by the shotgun's spread, raycast it, boom.
 --
--- Knowing that a shell was fired at all is lib_fire's job, not this
+-- Knowing that a shell was fired at all is lib_shot_detect's job, not this
 -- one's -- it is the same problem the railgun script has, and it is
--- harder than it looks. Load lib_fire before this.
+-- harder than it looks. Load lib_shot_detect before this.
 local mod = init_mod();
 
 getcfg("sgl_pellets", 8);     -- pellets per shell
@@ -130,18 +130,18 @@ end
 
 -- One shell, one live pellet, whoever worked out that a shell was fired.
 --
--- The swallowing hooks above are why lib_fire watches from the xearly
+-- The swallowing hooks above are why lib_shot_detect watches from the xearly
 -- chain: they take a pellet's hit and its block destroy out of the chain
 -- entirely, and those two packets are the only proof a shell was fired
 -- that survives a sprinting player.
 function mod.on_load()
-	if (fire_listen == nil) then
-		error("shotgun_are_grenade_launchers needs lib_fire loaded first "
-			.."(config.lua loads it, or: lsdctl load lib_fire "
+	if (shot_listen == nil) then
+		error("shotgun_are_grenade_launchers needs lib_shot_detect loaded first "
+			.."(config.lua loads it, or: lsdctl load lib_shot_detect "
 			.."shotgun_are_grenade_launchers)", 0);
 	end
 
-	fire_listen("shotgun_are_grenade_launchers", function(pid, gun)
+	shot_listen("shotgun_are_grenade_launchers", function(pid, gun)
 		if (gun == 2) then
 			explode_pellet(pid);
 		end
@@ -149,8 +149,8 @@ function mod.on_load()
 end
 
 function mod.on_unload()
-	if (fire_unlisten ~= nil) then
-		fire_unlisten("shotgun_are_grenade_launchers");
+	if (shot_unlisten ~= nil) then
+		shot_unlisten("shotgun_are_grenade_launchers");
 	end
 end
 

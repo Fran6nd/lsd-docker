@@ -131,7 +131,7 @@ load "tip_spam"
 -- that one answer to both of the weapon scripts below -- neither of
 -- which can tell on its own (see the file). Must be loaded before them.
 -- (scripts.local/)
-load "lib_fire"
+load "lib_shot_detect"
 
 -- one random shotgun pellet per shot explodes (scripts.local/)
 load "shotgun_are_grenade_launchers"

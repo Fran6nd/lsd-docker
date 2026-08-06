@@ -14,9 +14,9 @@
 -- destroy landing in the same frame get processed in the wrong order,
 -- leaving phantom blocks.
 --
--- Knowing that a shot happened at all is lib_fire's job, not this one's
+-- Knowing that a shot happened at all is lib_shot_detect's job, not this one's
 -- -- it is the same problem the shotgun script has, and it is harder
--- than it looks. Load lib_fire before this.
+-- than it looks. Load lib_shot_detect before this.
 local mod = init_mod();
 require "lib_bulk_destroy";
 
@@ -166,12 +166,12 @@ end
 -- rig_range and the rest still apply; all that has moved out is the
 -- question of when.
 function mod.on_load()
-	if (fire_listen == nil) then
-		error("rifle_is_a_rail_gun needs lib_fire loaded first "
-			.."(config.lua loads it, or: lsdctl load lib_fire rifle_is_a_rail_gun)", 0);
+	if (shot_listen == nil) then
+		error("rifle_is_a_rail_gun needs lib_shot_detect loaded first "
+			.."(config.lua loads it, or: lsdctl load lib_shot_detect rifle_is_a_rail_gun)", 0);
 	end
 
-	fire_listen("rifle_is_a_rail_gun", function(pid, gun)
+	shot_listen("rifle_is_a_rail_gun", function(pid, gun)
 		if (gun == 0) then
 			shoot(pid);
 		end
@@ -179,8 +179,8 @@ function mod.on_load()
 end
 
 function mod.on_unload()
-	if (fire_unlisten ~= nil) then
-		fire_unlisten("rifle_is_a_rail_gun");
+	if (shot_unlisten ~= nil) then
+		shot_unlisten("rifle_is_a_rail_gun");
 	end
 end
 
