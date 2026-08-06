@@ -139,6 +139,13 @@ load "shotgun_are_grenade_launchers"
 -- rifles pierce 5 blocks and leave a tracer trail (scripts.local/)
 load "rifle_is_a_rail_gun"
 
+-- aosprotocol's Extended Teamplay extension (id 2 v1): lets the server
+-- outline a player on a teammate's screen and lets clients ping the
+-- world. Loading it only negotiates -- nothing marks anybody yet, and
+-- the extension is unreleased, so today no client answers. Harmless
+-- groundwork, and inert until one does. (scripts.local/)
+load "lib_teamplay"
+
 -- player-driven kick votes: /votekick <player>, /y to vote (scripts.local/)
 load "votekick"
 
