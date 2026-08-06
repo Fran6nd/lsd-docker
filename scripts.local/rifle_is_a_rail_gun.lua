@@ -13,6 +13,10 @@
 -- matters: block actions are batched per client frame and a build and
 -- destroy landing in the same frame get processed in the wrong order,
 -- leaving phantom blocks.
+--
+-- Knowing that a shot happened at all is lib_fire's job, not this one's
+-- -- it is the same problem the shotgun script has, and it is harder
+-- than it looks. Load lib_fire before this.
 local mod = init_mod();
 require "lib_bulk_destroy";
 
@@ -36,16 +40,6 @@ getcfg("rig_trail_life", 6);   -- ticks a dash stays up before destroy
 -- is a FIFO of past generations, oldest first, destroyed once aged out
 local newborn = {};
 local pending = {};
-
--- when each player's last shot was animated, to dedup backup triggers
-local lastanim = pid_connected_table(0);
-
--- when a real bullet of theirs last provably existed (block break or
--- player hit): the engine's mag estimate drains on *estimated* shots
--- and the estimator is sprint- and release-blind, so it can phantom
--- its way to an empty magazine while the real one is half full --
--- fresh evidence overrules it
-local lastreal = pid_connected_table(0);
 
 local function sign1(num)
 	return num < 0 and -1 or 1;
@@ -86,8 +80,6 @@ local function shoot(pid)
 	local dir = get_orientation(pid);
 	local team = get_team(pid);
 	local traversed = 0;
-
-	lastanim[pid] = get_time();
 
 	local step = {x=sign1(dir.x), y=sign1(dir.y), z=sign1(dir.z)};
 	local delta = {x=math.abs(1/dir.x), y=math.abs(1/dir.y), z=math.abs(1/dir.z)};
@@ -170,44 +162,26 @@ function mod.tick()
 	end
 end
 
--- the server estimates gun cycling from the held inputs (rifle 0.5s,
--- smg 0.1s, shotgun 1s) and calls this per estimated shot, so holding
--- the trigger keeps firing -- clients send nothing while held
-function mod.after.before_estimated_fire(pid)
-	if (not is_alive(pid) or get_gun(pid) ~= 0) then
-		return;
-	end
-	if (get_mag_ammo(pid) == 0 and get_time() - lastreal[pid] > 1.5) then
-		return; -- estimated empty and no recent proof to the contrary
+-- One railgun shot per bullet, whoever worked out that there was one.
+-- rig_range and the rest still apply; all that has moved out is the
+-- question of when.
+function mod.on_load()
+	if (fire_listen == nil) then
+		error("rifle_is_a_rail_gun needs lib_fire loaded first "
+			.."(config.lua loads it, or: lsdctl load lib_fire rifle_is_a_rail_gun)", 0);
 	end
 
-	shoot(pid);
+	fire_listen("rifle_is_a_rail_gun", function(pid, gun)
+		if (gun == 0) then
+			shoot(pid);
+		end
+	end);
 end
 
--- backup triggers: the estimator is armed only by mouse-input packets
--- and clients suppress those around sprinting and toolswitching, so
--- shots fired while moving can be invisible to it -- but the bullet's
--- effects (a block break, a player hit) still arrive; animate from
--- those unless this shot was already animated
-local function real_bullet(pid)
-	if (not is_alive(pid) or get_tool(pid) ~= 2 or get_gun(pid) ~= 0) then
-		return;
+function mod.on_unload()
+	if (fire_unlisten ~= nil) then
+		fire_unlisten("rifle_is_a_rail_gun");
 	end
-
-	lastreal[pid] = get_time();
-	if (get_time() - lastanim[pid] > 0.35) then
-		shoot(pid);
-	end
-end
-
-function mod.after.on_block_action(pid, pos, type)
-	if (type == 1) then
-		real_bullet(pid);
-	end
-end
-
-function mod.after.on_hit(pid, type, hitPlayer)
-	real_bullet(pid);
 end
 
 return mod;
