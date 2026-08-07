@@ -27,7 +27,11 @@
 --
 --   TEAMPLAY_FOREVER  duration meaning "until something clears it"
 --
---   opts.reason          free text, shown by the client
+--   opts.reason          free text, shown by the client. Optional, and
+--                        may be empty: the spec sizes a mark at "5+"
+--                        bytes and a ping at "15+", so the fixed part
+--                        alone is a whole packet and a reasonless mark
+--                        or ping is an ordinary one, not a degenerate
 --   opts.clear_on_death  mark ends when the target dies (marks only)
 --   opts.from            pid the ping is attributed to (pings only)
 --
@@ -65,7 +69,12 @@ local SUB_MARK = 2;     -- S->C  [PKT][2][target][duration][flags][reason]
 -- all, let alone acted on.
 local CLIENT_MAY_SEND = {[SUB_PING] = true};
 
-local PING_FIXED = 15;  -- bytes before the reason text
+-- Sizes of the fixed part of each sub-packet, which is also the whole
+-- packet when the reason is empty -- the spec writes them as "15+" and
+-- "5+". An empty reason is legal in both directions and is not a special
+-- case anywhere: outbound it appends nothing, inbound it is what is left
+-- of a packet that is exactly PING_FIXED long.
+local PING_FIXED = 15;
 local MARK_FIXED = 5;
 
 -- Config feature bits
@@ -133,7 +142,8 @@ end
 -- The spec asks the server to validate the UTF-8 in a reason before
 -- passing it on, and LSd exposes no validator, so: walk it. Rejects
 -- overlong forms, surrogates and anything past U+10FFFF, which are the
--- ways a decoder gets surprised.
+-- ways a decoder gets surprised. The empty string walks zero times and
+-- is valid, which is the answer we want -- see clean_reason.
 local function valid_utf8(s)
 	local i, n = 1, #s;
 
@@ -165,6 +175,9 @@ local function valid_utf8(s)
 	return true;
 end
 
+-- Always returns a string, possibly empty, which is exactly what the
+-- wire wants: no reason, an empty reason and a reason we refused to
+-- believe all serialise to nothing at all after the fixed bytes.
 local function clean_reason(s)
 	if (s == nil) then return ""; end
 	s = string.sub(tostring(s), 1, teamplay_reason_max);
@@ -240,6 +253,8 @@ local function on_ping(pid, data)
 	if (bit.band(teamplay_features, PING_WORLD + PING_MINIMAP) == 0) then
 		return;
 	end
+	-- exactly PING_FIXED is a ping with no reason, which is allowed;
+	-- shorter than that is a truncated packet, which is not
 	if (#data < PING_FIXED or not is_alive(pid)) then
 		return;
 	end
