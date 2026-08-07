@@ -146,6 +146,11 @@ load "rifle_is_a_rail_gun"
 -- groundwork, and inert until one does. (scripts.local/)
 load "lib_teamplay"
 
+-- A demo of the ESP marks above: aim at an enemy and your whole team
+-- sees them outlined for a few seconds. Inert without lib_teamplay, and
+-- invisible to any client that hasn't negotiated it. (scripts.local/)
+load "esp_demo"
+
 -- player-driven kick votes: /votekick <player>, /y to vote (scripts.local/)
 load "votekick"
 
