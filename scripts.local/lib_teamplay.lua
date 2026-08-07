@@ -18,8 +18,14 @@
 --   teamplay_mark_all(target, secs, opts)         everyone who can see it
 --   teamplay_clear(viewer, target) / teamplay_clear_all(target)
 --   teamplay_ping(viewer, pos, opts) / teamplay_ping_all(pos, opts)
---   teamplay_listen(name, fn) / teamplay_unlisten(name)
+--   teamplay_listen_ping(name, fn)  / teamplay_unlisten_ping(name)
 --        fn(pid, pos, reason) for every ping a client sends
+--   teamplay_listen_ready(name, fn) / teamplay_unlisten_ready(name)
+--        fn(pid) the moment a client finishes negotiating. This is the
+--        hook to hang standing marks off: negotiation finishes well
+--        after on_join, so anything sent at join time is sent too early.
+--
+--   TEAMPLAY_FOREVER  duration meaning "until something clears it"
 --
 --   opts.reason          free text, shown by the client
 --   opts.clear_on_death  mark ends when the target dies (marks only)
@@ -72,6 +78,13 @@ local CLEAR_ON_DEATH = 1;
 
 local SERVER_ORIGIN = 255; -- ping "player id" meaning the server said it
 
+-- Duration 255 is "reveal until the server clears it". Marks are state
+-- held per target player id -- one per target, a new one replacing the
+-- old -- and the client drops them by itself when the target dies with
+-- CLEAR_ON_DEATH set, when the target leaves, or on a map change. So a
+-- standing mark is set once and left; there is nothing to refresh.
+TEAMPLAY_FOREVER = 255;
+
 -- Which features clients are allowed to use. Sent as the Config
 -- sub-packet; reserved bits 3-7 must stay clear.
 getcfg("teamplay_features", TEAM_ESP + PING_WORLD + PING_MINIMAP);
@@ -98,7 +111,8 @@ local supported = pid_connected_table();
 -- pid -> when we last accepted a ping from them
 local ping_at = pid_connected_table(0);
 
-local listeners = {};
+local listeners = {};       -- client pings
+local ready_listeners = {}; -- clients that have just negotiated
 
 --============================== BYTES ===============================--
 -- Three little-endian float32s, which is what the wire wants and what
@@ -203,6 +217,15 @@ local function on_extinfo(pid, data)
 			if (ver == EXT_VERSION) then
 				supported[pid] = ver;
 				send_config(pid);
+
+				for lname,fn in pairs(ready_listeners) do
+					local ok, err = pcall(fn, pid);
+					if (not ok) then
+						ready_listeners[lname] = nil;
+						log("lib_teamplay: %s crashed on ready, dropped: %s",
+							lname, tostring(err));
+					end
+				end
 			end
 			return;
 		end
@@ -350,15 +373,26 @@ function teamplay_ping_all(pos, opts)
 	end
 end
 
-function teamplay_listen(name, fn)
+function teamplay_listen_ping(name, fn)
 	if (type(name) ~= "string" or type(fn) ~= "function") then
-		error("teamplay_listen: name and fn required", 2);
+		error("teamplay_listen_ping: name and fn required", 2);
 	end
 	listeners[name] = fn;
 end
 
-function teamplay_unlisten(name)
+function teamplay_unlisten_ping(name)
 	listeners[name] = nil;
+end
+
+function teamplay_listen_ready(name, fn)
+	if (type(name) ~= "string" or type(fn) ~= "function") then
+		error("teamplay_listen_ready: name and fn required", 2);
+	end
+	ready_listeners[name] = fn;
+end
+
+function teamplay_unlisten_ready(name)
+	ready_listeners[name] = nil;
 end
 
 -- Whatever a client agreed with the last copy of this module is not
@@ -374,6 +408,7 @@ end
 
 function mod.on_unload()
 	listeners = {};
+	ready_listeners = {};
 end
 
 return mod;

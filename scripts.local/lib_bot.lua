@@ -60,9 +60,11 @@
 --   bot_create (it returns nil; retry later) -- and the capacity
 --   advertised to the masterlist shrinks by the number of live bots,
 --   because those slots aren't free for humans either.
--- * disconnect()/kick on a bot is a silent no-op -- no peer, so no
---   DISCONNECT event ever fires. Other modules kicking a bot leave
---   it in place; only bot_destroy()/on_disconnect() removes one.
+-- * A bot has no peer, so the engine's disconnect can't touch it.
+--   This lib hooks disconnect()/disconnect_now() and destroys the bot
+--   instead, so a kick from anywhere does what the caller meant. Left
+--   to the engine it is a silent no-op, and a kicker with a timer
+--   behind it then repeats forever.
 -- * There is no client behind the slot: version/handshake/quirks
 --   never arrive (mods keying on client identity see zeroes, RTT
 --   reads 500), and since AoS hit detection is client-side, bots
@@ -704,11 +706,32 @@ function mod.after.tick()
 
 			local send = b.want;
 
-			-- idle bots flip their sneak key now and then so
-			-- activity trackers (afkick) see a living player
+			-- Idle bots flip their sneak key now and then so activity
+			-- trackers (afkick) see a living player.
+			--
+			-- The flip is measured against what the server currently
+			-- believes the bot is holding, NOT against b.want, and that
+			-- is the whole point. Flipping want could land on the value
+			-- the server already has -- want without sneak, inputs with
+			-- it, which is where a bot ends up if it stops being alive
+			-- between the nudge and the tick that undoes it. The send
+			-- below is then skipped as a no-op, b.fidget is only
+			-- refreshed when a send happens, so it is never refreshed
+			-- again: due forever, never done. Measured against inputs
+			-- the flip differs from them by construction, so it always
+			-- sends and always counts as life.
+			--
+			-- The cost of getting this wrong is worse than a stuck key.
+			-- afkick eventually kicks the bot, disconnect() on a
+			-- peerless slot does nothing (see LIMITATIONS), so its timer
+			-- stays expired and it re-broadcasts "was kicked: AFK" every
+			-- tick, forever. Seen live: 238 chat sends a second.
 			if (get_time() - b.fidget >= bot_fidget_secs) then
-				send = has_bit(send, KEY.sneak)
-					and send - KEY.sneak or send + KEY.sneak;
+				local held = get_inputs(pid);
+
+				send = has_bit(held, KEY.sneak)
+					and held - KEY.sneak or held + KEY.sneak;
+				b.fidget = get_time();
 			end
 
 			if (send ~= get_inputs(pid)) then
@@ -717,6 +740,29 @@ function mod.after.tick()
 			end
 		end
 	end
+end
+
+-- A bot has no ENet peer, so enet_peer_disconnect on it is a no-op and
+-- the slot stays exactly where it was. Anything that kicks -- afkick, a
+-- votekick, an admin -- would otherwise get silence back, and anything
+-- with a timer behind the kick keeps firing because the player it wanted
+-- rid of is still there. Do what the caller asked instead: take the bot
+-- out. Whoever owns it can put a fresh one back, which is what bot
+-- scripts do anyway.
+function mod.disconnect(pid, reason)
+	if (bots[pid] ~= nil) then
+		bot_destroy(pid);
+		return;
+	end
+	mod.next.disconnect(pid, reason);
+end
+
+function mod.disconnect_now(pid, reason)
+	if (bots[pid] ~= nil) then
+		bot_destroy(pid);
+		return;
+	end
+	mod.next.disconnect_now(pid, reason);
 end
 
 function mod.after.on_disconnect(pid)

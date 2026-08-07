@@ -10,6 +10,11 @@
 -- executing it hands its team a point too; either way the hostage
 -- respawns back at the enemy tent, facing the map center.
 --
+-- Both teams see a hostage outlined through walls, if their client
+-- speaks Extended Teamplay (lib_teamplay) -- it is the objective, and
+-- hunting for it is not the interesting part. Entirely optional: see
+-- esp_ready for what happens without it, which is nothing.
+--
 -- It cuts both ways: a hostage left loose in the open with no teammate
 -- near will surrender to a nearby captor and follow them, and a captor
 -- who marches it back to their own tent re-imprisons it (no points).
@@ -436,6 +441,69 @@ local function think(pid)
 	});
 end
 
+-- Outline the hostages through walls, for everybody, via lib_teamplay's
+-- Extended Teamplay ESP marks. Both teams get it on purpose: the hostage
+-- is the objective, and hunting for it is not the interesting part.
+--
+-- The mark is set once and left. Duration TEAMPLAY_FOREVER means "reveal
+-- until the server clears it", marks are held per target id so both
+-- hostages can stand marked at once, and the client drops one by itself
+-- when the target dies with CLEAR_ON_DEATH set, when the target leaves,
+-- or on a map change. There is nothing to refresh and no timer here --
+-- only the two moments when somebody needs telling: a hostage coming
+-- back to life, and a client finishing negotiation.
+--
+-- Guarded on three counts, because none of it is load-bearing:
+--
+--   * lib_teamplay may not be loaded at all. It is a separate module and
+--     nothing here requires it, so every entry point is behind a nil
+--     check and its absence costs nothing.
+--   * A client may not have negotiated the extension -- today none has,
+--     the thing is unreleased -- and teamplay_mark answers false for
+--     anyone who hasn't rather than putting a packet on the wire.
+--   * A standing mark outlives this module, so on_unload clears the ones
+--     we set. Nothing here can leave an outline burned onto a screen
+--     after the code that asked for it is gone.
+local function esp_ready()
+	return teamplay_mark ~= nil;
+end
+
+-- show `hpid` to one viewer, or clear it there when secs is 0
+local function esp_show(viewer, hpid, secs)
+	teamplay_mark(viewer, hpid, secs, {
+		reason = get_name(hpid),
+		clear_on_death = true,
+	});
+end
+
+-- every hostage, to one viewer -- for a client that just negotiated
+local function esp_show_all_to(viewer)
+	if (not esp_ready() or bot_is_bot(viewer)) then
+		return;
+	end
+
+	for team=1,2 do
+		local hpid = byteam[team];
+		if (hpid ~= nil and is_alive(hpid)) then
+			esp_show(viewer, hpid, TEAMPLAY_FOREVER);
+		end
+	end
+end
+
+-- one hostage, to everybody -- for a hostage that just spawned
+local function esp_show_to_all(hpid, secs)
+	if (not esp_ready()) then
+		return;
+	end
+
+	for i in piditer(PID_BROADCAST) do
+		-- bots have no client to draw anything
+		if (not bot_is_bot(i)) then
+			esp_show(i, hpid, secs);
+		end
+	end
+end
+
 function mod.after.tick()
 	-- The flags are a hidden scoring token, never held by anyone: keep
 	-- both parked far out of sight. (A held intel would render on its
@@ -488,6 +556,10 @@ function mod.after.spawn_player(pid)
 	local b = bot_get(pid);
 	if (b ~= nil and b.data.hostage) then
 		bot_look_at(pid, {x=CENTER.x, y=CENTER.y, z=get_position(pid).z});
+
+		-- back on its feet, so it needs outlining again: the client
+		-- dropped the old mark when it died, and again on a map change
+		esp_show_to_all(pid, TEAMPLAY_FOREVER);
 	end
 end
 
@@ -599,9 +671,33 @@ function mod.on_load()
 	-- catch anyone already connected up on the rules (on a fresh boot
 	-- there is nobody yet, so this is a no-op then)
 	l10n_send_chat(PID_BROADCAST, welcome_msg);
+
+	-- Negotiation finishes long after on_join, so this is the only
+	-- moment a newcomer can be told about a standing mark. No-op when
+	-- lib_teamplay isn't loaded -- there is nothing to register with.
+	if (teamplay_listen_ready ~= nil) then
+		teamplay_listen_ready("hostage", esp_show_all_to);
+	end
+
+	-- a reload arrives after everyone already here negotiated, so their
+	-- ready moment is long past: mark for them now
+	for i in piditer(PID_BROADCAST) do
+		esp_show_all_to(i);
+	end
 end
 
 function mod.on_unload()
+	-- a standing mark outlives us; take ours down rather than leaving
+	-- an outline on somebody's screen with nothing behind it
+	if (teamplay_unlisten_ready ~= nil) then
+		teamplay_unlisten_ready("hostage");
+	end
+	for team=1,2 do
+		if (byteam[team] ~= nil) then
+			esp_show_to_all(byteam[team], 0);
+		end
+	end
+
 	for team=1,2 do
 		if (byteam[team] ~= nil) then
 			bot_destroy(byteam[team]);
