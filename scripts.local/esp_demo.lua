@@ -13,10 +13,11 @@
 -- outlives the sighting. Spotting, not sonar; sweeping a crosshair
 -- across a wall reveals nobody.
 --
--- Guarded like everything else that touches lib_teamplay: without that
--- module -- or without lib_bot, whose bot_can_see is what asks about the
--- wall -- this does nothing at all, and if a client hasn't negotiated
--- the extension teamplay_mark refuses on its behalf.
+-- lib_teamplay is the only module this needs, and the guard is the usual
+-- one: without it loaded this does nothing at all, and if a client
+-- hasn't negotiated the extension teamplay_mark refuses on its behalf.
+-- Everything else here is core API, so an instance can load the pair on
+-- its own and have a working demo.
 local mod = init_mod();
 
 -- How long a mark lasts once painted. Fractions are fine: a duration is
@@ -39,19 +40,46 @@ local BODY_SAMPLES = 8;
 
 local scan_at = 0;
 
--- Is `looker` pointing at `target`? Distance from the target's body to
--- the aim ray. Whether anything stands in between is a separate
--- question, asked separately -- see the tick.
-local function aiming_at(looker, target)
+-- Clear line from `eye` to `to`? raycast walks the voxels between them
+-- and hands back the last empty one before whatever it hit, so a hit
+-- nearer than the destination is a wall in the way and a hit at the
+-- destination is the destination itself.
+--
+-- lib_bot's bot_can_see does the same eight lines, and this file
+-- deliberately does not call it: the whole point of the demo is that it
+-- needs lib_teamplay and nothing else. One raycast is not worth an
+-- instance having to load the bot library to outline a player.
+local function can_see(eye, to)
+	local hit = raycast(eye, to, false);
+	if (hit == nil) then
+		return true;
+	end
+
+	local hd2 = (hit.x-eye.x)^2 + (hit.y-eye.y)^2 + (hit.z-eye.z)^2;
+	local td2 = (to.x-eye.x)^2 + (to.y-eye.y)^2 + (to.z-eye.z)^2;
+	return hd2 >= td2 - 1.0;
+end
+
+-- Is `looker` actually spotting `target` -- crosshair on them, and the
+-- line to them clear? Both questions are asked of the same nine body
+-- samples, in the order that costs least: the distance from a sample to
+-- the aim ray is arithmetic on one vector, so it rejects the many, and
+-- only a sample that survives it is worth a raycast through the map.
+--
+-- Per sample rather than per player, because a head over a wall is a
+-- sighting. Testing the middle alone would miss it, and the samples run
+-- top-down, so that head is the first thing asked about anyway.
+local function is_spotted(looker, target)
 	local eye = get_position(looker);
 	local dir = get_orientation(looker);
 	local p = get_position(target);
 	local r2 = esp_demo_radius * esp_demo_radius;
 
 	for k = 0, BODY_SAMPLES do
+		local sz = p.z + BODY_TOP + k*BODY_STEP;
 		local wx = p.x - eye.x;
 		local wy = p.y - eye.y;
-		local wz = p.z + BODY_TOP + k*BODY_STEP - eye.z;
+		local wz = sz - eye.z;
 		local t = wx*dir.x + wy*dir.y + wz*dir.z;
 
 		if (t > 0 and t < esp_demo_range) then
@@ -59,7 +87,8 @@ local function aiming_at(looker, target)
 			local oy = wy - t*dir.y;
 			local oz = wz - t*dir.z;
 
-			if (ox*ox + oy*oy + oz*oz <= r2) then
+			if (ox*ox + oy*oy + oz*oz <= r2
+			    and can_see(eye, {x=p.x, y=p.y, z=sz})) then
 				return true;
 			end
 		end
@@ -68,34 +97,32 @@ local function aiming_at(looker, target)
 	return false;
 end
 
--- Show `target` to everyone on `team`. Bots are skipped -- there is no
--- client behind one to draw anything -- and teamplay_mark answers false
--- for anybody who never negotiated, so this is safe to call widely.
+-- Show `target` to everyone on `team`. Safe to call over a whole team,
+-- bots included: teamplay_mark answers false for anybody who never
+-- negotiated the extension, and a bot -- having no client behind it to
+-- negotiate with, or to draw anything -- never has.
 local function reveal(team, target)
 	for i in piditer(PID_BROADCAST_TEAM(team)) do
-		if (not bot_is_bot(i)) then
-			teamplay_mark(i, target, esp_demo_seconds, {
-				-- who it is, rather than merely that somebody is there:
-				-- spotting for your own team is worth the name. The
-				-- client draws it out of its own player table, so it
-				-- costs a flag bit and nothing on the wire -- and being
-				-- a name rather than free text, it is the one the
-				-- reader already sees on the scoreboard
-				show_name = true,
-				-- a mark outlives its target otherwise: without this it
-				-- survives death and respawn, and three seconds of it
-				-- would land on a player who has already got away and
-				-- come back somewhere else
-				clear_on_respawn = true,
-			});
-		end
+		teamplay_mark(i, target, esp_demo_seconds, {
+			-- who it is, rather than merely that somebody is there:
+			-- spotting for your own team is worth the name. The client
+			-- draws it out of its own player table, so it costs a flag
+			-- bit and nothing on the wire -- and being a name rather
+			-- than free text, it is the one the reader already sees on
+			-- the scoreboard
+			show_name = true,
+			-- a mark outlives its target otherwise: without this it
+			-- survives death and respawn, and three seconds of it would
+			-- land on a player who has already got away and come back
+			-- somewhere else
+			clear_on_respawn = true,
+		});
 	end
 end
 
 function mod.after.tick()
-	-- nothing to demonstrate without the extension module, and nothing
-	-- to demonstrate honestly without the sight check either
-	if (teamplay_mark == nil or bot_can_see == nil) then
+	-- nothing to demonstrate without the extension module
+	if (teamplay_mark == nil) then
 		return;
 	end
 
@@ -113,12 +140,8 @@ function mod.after.tick()
 			-- on it would be meaningless
 			if (team == 1 or team == 2) then
 				for target in piditer(PID_BROADCAST_EXCEPT_TEAM(team)) do
-					-- aim first, sight second: aiming_at is arithmetic
-					-- on one vector while bot_can_see casts a ray
-					-- through the map, so let the cheap test reject
-					-- the many and the dear one confirm the few
-					if (is_alive(target) and aiming_at(looker, target)
-					    and bot_can_see(looker, target)) then
+					if (is_alive(target)
+					    and is_spotted(looker, target)) then
 						reveal(team, target);
 					end
 				end
