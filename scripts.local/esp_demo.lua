@@ -31,6 +31,16 @@ getcfg("esp_demo_radius", 1.0);   -- how near the ray must pass to count
 -- Keep it comfortably below esp_demo_seconds or marks will flicker.
 getcfg("esp_demo_interval", 1);
 
+-- TEMPORARY, for testing the rendering end: outline every player for
+-- every player, forever, and never mind who is looking at whom. Set this
+-- false (or delete it and reveal_everyone below) to get the demo back.
+--
+-- It is deliberately not a mode. Standing marks on the whole server is
+-- the one thing the extension makes trivial and the one thing no game
+-- should ship -- it is here because a mark you have to earn is a poor
+-- way to find out whether marks draw at all.
+getcfg("esp_demo_reveal_all", true);
+
 -- demoncore clips a body from 1.35 above pos to 2.25 below, so sample
 -- that span rather than treating a player as a point at their middle --
 -- the same nine samples rifle_is_a_rail_gun.lua uses to decide a hit
@@ -120,6 +130,26 @@ local function reveal(team, target)
 	end
 end
 
+-- TEMPORARY: everybody outlined for everybody, with no expiry.
+--
+-- Re-sent every pass rather than sent once and remembered. A forever
+-- mark is state the server is supposed to keep so it can hand it to
+-- whoever connects later, and re-sending is the version of that with no
+-- bookkeeping: a mark replaces the one before it and restarts nothing
+-- that matters, joiners are covered by the next pass, and a recycled
+-- player id cannot inherit a stale mark because every mark is reissued
+-- from what is true now. It costs a packet per pair per pass, which is
+-- the wrong trade for a real mode and the right one for a test.
+local function reveal_everyone()
+	for target in piditer(PID_BROADCAST) do
+		for viewer in piditer(PID_BROADCAST) do
+			teamplay_mark(viewer, target, TEAMPLAY_FOREVER, {
+				show_name = true,
+			});
+		end
+	end
+end
+
 function mod.after.tick()
 	-- nothing to demonstrate without the extension module
 	if (teamplay_mark == nil) then
@@ -131,6 +161,15 @@ function mod.after.tick()
 		return;
 	end
 	scan_at = now;
+
+	-- and nothing to spot for, either: there is one mark per target, so
+	-- a three-second spotting mark landing on top of a standing one
+	-- would replace it and then expire, putting holes in the very thing
+	-- this is meant to show. The scan below is off while this is on.
+	if (esp_demo_reveal_all) then
+		reveal_everyone();
+		return;
+	end
 
 	for looker in piditer(PID_BROADCAST) do
 		if (is_alive(looker)) then
