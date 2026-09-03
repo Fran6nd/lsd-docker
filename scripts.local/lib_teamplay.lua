@@ -1,10 +1,10 @@
--- lib_teamplay.lua -- The Extended Teamplay protocol extension
+-- lib_teamplay.lua -- The Teamplay protocol extension
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
--- Speaks aosprotocol's Extended Teamplay extension (id 2, version 1):
--- the server can point a client at a player -- "outline that one, for
--- ten seconds, because he has the intel" -- and clients can drop pings
--- in the world for their team.
+-- Speaks aosprotocol's Teamplay extension (id 2, version 1): the server
+-- can point a client at a player -- "outline that one, for ten seconds,
+-- because he has the intel" -- clients can drop pings in the world for
+-- their team, and the server can say a line to one player alone.
 --
 -- Nothing in LSd's core knows about any of this. PacketTypeExtensionInfo
 -- is declared in protocol.h:804 and the ExtensionID enum lives at :916,
@@ -18,6 +18,7 @@
 --   teamplay_mark_all(target, secs, opts)         everyone who can see it
 --   teamplay_clear(viewer, target) / teamplay_clear_all(target)
 --   teamplay_ping(viewer, pos, opts) / teamplay_ping_all(pos, opts)
+--   teamplay_say(pid, msg, from)         one line, to that player alone
 --   teamplay_listen_ping(name, fn)  / teamplay_unlisten_ping(name)
 --        fn(pid, pos, reason) for every ping a client sends
 --   teamplay_listen_ready(name, fn) / teamplay_unlisten_ready(name)
@@ -27,15 +28,22 @@
 --
 --   TEAMPLAY_FOREVER  duration meaning "until something clears it"
 --
---   opts.reason          free text, shown by the client. Optional, and
---                        may be empty: the spec sizes a mark at "5+"
---                        bytes and a ping at "15+", so the fixed part
---                        alone is a whole packet and a reasonless mark
---                        or ping is an ordinary one, not a degenerate
---   opts.clear_on_death  mark ends when the target dies (marks only)
---   opts.from            pid the ping is attributed to (pings only)
+--   opts.reason            free text, shown by the client. Optional, and
+--                          may be empty: the spec sizes a mark at "9+"
+--                          bytes and a ping at "20+", so the fixed part
+--                          alone is a whole packet and a reasonless mark
+--                          or ping is an ordinary one, not a degenerate
+--   opts.clear_on_respawn  mark ends the next time the target spawns
+--                          (marks only)
+--   opts.show_name         client draws the target's name beside the
+--                          outline (marks only)
+--   opts.from              pid the ping is attributed to (pings only)
+--   opts.secs              how long a ping stays; defaults to
+--                          teamplay_ping_seconds (pings only)
 --
--- secs: 0 clears, 1..254 seconds, 255 until cleared.
+-- secs: a number of seconds, 0 to clear, TEAMPLAY_FOREVER to leave it
+-- until something else does. Fractions are fine -- it goes on the wire
+-- as a float. Negative and NaN are refused rather than sent.
 --
 -- WHAT THIS DOES NOT DO: anything for clients that don't speak it. The
 -- extension is unreleased, so today that is every client -- they simply
@@ -55,11 +63,13 @@ local PKT_EXTINFO = 60;
 local EXT_ID = 2;
 local EXT_VERSION = 1;
 
--- Extended Teamplay. Base id is 64 + extension id.
+-- Teamplay. Base id is 64 + extension id.
 local PKT = 64 + EXT_ID;
-local SUB_CONFIG = 0;   -- S->C  [PKT][0][features]
-local SUB_PING = 1;     -- S<->C [PKT][1][pid][x f32][y f32][z f32][reason]
-local SUB_MARK = 2;     -- S->C  [PKT][2][target][duration][flags][reason]
+local SUB_CONFIG = 0; -- S->C  [PKT][0][features]
+local SUB_PING = 1;   -- S<->C [PKT][1][pid][x f32][y f32][z f32]
+                      --                  [duration f32][msgid][reason]
+local SUB_MARK = 2;   -- S->C  [PKT][2][target][duration f32][flags]
+                      --                  [msgid][reason]
 
 -- Direction is part of the specification, not a detail of it. Ping is
 -- the only sub-packet a client may send; Config and ESP Mark are Server
@@ -70,12 +80,20 @@ local SUB_MARK = 2;     -- S->C  [PKT][2][target][duration][flags][reason]
 local CLIENT_MAY_SEND = {[SUB_PING] = true};
 
 -- Sizes of the fixed part of each sub-packet, which is also the whole
--- packet when the reason is empty -- the spec writes them as "15+" and
--- "5+". An empty reason is legal in both directions and is not a special
+-- packet when the reason is empty -- the spec writes them as "20+" and
+-- "9+". An empty reason is legal in both directions and is not a special
 -- case anywhere: outbound it appends nothing, inbound it is what is left
 -- of a packet that is exactly PING_FIXED long.
-local PING_FIXED = 15;
-local MARK_FIXED = 5;
+local PING_FIXED = 20;
+local MARK_FIXED = 9;
+
+-- The Message ID byte both sub-packets carry ahead of their reason. It
+-- is reserved in version 1: we send 0 and drop anything else we are
+-- sent. The byte exists so a later version can name a label out of a
+-- fixed table instead of spelling it, without moving where the reason
+-- begins -- which is exactly why honouring the "must be 0" now is what
+-- keeps that version additive rather than breaking.
+local MSG_ID_NONE = 0;
 
 -- Config feature bits
 local TEAM_ESP = 1;     -- bit 0: client may render teammates through walls
@@ -83,16 +101,26 @@ local PING_WORLD = 2;   -- bit 1: client may draw pings as 3D markers
 local PING_MINIMAP = 4; -- bit 2: client may draw pings on the minimap
 
 -- ESP Mark flag bits
-local CLEAR_ON_DEATH = 1;
+local CLEAR_ON_RESPAWN = 1; -- bit 0: mark ends the next time they spawn
+local SHOW_NAME = 2;        -- bit 1: client draws the target's name too
+
+-- Direct chat. Not a sub-packet: a chat type the extension adds to the
+-- base Chat Message packet, for a line meant for one player alone.
+local CHAT_DIRECT = 7;
 
 local SERVER_ORIGIN = 255; -- ping "player id" meaning the server said it
 
--- Duration 255 is "reveal until the server clears it". Marks are state
--- held per target player id -- one per target, a new one replacing the
--- old -- and the client drops them by itself when the target dies with
--- CLEAR_ON_DEATH set, when the target leaves, or on a map change. So a
--- standing mark is set once and left; there is nothing to refresh.
-TEAMPLAY_FOREVER = 255;
+-- An infinite duration is "reveal until the server clears it". Marks are
+-- state held per target player id -- one per target, a new one replacing
+-- the old -- and the client drops them by itself when the target spawns
+-- with CLEAR_ON_RESPAWN set, when the target leaves, or on a map change.
+-- So a standing mark is set once and left; there is nothing to refresh.
+--
+-- A finite duration is the other half of the same dial, and the cheaper
+-- half: the client forgets the mark on its own and the server keeps no
+-- timer, no state and sends no removal packet. Both spellings cost the
+-- same four bytes, so the choice is only ever about who does the work.
+TEAMPLAY_FOREVER = math.huge;
 
 -- Which features clients are allowed to use. Sent as the Config
 -- sub-packet; reserved bits 3-7 must stay clear.
@@ -100,6 +128,17 @@ getcfg("teamplay_features", TEAM_ESP + PING_WORLD + PING_MINIMAP);
 -- Seconds between accepted pings from one player. The spec recommends
 -- one a second and leaves enforcement to the server.
 getcfg("teamplay_ping_interval", 1);
+-- How long a relayed ping stays up. How long a ping is worth is the
+-- server's call alone and never the pinging client's -- a client sends 0
+-- here and we overwrite it -- and 5 seconds is the value the spec names
+-- for a server with no opinion of its own.
+getcfg("teamplay_ping_seconds", 5);
+-- How near the crosshair a pinged point has to be to be believed, as the
+-- cosine of the angle between it and the player's aim. 0.985 is about
+-- ten degrees, which is slack for the tick of lag between the
+-- orientation we hold and the one the client pinged from, and nothing
+-- like enough to ping something it is not looking at.
+getcfg("teamplay_ping_aim_cos", 0.985);
 -- Longest ping/mark reason accepted or sent, in bytes.
 getcfg("teamplay_reason_max", 128);
 -- Relay a client's ping to the rest of its team automatically. Listeners
@@ -129,6 +168,11 @@ local ready_listeners = {}; -- clients that have just negotiated
 -- 5.1; it arrived in 5.3), so the FFI does it.
 local f32 = ffi.new("float[3]");
 
+local function put_f32(v)
+	f32[0] = v;
+	return ffi.string(f32, 4);
+end
+
 local function put_f32x3(x, y, z)
 	f32[0], f32[1], f32[2] = x, y, z;
 	return ffi.string(f32, 12);
@@ -137,6 +181,27 @@ end
 local function get_f32x3(data, off)
 	ffi.copy(f32, string.sub(data, off, off+11), 12);
 	return {x=f32[0], y=f32[1], z=f32[2]};
+end
+
+-- The smallest positive float32 there is. Everything under it rounds to
+-- zero on the wire, and zero is the value that *removes* a mark, so a
+-- caller asking for an absurdly short one would silently clear it
+-- instead. Round up to the shortest lifetime the encoding can say.
+local F32_TINY = 1.4e-45;
+
+-- Durations travel as an LE float32 count of seconds. 0 removes, a
+-- positive finite number is a lifetime, +inf stays until something
+-- clears it, and negative or NaN is invalid -- the spec has the receiver
+-- drop such a packet, so there is no point sending one. Returns nil for
+-- those, which every caller reads as "did not send".
+local function put_duration(secs)
+	if (type(secs) ~= "number" or secs ~= secs or secs < 0) then
+		return nil;
+	end
+	if (secs > 0 and secs < F32_TINY) then
+		secs = F32_TINY;
+	end
+	return put_f32(secs);
 end
 
 -- The spec asks the server to validate the UTF-8 in a reason before
@@ -247,6 +312,45 @@ end
 
 --========================== CLIENT PINGS ============================--
 
+-- The spec has the server identify the target of a ping itself rather
+-- than take the client's word for it: the coordinates are there so the
+-- two ends can be checked against each other, and the server raycasts
+-- from the pinger through their crosshair to confirm line of sight.
+--
+-- So: the point has to lie along the aim, and the line to it has to be
+-- clear. A point behind the pinger or through a wall is a desynced
+-- client at best and a client pinging what it cannot see at worst, and
+-- the two are not worth telling apart -- neither is a ping.
+local function ping_is_sane(pid, pos)
+	local eye = get_position(pid);
+	local dir = get_orientation(pid);
+	local dx, dy, dz = pos.x - eye.x, pos.y - eye.y, pos.z - eye.z;
+	local reach = math.sqrt(dx*dx + dy*dy + dz*dz);
+	local aim = math.sqrt(dir.x*dir.x + dir.y*dir.y + dir.z*dir.z);
+
+	-- get_orientation is documented as a direction vector, not as a unit
+	-- one (lua_playerget:27 leaves its length open), so normalise before
+	-- reading a dot product as a cosine
+	if (reach > 0.001 and aim > 0.001) then
+		local dot = (dx*dir.x + dy*dir.y + dz*dir.z) / (reach * aim);
+		if (dot < teamplay_ping_aim_cos) then
+			return false;
+		end
+	end
+
+	-- raycast stops at the first solid voxel between the two points. The
+	-- pinged voxel itself being solid is the ordinary case -- pinging a
+	-- wall is pinging the wall -- so a hit is only a refusal when it is
+	-- some other voxel, i.e. something in the way.
+	local hit = raycast(eye, pos, true);
+	if (hit == nil) then
+		return true;
+	end
+
+	return hit.x == math.floor(pos.x) and hit.y == math.floor(pos.y)
+	   and hit.z == math.floor(pos.z);
+end
+
 local function on_ping(pid, data)
 	-- the client is told not to send these when both ping bits are
 	-- clear, so one arriving anyway is not something to honour
@@ -264,14 +368,25 @@ local function on_ping(pid, data)
 		return;
 	end
 
-	-- the originating id is the sender's to claim and ours to ignore:
-	-- pid is who actually sent the packet
+	-- reserved in version 1, and the spec says to drop rather than
+	-- ignore: a client putting something else here means a label we have
+	-- no table for, so relaying it would pass on a meaning we cannot read
+	if (string.byte(data, PING_FIXED) ~= MSG_ID_NONE) then
+		return;
+	end
+
+	-- the originating id is the sender's to claim and ours to ignore
+	-- (pid is who actually sent the packet), and so is the duration:
+	-- how long a ping is worth is decided below, not here
 	local pos = get_f32x3(data, 4);
 	if (pos.x ~= pos.x or pos.y ~= pos.y or pos.z ~= pos.z) then
 		return; -- NaN
 	end
 	if (pos.x < 0 or pos.x >= 512 or pos.y < 0 or pos.y >= 512
 	    or pos.z < -1 or pos.z > 64) then
+		return;
+	end
+	if (not ping_is_sane(pid, pos)) then
 		return;
 	end
 
@@ -333,22 +448,30 @@ function teamplay_supported(pid)
 	return supported[pid] ~= nil;
 end
 
--- Outline `target` on `viewer`'s screen. secs 0 clears it, 255 leaves it
--- until something else does.
+-- Outline `target` on `viewer`'s screen. secs 0 clears it,
+-- TEAMPLAY_FOREVER leaves it until something else does.
 function teamplay_mark(viewer, target, secs, opts)
 	if (supported[viewer] == nil) then
 		return false;
 	end
 
-	opts = opts or {};
-	secs = math.max(0, math.min(255, math.floor(secs or 0)));
-
-	local flags = 0;
-	if (opts.clear_on_death) then
-		flags = flags + CLEAR_ON_DEATH;
+	local duration = put_duration(secs or 0);
+	if (duration == nil) then
+		return false;
 	end
 
-	send_packet(viewer, string.char(PKT, SUB_MARK, target, secs, flags)
+	opts = opts or {};
+
+	local flags = 0;
+	if (opts.clear_on_respawn) then
+		flags = flags + CLEAR_ON_RESPAWN;
+	end
+	if (opts.show_name) then
+		flags = flags + SHOW_NAME;
+	end
+
+	send_packet(viewer, string.char(PKT, SUB_MARK, target) .. duration
+		.. string.char(flags, MSG_ID_NONE)
 		.. clean_reason(opts.reason));
 	return true;
 end
@@ -369,6 +492,10 @@ end
 
 -- Drop a ping at pos on viewer's screen. opts.from attributes it to a
 -- player; left out, it comes from the server.
+--
+-- One ping per originating id: a second one from the same id replaces
+-- the first. A server wanting several standing markers at once wants
+-- marks, or a ping per id -- not several from SERVER_ORIGIN.
 function teamplay_ping(viewer, pos, opts)
 	if (supported[viewer] == nil) then
 		return false;
@@ -376,8 +503,15 @@ function teamplay_ping(viewer, pos, opts)
 
 	opts = opts or {};
 
+	local duration = put_duration(opts.secs or teamplay_ping_seconds);
+	if (duration == nil) then
+		return false;
+	end
+
 	send_packet(viewer, string.char(PKT, SUB_PING, opts.from or SERVER_ORIGIN)
 		.. put_f32x3(pos.x, pos.y, pos.z)
+		.. duration
+		.. string.char(MSG_ID_NONE)
 		.. clean_reason(opts.reason));
 	return true;
 end
@@ -386,6 +520,27 @@ function teamplay_ping_all(pos, opts)
 	for i in piditer(PID_BROADCAST) do
 		teamplay_ping(i, pos, opts);
 	end
+end
+
+-- Say `msg` to `pid` and to nobody else, as a private message. This is
+-- the one thing the extension adds outside packet 66: a chat type on the
+-- base Chat Message packet, which already carries the sender in its
+-- Player ID and takes the recipient from who it was sent to, so it needs
+-- no field of its own. send_chat writes the type straight into that byte
+-- (funcs_send.c:383-393) and nothing on the way clamps it, so type 7 is
+-- ours to use.
+--
+-- Only for clients that negotiated: type 7 means nothing to a client
+-- that did not agree to this, and what it does with an unknown type is
+-- its own business. Callers get false for those and fall back to
+-- whatever private form they already had.
+function teamplay_say(pid, msg, from)
+	if (supported[pid] == nil) then
+		return false;
+	end
+
+	send_chat(pid, msg, CHAT_DIRECT, from or SERVER_ORIGIN);
+	return true;
 end
 
 function teamplay_listen_ping(name, fn)

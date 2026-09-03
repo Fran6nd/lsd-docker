@@ -6,19 +6,22 @@
 -- entire team for esp_demo_seconds. Keep aiming and it stays; look away
 -- and it fades on its own.
 --
--- It is a sonar, not a spotlight: line of sight is deliberately NOT
--- required. Revealing somebody you can already see is not a
--- demonstration of anything, so sweeping your crosshair across a wall
--- lights up whoever is standing behind it. That is the whole point of
--- the feature, and it is also why this is a demo and not a mode -- it
--- hands a team a lot for very little.
+-- Walls count. You have to actually see somebody to paint them: the
+-- crosshair has to be on them AND the line to them has to be clear. What
+-- the mark then buys is the interesting half -- once painted, your team
+-- keeps seeing them through cover for esp_demo_seconds, so the reveal
+-- outlives the sighting. Spotting, not sonar; sweeping a crosshair
+-- across a wall reveals nobody.
 --
--- Guarded like everything else that touches lib_teamplay: if that module
--- isn't loaded this does nothing at all, and if a client hasn't
--- negotiated the extension teamplay_mark refuses on its behalf.
+-- Guarded like everything else that touches lib_teamplay: without that
+-- module -- or without lib_bot, whose bot_can_see is what asks about the
+-- wall -- this does nothing at all, and if a client hasn't negotiated
+-- the extension teamplay_mark refuses on its behalf.
 local mod = init_mod();
 
-getcfg("esp_demo_seconds", 3);    -- how long a mark lasts once painted
+-- How long a mark lasts once painted. Fractions are fine: a duration is
+-- a float on the wire, so 0.75 is as sayable as 3.
+getcfg("esp_demo_seconds", 3);
 getcfg("esp_demo_range", 128);    -- how far the aim ray reaches, in blocks
 getcfg("esp_demo_radius", 1.0);   -- how near the ray must pass to count
 -- How often to look at where everyone is pointing. The scan is the
@@ -37,7 +40,8 @@ local BODY_SAMPLES = 8;
 local scan_at = 0;
 
 -- Is `looker` pointing at `target`? Distance from the target's body to
--- the aim ray, with no regard for what is in between.
+-- the aim ray. Whether anything stands in between is a separate
+-- question, asked separately -- see the tick.
 local function aiming_at(looker, target)
 	local eye = get_position(looker);
 	local dir = get_orientation(looker);
@@ -71,19 +75,27 @@ local function reveal(team, target)
 	for i in piditer(PID_BROADCAST_TEAM(team)) do
 		if (not bot_is_bot(i)) then
 			teamplay_mark(i, target, esp_demo_seconds, {
-				reason = get_name(target),
-				-- a dead target is not worth outlining, and the client
-				-- drops the mark the moment they die rather than
-				-- leaving it on a corpse for the rest of its seconds
-				clear_on_death = true,
+				-- who it is, rather than merely that somebody is there:
+				-- spotting for your own team is worth the name. The
+				-- client draws it out of its own player table, so it
+				-- costs a flag bit and nothing on the wire -- and being
+				-- a name rather than free text, it is the one the
+				-- reader already sees on the scoreboard
+				show_name = true,
+				-- a mark outlives its target otherwise: without this it
+				-- survives death and respawn, and three seconds of it
+				-- would land on a player who has already got away and
+				-- come back somewhere else
+				clear_on_respawn = true,
 			});
 		end
 	end
 end
 
 function mod.after.tick()
-	-- nothing to demonstrate without the extension module
-	if (teamplay_mark == nil) then
+	-- nothing to demonstrate without the extension module, and nothing
+	-- to demonstrate honestly without the sight check either
+	if (teamplay_mark == nil or bot_can_see == nil) then
 		return;
 	end
 
@@ -101,7 +113,12 @@ function mod.after.tick()
 			-- on it would be meaningless
 			if (team == 1 or team == 2) then
 				for target in piditer(PID_BROADCAST_EXCEPT_TEAM(team)) do
-					if (is_alive(target) and aiming_at(looker, target)) then
+					-- aim first, sight second: aiming_at is arithmetic
+					-- on one vector while bot_can_see casts a ray
+					-- through the map, so let the cheap test reject
+					-- the many and the dear one confirm the few
+					if (is_alive(target) and aiming_at(looker, target)
+					    and bot_can_see(looker, target)) then
 						reveal(team, target);
 					end
 				end

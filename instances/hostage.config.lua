@@ -123,11 +123,11 @@ load "tip_spam"
 -- (spicy guns live on the spicyctf instance, not here: hostage keeps
 -- vanilla weapons)
 
--- aosprotocol's Extended Teamplay extension (id 2 v1): lets the server
--- outline a player on a teammate's screen and lets clients ping the
--- world. Loading it only negotiates -- nothing marks anybody yet, and
--- the extension is unreleased, so today no client answers. Harmless
--- groundwork, and inert until one does. (scripts.local/)
+-- aosprotocol's Teamplay extension (id 2 v1): lets the server outline a
+-- player on a teammate's screen, lets clients ping the world, and lets
+-- the server say a line to one player alone. Loading it only negotiates
+-- -- nothing marks anybody yet, and no released client answers yet.
+-- Harmless groundwork, and inert until one does. (scripts.local/)
 load "lib_teamplay"
 
 -- A demo of the ESP marks above: aim at an enemy and your whole team
