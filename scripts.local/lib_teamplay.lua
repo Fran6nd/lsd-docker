@@ -139,6 +139,14 @@ getcfg("teamplay_ping_seconds", 5);
 -- orientation we hold and the one the client pinged from, and nothing
 -- like enough to ping something it is not looking at.
 getcfg("teamplay_ping_aim_cos", 0.985);
+-- How far short of the pinged point a wall may sit and still count as
+-- the thing being pinged, in blocks. raycast reports a voxel index while
+-- the ping is a point on a surface, which is up to a block and a half
+-- apart before anybody is lying; 2 covers that and little else.
+getcfg("teamplay_ping_los_slack", 2.0);
+-- Log every ping and every reason one was refused. For working out why a
+-- client's pings are not arriving; noisy, and off unless you are asking.
+getcfg("teamplay_ping_debug", false);
 -- Longest ping/mark reason accepted or sent, in bytes.
 getcfg("teamplay_reason_max", 128);
 -- Relay a client's ping to the rest of its team automatically. Listeners
@@ -334,24 +342,56 @@ local function ping_is_sane(pid, pos)
 	if (reach > 0.001 and aim > 0.001) then
 		local dot = (dx*dir.x + dy*dir.y + dz*dir.z) / (reach * aim);
 		if (dot < teamplay_ping_aim_cos) then
+			if (teamplay_ping_debug) then
+				log("lib_teamplay: ping #%d refused, off aim: cos %.4f < %.4f"
+					.. " (eye %.1f,%.1f,%.1f -> %.1f,%.1f,%.1f, %.1f away)",
+					pid, dot, teamplay_ping_aim_cos, eye.x, eye.y, eye.z,
+					pos.x, pos.y, pos.z, reach);
+			end
 			return false;
 		end
 	end
 
-	-- raycast stops at the first solid voxel between the two points. The
-	-- pinged voxel itself being solid is the ordinary case -- pinging a
-	-- wall is pinging the wall -- so a hit is only a refusal when it is
-	-- some other voxel, i.e. something in the way.
-	local hit = raycast(eye, pos, true);
+	-- raycast walks to the last empty voxel before whatever it hit, so
+	-- what matters is how far along the line that voxel sits: at about
+	-- the pinged point, the wall being pinged is the wall in front of
+	-- it; well short of it, something else is in the way.
+	--
+	-- Distances, not voxel identity. A ping lands on a *surface*, and a
+	-- surface coordinate does not floor to the voxel behind it -- enter a
+	-- block from the far side and the intersection is exactly on the next
+	-- voxel's boundary, and a client that nudges its marker off the wall
+	-- to keep it from z-fighting misses by a whole block every time. That
+	-- test refused honest pings from half the compass.
+	--
+	-- Linear, not squared, because the slack is a distance in blocks and
+	-- has to stay one at any range: a squared tolerance that is generous
+	-- up close is nothing at all fifty blocks out.
+	local hit = raycast(eye, pos, false);
 	if (hit == nil) then
 		return true;
 	end
 
-	return hit.x == math.floor(pos.x) and hit.y == math.floor(pos.y)
-	   and hit.z == math.floor(pos.z);
+	local hd = math.sqrt((hit.x-eye.x)^2 + (hit.y-eye.y)^2 + (hit.z-eye.z)^2);
+
+	if (hd < reach - teamplay_ping_los_slack) then
+		if (teamplay_ping_debug) then
+			log("lib_teamplay: ping #%d refused, wall in the way: solid at"
+				.. " %.1f but the ping is %.1f away (slack %.1f)",
+				pid, hd, reach, teamplay_ping_los_slack);
+		end
+		return false;
+	end
+
+	return true;
 end
 
 local function on_ping(pid, data)
+	if (teamplay_ping_debug) then
+		log("lib_teamplay: ping from #%d, %d bytes, msgid %s",
+			pid, #data, tostring(string.byte(data, PING_FIXED)));
+	end
+
 	-- the client is told not to send these when both ping bits are
 	-- clear, so one arriving anyway is not something to honour
 	if (bit.band(teamplay_features, PING_WORLD + PING_MINIMAP) == 0) then
@@ -360,11 +400,20 @@ local function on_ping(pid, data)
 	-- exactly PING_FIXED is a ping with no reason, which is allowed;
 	-- shorter than that is a truncated packet, which is not
 	if (#data < PING_FIXED or not is_alive(pid)) then
+		if (teamplay_ping_debug) then
+			log("lib_teamplay: ping #%d refused: %d bytes (want >=%d), alive %s",
+				pid, #data, PING_FIXED, tostring(is_alive(pid)));
+		end
 		return;
 	end
 
 	local now = get_time();
 	if (now - ping_at[pid] < teamplay_ping_interval) then
+		if (teamplay_ping_debug) then
+			log("lib_teamplay: ping #%d refused, too soon: %.2fs since the"
+				.. " last (need %.2fs)", pid, now - ping_at[pid],
+				teamplay_ping_interval);
+		end
 		return;
 	end
 
@@ -372,6 +421,10 @@ local function on_ping(pid, data)
 	-- ignore: a client putting something else here means a label we have
 	-- no table for, so relaying it would pass on a meaning we cannot read
 	if (string.byte(data, PING_FIXED) ~= MSG_ID_NONE) then
+		if (teamplay_ping_debug) then
+			log("lib_teamplay: ping #%d refused, message id %d is not 0",
+				pid, string.byte(data, PING_FIXED));
+		end
 		return;
 	end
 
@@ -384,6 +437,10 @@ local function on_ping(pid, data)
 	end
 	if (pos.x < 0 or pos.x >= 512 or pos.y < 0 or pos.y >= 512
 	    or pos.z < -1 or pos.z > 64) then
+		if (teamplay_ping_debug) then
+			log("lib_teamplay: ping #%d refused, off the map: %.1f,%.1f,%.1f",
+				pid, pos.x, pos.y, pos.z);
+		end
 		return;
 	end
 	if (not ping_is_sane(pid, pos)) then
@@ -394,11 +451,22 @@ local function on_ping(pid, data)
 
 	ping_at[pid] = now;
 
+	-- the pinger's own team, which includes the pinger: a player sees the
+	-- marker they just placed, the same as everyone they placed it for
 	if (teamplay_relay_pings) then
+		local sent = 0;
+
 		for i in piditer(PID_BROADCAST_TEAM(get_team(pid))) do
-			if (supported[i] ~= nil) then
-				teamplay_ping(i, pos, {from=pid, reason=reason});
+			if (supported[i] ~= nil and teamplay_ping(i, pos, {
+					from = pid, reason = reason})) then
+				sent = sent + 1;
 			end
+		end
+
+		if (teamplay_ping_debug) then
+			log("lib_teamplay: ping #%d accepted at %.1f,%.1f,%.1f,"
+				.. " relayed to %d of team %d (reason %q)",
+				pid, pos.x, pos.y, pos.z, sent, get_team(pid), reason);
 		end
 	end
 
