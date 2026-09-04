@@ -32,14 +32,18 @@ getcfg("esp_demo_radius", 1.0);   -- how near the ray must pass to count
 getcfg("esp_demo_interval", 1);
 
 -- TEMPORARY, for testing the rendering end: outline every player for
--- every player, forever, and never mind who is looking at whom. Set this
--- false (or delete it and reveal_everyone below) to get the demo back.
+-- every player, forever, and never mind who is looking at whom. Off, so
+-- what runs is the demo; turn it on to check that marks draw at all.
 --
 -- It is deliberately not a mode. Standing marks on the whole server is
 -- the one thing the extension makes trivial and the one thing no game
 -- should ship -- it is here because a mark you have to earn is a poor
 -- way to find out whether marks draw at all.
-getcfg("esp_demo_reveal_all", true);
+--
+-- Turning it off is not just a matter of stopping: these go out with no
+-- expiry, so they outlive the switch and have to be taken back one by
+-- one. See the tick, which notices the change and sweeps.
+getcfg("esp_demo_reveal_all", false);
 
 -- demoncore clips a body from 1.35 above pos to 2.25 below, so sample
 -- that span rather than treating a player as a point at their middle --
@@ -49,6 +53,9 @@ local BODY_STEP = 0.45;
 local BODY_SAMPLES = 8;
 
 local scan_at = 0;
+-- whether the standing sweep was running last pass, so that switching it
+-- off is noticed once and the marks it left are taken back
+local revealing_all = false;
 
 -- Clear line from `eye` to `to`? raycast walks the voxels between them
 -- and hands back the last empty one before whatever it hit, so a hit
@@ -150,6 +157,17 @@ local function reveal_everyone()
 	end
 end
 
+-- The other half of the sweep, and the half easy to forget. A mark with
+-- no expiry does not lapse when the server stops sending it -- the client
+-- holds it until something clears it, the target leaves, or the map
+-- changes -- so switching the sweep off without this would freeze the
+-- last outline onto everybody permanently. Duration 0 is the retraction.
+local function clear_everyone()
+	for target in piditer(PID_BROADCAST) do
+		teamplay_clear_all(target);
+	end
+end
+
 function mod.after.tick()
 	-- nothing to demonstrate without the extension module
 	if (teamplay_mark == nil) then
@@ -167,8 +185,16 @@ function mod.after.tick()
 	-- would replace it and then expire, putting holes in the very thing
 	-- this is meant to show. The scan below is off while this is on.
 	if (esp_demo_reveal_all) then
+		revealing_all = true;
 		reveal_everyone();
 		return;
+	end
+
+	-- switched off since the last pass, so take back what it left behind
+	-- before going on to the demo proper
+	if (revealing_all) then
+		revealing_all = false;
+		clear_everyone();
 	end
 
 	for looker in piditer(PID_BROADCAST) do
@@ -186,6 +212,17 @@ function mod.after.tick()
 				end
 			end
 		end
+	end
+end
+
+-- Going away is the other way the sweep stops, and the marks cannot
+-- outlive the only thing that would ever have retracted them. Spotting
+-- marks need none of this -- they run out on their own in a few seconds,
+-- which is what a duration is for.
+function mod.on_unload()
+	if (revealing_all and teamplay_clear_all ~= nil) then
+		revealing_all = false;
+		clear_everyone();
 	end
 end
 
