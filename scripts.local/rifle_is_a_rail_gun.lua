@@ -3,7 +3,9 @@
 --
 -- Every block on the trajectory is destroyed (only the unbreakable
 -- water-level floor survives, and even that doesn't stop the bullet)
--- and every enemy on the line dies in one hit, behind cover or not.
+-- and every enemy on the line dies in one hit, behind cover or not --
+-- whether the server's ray found them or the client's own hit report
+-- did, and never twice for the one shot (see on_hit).
 -- Shots leave a dashed tracer trail of blocks along the trajectory
 -- that are destroyed right after being placed, colored with the
 -- shooter's team color.
@@ -32,6 +34,13 @@ getcfg("rig_trail_range", rig_range); -- how far the dashes reach (whole map)
 getcfg("rig_trail_life", 6);   -- ticks a dash stays up before destroy
                                -- (~100ms at 60Hz, to ride out jitter)
 
+-- HitType as the client reports it (apidoc/src/get_defaults:13-20), and
+-- the tool and gun this script is about
+local HIT_HEAD = 1;
+local HIT_SPADE = 4;
+local TOOL_GUN = 2;
+local GUN_RIFLE = 0;
+
 -- trail voxels waiting to be destroyed. one tick (~17ms at 60Hz) is
 -- shorter than a client's render frame, so a build and its destroy
 -- coalesce into the same frame and the dash never draws -- keep each
@@ -43,6 +52,33 @@ local pending = {};
 
 local function sign1(num)
 	return num < 0 and -1 or 1;
+end
+
+-- Everyone the current shot has already taken. Two sources decide who
+-- the rail went through -- the server's ray and the client's own hit
+-- report -- and this is what keeps them from both killing the same
+-- person: whoever is in here has been dealt with, and the second source
+-- to arrive says nothing new about them. Reset at the top of every shot,
+-- so it only ever holds the one in flight.
+local struck = pid_spawn_table();
+
+-- Take one target off the rail: instant, whichever source named them,
+-- and at most once each. Answers whether this call was the one that did
+-- it, so a caller can tell a fresh kill from a duplicate.
+local function rail_take(pid, target, start, ktype)
+	local set = struck[pid];
+
+	if (set == nil) then
+		set = {};
+		struck[pid] = set;
+	end
+	if (set[target] or not is_alive(target)) then
+		return false;
+	end
+
+	set[target] = true;
+	damage_player_directional(target, 255, start, ktype, pid);
+	return true;
 end
 
 -- one-shot kill everything on the trajectory, cover or not: demoncore
@@ -66,7 +102,7 @@ local function rail_kill(pid, team, start, dir)
 
 					if (ox*ox + oy*oy + oz*oz <=
 					    rig_hit_radius*rig_hit_radius) then
-						damage_player_directional(i, 255, start, 0, pid);
+						rail_take(pid, i, start, 0);
 						break;
 					end
 				end
@@ -80,6 +116,9 @@ local function shoot(pid)
 	local dir = get_orientation(pid);
 	local team = get_team(pid);
 	local traversed = 0;
+
+	-- a new shot owes nothing to the last one
+	struck[pid] = {};
 
 	local step = {x=sign1(dir.x), y=sign1(dir.y), z=sign1(dir.z)};
 	local delta = {x=math.abs(1/dir.x), y=math.abs(1/dir.y), z=math.abs(1/dir.z)};
@@ -143,6 +182,45 @@ end
 
 function mod.after.on_join(pid)
 	server_msg(pid, "warning: here rifles are railguns.");
+end
+
+-- THE SECOND SOURCE. The server's ray is not the only word on who the
+-- rail went through, and it is not even the better-informed one. The
+-- client ran its own hit detection against the positions it had at the
+-- instant it fired; the ray runs here, a round trip later, against
+-- positions that have moved since. So it misses people the client hit:
+-- someone who has stepped away, someone the ray grazed by a hair more
+-- than rig_hit_radius, someone the shooter led correctly and the server
+-- has not caught up with. A rail that visibly goes through a man and
+-- leaves him standing is the complaint this answers.
+--
+-- So a reported hit kills too -- and exactly once. rail_take is the one
+-- door: the ray put everyone it took into this shot's set, and a report
+-- naming one of them is a second account of the same event, not a second
+-- event. Whichever source arrives first does the killing and the other
+-- finds the name already there.
+--
+-- The order is not left to chance either. lib_shot_detect watches hits
+-- from the xearly chain, so a hit that is the first news of a shot has
+-- already credited it -- running the ray, filling the set -- before this
+-- std hook is reached with the same packet.
+--
+-- Chaining is skipped once we have acted: the engine's own on_hit would
+-- add a rifle's ordinary damage on top of a body the rail has already
+-- taken. Everything we do not act on is passed along untouched --
+-- spade hits, teammates, and anyone not holding a rifle.
+function mod.on_hit(pid, type, hitPlayer)
+	if (type ~= HIT_SPADE and is_alive(pid)
+	    and get_tool(pid) == TOOL_GUN and get_gun(pid) == GUN_RIFLE
+	    and get_team(pid) ~= get_team(hitPlayer)) then
+		-- a headshot stays a headshot in the feed; everything else the
+		-- rail does is a gun kill
+		rail_take(pid, hitPlayer, get_position(pid),
+			type == HIT_HEAD and 1 or 0);
+		return;
+	end
+
+	mod.next.on_hit(pid, type, hitPlayer);
 end
 
 function mod.tick()
