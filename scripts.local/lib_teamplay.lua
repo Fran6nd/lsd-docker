@@ -42,9 +42,13 @@
 --                          (marks only)
 --   opts.show_name         client draws the target's name beside the
 --                          outline (marks only)
---   opts.color             outline colour as LSd's {b=,g=,r=}. Omitted,
---                          or black, asks for the marked player's own
---                          team colour (marks only)
+--   opts.color             colour to draw it in, as LSd's {b=,g=,r=}.
+--                          No value is reserved -- black is black -- so
+--                          omitting it picks a team colour rather than
+--                          asking the client for one: the target's for a
+--                          mark, the pinger's for a ping, and white when
+--                          neither has a team (a server-made ping, a
+--                          spectator)
 --   opts.from              pid the ping is attributed to (pings only)
 --   opts.secs              how long a ping stays; defaults to
 --                          teamplay_ping_seconds (pings only)
@@ -75,7 +79,8 @@ local EXT_VERSION = 1;
 local PKT = 64 + EXT_ID;
 local SUB_CONFIG = 0; -- S->C  [PKT][0][features]
 local SUB_PING = 1;   -- S<->C [PKT][1][pid][x f32][y f32][z f32]
-                      --            [duration f32][surfaces][msgid][reason]
+                      --            [duration f32][surfaces][b][g][r]
+                      --            [msgid][reason]
 local SUB_MARK = 2;   -- S->C  [PKT][2][target][duration f32][surfaces]
                       --            [flags][b][g][r][msgid][reason]
 
@@ -88,14 +93,14 @@ local SUB_MARK = 2;   -- S->C  [PKT][2][target][duration f32][surfaces]
 local CLIENT_MAY_SEND = {[SUB_PING] = true};
 
 -- Sizes of the fixed part of each sub-packet, which is also the whole
--- packet when the reason is empty -- the spec writes them as "21+" and
+-- packet when the reason is empty -- the spec writes them as "24+" and
 -- "13+". An empty reason is legal in both directions and is not a special
 -- case anywhere: outbound it appends nothing, inbound it is what is left
 -- of a packet that is exactly PING_FIXED long.
 --
 -- The Message ID is the last fixed byte of both, which is what lets the
 -- reason start at a fixed offset no matter what gets added ahead of it.
-local PING_FIXED = 21;
+local PING_FIXED = 24;
 local MARK_FIXED = 13;
 
 -- The Message ID byte both sub-packets carry ahead of their reason. It
@@ -252,26 +257,45 @@ local function put_surfaces(surfaces)
 	return string.char(bit.band(surfaces or 0, SURFACE_MASK));
 end
 
--- A mark's colour, Blue Green Red -- the byte order the base protocol
--- already uses for Set Colour and State Data, and the order LSd's own
--- {b=,g=,r=} colour tables are stored in (lua.c:219-232), so a colour
--- from get_map_block_color goes out as it came in.
---
--- Black is not a colour here but a word: it asks for the marked player's
--- own team colour, which is what "point at that one" looks like when the
--- server has nothing further to say. That makes it the right default,
--- and it is what a caller passing no colour at all gets.
-local function put_color(c)
-	if (c == nil) then
-		return string.char(0, 0, 0);
-	end
+-- What a ping or a mark is drawn in when nobody has a team to borrow a
+-- colour from: a ping the server itself made, or one from a spectator.
+local NEUTRAL_COLOR = {b=255, g=255, r=255};
 
+-- A colour, Blue Green Red -- the byte order the base protocol already
+-- uses for Set Colour and State Data, and the order LSd's own {b=,g=,r=}
+-- colour tables are stored in (lua.c:219-232), so a colour from
+-- get_team_color or get_map_block_color goes out as it came in.
+--
+-- No value is reserved: black is black, and a client that receives it
+-- draws black rather than reading anything into it. Working out what
+-- colour a thing should be is the server's job start to finish, which is
+-- why every caller settles on one before it gets here.
+local function put_color(c)
 	local function chan(v)
 		v = math.floor(tonumber(v) or 0);
 		return math.max(0, math.min(255, v));
 	end
 
+	c = c or NEUTRAL_COLOR;
 	return string.char(chan(c.b), chan(c.g), chan(c.r));
+end
+
+-- The team colour of a joined player, or nil for anybody who has no team
+-- to speak of. Guarded because get_team_color only accepts 1, 2 and
+-- SPECTATOR -- check_teamid (lua.c:78-83) raises a Lua error on anything
+-- else -- and a mark or a ping is not worth taking the caller down over.
+local function team_color_of(pid)
+	if (pid == nil or pid == SERVER_ORIGIN) then
+		return nil;
+	end
+
+	local ok, team = pcall(get_team, pid);
+	if (not ok or (team ~= 1 and team ~= 2)) then
+		return nil;
+	end
+
+	local got, c = pcall(get_team_color, team);
+	return got and c or nil;
 end
 
 -- The spec asks the server to validate the UTF-8 in a reason before
@@ -484,16 +508,12 @@ local function on_ping(pid, data)
 		return;
 	end
 
-	-- reserved in version 1, and the spec says to drop rather than
-	-- ignore: a client putting something else here means a label we have
-	-- no table for, so relaying it would pass on a meaning we cannot read
-	if (string.byte(data, PING_FIXED) ~= MSG_ID_NONE) then
-		if (teamplay_ping_debug) then
-			log("lib_teamplay: ping #%d refused, message id %d is not 0",
-				pid, string.byte(data, PING_FIXED));
-		end
-		return;
-	end
+	-- The Message ID is read here and acted on nowhere: reserved and
+	-- unimplemented, so a receiver that gets a non-zero one renders the
+	-- packet anyway and ignores the byte. Dropping over it would be the
+	-- wrong instinct -- the byte exists for a version that names labels
+	-- out of a table, and refusing what we cannot yet read would make
+	-- that version a break rather than an addition.
 
 	-- the originating id is the sender's to claim and ours to ignore
 	-- (pid is who actually sent the packet), and so are the duration and
@@ -609,7 +629,10 @@ function teamplay_mark(viewer, target, secs, opts)
 	send_packet(viewer, string.char(PKT, SUB_MARK, target) .. duration
 		.. put_surfaces(opts.surfaces)
 		.. string.char(flags)
-		.. put_color(opts.color)
+		-- no colour asked for means "point at that one and nothing
+		-- further", which used to be spelled black and now has to be
+		-- spelled out: the target's own team colour, read from our state
+		.. put_color(opts.color or team_color_of(target))
 		.. string.char(MSG_ID_NONE)
 		.. clean_reason(opts.reason));
 	return true;
@@ -651,6 +674,10 @@ function teamplay_ping(viewer, pos, opts)
 		.. put_f32x3(pos.x, pos.y, pos.z)
 		.. duration
 		.. put_surfaces(opts.surfaces or teamplay_ping_surfaces)
+		-- the colour is the server's alone -- whatever a client put in
+		-- these three bytes was ignored on the way in. With no opinion
+		-- of our own, the team colour of whoever pinged.
+		.. put_color(opts.color or team_color_of(opts.from))
 		.. string.char(MSG_ID_NONE)
 		.. clean_reason(opts.reason));
 	return true;
