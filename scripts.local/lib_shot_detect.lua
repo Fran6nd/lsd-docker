@@ -116,6 +116,8 @@ local HIT_SPADE = 4;      -- get_hit_damage type 4; the rest are bullets
 local DESTROY = 1;        -- send_block_action type 1
 local SPRINT = 128;       -- send_move_input bit (apidoc/src/send:87)
 local PKT_GUNRELOAD = 28; -- protocol.h:788
+local PKT_HIT = 5;        -- protocol.h:152: [5][playerID][type]
+local FIRE = 1;           -- get_mouse_inputs bit 1 is primary
 
 -- Evidence closer together than this fraction of a weapon cycle is one
 -- shot. Under 1 because two real shots are a whole cycle apart and this
@@ -286,7 +288,54 @@ end
 -- Clearing it is worth as much as the reload: it also stops the engine's
 -- estimator inventing shots off that same bit, and stops everyone else
 -- seeing the player's muzzle flashing forever.
+-- The same stale bitmask throws away hits, and those are kills.
+--
+-- funcs_packetrecv.c:303 discards a Hit from anyone the server does not
+-- believe is holding fire -- the very state a sprint or a respawn leaves
+-- behind. The client computed that hit against the positions it had when
+-- it fired and is very likely right about it; the server drops it unread
+-- and the shot lands on nobody.
+--
+-- Replaying it needs care, because a crap packet does not say WHY it was
+-- crap and most Hit rejections are nothing to do with us: the commonest
+-- by far is a target who is already dead, which is a client still
+-- shooting a man somebody else has killed, and replaying that would
+-- resurrect nothing and confuse everything. So the rejection is only
+-- treated as the bitmask's doing when every other condition the
+-- validator checks is satisfied -- alive shooter, alive target, a gun in
+-- hand, different teams -- and the bit really is clear. Then it is the
+-- bit that was wrong, and the hit is honoured.
+local function rescue_hit(pid, data)
+	local target = string.byte(data, 2);
+	local htype = string.byte(data, 3);
+
+	if (target == nil or htype == nil or target >= MAX_PLAYERS) then
+		return;
+	end
+	if (bit.band(get_mouse_inputs(pid), FIRE) ~= 0) then
+		return; -- the bit was set, so something else was wrong
+	end
+	if (not is_alive(pid) or not is_alive(target) or target == pid
+	    or get_tool(pid) ~= TOOL_GUN
+	    or get_team(pid) == get_team(target)) then
+		return; -- rejected for a reason we have no business overruling
+	end
+
+	-- The hit is replayed and the bitmask is left exactly as it is.
+	-- Setting it would re-arm the engine's estimator on a trigger we
+	-- have no evidence is still held, and it would then invent a shot
+	-- every fireTime until the client corrected us -- trading a dropped
+	-- hit for a stream of phantom ones. Honour the packet; do not
+	-- pretend to know what the finger is doing.
+	on_hit(pid, htype, target);
+end
+
 function mod.after.on_crap_packet(pid, data)
+	if (string.byte(data, 1) == PKT_HIT) then
+		rescue_hit(pid, data);
+		return;
+	end
+
 	if (string.byte(data, 1) ~= PKT_GUNRELOAD) then
 		return;
 	end
