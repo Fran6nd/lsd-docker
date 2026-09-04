@@ -66,9 +66,14 @@ end
 -- shotgun's spread and follow it. Returns nil when it hits nothing at
 -- all, which is a pellet that flew off into the sky -- a real outcome,
 -- and one that must stay possible or every shell would burst.
-local function simulate_pellet(pid)
-	local start = get_position(pid);
-	local dir = jitter(get_orientation(pid));
+-- `from` is where the shooter stood and pointed when the trigger went,
+-- captured then and passed in here -- never read live. By the time a
+-- shell is resolved the client has applied its recoil and told us about
+-- it, so the orientation the server holds is the kicked one, aimed above
+-- where the player actually shot. Over sgl_range that is metres.
+local function simulate_pellet(pid, from)
+	local start = from.pos;
+	local dir = jitter(from.dir);
 
 	local stop = {
 		x = start.x + dir.x*sgl_range,
@@ -180,7 +185,7 @@ end
 -- impact is a pellet; the shortfall is simulated. One of the eight is
 -- then drawn and burst -- and it may be a simulated pellet that hit
 -- nothing, in which case the shell is a clean miss and nothing happens.
-local function resolve(pid)
+local function resolve(pid, from)
 	local shots = {};
 	local n = 0;
 
@@ -195,7 +200,7 @@ local function resolve(pid)
 	-- only the missing ones
 	while (n < sgl_pellets) do
 		n = n + 1;
-		shots[n] = simulate_pellet(pid); -- nil if it hit nothing
+		shots[n] = simulate_pellet(pid, from); -- nil if it hit nothing
 	end
 
 	impacts[pid] = nil;
@@ -210,12 +215,12 @@ function mod.after.tick()
 	local now = get_time();
 
 	for pid in piditer(PID_BROADCAST) do
-		local at = pending[pid];
+		local shell = pending[pid];
 
-		if (at ~= nil and now - at >= sgl_gather) then
+		if (shell ~= nil and now - shell.at >= sgl_gather) then
 			pending[pid] = nil;
 			if (is_alive(pid)) then
-				resolve(pid);
+				resolve(pid, shell);
 			else
 				impacts[pid] = nil;
 			end
@@ -241,7 +246,14 @@ function mod.on_load()
 	-- pellets did (see sgl_gather)
 	shot_listen("shotgun_are_grenade_launchers", function(pid, gun)
 		if (gun == 2) then
-			pending[pid] = get_time();
+			-- the aim is taken NOW, not when the shell is resolved: the
+			-- recoil kick is on its way and would otherwise be what the
+			-- pellets are traced along
+			pending[pid] = {
+				at = get_time(),
+				pos = get_position(pid),
+				dir = get_orientation(pid),
+			};
 		end
 	end);
 end
