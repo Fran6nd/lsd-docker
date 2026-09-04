@@ -1,0 +1,52 @@
+#!/bin/sh
+# commit-msg -- refuse commit messages carrying attribution trailers
+#
+# Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+#
+# Commits here are authored by one person and say so in the Author field.
+# A Co-authored-by trailer is refused whoever it names: the ones worth
+# stopping are the machine-generated ones, and a rule that reads the name
+# is a rule that loses the moment the name changes. No trailer is the
+# rule, so there is nothing to keep up with.
+#
+# Enable it -- hooks are not carried by a clone, and core.hooksPath is
+# local config, so every working copy has to be told once:
+#
+#     git config core.hooksPath githooks
+#
+# Note this runs on commit and on --amend, but NOT on rebase, cherry-pick
+# or filter-branch, which reuse messages without consulting it. Rewrites
+# have to be checked by hand; see the grep at the bottom of this file.
+set -eu
+
+msg=$1
+
+# Strip the comment block git appends -- it is not part of the message,
+# and its diff/status text would otherwise match and refuse every commit.
+body=$(sed '/^#/d' "$msg")
+
+fail() {
+	echo "commit-msg: refusing this message." >&2
+	echo "  $1" >&2
+	echo >&2
+	echo "  offending line(s):" >&2
+	printf '%s\n' "$body" | grep -inE "$2" | sed 's/^/    /' >&2
+	echo >&2
+	echo "  Edit the message and commit again. If a hook is genuinely in" >&2
+	echo "  the way, --no-verify skips it." >&2
+	exit 1
+}
+
+# Any co-author trailer, whoever it names.
+if printf '%s\n' "$body" | grep -qiE '^[[:space:]]*co-authored-by:'; then
+	fail "Co-authored-by trailers are not used in this repository." \
+		'^[[:space:]]*co-authored-by:'
+fi
+
+# The generated-by footers and the address they sign with.
+if printf '%s\n' "$body" | grep -qiE 'noreply@anthropic\.com|generated with \[claude|^[[:space:]]*🤖'; then
+	fail "Generated-by attribution does not belong in a commit message." \
+		'noreply@anthropic\.com|generated with \[claude|^[[:space:]]*🤖'
+fi
+
+exit 0
