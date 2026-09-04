@@ -54,10 +54,23 @@
 --     (below).
 --   * either way, at most one shot per weapon cycle, so a shotgun shell
 --     arriving as eight separate pellet hits is one shot and not eight.
---   * when proof keeps arriving while the cadence has gone quiet, the
---     cadence is broken (sprinting, or never re-armed after a teleport)
---     and this module runs its own in its place, for as long as the
---     proof keeps coming.
+--
+-- Both of those are evidence. Nothing here invents a shot, and an
+-- earlier version of this file did: it ran its own cadence whenever
+-- proof was recent and the engine's estimator had gone quiet, on the
+-- reasoning that this meant "firing, but the estimator is broken". It
+-- does not mean that. It is also exactly the state an ordinary single
+-- shot leaves behind -- one bullet lands, the trigger is released, the
+-- estimator stops -- so every shot that hit anything was followed by a
+-- phantom one, a weapon cycle and a half later. Measured: one shot in,
+-- two credits out, the second at +0.75s on a rifle and +1.5s on a
+-- shotgun. For the scripts that listen here that is a free railgun
+-- through the map, or a free grenade.
+--
+-- The lesson, in case it is tempting again: "proof arrived recently and
+-- the estimator is quiet" cannot tell continued fire from a single shot,
+-- because a single shot produces it. An uncounted bullet costs nothing;
+-- an invented one fires a weapon nobody pulled.
 --
 -- The cadence is distrusted when:
 --
@@ -85,10 +98,13 @@
 --
 -- LIMIT, stated plainly: a shot that both misses everything AND is fired
 -- while the cadence is distrusted is invisible here, because it is
--- invisible to the server -- no packet, no timer. Everything else --
--- running, running into a wall and firing from it, falling, wading,
--- being teleported mid-burst, switching weapons, dying mid-trigger -- is
--- covered.
+-- invisible to the server -- no packet, no timer, nothing to see. That
+-- is the price of inventing nothing, and it is the right way round:
+-- a missed count changes nothing, a phantom fires a weapon.
+--
+-- Everything else -- running, running into a wall and firing from it,
+-- falling, wading, being teleported mid-burst, switching weapons, dying
+-- mid-trigger -- is covered.
 local mod = init_mod();
 local bit = require("bit");
 
@@ -106,14 +122,10 @@ local PKT_GUNRELOAD = 28; -- protocol.h:788
 -- has to survive the jitter on top of that; well over the few
 -- milliseconds that separate one shell's pellets.
 getcfg("shot_dedup", 0.75);
--- How long a proven bullet vouches for the magazine, and for the trigger
--- still being held. In weapon cycles, so an smg forgets in a tenth of a
--- second and a shotgun takes a couple.
+-- How long a proven bullet vouches for the magazine: a bullet that
+-- provably existed proves the magazine was not empty, whatever the
+-- engine's estimate says. In weapon cycles.
 getcfg("shot_proof_ttl", 2);
--- Cycles of silence from the engine's estimator, while proof keeps
--- arriving, before this module decides the estimator is broken and takes
--- the cadence over itself.
-getcfg("shot_takeover_after", 1.5);
 -- Whether the cadence may be trusted while a player is running. It is
 -- exactly then that the bitmask behind it is stale, and a running player
 -- cannot shoot anyway, so: no. Turn it on only for a client you know
@@ -126,12 +138,11 @@ getcfg("shot_trust_running", false);
 -- mistaken for stuck.
 getcfg("shot_stuck_speed", 0.05);
 
--- All three reset on every spawn, which is what makes a respawn, a
--- weapon switch and a teleport-by-spawn_player all clean slates: fresh
+-- Both reset on every spawn, which is what makes a respawn, a weapon
+-- switch and a teleport-by-spawn_player all clean slates: fresh
 -- magazine, nothing owed, nothing believed.
 local last  = pid_spawn_table(0);  -- when we last credited a shot
 local proof = pid_spawn_table(0);  -- when a bullet last provably existed
-local est   = pid_spawn_table(0);  -- when the engine last estimated one
 
 local listeners = {};
 
@@ -232,7 +243,6 @@ function mod.xearly.before.before_estimated_fire(pid)
 	if (not armed(pid)) then
 		return;
 	end
-	est[pid] = get_time();
 
 	-- a cycle still turning under a scheduled reload was started by
 	-- nobody: a real trigger press would have cleared the reload
@@ -249,34 +259,11 @@ function mod.xearly.before.before_estimated_fire(pid)
 	credit(pid);
 end
 
--- The engine's estimator has gone quiet while the client is plainly
--- still shooting -- it is sprinting, or spawn_player zeroed the timer
--- mid-burst and no client is going to re-report a button it never
--- released. Proof alone would only catch the bullets that hit
--- something, so between them we run the cycle ourselves, and stop as
--- soon as the proof does.
-function mod.after.tick()
-	local now = get_time();
-
-	for pid in piditer(PID_BROADCAST) do
-		if (armed(pid)) then
-			local cycle = cycle_time(pid);
-
-			if (now - proof[pid] <= cycle*shot_proof_ttl
-			    and now - est[pid] > cycle*shot_takeover_after
-			    and has_ammo(pid)) then
-				credit(pid);
-			end
-		end
-	end
-end
-
 -- Switching tools cancels the engine's cycle (funcs_event.c:194) and the
 -- new tool is not a gun that has just fired, so nothing is owed.
 function mod.after.on_tool_change(pid, tool)
 	last[pid] = 0;
 	proof[pid] = 0;
-	est[pid] = 0;
 end
 
 --=========================== STUCK RELOAD ===========================--
