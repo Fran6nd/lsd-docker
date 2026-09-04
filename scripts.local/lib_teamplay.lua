@@ -141,7 +141,15 @@ local SHOW_NAME = 2;        -- bit 1: client draws the target's name too
 -- base Chat Message packet, for a line meant for one player alone.
 local CHAT_DIRECT = 7;
 
-local SERVER_ORIGIN = 255; -- ping "player id" meaning the server said it
+-- The ping "player id" meaning the server itself said it. The client
+-- names whoever is in that field -- a marker is never anonymous and a
+-- label is never read as written by somebody who did not write it -- and
+-- 255 is the one value it must not look up: it shows no sender at all
+-- rather than crediting whoever happens to hold a nearby id.
+--
+-- Which is why the field is ours to fill and never the sender's to
+-- claim: on a relay it is the pid the packet actually arrived from.
+local SERVER_ORIGIN = 255;
 
 -- An infinite duration is "reveal until the server clears it". Marks are
 -- state held per target player id -- one per target, a new one replacing
@@ -167,10 +175,19 @@ getcfg("teamplay_ping_interval", 1);
 -- here and we overwrite it -- and 5 seconds is the value the spec names
 -- for a server with no opinion of its own.
 getcfg("teamplay_ping_seconds", 5);
--- Where a relayed ping is shown. 0 leaves the placement to the client,
--- which is what the spec asks a server with no opinion to send; set it to
--- TEAMPLAY_WORLD + TEAMPLAY_MINIMAP to have a say.
-getcfg("teamplay_ping_surfaces", 0);
+-- Where a relayed ping is shown: everywhere it can be. A ping is a place
+-- somebody wants looked at, and the three surfaces answer three different
+-- questions about it -- the world marker says where it is, the minimap
+-- says where that is relative to everything, and the compass says which
+-- way to turn, which is the one that still works when the marker is
+-- behind you and off the minimap's edge.
+--
+-- 0 would leave the placement to the client, which is what the spec asks
+-- of a server with no opinion; naming all three is having one. The
+-- compass is the only surface a client may decline anyway, when
+-- FEAT_COMPASS_HUD is clear or it has none to draw on.
+getcfg("teamplay_ping_surfaces",
+	TEAMPLAY_WORLD + TEAMPLAY_MINIMAP + TEAMPLAY_COMPASS);
 -- How near the crosshair a pinged point has to be to be believed, as the
 -- cosine of the angle between it and the player's aim. 0.985 is about
 -- ten degrees, which is slack for the tick of lag between the
