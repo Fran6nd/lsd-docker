@@ -27,16 +27,24 @@
 --        after on_join, so anything sent at join time is sent too early.
 --
 --   TEAMPLAY_FOREVER  duration meaning "until something clears it"
+--   TEAMPLAY_WORLD / TEAMPLAY_MINIMAP / TEAMPLAY_COMPASS
+--        surfaces to show a ping or a mark on; add them together, or
+--        leave them out to let the client place it where it likes
 --
 --   opts.reason            free text, shown by the client. Optional, and
---                          may be empty: the spec sizes a mark at "9+"
---                          bytes and a ping at "20+", so the fixed part
+--                          may be empty: the spec sizes a mark at "13+"
+--                          bytes and a ping at "21+", so the fixed part
 --                          alone is a whole packet and a reasonless mark
 --                          or ping is an ordinary one, not a degenerate
+--   opts.surfaces          where to show it, from the TEAMPLAY_* above.
+--                          Omitted or 0 means the client's own choice
 --   opts.clear_on_respawn  mark ends the next time the target spawns
 --                          (marks only)
 --   opts.show_name         client draws the target's name beside the
 --                          outline (marks only)
+--   opts.color             outline colour as LSd's {b=,g=,r=}. Omitted,
+--                          or black, asks for the marked player's own
+--                          team colour (marks only)
 --   opts.from              pid the ping is attributed to (pings only)
 --   opts.secs              how long a ping stays; defaults to
 --                          teamplay_ping_seconds (pings only)
@@ -67,9 +75,9 @@ local EXT_VERSION = 1;
 local PKT = 64 + EXT_ID;
 local SUB_CONFIG = 0; -- S->C  [PKT][0][features]
 local SUB_PING = 1;   -- S<->C [PKT][1][pid][x f32][y f32][z f32]
-                      --                  [duration f32][msgid][reason]
-local SUB_MARK = 2;   -- S->C  [PKT][2][target][duration f32][flags]
-                      --                  [msgid][reason]
+                      --            [duration f32][surfaces][msgid][reason]
+local SUB_MARK = 2;   -- S->C  [PKT][2][target][duration f32][surfaces]
+                      --            [flags][b][g][r][msgid][reason]
 
 -- Direction is part of the specification, not a detail of it. Ping is
 -- the only sub-packet a client may send; Config and ESP Mark are Server
@@ -80,12 +88,15 @@ local SUB_MARK = 2;   -- S->C  [PKT][2][target][duration f32][flags]
 local CLIENT_MAY_SEND = {[SUB_PING] = true};
 
 -- Sizes of the fixed part of each sub-packet, which is also the whole
--- packet when the reason is empty -- the spec writes them as "20+" and
--- "9+". An empty reason is legal in both directions and is not a special
+-- packet when the reason is empty -- the spec writes them as "21+" and
+-- "13+". An empty reason is legal in both directions and is not a special
 -- case anywhere: outbound it appends nothing, inbound it is what is left
 -- of a packet that is exactly PING_FIXED long.
-local PING_FIXED = 20;
-local MARK_FIXED = 9;
+--
+-- The Message ID is the last fixed byte of both, which is what lets the
+-- reason start at a fixed offset no matter what gets added ahead of it.
+local PING_FIXED = 21;
+local MARK_FIXED = 13;
 
 -- The Message ID byte both sub-packets carry ahead of their reason. It
 -- is reserved in version 1: we send 0 and drop anything else we are
@@ -95,10 +106,27 @@ local MARK_FIXED = 9;
 -- keeps that version additive rather than breaking.
 local MSG_ID_NONE = 0;
 
--- Config feature bits
-local TEAM_ESP = 1;     -- bit 0: client may render teammates through walls
-local PING_WORLD = 2;   -- bit 1: client may draw pings as 3D markers
-local PING_MINIMAP = 4; -- bit 2: client may draw pings on the minimap
+-- Config feature bits. All three are permissions for things the client
+-- does on its own initiative -- draw its own team through walls, draw a
+-- compass, send a ping -- and none of them govern what the server sends.
+-- Whether a client renders a ping or a mark we sent is not up for
+-- negotiation: a server that wants one unseen simply does not send it.
+local FEAT_TEAM_ESP = 1;    -- bit 0: may reveal its own team, in team colour
+local FEAT_PING = 2;        -- bit 1: may SEND pings
+local FEAT_COMPASS_HUD = 4; -- bit 2: may draw a compass HUD at all
+
+-- Where a ping or a mark is to be shown. Any combination is valid, and 0
+-- names nothing at all -- which is not "nowhere" but "wherever the client
+-- would put it anyway", the value a server with no opinion sends.
+--
+-- The compass is a bearing and nothing else: no distance, no position,
+-- just which way to turn. That makes it the honest surface for anything
+-- known by direction alone, and the only one a client may withhold --
+-- when it has no compass, or when FEAT_COMPASS_HUD is clear.
+TEAMPLAY_WORLD = 1;    -- bit 0: in the world, in 3D
+TEAMPLAY_MINIMAP = 2;  -- bit 1: on the minimap, at the position
+TEAMPLAY_COMPASS = 4;  -- bit 2: on the compass, as a bearing
+local SURFACE_MASK = 7; -- bits 3-7 are reserved and must go out clear
 
 -- ESP Mark flag bits
 local CLEAR_ON_RESPAWN = 1; -- bit 0: mark ends the next time they spawn
@@ -124,7 +152,8 @@ TEAMPLAY_FOREVER = math.huge;
 
 -- Which features clients are allowed to use. Sent as the Config
 -- sub-packet; reserved bits 3-7 must stay clear.
-getcfg("teamplay_features", TEAM_ESP + PING_WORLD + PING_MINIMAP);
+getcfg("teamplay_features",
+	FEAT_TEAM_ESP + FEAT_PING + FEAT_COMPASS_HUD);
 -- Seconds between accepted pings from one player. The spec recommends
 -- one a second and leaves enforcement to the server.
 getcfg("teamplay_ping_interval", 1);
@@ -133,6 +162,10 @@ getcfg("teamplay_ping_interval", 1);
 -- here and we overwrite it -- and 5 seconds is the value the spec names
 -- for a server with no opinion of its own.
 getcfg("teamplay_ping_seconds", 5);
+-- Where a relayed ping is shown. 0 leaves the placement to the client,
+-- which is what the spec asks a server with no opinion to send; set it to
+-- TEAMPLAY_WORLD + TEAMPLAY_MINIMAP to have a say.
+getcfg("teamplay_ping_surfaces", 0);
 -- How near the crosshair a pinged point has to be to be believed, as the
 -- cosine of the angle between it and the player's aim. 0.985 is about
 -- ten degrees, which is slack for the tick of lag between the
@@ -210,6 +243,35 @@ local function put_duration(secs)
 		secs = F32_TINY;
 	end
 	return put_f32(secs);
+end
+
+-- Surfaces is a bitmask of the three we know, and the reserved bits go
+-- out clear whatever a caller hands us -- a client is told to ignore
+-- them, but sending them set is still saying something we do not mean.
+local function put_surfaces(surfaces)
+	return string.char(bit.band(surfaces or 0, SURFACE_MASK));
+end
+
+-- A mark's colour, Blue Green Red -- the byte order the base protocol
+-- already uses for Set Colour and State Data, and the order LSd's own
+-- {b=,g=,r=} colour tables are stored in (lua.c:219-232), so a colour
+-- from get_map_block_color goes out as it came in.
+--
+-- Black is not a colour here but a word: it asks for the marked player's
+-- own team colour, which is what "point at that one" looks like when the
+-- server has nothing further to say. That makes it the right default,
+-- and it is what a caller passing no colour at all gets.
+local function put_color(c)
+	if (c == nil) then
+		return string.char(0, 0, 0);
+	end
+
+	local function chan(v)
+		v = math.floor(tonumber(v) or 0);
+		return math.max(0, math.min(255, v));
+	end
+
+	return string.char(chan(c.b), chan(c.g), chan(c.r));
 end
 
 -- The spec asks the server to validate the UTF-8 in a reason before
@@ -392,9 +454,14 @@ local function on_ping(pid, data)
 			pid, #data, tostring(string.byte(data, PING_FIXED)));
 	end
 
-	-- the client is told not to send these when both ping bits are
-	-- clear, so one arriving anyway is not something to honour
-	if (bit.band(teamplay_features, PING_WORLD + PING_MINIMAP) == 0) then
+	-- FEAT_PING is permission to send, and the only bit that bears on a
+	-- ping arriving. The client is told not to send these without it, and
+	-- the spec has us ignore any that turn up regardless.
+	if (bit.band(teamplay_features, FEAT_PING) == 0) then
+		if (teamplay_ping_debug) then
+			log("lib_teamplay: ping #%d refused: sending is not permitted"
+				.. " (features %d)", pid, teamplay_features);
+		end
 		return;
 	end
 	-- exactly PING_FIXED is a ping with no reason, which is allowed;
@@ -429,8 +496,9 @@ local function on_ping(pid, data)
 	end
 
 	-- the originating id is the sender's to claim and ours to ignore
-	-- (pid is who actually sent the packet), and so is the duration:
-	-- how long a ping is worth is decided below, not here
+	-- (pid is who actually sent the packet), and so are the duration and
+	-- the surfaces: how long a ping is worth and where it is shown are
+	-- both decided on the relay, not by whoever asked for it
 	local pos = get_f32x3(data, 4);
 	if (pos.x ~= pos.x or pos.y ~= pos.y or pos.z ~= pos.z) then
 		return; -- NaN
@@ -539,7 +607,10 @@ function teamplay_mark(viewer, target, secs, opts)
 	end
 
 	send_packet(viewer, string.char(PKT, SUB_MARK, target) .. duration
-		.. string.char(flags, MSG_ID_NONE)
+		.. put_surfaces(opts.surfaces)
+		.. string.char(flags)
+		.. put_color(opts.color)
+		.. string.char(MSG_ID_NONE)
 		.. clean_reason(opts.reason));
 	return true;
 end
@@ -579,6 +650,7 @@ function teamplay_ping(viewer, pos, opts)
 	send_packet(viewer, string.char(PKT, SUB_PING, opts.from or SERVER_ORIGIN)
 		.. put_f32x3(pos.x, pos.y, pos.z)
 		.. duration
+		.. put_surfaces(opts.surfaces or teamplay_ping_surfaces)
 		.. string.char(MSG_ID_NONE)
 		.. clean_reason(opts.reason));
 	return true;
