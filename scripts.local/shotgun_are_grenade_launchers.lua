@@ -1,12 +1,25 @@
 -- shotgun_are_grenade_launchers.lua -- Shotgun pellets are grenades
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
--- One random pellet per shot detonates a grenade where it lands.
+-- One random pellet per shell detonates a grenade where it lands.
 --
--- The client never reports where pellets hit the world (spread is
--- client-side RNG; the server only sees player hits and block
--- destroys), so the chosen pellet is simulated here: jitter the aim
--- direction by the shotgun's spread, raycast it, boom.
+-- WHERE the pellets went is half known and half guessed, and the point
+-- of this script is to prefer the known half. Spread is client-side RNG,
+-- so the server is never told the eight directions -- but it IS told
+-- where pellets landed, whenever one hit something: a Hit packet names
+-- the player struck, a BlockAction names the block chewed. Those are
+-- real impacts, and they are the ones a player actually aimed.
+--
+-- So a shell is assembled rather than invented: every impact the client
+-- reported is a pellet, and only the shortfall -- the pellets that hit
+-- nothing, or hit something too far away to report -- is simulated by
+-- jittering the aim and raycasting. Then one of the eight is drawn at
+-- random and detonated. Hit five of eight and the burst lands on real
+-- geometry five times out of eight.
+--
+-- That costs a beat: the client's impact packets arrive around the shot,
+-- not before it, so a shell waits sgl_gather seconds to see what turns
+-- up before it is resolved. Nothing else in the round trip is shorter.
 --
 -- Knowing that a shell was fired at all is lib_shot_detect's job, not this
 -- one's -- it is the same problem the railgun script has, and it is
@@ -16,6 +29,30 @@ local mod = init_mod();
 getcfg("sgl_pellets", 8);     -- pellets per shell
 getcfg("sgl_spread", 0.024);  -- 0.75 shotgun spread
 getcfg("sgl_range", 128);     -- max pellet travel, in blocks
+-- How long a fired shell waits for the client's impact reports before
+-- being resolved. They arrive about a round trip after the shot and
+-- within a few ms of each other; too short and real impacts are missed
+-- and simulated over, too long and the burst visibly lags the trigger.
+getcfg("sgl_gather", 0.1);
+
+-- impacts the client has reported since the last shell was resolved, and
+-- the shells waiting to be resolved. Both are cleared on spawn: a fresh
+-- life owes nothing to the shot before it.
+local impacts = pid_spawn_table();
+local pending = pid_spawn_table();
+
+-- A pellet landed somewhere the client can prove. The position is all we
+-- keep -- which pellet it was, and what it struck, do not matter once it
+-- is a candidate for the burst.
+local function record_impact(pid, pos)
+	local list = impacts[pid];
+
+	if (list == nil) then
+		list = {};
+		impacts[pid] = list;
+	end
+	list[#list+1] = {x=pos.x, y=pos.y, z=pos.z};
+end
 
 local function jitter(dir)
 	return {
@@ -25,15 +62,13 @@ local function jitter(dir)
 	};
 end
 
-local function explode_pellet(pid)
+-- Where one unreported pellet would have landed: jitter the aim by the
+-- shotgun's spread and follow it. Returns nil when it hits nothing at
+-- all, which is a pellet that flew off into the sky -- a real outcome,
+-- and one that must stay possible or every shell would burst.
+local function simulate_pellet(pid)
 	local start = get_position(pid);
-
-	-- model the shell: sgl_pellets directions, one of them is live
-	local pellets = {};
-	for i = 1, sgl_pellets do
-		pellets[i] = jitter(get_orientation(pid));
-	end
-	local dir = pellets[math.random(sgl_pellets)];
+	local dir = jitter(get_orientation(pid));
 
 	local stop = {
 		x = start.x + dir.x*sgl_range,
@@ -79,8 +114,14 @@ local function explode_pellet(pid)
 	elseif (vox ~= nil) then
 		at = {x=vox.x+0.5, y=vox.y+0.5, z=vox.z+0.5};
 	else
-		return; -- the live pellet flew off into the sky
+		return nil; -- this pellet flew off into the sky
 	end
+
+	return at;
+end
+
+-- Burst one pellet, wherever it turned out to be.
+local function burst(pid, at)
 	local still = {x=0, y=0, z=0};
 
 	-- the shooter's copy of the grenade is attributed to the anon pid:
@@ -109,23 +150,77 @@ function mod.after.on_join(pid)
 	server_msg(pid, "warning: here shotguns are grenade launchers.");
 end
 
--- pellets don't hurt players: only the grenade does damage
+-- Pellets don't hurt players: only the grenade does damage. The hit is
+-- still worth keeping, though -- it is the client telling us where one
+-- pellet of the shell actually landed, which beats any guess we could
+-- make about it.
 function mod.on_hit(pid, type, hitPlayer)
 	if (is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 2) then
+		record_impact(pid, get_position(hitPlayer));
 		return;
 	end
 	mod.next.on_hit(pid, type, hitPlayer);
 end
 
--- pellets do nothing to blocks: swallow gun-destroys from shotgun
--- holders and rebuild the block on the client that chewed it locally
+-- Pellets do nothing to blocks: swallow gun-destroys from shotgun
+-- holders and rebuild the block on the client that chewed it locally.
+-- Same as above, the destroy is kept first: it is a pellet's real
+-- landing point, named by the only party that knows it.
 function mod.on_block_action(pid, pos, type)
 	if (type == 1 and is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 2) then
+		record_impact(pid, {x=pos.x+0.5, y=pos.y+0.5, z=pos.z+0.5});
 		send_set_block_color(pid, get_map_block_color(pos), get_anon_pid());
 		send_block_action(pid, pos, 0, get_anon_pid());
 		return;
 	end
 	mod.next.on_block_action(pid, pos, type);
+end
+
+-- The shell, once its impacts have had time to arrive. Every reported
+-- impact is a pellet; the shortfall is simulated. One of the eight is
+-- then drawn and burst -- and it may be a simulated pellet that hit
+-- nothing, in which case the shell is a clean miss and nothing happens.
+local function resolve(pid)
+	local shots = {};
+	local n = 0;
+
+	for _,at in ipairs(impacts[pid] or {}) do
+		if (n >= sgl_pellets) then
+			break;
+		end
+		n = n + 1;
+		shots[n] = at;
+	end
+
+	-- only the missing ones
+	while (n < sgl_pellets) do
+		n = n + 1;
+		shots[n] = simulate_pellet(pid); -- nil if it hit nothing
+	end
+
+	impacts[pid] = nil;
+
+	local at = shots[math.random(sgl_pellets)];
+	if (at ~= nil) then
+		burst(pid, at);
+	end
+end
+
+function mod.after.tick()
+	local now = get_time();
+
+	for pid in piditer(PID_BROADCAST) do
+		local at = pending[pid];
+
+		if (at ~= nil and now - at >= sgl_gather) then
+			pending[pid] = nil;
+			if (is_alive(pid)) then
+				resolve(pid);
+			else
+				impacts[pid] = nil;
+			end
+		end
+	end
 end
 
 -- One shell, one live pellet, whoever worked out that a shell was fired.
@@ -141,9 +236,12 @@ function mod.on_load()
 			.."shotgun_are_grenade_launchers)", 0);
 	end
 
+	-- a shell is not resolved here: it is queued, so that the client's
+	-- impact reports have a moment to arrive before we decide what the
+	-- pellets did (see sgl_gather)
 	shot_listen("shotgun_are_grenade_launchers", function(pid, gun)
 		if (gun == 2) then
-			explode_pellet(pid);
+			pending[pid] = get_time();
 		end
 	end);
 end
