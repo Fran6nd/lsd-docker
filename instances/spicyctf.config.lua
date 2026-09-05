@@ -128,9 +128,10 @@ tip_frequency = 5*60
 load "tip_spam"
 
 -- Works out when a bullet was actually fired, for every gun, and hands
--- that one answer to both of the weapon scripts below -- neither of
+-- that one answer to the shotgun and rifle scripts below -- neither of
 -- which can tell on its own (see the file). Must be loaded before them.
--- (scripts.local/)
+-- The smg script below needs none of it: it acts on landed bullets only,
+-- which the client reports itself. (scripts.local/)
 load "lib_shot_detect"
 
 -- one random shotgun pellet per shot explodes (scripts.local/)
@@ -139,7 +140,7 @@ load "shotgun_are_grenade_launchers"
 -- rifles pierce the whole map and leave a tracer trail (scripts.local/)
 load "rifle_is_a_rail_gun"
 
--- the smg pins whoever it hits and never runs dry (scripts.local/)
+-- the smg pins whoever it hits, and reloads them for free (scripts.local/)
 load "smg_is_incapacitating"
 
 -- aosprotocol's Teamplay extension (id 2 v1): lets the server outline a

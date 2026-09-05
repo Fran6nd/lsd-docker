@@ -16,9 +16,20 @@
 -- the intended shape of the thing rather than an oversight -- turn
 -- smg_freeze_secs down if it is too much.
 --
--- THE MAGAZINE NEVER EMPTIES. Topped back up as it runs low, so the SMG
--- never stops to reload. See the refill below for why it tops up early
--- rather than at zero.
+-- THE MAGAZINE NEVER EMPTIES WHILE YOU ARE HITTING. Every bullet the
+-- client reports landing on somebody tops the gun back up as it runs
+-- low, so a man who keeps connecting never stops to reload. See the
+-- refill below for why it tops up early rather than at zero.
+--
+-- BOTH OF THOSE COME OFF THE SAME EVIDENCE, and off nothing else: a Hit
+-- packet from the shooter's own client. This script asks no one when a
+-- bullet was fired and does not guess -- the two questions it needs
+-- answered ("did a bullet land, and on whom") are the two the client
+-- already answers on the wire, so a hit is the whole of its input. That
+-- is why it wants no lib_shot_detect: the estimator exists for effects
+-- that have to fire on a bullet which hits nothing at all, and neither
+-- of these is one. Bullets that miss are simply not this script's
+-- business, and the reserve below is what keeps them from mattering.
 --
 -- HOW THE PIN WORKS, since "the server moves a player" is not obvious:
 -- LSd lets a script drive somebody's position and clients honour it --
@@ -28,8 +39,6 @@
 -- the two are not arguing; they only arrive about once a second anyway
 -- (apidoc/src/event:88), which is why the correction has to be sent
 -- rather than merely believed.
---
--- Knowing that a shot happened is lib_shot_detect's job. Load it first.
 local mod = init_mod();
 
 -- Which gun this is about, and what a full one holds
@@ -113,11 +122,12 @@ end
 
 --=========================== THE MAGAZINE ===========================--
 
--- Reserve is topped up alongside the magazine on purpose. The refill
--- below only runs on shots this server actually saw, and a shot fired
--- where the detector is blind -- see lib_shot_detect's LIMIT -- is one
--- it will not see. A full reserve means the client's own reload
--- succeeds anyway on those, so the gun never stops either way.
+-- Reserve is topped up alongside the magazine on purpose, and it is what
+-- makes the miss case harmless. This runs on landed bullets only, so a
+-- man spraying at terrain still empties his magazine and still reloads
+-- like anybody else -- but he reloads out of a reserve that was full the
+-- last time he hit something, so he never actually runs out of ammunition.
+-- Hitting buys you the pause; the reserve is there either way.
 local function refill(pid)
 	if (get_mag_ammo(pid) > smg_refill_at) then
 		return;
@@ -127,22 +137,33 @@ end
 
 --============================= TRIGGERS =============================--
 
--- An after-hook: the damage is the engine's to do, and this only adds
--- to it. It also means a hit that something earlier in the chain threw
--- away -- dd.lua drops shots that come too fast -- never gets here, so a
--- refused bullet pins nobody.
+-- The one door in. Everything this script does is decided here, from the
+-- shooter's own Hit packet and from nothing else.
+--
+-- An after-hook: the damage is the engine's to do, and this only adds to
+-- it. It also means a hit that something earlier in the chain threw away
+-- -- dd.lua drops shots that come too fast -- never gets here, so a
+-- refused bullet neither pins anybody nor pays for a magazine.
 function mod.after.on_hit(pid, type, hitPlayer)
-	if (type == HIT_SPADE or not is_alive(pid) or not is_alive(hitPlayer)
-	    or get_tool(pid) ~= TOOL_GUN or get_gun(pid) ~= GUN_SMG
-	    or get_team(pid) == get_team(hitPlayer)) then
+	-- not a bullet, or not out of the gun this script is about
+	if (type == HIT_SPADE or not is_alive(pid)
+	    or get_tool(pid) ~= TOOL_GUN or get_gun(pid) ~= GUN_SMG) then
 		return;
 	end
 
-	pin(hitPlayer, smg_freeze_secs);
+	-- A reported hit is a round that left the barrel, whoever it found,
+	-- so the magazine is paid for before asking anything about the
+	-- target: a man laying into a teammate is still firing his gun, and
+	-- one whose target died on that very bullet has still earned it.
+	refill(pid);
+
+	if (is_alive(hitPlayer) and get_team(pid) ~= get_team(hitPlayer)) then
+		pin(hitPlayer, smg_freeze_secs);
+	end
 end
 
 function mod.after.on_join(pid)
-	server_msg(pid, "warning: here the smg pins what it hits and never reloads.");
+	server_msg(pid, "warning: here the smg pins what it hits, and keeps hitting it loaded.");
 end
 
 -- Advertise ourselves, rather than leaving it to whoever writes the
@@ -152,7 +173,7 @@ end
 -- every tick, so appending is the whole of it; `tips` is nil on an
 -- instance not running tip_spam, hence the guard. Taken out again on
 -- unload, and taken out before being put in, so a reload leaves one.
-local TIP = "Spicy: the SMG pins whoever it hits where they stand, and never reloads.";
+local TIP = "Spicy: the SMG pins whoever it hits where they stand -- and keep landing bullets and it never reloads.";
 
 local function untip()
 	if (tips == nil) then
@@ -171,25 +192,10 @@ function mod.on_load()
 		tips[#tips+1] = TIP;
 	end
 
-	if (shot_listen == nil) then
-		error("smg_is_incapacitating needs lib_shot_detect loaded first "
-			.."(config.lua loads it, or: lsdctl load lib_shot_detect "
-			.."smg_is_incapacitating)", 0);
-	end
-
-	shot_listen("smg_is_incapacitating", function(pid, gun)
-		if (gun == GUN_SMG) then
-			refill(pid);
-		end
-	end);
 end
 
 function mod.on_unload()
 	untip();
-
-	if (shot_unlisten ~= nil) then
-		shot_unlisten("smg_is_incapacitating");
-	end
 
 	-- a pin is only maintained from the tick above, so unloading frees
 	-- everybody by itself -- but the table is cleared anyway rather than
