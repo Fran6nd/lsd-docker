@@ -255,6 +255,26 @@ function mod.after.tick()
 	end
 end
 
+-- Advertise ourselves, rather than leaving it to whoever writes the
+-- config. The script that changes a weapon is the thing that knows what
+-- changed, so an instance gets the line by loading the script, and the
+-- claim cannot drift from the code making it. tip_spam reads `tips` live
+-- every tick, so appending is the whole of it; `tips` is nil on an
+-- instance not running tip_spam, hence the guard. Taken out again on
+-- unload, and taken out before being put in, so a reload leaves one.
+local TIP = "Spicy: every shotgun blast drops a grenade pellet -- mind the splash.";
+
+local function untip()
+	if (tips == nil) then
+		return;
+	end
+	for i = #tips, 1, -1 do
+		if (tips[i] == TIP) then
+			table.remove(tips, i);
+		end
+	end
+end
+
 -- One shell, one live pellet, whoever worked out that a shell was fired.
 --
 -- The swallowing hooks above are why lib_shot_detect watches from the xearly
@@ -262,6 +282,11 @@ end
 -- entirely, and those two packets are the only proof a shell was fired
 -- that survives a sprinting player.
 function mod.on_load()
+	untip();
+	if (tips ~= nil) then
+		tips[#tips+1] = TIP;
+	end
+
 	if (shot_listen == nil) then
 		error("shotgun_are_grenade_launchers needs lib_shot_detect loaded first "
 			.."(config.lua loads it, or: lsdctl load lib_shot_detect "
@@ -286,6 +311,8 @@ function mod.on_load()
 end
 
 function mod.on_unload()
+	untip();
+
 	if (shot_unlisten ~= nil) then
 		shot_unlisten("shotgun_are_grenade_launchers");
 	end

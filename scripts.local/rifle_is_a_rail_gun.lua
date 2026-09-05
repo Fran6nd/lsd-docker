@@ -240,10 +240,35 @@ function mod.tick()
 	end
 end
 
+-- Advertise ourselves, rather than leaving it to whoever writes the
+-- config. The script that changes a weapon is the thing that knows what
+-- changed, so an instance gets the line by loading the script, and the
+-- claim cannot drift from the code making it. tip_spam reads `tips` live
+-- every tick, so appending is the whole of it; `tips` is nil on an
+-- instance not running tip_spam, hence the guard. Taken out again on
+-- unload, and taken out before being put in, so a reload leaves one.
+local TIP = "Spicy: rifles are railguns -- they pierce the whole map and leave a tracer.";
+
+local function untip()
+	if (tips == nil) then
+		return;
+	end
+	for i = #tips, 1, -1 do
+		if (tips[i] == TIP) then
+			table.remove(tips, i);
+		end
+	end
+end
+
 -- One railgun shot per bullet, whoever worked out that there was one.
 -- rig_range and the rest still apply; all that has moved out is the
 -- question of when.
 function mod.on_load()
+	untip();
+	if (tips ~= nil) then
+		tips[#tips+1] = TIP;
+	end
+
 	if (shot_listen == nil) then
 		error("rifle_is_a_rail_gun needs lib_shot_detect loaded first "
 			.."(config.lua loads it, or: lsdctl load lib_shot_detect rifle_is_a_rail_gun)", 0);
@@ -257,6 +282,8 @@ function mod.on_load()
 end
 
 function mod.on_unload()
+	untip();
+
 	if (shot_unlisten ~= nil) then
 		shot_unlisten("rifle_is_a_rail_gun");
 	end

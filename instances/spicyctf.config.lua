@@ -108,10 +108,10 @@ I recommend using ZeroSpades as client.
 ]]
 load "motd"
 
+-- The weapon scripts loaded below add their own "Spicy:" lines to this
+-- table as they load, so what the guns do is not described twice.
 tips = {
 	"Objective: steal the enemy intel and return it to your tent.",
-	"Spicy: every shotgun blast drops a grenade pellet -- mind the splash.",
-	"Spicy: rifles are railguns, they pierce blocks and leave a tracer.",
 	"The Fall: when you die you respawn falling down the central pit.",
 	"Kill someone while falling and you are put back in the game, healed and restocked.",
 	"Use /kill to die.",
@@ -136,7 +136,7 @@ load "lib_shot_detect"
 -- one random shotgun pellet per shot explodes (scripts.local/)
 load "shotgun_are_grenade_launchers"
 
--- rifles pierce 5 blocks and leave a tracer trail (scripts.local/)
+-- rifles pierce the whole map and leave a tracer trail (scripts.local/)
 load "rifle_is_a_rail_gun"
 
 -- the smg pins whoever it hits and never runs dry (scripts.local/)
