@@ -140,7 +140,7 @@ load "shotgun_are_grenade_launchers"
 -- rifles pierce the whole map and leave a tracer trail (scripts.local/)
 load "rifle_is_a_rail_gun"
 
--- the smg pins whoever it hits, and reloads them for free (scripts.local/)
+-- the smg pins whoever it hits and never runs dry (scripts.local/)
 load "smg_is_incapacitating"
 
 -- aosprotocol's Teamplay extension (id 2 v1): lets the server outline a

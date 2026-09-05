@@ -16,20 +16,27 @@
 -- the intended shape of the thing rather than an oversight -- turn
 -- smg_freeze_secs down if it is too much.
 --
--- THE MAGAZINE NEVER EMPTIES WHILE YOU ARE HITTING. Every bullet the
--- client reports landing on somebody tops the gun back up as it runs
--- low, so a man who keeps connecting never stops to reload. See the
--- refill below for why it tops up early rather than at zero.
+-- THE MAGAZINE NEVER EMPTIES. Full stop, whether the bullets are landing
+-- or going into a wall: the SMG is topped back up as it runs low and
+-- never stops to reload. See the refill below for why it tops up early
+-- rather than at zero.
 --
--- BOTH OF THOSE COME OFF THE SAME EVIDENCE, and off nothing else: a Hit
--- packet from the shooter's own client. This script asks no one when a
--- bullet was fired and does not guess -- the two questions it needs
--- answered ("did a bullet land, and on whom") are the two the client
--- already answers on the wire, so a hit is the whole of its input. That
--- is why it wants no lib_shot_detect: the estimator exists for effects
--- that have to fire on a bullet which hits nothing at all, and neither
--- of these is one. Bullets that miss are simply not this script's
--- business, and the reserve below is what keeps them from mattering.
+-- NEITHER HALF ASKS WHEN A BULLET WAS FIRED, which is why this script
+-- wants no lib_shot_detect. They dodge the question from opposite sides.
+--
+-- The pin does not need it because a pin is a consequence of a bullet
+-- ARRIVING, and the client says so itself in a Hit packet: who was shot
+-- is a thing the server is told, not a thing it has to work out.
+--
+-- The magazine does not need it because "the magazine is low" is not an
+-- event at all, it is a fact about a player that is true right now and
+-- stays true until something changes it. Watching for it in the tick
+-- reads that fact directly. Firing off a detected shot was the long way
+-- round: it inferred a shot in order to infer the count that the count
+-- itself would have told us. A missed shot cost a missed refill; a
+-- phantom one cost a wasted look. Neither can happen to a question that
+-- is asked of the ammunition instead of the trigger, so this is both the
+-- simpler code and the more reliable of the two.
 --
 -- HOW THE PIN WORKS, since "the server moves a player" is not obvious:
 -- LSd lets a script drive somebody's position and clients honour it --
@@ -89,8 +96,42 @@ function mod.on_position(pid, pos)
 	mod.next.on_position(pid, pos);
 end
 
--- Hold every pinned player, and let go of the ones whose time is up or
--- who somebody else has moved.
+--=========================== THE MAGAZINE ===========================--
+
+-- Top a man back up if he is running low. Idempotent and cheap on a full
+-- magazine -- it is a comparison, and the packet only goes out when it
+-- actually fires -- which is what lets the tick below simply ask this
+-- every frame instead of waiting to be told a shot happened.
+--
+-- Reserve is topped up alongside the magazine because the magazine alone
+-- would not survive a reload we did not beat: any path that empties the
+-- gun where we are not looking -- an admin set_ammo, a script we do not
+-- know about -- ends with the client reloading out of the reserve, and a
+-- full one means that reload succeeds. Belt and braces on a gun whose
+-- whole point is that it never stops.
+--
+-- get_mag_ammo being the lower of the engine's two counts is what makes
+-- this safe to ask blind. The estimate can read low after a phantom
+-- shot, so the error is always "refill a little early" -- which is the
+-- state we wanted anyway. There is no reading that leaves the gun empty.
+local function refill(pid)
+	if (get_mag_ammo(pid) > smg_refill_at) then
+		return;
+	end
+	set_ammo(pid, SMG_MAG, SMG_RESERVE);
+end
+
+--============================== THE TICK ============================--
+
+-- Two jobs a frame: keep every SMG loaded, and hold every pinned player
+-- (letting go of the ones whose time is up or whom somebody else moved).
+--
+-- The magazine is swept here rather than driven off a shot, because
+-- "low" is a state and not an event -- see the header. Sixty passes a
+-- second over the player list is nothing next to being right every time:
+-- an SMG empties ten rounds a second, so the count cannot fall from
+-- smg_refill_at to zero in under half a second however it is being
+-- spent, and this looks thirty times in that window.
 --
 -- Ours is a plain after-tick, so anything loaded later gets the last
 -- word on where a player is -- the Fall recycles its fallers this way,
@@ -100,6 +141,13 @@ function mod.after.tick()
 	local now = get_time();
 
 	for pid in piditer(PID_BROADCAST) do
+		-- the magazine. Guarded on the gun rather than on what is in
+		-- hand: ammunition belongs to the gun, so a man who has switched
+		-- to his spade mid-fight comes back to a full one.
+		if (is_alive(pid) and get_gun(pid) == GUN_SMG) then
+			refill(pid);
+		end
+
 		local f = frozen[pid];
 
 		if (f ~= nil) then
@@ -120,50 +168,27 @@ function mod.after.tick()
 	end
 end
 
---=========================== THE MAGAZINE ===========================--
+--============================ THE TRIGGER ===========================--
 
--- Reserve is topped up alongside the magazine on purpose, and it is what
--- makes the miss case harmless. This runs on landed bullets only, so a
--- man spraying at terrain still empties his magazine and still reloads
--- like anybody else -- but he reloads out of a reserve that was full the
--- last time he hit something, so he never actually runs out of ammunition.
--- Hitting buys you the pause; the reserve is there either way.
-local function refill(pid)
-	if (get_mag_ammo(pid) > smg_refill_at) then
-		return;
-	end
-	set_ammo(pid, SMG_MAG, SMG_RESERVE);
-end
-
---============================= TRIGGERS =============================--
-
--- The one door in. Everything this script does is decided here, from the
--- shooter's own Hit packet and from nothing else.
+-- A bullet arriving is the client's own report of it, and that is the
+-- only thing this script listens to. It works out nothing for itself.
 --
 -- An after-hook: the damage is the engine's to do, and this only adds to
 -- it. It also means a hit that something earlier in the chain threw away
 -- -- dd.lua drops shots that come too fast -- never gets here, so a
--- refused bullet neither pins anybody nor pays for a magazine.
+-- refused bullet pins nobody.
 function mod.after.on_hit(pid, type, hitPlayer)
-	-- not a bullet, or not out of the gun this script is about
-	if (type == HIT_SPADE or not is_alive(pid)
-	    or get_tool(pid) ~= TOOL_GUN or get_gun(pid) ~= GUN_SMG) then
+	if (type == HIT_SPADE or not is_alive(pid) or not is_alive(hitPlayer)
+	    or get_tool(pid) ~= TOOL_GUN or get_gun(pid) ~= GUN_SMG
+	    or get_team(pid) == get_team(hitPlayer)) then
 		return;
 	end
 
-	-- A reported hit is a round that left the barrel, whoever it found,
-	-- so the magazine is paid for before asking anything about the
-	-- target: a man laying into a teammate is still firing his gun, and
-	-- one whose target died on that very bullet has still earned it.
-	refill(pid);
-
-	if (is_alive(hitPlayer) and get_team(pid) ~= get_team(hitPlayer)) then
-		pin(hitPlayer, smg_freeze_secs);
-	end
+	pin(hitPlayer, smg_freeze_secs);
 end
 
 function mod.after.on_join(pid)
-	server_msg(pid, "warning: here the smg pins what it hits, and keeps hitting it loaded.");
+	server_msg(pid, "warning: here the smg pins what it hits and never reloads.");
 end
 
 -- Advertise ourselves, rather than leaving it to whoever writes the
@@ -173,7 +198,7 @@ end
 -- every tick, so appending is the whole of it; `tips` is nil on an
 -- instance not running tip_spam, hence the guard. Taken out again on
 -- unload, and taken out before being put in, so a reload leaves one.
-local TIP = "Spicy: the SMG pins whoever it hits where they stand -- and keep landing bullets and it never reloads.";
+local TIP = "Spicy: the SMG pins whoever it hits where they stand, and never reloads.";
 
 local function untip()
 	if (tips == nil) then
