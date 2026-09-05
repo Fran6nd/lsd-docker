@@ -3,8 +3,14 @@
 --
 -- Speaks aosprotocol's Teamplay extension (id 2, version 1): the server
 -- can point a client at a player -- "outline that one, for ten seconds,
--- because he has the intel" -- clients can drop pings in the world for
--- their team, and the server can say a line to one player alone.
+-- because he has the intel" -- and clients can drop pings in the world
+-- for their team.
+--
+-- THREE SUB-PACKETS AND NOTHING ELSE: Config, Ping, ESP Mark. The
+-- extension adds nothing to the base protocol -- no chat type, no packet
+-- of its own beyond 66 -- and this module deliberately offers no more
+-- than the specification does. Anything a server wants that is not one
+-- of those three is not this extension's to carry.
 --
 -- Nothing in LSd's core knows about any of this. PacketTypeExtensionInfo
 -- is declared in protocol.h:804 and the ExtensionID enum lives at :916,
@@ -18,7 +24,7 @@
 --   teamplay_mark_all(target, secs, opts)         everyone who can see it
 --   teamplay_clear(viewer, target) / teamplay_clear_all(target)
 --   teamplay_ping(viewer, pos, opts) / teamplay_ping_all(pos, opts)
---   teamplay_say(pid, msg, from)         one line, to that player alone
+--   teamplay_send_config()               re-announce teamplay_features
 --   teamplay_listen_ping(name, fn)  / teamplay_unlisten_ping(name)
 --        fn(pid, pos, reason) for every ping a client sends
 --   teamplay_listen_ready(name, fn) / teamplay_unlisten_ready(name)
@@ -33,7 +39,7 @@
 --
 --   opts.reason            free text, shown by the client. Optional, and
 --                          may be empty: the spec sizes a mark at "13+"
---                          bytes and a ping at "21+", so the fixed part
+--                          bytes and a ping at "24+", so the fixed part
 --                          alone is a whole packet and a reasonless mark
 --                          or ping is an ordinary one, not a degenerate
 --   opts.surfaces          where to show it, from the TEAMPLAY_* above.
@@ -119,6 +125,11 @@ local MSG_ID_NONE = 0;
 local FEAT_TEAM_ESP = 1;    -- bit 0: may reveal its own team, in team colour
 local FEAT_PING = 2;        -- bit 1: may SEND pings
 local FEAT_COMPASS_HUD = 4; -- bit 2: may draw a compass HUD at all
+-- Bits 3-7 are reserved and must go out clear. Clients are told to ignore
+-- what they do not know, but sending a bit set is still claiming
+-- something, and the one this module would be claiming is a feature a
+-- later version defines and this one cannot honour.
+local FEATURE_MASK = 7;
 
 -- Where a ping or a mark is to be shown. Any combination is valid, and 0
 -- names nothing at all -- which is not "nowhere" but "wherever the client
@@ -136,10 +147,6 @@ local SURFACE_MASK = 7; -- bits 3-7 are reserved and must go out clear
 -- ESP Mark flag bits
 local CLEAR_ON_RESPAWN = 1; -- bit 0: mark ends the next time they spawn
 local SHOW_NAME = 2;        -- bit 1: client draws the target's name too
-
--- Direct chat. Not a sub-packet: a chat type the extension adds to the
--- base Chat Message packet, for a line meant for one player alone.
-local CHAT_DIRECT = 7;
 
 -- The ping "player id" meaning the server itself said it. The client
 -- names whoever is in that field -- a marker is never anonymous and a
@@ -351,14 +358,63 @@ local function valid_utf8(s)
 	return true;
 end
 
+-- The longest prefix of `s` that is at most `max` bytes AND ends on a
+-- codepoint boundary. The spec asks for exactly this -- "cap its length,
+-- truncating on a codepoint boundary if needed" -- and the boundary is
+-- the whole point: cutting a multi-byte character in half produces a
+-- reason that is no longer well-formed UTF-8, which is the one thing the
+-- validation either side of this is there to prevent.
+--
+-- Only ever called on a string valid_utf8 has already passed, so the
+-- lengths below are the ones its lead bytes promise and the walk cannot
+-- run off the end.
+local function utf8_truncate(s, max)
+	if (#s <= max) then
+		return s;
+	end
+
+	local i, cut = 1, 0;
+
+	while (i <= #s) do
+		local c = string.byte(s, i);
+		local len;
+
+		if (c < 0x80) then len = 1;
+		elseif (c <= 0xdf) then len = 2;
+		elseif (c <= 0xef) then len = 3;
+		else len = 4; end
+
+		-- the first character that would cross the cap ends it, and the
+		-- cap falls where the last whole one did
+		if (i + len - 1 > max) then
+			break;
+		end
+
+		cut = i + len - 1;
+		i = i + len;
+	end
+
+	return string.sub(s, 1, cut);
+end
+
 -- Always returns a string, possibly empty, which is exactly what the
 -- wire wants: no reason, an empty reason and a reason we refused to
 -- believe all serialise to nothing at all after the fixed bytes.
+--
+-- Validated whole and shortened afterwards, in that order. The reverse
+-- -- cut to the byte cap, then check -- fails the label that merely
+-- happens to have a multi-byte character lying across the cut: the cut
+-- leaves a half character behind, the check calls the result malformed,
+-- and a perfectly good reason is thrown away in its entirety for being
+-- slightly too long. Malformed input is still dropped outright, which is
+-- what the spec asks; being over the cap is not malformed.
 local function clean_reason(s)
 	if (s == nil) then return ""; end
-	s = string.sub(tostring(s), 1, teamplay_reason_max);
+
+	s = tostring(s);
 	if (not valid_utf8(s)) then return ""; end
-	return s;
+
+	return utf8_truncate(s, teamplay_reason_max);
 end
 
 --=========================== NEGOTIATION ============================--
@@ -371,7 +427,7 @@ end
 
 local function send_config(pid)
 	send_packet(pid, string.char(PKT, SUB_CONFIG,
-		bit.band(teamplay_features, 0xff)));
+		bit.band(teamplay_features, FEATURE_MASK)));
 end
 
 function mod.after.on_version(pid, idChar, major, minor, patch, msg)
@@ -706,25 +762,24 @@ function teamplay_ping_all(pos, opts)
 	end
 end
 
--- Say `msg` to `pid` and to nobody else, as a private message. This is
--- the one thing the extension adds outside packet 66: a chat type on the
--- base Chat Message packet, which already carries the sender in its
--- Player ID and takes the recipient from who it was sent to, so it needs
--- no field of its own. send_chat writes the type straight into that byte
--- (funcs_send.c:383-393) and nothing on the way clamps it, so type 7 is
--- ours to use.
+-- Re-announce the feature bitmask to everybody who has negotiated. The
+-- server may send Config whenever it likes and the client applies the
+-- new mask at once, which is how a policy change lands mid-session --
+-- turning pings off for a map that plays badly with them, say. Set
+-- teamplay_features, then call this; without the call the new value only
+-- reaches clients that negotiate afterwards.
 --
--- Only for clients that negotiated: type 7 means nothing to a client
--- that did not agree to this, and what it does with an unknown type is
--- its own business. Callers get false for those and fall back to
--- whatever private form they already had.
-function teamplay_say(pid, msg, from)
-	if (supported[pid] == nil) then
-		return false;
+-- REMOVED, and deliberately not coming back: a teamplay_say() that sent
+-- private lines as chat type 7. The extension defines three sub-packets
+-- and adds nothing to the base protocol -- no chat type is any part of
+-- it -- so that was this module inventing wire format and calling it
+-- Teamplay. A server wanting a private line has send_chat already.
+function teamplay_send_config()
+	for i in piditer(PID_BROADCAST) do
+		if (supported[i] ~= nil) then
+			send_config(i);
+		end
 	end
-
-	send_chat(pid, msg, CHAT_DIRECT, from or SERVER_ORIGIN);
-	return true;
 end
 
 function teamplay_listen_ping(name, fn)
@@ -760,9 +815,43 @@ function mod.on_load()
 	end
 end
 
+-- Everything this module put in the global table, taken back out again.
+--
+-- Unloading a module does not undo its globals -- the functions keep
+-- working, closed over the state of a module nothing is calling any
+-- more -- and consumers ask "is teamplay_mark nil?" to find out whether
+-- the extension is available at all. esp_demo.lua does exactly that.
+-- Left behind, those names answer yes forever and the guard is dead
+-- code: a server that unloads this module would go on marking players
+-- through a module that is gone.
+--
+-- It is also what makes removing a name stick. teamplay_say() was a chat
+-- type this extension does not have; dropping it from the source is only
+-- half of it, because a hot reload leaves the old global standing until
+-- something clears it. The list is exhaustive on purpose -- a name added
+-- to the API above and forgotten here outlives its own module.
+local EXPORTS = {
+	"teamplay_supported",
+	"teamplay_mark", "teamplay_mark_all",
+	"teamplay_clear", "teamplay_clear_all",
+	"teamplay_ping", "teamplay_ping_all",
+	"teamplay_send_config",
+	"teamplay_listen_ping", "teamplay_unlisten_ping",
+	"teamplay_listen_ready", "teamplay_unlisten_ready",
+	"TEAMPLAY_FOREVER",
+	"TEAMPLAY_WORLD", "TEAMPLAY_MINIMAP", "TEAMPLAY_COMPASS",
+	-- gone, and listed so that a reload clears it off servers that are
+	-- still carrying it. Harmless once every running server has done so
+	"teamplay_say",
+};
+
 function mod.on_unload()
 	listeners = {};
 	ready_listeners = {};
+
+	for _,name in ipairs(EXPORTS) do
+		_G[name] = nil;
+	end
 end
 
 return mod;
