@@ -13,9 +13,13 @@
 -- So a shell is assembled rather than invented: every impact the client
 -- reported is a pellet, and only the shortfall -- the pellets that hit
 -- nothing, or hit something too far away to report -- is simulated by
--- jittering the aim and raycasting. Then one of the eight is drawn at
--- random and detonated. Hit five of eight and the burst lands on real
--- geometry five times out of eight.
+-- jittering the aim and raycasting.
+--
+-- Then exactly one pellet of the eight detonates. If any of them struck
+-- a player, it is one of those: that is the one place the shooter
+-- certainly hit, and a grenade that goes off on the wall behind a man
+-- you just shot is the shell missing him. Otherwise the draw is over all
+-- eight, and a simulated pellet that hit nothing makes the shell a miss.
 --
 -- That costs a beat: the client's impact packets arrive around the shot,
 -- not before it, so a shell waits sgl_gather seconds to see what turns
@@ -41,17 +45,19 @@ getcfg("sgl_gather", 0.1);
 local impacts = pid_spawn_table();
 local pending = pid_spawn_table();
 
--- A pellet landed somewhere the client can prove. The position is all we
--- keep -- which pellet it was, and what it struck, do not matter once it
--- is a candidate for the burst.
-local function record_impact(pid, pos)
+-- A pellet landed somewhere the client can prove. What it struck does
+-- matter: a pellet that found a man is worth more than one that found a
+-- wall, and more again than one this script only guessed at, so the
+-- burst is placed on the best of them rather than on any of them (see
+-- resolve).
+local function record_impact(pid, pos, onplayer)
 	local list = impacts[pid];
 
 	if (list == nil) then
 		list = {};
 		impacts[pid] = list;
 	end
-	list[#list+1] = {x=pos.x, y=pos.y, z=pos.z};
+	list[#list+1] = {x=pos.x, y=pos.y, z=pos.z, onplayer=onplayer};
 end
 
 local function jitter(dir)
@@ -161,7 +167,7 @@ end
 -- make about it.
 function mod.on_hit(pid, type, hitPlayer)
 	if (is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 2) then
-		record_impact(pid, get_position(hitPlayer));
+		record_impact(pid, get_position(hitPlayer), true);
 		return;
 	end
 	mod.next.on_hit(pid, type, hitPlayer);
@@ -187,6 +193,7 @@ end
 -- nothing, in which case the shell is a clean miss and nothing happens.
 local function resolve(pid, from)
 	local shots = {};
+	local onmen = {};
 	local n = 0;
 
 	for _,at in ipairs(impacts[pid] or {}) do
@@ -195,6 +202,9 @@ local function resolve(pid, from)
 		end
 		n = n + 1;
 		shots[n] = at;
+		if (at.onplayer) then
+			onmen[#onmen+1] = at;
+		end
 	end
 
 	-- only the missing ones
@@ -205,7 +215,24 @@ local function resolve(pid, from)
 
 	impacts[pid] = nil;
 
-	local at = shots[math.random(sgl_pellets)];
+	-- One burst per shell, and where it goes is a matter of what is
+	-- known rather than of luck. If any pellet of this shell struck a
+	-- player, the client has told us the one place on the map that the
+	-- shooter certainly hit, and the grenade belongs there -- landing it
+	-- on a wall behind them instead, because the draw came up on some
+	-- other pellet, is the shell missing a man it visibly hit.
+	--
+	-- With nobody struck there is nothing to prefer and the old draw
+	-- stands: one of the eight, real impact or simulated, and a
+	-- simulated pellet that hit nothing means the shell is a clean miss.
+	local at;
+
+	if (#onmen > 0) then
+		at = onmen[math.random(#onmen)];
+	else
+		at = shots[math.random(sgl_pellets)];
+	end
+
 	if (at ~= nil) then
 		burst(pid, at);
 	end

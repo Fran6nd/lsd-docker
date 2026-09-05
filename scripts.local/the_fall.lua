@@ -369,10 +369,18 @@ function mod.kill(pid, type, killer)
 	-- read before chaining: after it, pid is dead
 	local wasalive = is_alive(pid);
 
-	-- killing a corpse extra dead, and the bookkeeping kills behind a
-	-- team or gun switch, are nobody's business but the engine's
+	-- Killing a corpse extra dead, and the bookkeeping kills behind a
+	-- team or gun switch, are nobody's business but the engine's: passed
+	-- straight through, untouched.
+	--
+	-- What they must NOT do is end a sentence. Changing weapon kills you
+	-- with type 6 and changing side with type 5, and clearing `falling`
+	-- here made either one a way out of the Fall -- switch gun, die the
+	-- engine's bookkeeping death, respawn at your tent a free man. That
+	-- is a door this mode is not supposed to have. The only door is a
+	-- kill, so the mark stays put and the respawn that follows lands
+	-- back at the top of the shaft like any other.
 	if (not wasalive or type >= KILL_TEAMCHANGE) then
-		falling[pid] = nil;
 		mod.next.kill(pid, type, killer);
 		return;
 	end
