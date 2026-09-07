@@ -5,7 +5,9 @@
 -- water-level floor survives, and even that doesn't stop the bullet)
 -- and every enemy on the line dies in one hit, behind cover or not --
 -- whether the server's ray found them or the client's own hit report
--- did, and never twice for the one shot (see on_hit).
+-- did, and never twice for the one shot (see on_hit). "Enemy" means
+-- whoever the shooter was allowed to shoot, which is not always the
+-- other team: see hostile().
 -- Shots leave a dashed tracer trail of blocks along the trajectory
 -- that are destroyed right after being placed, colored with the
 -- shooter's team color.
@@ -54,6 +56,27 @@ local function sign1(num)
 	return num < 0 and -1 or 1;
 end
 
+-- Whom a rail may take. Not the team comparison it looks like, and that
+-- is the whole point of asking through here: the_fall keeps bots in the
+-- shaft that are on a real team server-side while every client is told
+-- they are the enemy, so half of them read as the shooter's own
+-- teammates. Comparing raw teams here meant a rail that visibly went
+-- through one of them left it standing -- the hit fell out of both paths
+-- below, down to the_fall's own damage rule, and did an ordinary rifle's
+-- 49. Every other shot killed. That is what "sometimes it doesn't kill"
+-- was.
+--
+-- Read live rather than captured on load: the_fall registers this after
+-- us (config.lua loads the weapons first), and it is nil for good on an
+-- instance not running it -- where nobody is disguised and the raw teams
+-- really are the answer.
+local function hostile(shooter, target)
+	if (fall_is_hostile ~= nil) then
+		return fall_is_hostile(shooter, target);
+	end
+	return get_team(shooter) ~= get_team(target);
+end
+
 -- Everyone the current shot has already taken. Two sources decide who
 -- the rail went through -- the server's ray and the client's own hit
 -- report -- and this is what keeps them from both killing the same
@@ -85,9 +108,9 @@ end
 -- clips the body from 1.35 above pos to 2.25 below with a 0.45
 -- half-width, so sample that span and call it a hit when the ray
 -- passes within rig_hit_radius of any sample
-local function rail_kill(pid, team, start, dir)
+local function rail_kill(pid, start, dir)
 	for i in piditer(PID_BROADCAST_EXCEPT(pid)) do
-		if (is_alive(i) and get_team(i) ~= team) then
+		if (is_alive(i) and hostile(pid, i)) then
 			local p = get_position(i);
 
 			for k=0,8 do
@@ -135,7 +158,7 @@ local function shoot(pid)
 	-- anonymous pid, so two shots in the same tick each keep their own
 	send_set_block_color(PID_BROADCAST, get_team_color(team), get_anon_pid());
 
-	rail_kill(pid, team, start, dir);
+	rail_kill(pid, start, dir);
 
 	while (traversed < rig_range) do
 		if (vox.x < 0 or vox.x > 511 or vox.y < 0 or vox.y > 511 or
@@ -208,11 +231,12 @@ end
 -- Chaining is skipped once we have acted: the engine's own on_hit would
 -- add a rifle's ordinary damage on top of a body the rail has already
 -- taken. Everything we do not act on is passed along untouched --
--- spade hits, teammates, and anyone not holding a rifle.
+-- spade hits, anyone the shooter may not hurt, and anyone not holding a
+-- rifle.
 function mod.on_hit(pid, type, hitPlayer)
 	if (type ~= HIT_SPADE and is_alive(pid)
 	    and get_tool(pid) == TOOL_GUN and get_gun(pid) == GUN_RIFLE
-	    and get_team(pid) ~= get_team(hitPlayer)) then
+	    and hostile(pid, hitPlayer)) then
 		-- a headshot stays a headshot in the feed; everything else the
 		-- rail does is a gun kill
 		rail_take(pid, hitPlayer, get_position(pid),

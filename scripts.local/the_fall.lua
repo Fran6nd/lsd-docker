@@ -201,6 +201,32 @@ local function apparent_team(pid, viewer)
 	return get_team(pid);
 end
 
+-- May `shooter` hurt `target`? This is what every damage rule on the
+-- server actually means when it compares two teams, and down here the
+-- comparison and the meaning have come apart.
+--
+-- Exported because getting it wrong is silent. A faller is on a real
+-- team server-side while every client is told it is on the other one, so
+-- for half of them `get_team(a) ~= get_team(b)` answers "teammate" about
+-- a man the shooter was shown as an enemy and has just shot. The stock
+-- weapons survive that because on_hit below deals their damage by hand
+-- afterwards -- but a script that REPLACES what a bullet does returns
+-- before ever reaching it, and gets no second chance. Those scripts ask
+-- this instead. See rifle_is_a_rail_gun.lua, which is where the cost of
+-- not asking showed up: a rail through a faller that left it standing.
+--
+-- Deliberately phrased as a question about damage rather than about the
+-- disguise, so callers need to know nothing about fallers -- only that
+-- the raw team is not what they meant.
+--
+-- nil on an instance not running this module, where nobody is disguised
+-- and the raw teams are the whole truth. Every caller nil-guards and
+-- falls back to comparing them, which is why this is dropped again on
+-- unload rather than left behind to answer for a mode that has gone.
+function fall_is_hostile(shooter, target)
+	return get_team(shooter) ~= apparent_team(target, shooter);
+end
+
 
 -- ENTERING the shaft: a random point on the disc, uniform over its area
 -- (the sqrt undoes the bias a flat random radius has, which would bunch
@@ -871,6 +897,12 @@ end
 -- would have asked for, and the type mapping is lifted from ffa.lua,
 -- which overrides on_hit for the same reason.
 --
+-- This covers the STOCK weapons only, and cannot cover the others. A
+-- script that replaces what a bullet does returns without chaining, so
+-- the hit never arrives here at all and a wrong team test up there is
+-- the last word rather than the first. Those scripts ask fall_is_hostile
+-- instead -- that is what it is exported for.
+--
 -- Still chained afterwards rather than returned out of: the C on_hit
 -- will drop this hit on the same team check that made it our problem,
 -- so it costs nothing, and anything below us keeps seeing the hit.
@@ -952,6 +984,9 @@ end
 function mod.on_unload()
 	clear_rings();
 	sweep_fallers();
+	-- nobody is disguised any more, so the raw teams are the truth again
+	-- and every caller's fallback is the right answer
+	fall_is_hostile = nil;
 end
 
 return mod;

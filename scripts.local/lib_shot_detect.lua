@@ -157,6 +157,23 @@ local function armed(pid)
 	return is_alive(pid) and get_tool(pid) == TOOL_GUN;
 end
 
+-- May `shooter` hurt `target`? Only rescue_hit below asks, and only to
+-- avoid replaying a hit that could not land anyway. It is not the raw
+-- team comparison it looks like: the_fall's shaft bots are on a real
+-- team server-side while every client is told they are the enemy, so
+-- half of them read as the shooter's own teammates -- and a hit on one
+-- of those DOES land, because the_fall deals the damage itself. Refusing
+-- them here dropped exactly the hits that needed rescuing most: a
+-- respawn zeroes the mouse bitmask (main.c spawn_player), which is what
+-- puts a Hit in front of this function, and the Fall respawns people
+-- constantly. Read live; nil on an instance without the_fall.
+local function hostile(shooter, target)
+	if (fall_is_hostile ~= nil) then
+		return fall_is_hostile(shooter, target);
+	end
+	return get_team(shooter) ~= get_team(target);
+end
+
 -- Actually running, as opposed to merely holding the key. A player
 -- pinned against an obstacle is not running and can shoot from there, so
 -- the cadence is worth believing again -- see the RUNNING note above.
@@ -317,7 +334,7 @@ local function rescue_hit(pid, data)
 	end
 	if (not is_alive(pid) or not is_alive(target) or target == pid
 	    or get_tool(pid) ~= TOOL_GUN
-	    or get_team(pid) == get_team(target)) then
+	    or not hostile(pid, target)) then
 		return; -- rejected for a reason we have no business overruling
 	end
 

@@ -177,10 +177,24 @@ end
 -- it. It also means a hit that something earlier in the chain threw away
 -- -- dd.lua drops shots that come too fast -- never gets here, so a
 -- refused bullet pins nobody.
+-- Whom a burst may pin. the_fall's shaft bots are on a real team
+-- server-side while every client is told they are the enemy, so half of
+-- them read as the shooter's own teammates and comparing raw teams here
+-- meant those never got pinned -- the same mistake the railgun was
+-- making, and it reads in game as "the smg doesn't hold these ones".
+-- Read live: the_fall registers this after us, and it is nil on an
+-- instance without it, where the raw teams are the answer.
+local function hostile(shooter, target)
+	if (fall_is_hostile ~= nil) then
+		return fall_is_hostile(shooter, target);
+	end
+	return get_team(shooter) ~= get_team(target);
+end
+
 function mod.after.on_hit(pid, type, hitPlayer)
 	if (type == HIT_SPADE or not is_alive(pid) or not is_alive(hitPlayer)
 	    or get_tool(pid) ~= TOOL_GUN or get_gun(pid) ~= GUN_SMG
-	    or get_team(pid) == get_team(hitPlayer)) then
+	    or not hostile(pid, hitPlayer)) then
 		return;
 	end
 

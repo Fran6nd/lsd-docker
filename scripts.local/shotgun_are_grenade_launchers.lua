@@ -60,6 +60,19 @@ local function record_impact(pid, pos, onplayer)
 	list[#list+1] = {x=pos.x, y=pos.y, z=pos.z, onplayer=onplayer};
 end
 
+-- Whose body a simulated pellet stops at. Only placement rides on this
+-- -- the damage is the grenade's, and the_fall compensates that itself
+-- in blast_fallers -- but placement is what decides whether a shell
+-- bursts on a man or on the wall behind him, and the_fall's shaft bots
+-- read as the shooter's own team for half of them. Read live; nil on an
+-- instance without the_fall, where the raw teams are the answer.
+local function hostile(shooter, target)
+	if (fall_is_hostile ~= nil) then
+		return fall_is_hostile(shooter, target);
+	end
+	return get_team(shooter) ~= get_team(target);
+end
+
 local function jitter(dir)
 	return {
 		x = dir.x + sgl_spread*(math.random()*2 - 1),
@@ -103,7 +116,7 @@ local function simulate_pellet(pid, from)
 	-- the ray against enemy bodies and burst at the first one clipped
 	local tbody = nil;
 	for i in piditer(PID_BROADCAST) do
-		if (i ~= pid and is_alive(i) and get_team(i) ~= get_team(pid)) then
+		if (i ~= pid and is_alive(i) and hostile(pid, i)) then
 			local q = get_position(i);
 			local wx, wy, wz = q.x-start.x, q.y-start.y, q.z-start.z;
 			local t = wx*dir.x + wy*dir.y + wz*dir.z;
