@@ -3,8 +3,9 @@
 --
 -- Speaks aosprotocol's Teamplay extension (id 2, version 1): the server
 -- can point a client at a player -- "outline that one, for ten seconds,
--- because he has the intel" -- and clients can drop pings in the world
--- for their team.
+-- because he has the intel" -- clients can drop pings in the world for
+-- their team, and the server says which way north is, so a compass has
+-- something to point at.
 --
 -- THREE SUB-PACKETS AND NOTHING ELSE: Config, Ping, ESP Mark. The
 -- extension adds nothing to the base protocol -- no chat type, no packet
@@ -15,8 +16,9 @@
 -- Nothing in LSd's core knows about any of this. PacketTypeExtensionInfo
 -- is declared in protocol.h:804 and the ExtensionID enum lives at :916,
 -- but nothing in funcs_packetrecv.c, funcs_send.c, main.c or lua.c ever
--- touches packet 60 -- so the whole negotiation is unclaimed and this
--- module owns it end to end, through send_packet and on_any_packet.
+-- touches packet 60 -- so the negotiation is unclaimed, and lib_ext
+-- claims it for every extension at once. This module owns packet 66 and
+-- nothing else; load lib_ext before it.
 --
 -- API (globals):
 --   teamplay_supported(pid)              -> true once ext 2 is agreed
@@ -24,7 +26,7 @@
 --   teamplay_mark_all(target, secs, opts)         everyone who can see it
 --   teamplay_clear(viewer, target) / teamplay_clear_all(target)
 --   teamplay_ping(viewer, pos, opts) / teamplay_ping_all(pos, opts)
---   teamplay_send_config()               re-announce teamplay_features
+--   teamplay_send_config()               re-announce features and north
 --   teamplay_listen_ping(name, fn)  / teamplay_unlisten_ping(name)
 --        fn(pid, pos, reason) for every ping a client sends
 --   teamplay_listen_ready(name, fn) / teamplay_unlisten_ready(name)
@@ -63,6 +65,18 @@
 -- until something else does. Fractions are fine -- it goes on the wire
 -- as a float. Negative and NaN are refused rather than sent.
 --
+-- A MAP CHANGE keeps the connection and throws away the world, and the
+-- extension splits along the same line. Negotiation happens once and is
+-- not repeated; the Config is not held against any player and survives,
+-- which is why this module re-sends it after a map load rather than
+-- waiting to be asked (see mod.after.finish_map_load) -- north is the
+-- one field a new world is likely to want different. Everything else is
+-- per player id and is dropped on both ends: every mark and every ping
+-- is gone from every client the moment the new map starts. A server
+-- holding standing marks re-sends them itself, from its own
+-- finish_map_load, the same way it re-sends them to a client that has
+-- only just negotiated.
+--
 -- WHAT THIS DOES NOT DO: anything for clients that don't speak it. The
 -- extension is unreleased, so today that is every client -- they simply
 -- never negotiate, never get a packet 66, and never know. There is no
@@ -75,15 +89,12 @@ local mod = init_mod();
 local ffi = require("ffi");
 local bit = require("bit");
 
--- ExtensionInfo. [60][length][(id, version) x length], 2+2*length bytes
--- (protocol.h:640-654). Ours lists exactly one entry.
-local PKT_EXTINFO = 60;
 local EXT_ID = 2;
 local EXT_VERSION = 1;
 
 -- Teamplay. Base id is 64 + extension id.
 local PKT = 64 + EXT_ID;
-local SUB_CONFIG = 0; -- S->C  [PKT][0][features]
+local SUB_CONFIG = 0; -- S->C  [PKT][0][features][north x f32][north y f32]
 local SUB_PING = 1;   -- S<->C [PKT][1][pid][x f32][y f32][z f32]
                       --            [duration f32][surfaces][b][g][r]
                       --            [msgid][reason]
@@ -98,16 +109,17 @@ local SUB_MARK = 2;   -- S->C  [PKT][2][target][duration f32][surfaces]
 -- all, let alone acted on.
 local CLIENT_MAY_SEND = {[SUB_PING] = true};
 
--- Sizes of the fixed part of each sub-packet, which is also the whole
--- packet when the reason is empty -- the spec writes them as "24+" and
--- "13+". An empty reason is legal in both directions and is not a special
--- case anywhere: outbound it appends nothing, inbound it is what is left
--- of a packet that is exactly PING_FIXED long.
+-- The fixed part of a Ping, which is also the whole packet when the
+-- reason is empty -- the spec writes the size as "24+", and a mark's as
+-- "13+". An empty reason is legal in both directions and is not a
+-- special case anywhere: outbound it appends nothing, inbound it is what
+-- is left of a packet that is exactly this long.
 --
--- The Message ID is the last fixed byte of both, which is what lets the
+-- Only the Ping needs the number, since it is the only sub-packet that
+-- arrives; a mark is built a field at a time and never measured. The
+-- Message ID is the last fixed byte of both, which is what lets the
 -- reason start at a fixed offset no matter what gets added ahead of it.
 local PING_FIXED = 24;
-local MARK_FIXED = 13;
 
 -- The Message ID byte both sub-packets carry ahead of their reason. It
 -- is reserved in version 1: we send 0 and drop anything else we are
@@ -174,6 +186,30 @@ TEAMPLAY_FOREVER = math.huge;
 -- sub-packet; reserved bits 3-7 must stay clear.
 getcfg("teamplay_features",
 	FEAT_TEAM_ESP + FEAT_PING + FEAT_COMPASS_HUD);
+-- Which way north is: the map-plane components of a vector pointing at
+-- it, in the frame every position packet already uses. The base
+-- protocol names no orientation at all, so every client that ever drew
+-- a compass had to hardcode one, and these two bytes-and-a-bit are what
+-- make it the server's to state.
+--
+-- A vector rather than an angle because an angle needs a convention
+-- agreed in advance -- which axis is zero, which way it grows, degrees
+-- or radians -- and each of those is a way to disagree without either
+-- end noticing. Only the direction is read, so the length is free; it
+-- goes out normalised anyway.
+--
+-- -Y is the top of the map as a minimap draws it, which is what the
+-- clients that guessed had already guessed. It is also what a client
+-- falls back to when the vector it receives is degenerate, so a server
+-- that says nothing here and one that has never heard of north agree.
+--
+-- Sent whether or not FEAT_COMPASS_HUD is set, so a client handed the
+-- bit mid-round already has the direction. Which means the two travel
+-- together: change the features alone and the north still has to be the
+-- north already given, or every bearing a player has been told turns
+-- under them. teamplay_send_config sends both, so that is free here.
+getcfg("teamplay_north_x", 0);
+getcfg("teamplay_north_y", -1);
 -- Seconds between accepted pings from one player. The spec recommends
 -- one a second and leaves enforcement to the server.
 getcfg("teamplay_ping_interval", 1);
@@ -214,18 +250,18 @@ getcfg("teamplay_reason_max", 128);
 -- Relay a client's ping to the rest of its team automatically. Listeners
 -- see it either way; turn this off to decide distribution yourself.
 getcfg("teamplay_relay_pings", true);
--- Send our ExtensionInfo only to clients newer than this. The spec says
--- to announce "after the Version Info response has been received to
--- compatible clients (OpenSpades versions > 0.1.3)" -- older ones are
--- not known to handle packet 60 gracefully, and nothing is lost by
--- staying quiet at them.
-getcfg("teamplay_min_major", 0);
-getcfg("teamplay_min_minor", 1);
-getcfg("teamplay_min_patch", 3);
+-- (Which clients are new enough to be told about extensions at all is
+-- lib_ext's ext_min_major/minor/patch, since it is one announcement for
+-- every extension and cannot be per-module.)
 
--- pid -> version of ext 2 the client announced. Cleared on disconnect,
--- because the next occupant of that slot has agreed to nothing.
-local supported = pid_connected_table();
+-- Whether this client and this server have both named ext 2 at version
+-- 1. lib_ext holds the agreement -- one table for every extension, keyed
+-- by the pid it belongs to and dropped when that pid does -- so there is
+-- nothing to keep here beyond asking it.
+local function negotiated(pid)
+	return ext_supported ~= nil and ext_supported(pid, EXT_ID) ~= nil;
+end
+
 -- pid -> when we last accepted a ping from them
 local ping_at = pid_connected_table(0);
 
@@ -251,6 +287,50 @@ end
 local function get_f32x3(data, off)
 	ffi.copy(f32, string.sub(data, off, off+11), 12);
 	return {x=f32[0], y=f32[1], z=f32[2]};
+end
+
+-- Where north points when the configured vector says nothing usable,
+-- and the same direction the client falls back to on its own.
+local NORTH_X, NORTH_Y = 0, -1;
+
+-- North, as two LE float32s, normalised on the way out. The client
+-- normalises whatever arrives, so this is not what makes it work -- it
+-- is what makes a packet log readable, and it costs one square root per
+-- Config.
+--
+-- Zero length, NaN and infinity are malformed rather than values: the
+-- spec has the client substitute (0,-1) and carry on with the rest of
+-- the packet, so a bad vector is not worth refusing the whole Config
+-- over. Sending the fallback deliberately is the same outcome, arrived
+-- at on the end that can still see what was asked for.
+--
+-- Asked of the components themselves rather than of the length, and
+-- scaled by the longer of them before anything is squared. A length is
+-- the obvious thing to test and gets two of these wrong: 1e200 squared
+-- is an infinity, so a perfectly good north would be called malformed
+-- for being written in large numbers, and 1e-200 squared is a zero, so
+-- another would be called malformed for small ones. Dividing through by
+-- the longer component first puts every direction in the same range, so
+-- the length really is free rather than free within the window that
+-- survives a square.
+local function bad(v)
+	return v ~= v or v == math.huge or v == -math.huge;
+end
+
+local function put_north(x, y)
+	x, y = tonumber(x) or 0, tonumber(y) or 0;
+
+	if (bad(x) or bad(y) or (x == 0 and y == 0)) then
+		x, y = NORTH_X, NORTH_Y;
+	end
+
+	local big = math.max(math.abs(x), math.abs(y));
+	x, y = x/big, y/big;
+
+	local len = math.sqrt(x*x + y*y);
+
+	f32[0], f32[1] = x/len, y/len;
+	return ffi.string(f32, 8);
 end
 
 -- The smallest positive float32 there is. Everything under it rounds to
@@ -419,61 +499,59 @@ end
 
 --=========================== NEGOTIATION ============================--
 
--- Announce what we speak. Sent once the client has told us what it is,
--- which is the moment the spec nominates.
-local function send_extinfo(pid)
-	send_packet(pid, string.char(PKT_EXTINFO, 1, EXT_ID, EXT_VERSION));
-end
-
+-- Handled by lib_ext, and deliberately not here. The server announces
+-- everything it supports in ONE ExtensionInfo -- [60][count][(id,
+-- version) x count] -- so a module that sent its own would be claiming
+-- to be the whole list, and the second extension to load would either
+-- contradict the first or swallow the client's reply before it got
+-- there. This module says "id 2, version 1" to lib_ext and lib_ext does
+-- the talking.
 local function send_config(pid)
 	send_packet(pid, string.char(PKT, SUB_CONFIG,
-		bit.band(teamplay_features, FEATURE_MASK)));
+		bit.band(teamplay_features, FEATURE_MASK))
+		.. put_north(teamplay_north_x, teamplay_north_y));
 end
 
-function mod.after.on_version(pid, idChar, major, minor, patch, msg)
-	if (major < teamplay_min_major) then return; end
-	if (major == teamplay_min_major) then
-		if (minor < teamplay_min_minor) then return; end
-		if (minor == teamplay_min_minor and patch <= teamplay_min_patch) then
-			return;
+-- Called by lib_ext for every client that turns out to speak ext 2 at
+-- version 1. Config is the first thing such a client needs -- until it
+-- arrives every feature bit is clear and it may do none of them -- and
+-- the ready listeners are told after it, since they send marks and a
+-- mark before the client knows what it is allowed to draw is early.
+local function on_ready(pid)
+	send_config(pid);
+
+	for lname,fn in pairs(ready_listeners) do
+		local ok, err = pcall(fn, pid);
+		if (not ok) then
+			ready_listeners[lname] = nil;
+			log("lib_teamplay: %s crashed on ready, dropped: %s",
+				lname, tostring(err));
 		end
 	end
-
-	send_extinfo(pid);
 end
 
--- Their half of the handshake. An extension is mutually supported once
--- both sides have named it; we have already named ours by now, so
--- finding ext 2 in their list settles it.
-local function on_extinfo(pid, data)
-	local n = string.byte(data, 2);
+-- A Config belongs to the connection and not to the world, so a map
+-- change does not clear it and the client never asks for another. North
+-- is the one field the new world is likely to want different, though,
+-- so it goes out again once the map has: a server whose maps share a
+-- north pays an 11-byte packet per client per map for the guarantee,
+-- and one whose maps don't gets a compass that is right afterwards.
+--
+-- On the tick rather than in the hook, because a server that sets north
+-- per map sets it from a finish_map_load hook of its own, and which of
+-- two modules' hooks runs first is a question of load order. Deferring
+-- by a tick takes the question away: every hook has run by then,
+-- whichever order they ran in.
+local resend_config = false;
 
-	if (n == nil or #data ~= 2 + 2*n) then
-		return;
-	end
+function mod.after.finish_map_load()
+	resend_config = true;
+end
 
-	for i = 0, n-1 do
-		local id = string.byte(data, 3 + i*2);
-		local ver = string.byte(data, 4 + i*2);
-
-		if (id == EXT_ID) then
-			-- version 1 is all this module knows how to speak; a client
-			-- announcing something newer is not something to guess at
-			if (ver == EXT_VERSION) then
-				supported[pid] = ver;
-				send_config(pid);
-
-				for lname,fn in pairs(ready_listeners) do
-					local ok, err = pcall(fn, pid);
-					if (not ok) then
-						ready_listeners[lname] = nil;
-						log("lib_teamplay: %s crashed on ready, dropped: %s",
-							lname, tostring(err));
-					end
-				end
-			end
-			return;
-		end
+function mod.after.tick()
+	if (resend_config) then
+		resend_config = false;
+		teamplay_send_config();
 	end
 end
 
@@ -516,12 +594,13 @@ local function ping_is_sane(pid, pos)
 	-- the pinged point, the wall being pinged is the wall in front of
 	-- it; well short of it, something else is in the way.
 	--
-	-- Distances, not voxel identity. A ping lands on a *surface*, and a
-	-- surface coordinate does not floor to the voxel behind it -- enter a
-	-- block from the far side and the intersection is exactly on the next
-	-- voxel's boundary, and a client that nudges its marker off the wall
-	-- to keep it from z-fighting misses by a whole block every time. That
-	-- test refused honest pings from half the compass.
+	-- Distances, not voxel identity: asking whether the hit voxel is the
+	-- voxel the ping is in refuses honest pings from half the compass. A
+	-- ping lands on a *surface*, and a surface coordinate does not floor
+	-- to the voxel behind it -- enter a block from the far side and the
+	-- intersection is exactly on the next voxel's boundary, and a client
+	-- that nudges its marker off the wall to keep it from z-fighting
+	-- misses by a whole block every time.
 	--
 	-- Linear, not squared, because the slack is a distance in blocks and
 	-- has to stay one at any range: a squared tolerance that is generous
@@ -618,7 +697,7 @@ local function on_ping(pid, data)
 		local sent = 0;
 
 		for i in piditer(PID_BROADCAST_TEAM(get_team(pid))) do
-			if (supported[i] ~= nil and teamplay_ping(i, pos, {
+			if (negotiated(i) and teamplay_ping(i, pos, {
 					from = pid, reason = reason})) then
 				sent = sent + 1;
 			end
@@ -649,11 +728,6 @@ end
 function mod.on_any_packet(pid, data)
 	local id = string.byte(data, 1);
 
-	if (id == PKT_EXTINFO) then
-		on_extinfo(pid, data);
-		return 0;
-	end
-
 	if (id == PKT) then
 		local sub = string.byte(data, 2);
 
@@ -674,13 +748,13 @@ end
 --=============================== API ================================--
 
 function teamplay_supported(pid)
-	return supported[pid] ~= nil;
+	return negotiated(pid);
 end
 
 -- Outline `target` on `viewer`'s screen. secs 0 clears it,
 -- TEAMPLAY_FOREVER leaves it until something else does.
 function teamplay_mark(viewer, target, secs, opts)
-	if (supported[viewer] == nil) then
+	if (not negotiated(viewer)) then
 		return false;
 	end
 
@@ -703,8 +777,8 @@ function teamplay_mark(viewer, target, secs, opts)
 		.. put_surfaces(opts.surfaces)
 		.. string.char(flags)
 		-- no colour asked for means "point at that one and nothing
-		-- further", which used to be spelled black and now has to be
-		-- spelled out: the target's own team colour, read from our state
+		-- further", and the spec reserves no value for it -- black is
+		-- black -- so it is spelled out: the target's own team colour
 		.. put_color(opts.color or team_color_of(target))
 		.. string.char(MSG_ID_NONE)
 		.. clean_reason(opts.reason));
@@ -732,7 +806,7 @@ end
 -- the first. A server wanting several standing markers at once wants
 -- marks, or a ping per id -- not several from SERVER_ORIGIN.
 function teamplay_ping(viewer, pos, opts)
-	if (supported[viewer] == nil) then
+	if (not negotiated(viewer)) then
 		return false;
 	end
 
@@ -762,21 +836,23 @@ function teamplay_ping_all(pos, opts)
 	end
 end
 
--- Re-announce the feature bitmask to everybody who has negotiated. The
--- server may send Config whenever it likes and the client applies the
--- new mask at once, which is how a policy change lands mid-session --
--- turning pings off for a map that plays badly with them, say. Set
--- teamplay_features, then call this; without the call the new value only
--- reaches clients that negotiate afterwards.
+-- Re-announce the feature bitmask and north to everybody who has
+-- negotiated. The server may send Config whenever it likes and the
+-- client applies each one immediately and in full, which is how a policy
+-- change lands mid-session -- turning pings off for a map that plays
+-- badly with them, say, or turning a world a quarter turn. Set
+-- teamplay_features or teamplay_north_x/y, then call this; without the
+-- call the new values only reach clients that negotiate afterwards.
 --
--- REMOVED, and deliberately not coming back: a teamplay_say() that sent
--- private lines as chat type 7. The extension defines three sub-packets
--- and adds nothing to the base protocol -- no chat type is any part of
--- it -- so that was this module inventing wire format and calling it
--- Teamplay. A server wanting a private line has send_chat already.
+-- Both fields go every time because the packet carries both: there is no
+-- Config that changes the features and leaves north alone, so a caller
+-- touching one still has to mean the other. Which is the argument for
+-- keeping north in the globals rather than passing it here -- whatever
+-- is in them is what every Config says, including the ones this module
+-- sends on its own after a map load and on negotiation.
 function teamplay_send_config()
 	for i in piditer(PID_BROADCAST) do
-		if (supported[i] ~= nil) then
+		if (negotiated(i)) then
 			send_config(i);
 		end
 	end
@@ -804,15 +880,19 @@ function teamplay_unlisten_ready(name)
 	ready_listeners[name] = nil;
 end
 
--- Whatever a client agreed with the last copy of this module is not
--- something the new copy has any record of, and the client will not
--- repeat itself. Re-announcing costs one packet and settles it.
+-- Registering is also what re-announces. Whatever a client agreed with
+-- the last copy of this module is not something the new copy has any
+-- record of, and the client will not repeat itself -- so lib_ext sends
+-- the list again to everybody connected, and their replies re-establish
+-- the agreement and run on_ready.
 function mod.on_load()
-	for i in piditer(PID_BROADCAST) do
-		if (get_client_char(i) ~= nil) then
-			send_extinfo(i);
-		end
+	if (ext_register == nil) then
+		error("lib_teamplay needs lib_ext loaded first "
+			.."(config.lua loads it, or: lsdctl <instance> load lib_ext "
+			.."lib_teamplay)", 0);
 	end
+
+	ext_register("lib_teamplay", EXT_ID, EXT_VERSION, on_ready);
 end
 
 -- Everything this module put in the global table, taken back out again.
@@ -825,11 +905,8 @@ end
 -- code: a server that unloads this module would go on marking players
 -- through a module that is gone.
 --
--- It is also what makes removing a name stick. teamplay_say() was a chat
--- type this extension does not have; dropping it from the source is only
--- half of it, because a hot reload leaves the old global standing until
--- something clears it. The list is exhaustive on purpose -- a name added
--- to the API above and forgotten here outlives its own module.
+-- The list is exhaustive on purpose: a name added to the API above and
+-- forgotten here outlives its own module, and goes on answering for it.
 local EXPORTS = {
 	"teamplay_supported",
 	"teamplay_mark", "teamplay_mark_all",
@@ -840,12 +917,13 @@ local EXPORTS = {
 	"teamplay_listen_ready", "teamplay_unlisten_ready",
 	"TEAMPLAY_FOREVER",
 	"TEAMPLAY_WORLD", "TEAMPLAY_MINIMAP", "TEAMPLAY_COMPASS",
-	-- gone, and listed so that a reload clears it off servers that are
-	-- still carrying it. Harmless once every running server has done so
-	"teamplay_say",
 };
 
 function mod.on_unload()
+	if (ext_unregister ~= nil) then
+		ext_unregister(EXT_ID);
+	end
+
 	listeners = {};
 	ready_listeners = {};
 

@@ -123,9 +123,15 @@ load "tip_spam"
 -- (spicy guns live on the spicyctf instance, not here: hostage keeps
 -- vanilla weapons)
 
+-- aosprotocol extension negotiation (scripts.local/). Owns packet 60 and
+-- announces every extension below in ONE ExtensionInfo, which is what the
+-- protocol allows -- so each extension registers here rather than doing
+-- its own handshake. Must be loaded before any of them.
+load "lib_ext"
+
 -- aosprotocol's Teamplay extension (id 2 v1): lets the server outline a
--- player on a teammate's screen, lets clients ping the world, and lets
--- the server say a line to one player alone. Loading it only negotiates
+-- player on a teammate's screen, lets clients ping the world, and tells
+-- clients which way north is. Loading it only negotiates
 -- -- nothing marks anybody yet, and no released client answers yet.
 -- Harmless groundwork, and inert until one does. (scripts.local/)
 load "lib_teamplay"

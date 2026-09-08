@@ -143,12 +143,27 @@ load "rifle_is_a_rail_gun"
 -- the smg pins whoever it hits and never runs dry (scripts.local/)
 load "smg_is_incapacitating"
 
+-- aosprotocol extension negotiation (scripts.local/). Owns packet 60 and
+-- announces every extension below in ONE ExtensionInfo, which is what the
+-- protocol allows -- so each extension registers here rather than doing
+-- its own handshake. Must be loaded before any of them.
+load "lib_ext"
+
 -- aosprotocol's Teamplay extension (id 2 v1): lets the server outline a
--- player on a teammate's screen, lets clients ping the world, and lets
--- the server say a line to one player alone. Loading it only negotiates
+-- player on a teammate's screen, lets clients ping the world, and tells
+-- clients which way north is. Loading it only negotiates
 -- -- nothing marks anybody yet, and no released client answers yet.
 -- Harmless groundwork, and inert until one does. (scripts.local/)
 load "lib_teamplay"
+
+-- aosprotocol's Silent Player extension (id 3 v1): lets the server keep
+-- chosen player ids out of a client's scoreboard, player count, presence
+-- notices, kill feed and stats, without changing anything about the
+-- players themselves. Loading it does nothing on its own -- something has
+-- to ask for an id to be hidden. lib_bot is what asks here, per bot, and
+-- the Fall's fallers are the ones it asks about. Clients that have not
+-- negotiated it see everybody as they always have. (scripts.local/)
+load "lib_silent_player"
 
 -- A demo of the ESP marks above: aim at an enemy and your whole team
 -- sees them outlined for a few seconds. Inert without lib_teamplay, and
