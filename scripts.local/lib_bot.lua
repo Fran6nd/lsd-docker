@@ -15,7 +15,11 @@
 -- API (all globals, pids are ordinary player pids):
 --   bot_create{team=, name=, gun=, tool=, block_color=,
 --              spawn_at=function(pid) -> pos|nil,
---              think=function(pid), data={}}      -> pid | nil
+--              think=function(pid), data={},
+--              silent={roster=,presence=,killfeed=,stats=}} -> pid | nil
+--   bot_silence(pid, {roster=,...})  -- change it later; nil = visible
+--   bot_resilence()                  -- re-apply every bot's, after
+--                                       lib_silent_player (re)loads
 --   bot_destroy(pid)                 -- idempotent
 --   bot_is_bot(pid) / bot_get(pid)   -- bot_get(pid).data is yours
 --   bot_walk(pid, {forward=, back=, left=, right=, jump=, crouch=,
@@ -128,6 +132,101 @@ function mod.after.spawn_player(pid)
 	end
 end
 
+--=========================== VISIBILITY =============================--
+-- What a client is told to make of a bot, as opposed to what the game
+-- makes of it. A bot is a player in every way that matters -- it is
+-- drawn, shot at, killed, and every packet about it is ordinary -- but
+-- it has no business on a scoreboard or in a player count, and the
+-- aosprotocol Silent Player extension is the way to say so.
+--
+-- Expressed as a table of names rather than a bitmask on purpose. The
+-- numbers belong to lib_silent_player, and a caller that spelled them
+-- out would break the moment that module was not loaded: SILENT_HIDE_ROSTER
+-- is nil then, and `nil + nil` is an error inside whoever was only
+-- trying to make a bot. Names cost nothing and cannot be nil.
+--
+--   silent = {roster=true, presence=true, stats=true}
+--
+-- Each key is a thing to HIDE, so an omitted key is a thing left shown:
+-- the table above hides a bot everywhere but the kill feed, which is the
+-- Fall's case -- fallers are scenery, but killing one is the whole point
+-- of being down there and the feed is where that gets said.
+local SILENT_KEYS = {
+	roster   = "SILENT_HIDE_ROSTER",
+	presence = "SILENT_HIDE_PRESENCE",
+	killfeed = "SILENT_HIDE_KILLFEED",
+	stats    = "SILENT_NO_STATS",
+};
+
+-- CLIENTS THAT DO NOT SPEAK THE EXTENSION are the normal case today --
+-- it is unreleased, so that is all of them -- and they are handled by
+-- there being nothing to handle. lib_silent_player sends its packets
+-- only to clients that negotiated ext 3, so a client that did not simply
+-- sees the bot as an ordinary player, exactly as it did before any of
+-- this existed. There is no fallback and there cannot be one: a
+-- scoreboard row is drawn by the client out of packets it must keep
+-- receiving, and the server cannot un-draw it.
+--
+-- The same is true one level up, when lib_silent_player is not loaded at
+-- all: this returns nothing and every bot is visible. A visibility
+-- request is a preference, never a requirement, and no bot fails to be
+-- created over one.
+local function silent_mask(silent)
+	if (silent == nil or silent_set == nil) then
+		return nil;
+	end
+
+	local mask = 0;
+	for key,global in pairs(SILENT_KEYS) do
+		if (silent[key]) then
+			mask = mask + (_G[global] or 0);
+		end
+	end
+
+	return mask;
+end
+
+-- Apply a bot's stored preference. Safe to call at any time and as often
+-- as you like: lib_silent_player holds the mask per player id and says
+-- nothing on the wire when it is already what was asked for.
+local function apply_silence(pid)
+	local b = bots[pid];
+	if (b == nil) then
+		return;
+	end
+
+	local mask = silent_mask(b.silent);
+	if (mask ~= nil) then
+		silent_set(pid, mask);
+	end
+end
+
+-- Change what a bot is hidden from after the fact, in the same shape
+-- bot_create takes. Passing nil makes it an ordinary visible player
+-- again.
+function bot_silence(pid, silent)
+	local b = bots[pid];
+	if (b == nil) then
+		return false;
+	end
+
+	b.silent = silent;
+
+	if (silent_set ~= nil) then
+		silent_set(pid, silent_mask(silent) or 0);
+	end
+	return true;
+end
+
+-- Re-apply every bot's preference. The hook for lib_silent_player having
+-- arrived, or come back, after the bots did: it starts with an empty
+-- table and knows nothing about anybody until it is told again.
+function bot_resilence()
+	for pid in pairs(bots) do
+		apply_silence(pid);
+	end
+end
+
 function bot_create(opts)
 	if (opts.team ~= 1 and opts.team ~= 2) then
 		error("bot_create: team must be 1 or 2", 2);
@@ -158,6 +257,7 @@ function bot_create(opts)
 		block_color = opts.block_color,
 		spawn_at = opts.spawn_at,
 		think = opts.think,
+		silent = opts.silent,
 		data = opts.data or {},
 		want = 0,
 		fidget = get_time(),
@@ -165,6 +265,12 @@ function bot_create(opts)
 
 	on_successful_connect(pid);
 	bot_join(pid, bots[pid]);
+
+	-- after the join, not before it: the flags are about a player id the
+	-- clients have been told about, and there is nothing to be silent
+	-- about until they have
+	apply_silence(pid);
+
 	return pid;
 end
 

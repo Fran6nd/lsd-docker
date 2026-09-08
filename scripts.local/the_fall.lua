@@ -482,6 +482,26 @@ end
 -- the respawns this script isn't the one asking for -- coming back from
 -- map-change limbo, most of all.
 
+-- A faller is scenery, and the client's furniture should say so.
+--
+-- Four bots dropping down a shaft forever are targets, not opponents.
+-- They have no business on the scoreboard, they inflate the player count
+-- a newcomer reads before deciding whether the server is worth joining,
+-- and they announce themselves every time they respawn -- which for a
+-- faller is constantly. None of that is information about the game.
+--
+-- The kill feed is the exception, and the reason this is a set of keys
+-- rather than a switch. Killing a faller is how a player buys their way
+-- out of the Fall: it is the single most consequential thing that
+-- happens down there, and the feed is where the server says so. Hide it
+-- and the one moment that matters passes in silence. So `killfeed` is
+-- the one thing not listed here.
+--
+-- How it reaches a client is lib_bot's business and not this script's --
+-- it is a property of the bot, like its team or its gun. Clients that do
+-- not speak the extension see the fallers exactly as they always have.
+local FALLER_SILENT = {roster = true, presence = true, stats = true};
+
 -- how many fallers there are, how they are split over the two real
 -- teams, and which name slots are taken
 local function faller_census()
@@ -806,6 +826,7 @@ function mod.after.tick()
 			gun = 0,
 			tool = "gun",
 			spawn_at = entry_pos,
+			silent = FALLER_SILENT,
 			data = {faller=true, slot=slot},
 		};
 	end
