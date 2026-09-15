@@ -149,11 +149,11 @@ load "smg_is_incapacitating"
 -- its own handshake. Must be loaded before any of them.
 load "lib_ext"
 
--- aosprotocol's Teamplay extension (id 2 v1): lets the server outline a
--- player on a teammate's screen, lets clients ping the world, and tells
--- clients which way north is. Loading it only negotiates
--- -- nothing marks anybody yet, and no released client answers yet.
--- Harmless groundwork, and inert until one does. (scripts.local/)
+-- aosprotocol's Teamplay extension (id 48 v1, packet 112): lets the
+-- server outline a player on a teammate's screen, lets clients ping the
+-- world, and tells clients which way north is. Loading it only
+-- negotiates -- nothing marks anybody yet, and a client has to speak the
+-- extension before any of it reaches a screen. (scripts.local/)
 load "lib_teamplay"
 
 -- aosprotocol's Silent Player extension (id 3 v1): lets the server keep

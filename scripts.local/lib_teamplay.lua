@@ -1,27 +1,28 @@
 -- lib_teamplay.lua -- The Teamplay protocol extension
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
--- Speaks aosprotocol's Teamplay extension (id 2, version 1): the server
+-- Speaks aosprotocol's Teamplay extension (id 48, version 1): the server
 -- can point a client at a player -- "outline that one, for ten seconds,
 -- because he has the intel" -- clients can drop pings in the world for
 -- their team, and the server says which way north is, so a compass has
 -- something to point at.
 --
--- THREE SUB-PACKETS AND NOTHING ELSE: Config, Ping, ESP Mark. The
--- extension adds nothing to the base protocol -- no chat type, no packet
--- of its own beyond 66 -- and this module deliberately offers no more
--- than the specification does. Anything a server wants that is not one
--- of those three is not this extension's to carry.
+-- THREE SUB-PACKETS AND NOTHING ELSE: Config, Ping, ESP Mark, all three
+-- carried inside packet 112 and nothing else added to the base protocol.
+-- This module offers no more than the specification does; anything a
+-- server wants that is not one of those three is not this extension's to
+-- carry.
 --
 -- Nothing in LSd's core knows about any of this. PacketTypeExtensionInfo
--- is declared in protocol.h:804 and the ExtensionID enum lives at :916,
--- but nothing in funcs_packetrecv.c, funcs_send.c, main.c or lua.c ever
--- touches packet 60 -- so the negotiation is unclaimed, and lib_ext
--- claims it for every extension at once. This module owns packet 66 and
--- nothing else; load lib_ext before it.
+-- is declared in protocol.h:804 and the ExtensionID enum lives at :916 --
+-- which names 0, 1 and the packetless ones, and nothing near 48 -- while
+-- nothing in funcs_packetrecv.c, funcs_send.c, main.c or lua.c ever
+-- touches packet 60. So the negotiation is unclaimed, and lib_ext claims
+-- it for every extension at once. This module owns packet 112 and nothing
+-- else; load lib_ext before it.
 --
 -- API (globals):
---   teamplay_supported(pid)              -> true once ext 2 is agreed
+--   teamplay_supported(pid)              -> true once ext 48 is agreed
 --   teamplay_mark(viewer, target, secs, opts)     one viewer
 --   teamplay_mark_all(target, secs, opts)         everyone who can see it
 --   teamplay_clear(viewer, target) / teamplay_clear_all(target)
@@ -77,11 +78,11 @@
 -- finish_map_load, the same way it re-sends them to a client that has
 -- only just negotiated.
 --
--- WHAT THIS DOES NOT DO: anything for clients that don't speak it. The
--- extension is unreleased, so today that is every client -- they simply
--- never negotiate, never get a packet 66, and never know. There is no
--- fallback path and there should not be one; a body outline drawn
--- through a wall is not something a server can approximate.
+-- WHAT THIS DOES NOT DO: anything for clients that don't speak it. A
+-- client that does not name ext 48 never gets a packet 112 and never
+-- learns there was anything to see. There is no fallback path and there
+-- should not be one; a body outline drawn through a wall is not something
+-- a server can approximate.
 --
 -- All of it is the client's to render. The server's whole vocabulary is
 -- "this player, this long, for this reason".
@@ -89,10 +90,10 @@ local mod = init_mod();
 local ffi = require("ffi");
 local bit = require("bit");
 
-local EXT_ID = 2;
+local EXT_ID = 48;
 local EXT_VERSION = 1;
 
--- Teamplay. Base id is 64 + extension id.
+-- Teamplay. The packet id is 64 + the extension id, so 112.
 local PKT = 64 + EXT_ID;
 local SUB_CONFIG = 0; -- S->C  [PKT][0][features][north x f32][north y f32]
 local SUB_PING = 1;   -- S<->C [PKT][1][pid][x f32][y f32][z f32]
@@ -254,7 +255,7 @@ getcfg("teamplay_relay_pings", true);
 -- lib_ext's ext_min_major/minor/patch, since it is one announcement for
 -- every extension and cannot be per-module.)
 
--- Whether this client and this server have both named ext 2 at version
+-- Whether this client and this server have both named ext 48 at version
 -- 1. lib_ext holds the agreement -- one table for every extension, keyed
 -- by the pid it belongs to and dropped when that pid does -- so there is
 -- nothing to keep here beyond asking it.
@@ -504,7 +505,7 @@ end
 -- version) x count] -- so a module that sent its own would be claiming
 -- to be the whole list, and the second extension to load would either
 -- contradict the first or swallow the client's reply before it got
--- there. This module says "id 2, version 1" to lib_ext and lib_ext does
+-- there. This module says "id 48, version 1" to lib_ext and lib_ext does
 -- the talking.
 local function send_config(pid)
 	send_packet(pid, string.char(PKT, SUB_CONFIG,
@@ -512,8 +513,9 @@ local function send_config(pid)
 		.. put_north(teamplay_north_x, teamplay_north_y));
 end
 
--- Called by lib_ext for every client that turns out to speak ext 2 at
--- version 1. Config is the first thing such a client needs -- until it
+-- Called by lib_ext for every client that turns out to speak ext 48 at
+-- version 1. The spec requires a Config once the extension is negotiated,
+-- and it is the first thing such a client needs anyway -- until it
 -- arrives every feature bit is clear and it may do none of them -- and
 -- the ready listeners are told after it, since they send marks and a
 -- mark before the client knows what it is allowed to draw is early.
@@ -641,7 +643,13 @@ local function on_ping(pid, data)
 		return;
 	end
 	-- exactly PING_FIXED is a ping with no reason, which is allowed;
-	-- shorter than that is a truncated packet, which is not
+	-- shorter than that is a truncated packet, which is not.
+	--
+	-- A dead player does not ping: the client is told not to send one and
+	-- the server drops any that turn up regardless. Whether a spectator
+	-- may is the server's to decide, and is_alive settles both questions
+	-- at once -- SPECTATORs are not alive (lua_playerget:8), so the answer
+	-- here is no.
 	if (#data < PING_FIXED or not is_alive(pid)) then
 		if (teamplay_ping_debug) then
 			log("lib_teamplay: ping #%d refused: %d bytes (want >=%d), alive %s",
@@ -721,10 +729,10 @@ local function on_ping(pid, data)
 end
 
 --============================= INTAKE ===============================--
--- Both packet ids are unknown to the core, which would log them as
--- "Unknown packet ID" crap (funcs_packetrecv.c:485). Returning 0 hands
--- them to on_sane_packet instead, whose switch has no default case, so
--- they are silently dropped there having already been dealt with here.
+-- Packet 112 is unknown to the core, which would log it as "Unknown
+-- packet ID" crap (funcs_packetrecv.c:483). Returning 0 hands it to
+-- on_sane_packet instead, whose switch has no default case, so it is
+-- silently dropped there having already been dealt with here.
 function mod.on_any_packet(pid, data)
 	local id = string.byte(data, 1);
 
