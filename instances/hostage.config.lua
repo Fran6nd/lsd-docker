@@ -136,6 +136,15 @@ load "lib_ext"
 -- extension before any of it reaches a screen. (scripts.local/)
 load "lib_teamplay"
 
+-- aosprotocol's Damage Markers extension (id 0x20 v1, packet 0x60):
+-- every hit tells whoever landed it how much it took off, and the
+-- client floats the number over the man who took it. It hooks the
+-- damage itself rather than any one weapon, so a fall, a grenade and a
+-- spade all count; set damage_markers_self = false to leave your own
+-- fall damage unannounced. Clients that haven't negotiated it see
+-- nothing, as before. (scripts.local/)
+load "lib_damage_markers"
+
 -- A demo of the ESP marks above: aim at an enemy and your whole team
 -- sees them outlined for a few seconds. Inert without lib_teamplay, and
 -- invisible to any client that hasn't negotiated it. (scripts.local/)

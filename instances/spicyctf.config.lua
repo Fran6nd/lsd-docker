@@ -156,6 +156,15 @@ load "lib_ext"
 -- extension before any of it reaches a screen. (scripts.local/)
 load "lib_teamplay"
 
+-- aosprotocol's Damage Markers extension (id 0x20 v1, packet 0x60):
+-- every hit tells whoever landed it how much it took off, and the
+-- client floats the number over the man who took it. It hooks the
+-- damage itself rather than any one weapon, so the rail's 255, the
+-- shotgun's falloff, a grenade and a fall all count without any of the
+-- spiced guns above knowing it exists. Clients that haven't negotiated
+-- it see nothing, as before. (scripts.local/)
+load "lib_damage_markers"
+
 -- aosprotocol's Silent Player extension (id 3 v1): lets the server keep
 -- chosen player ids out of a client's scoreboard, player count, presence
 -- notices, kill feed and stats, without changing anything about the
