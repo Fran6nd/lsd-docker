@@ -209,11 +209,12 @@ load "lib_ext_policy"
 -- not a painted sky.
 --
 -- SPEED 60 is game minutes per real minute, so a day every 24 real
--- minutes: an in-game hour a minute. The spec's daylight curve is zero
--- from 6 PM to 6 AM, so roughly half of each 24 minutes is properly
--- dark -- which is when the flashlight above earns its keep. The Sky
--- goes out again every 5 minutes (daytime_resync) so nobody's clock
--- drifts away from everybody else's.
+-- minutes: an in-game hour a minute. The spec's daylight curve holds
+-- 6 PM to 6 AM at a tenth of full daylight, so roughly half of each
+-- 24 minutes is night -- dim but readable, and when the flashlight
+-- above earns its keep. The Sky goes out again every 5 minutes
+-- (daytime_resync) so nobody's clock drifts away from everybody
+-- else's.
 --
 -- Clients that have not negotiated it fall back to lib_daynight below.
 daytime_speed = 60

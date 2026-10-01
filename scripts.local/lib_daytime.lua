@@ -22,10 +22,13 @@
 -- every second.
 --
 -- AND THE CLIENT DOES THE LIGHT. With a = (Time - 720)/4 degrees since
--- noon, daylight is D = clamp(2 cos a, 0, 1); the world's lighting is
--- scaled by D and the fog is drawn as the Fog Colour times D. So 6 PM
--- to 6 AM is complete darkness, 8 AM to 4 PM is full daylight, and noon
--- looks exactly as it did before this extension existed.
+-- noon, daylight is D = max(0.1, clamp(2 cos a, 0, 1)); the world's
+-- lighting is scaled by D and the fog is drawn as the Fog Colour times
+-- D. So 6 PM to 6 AM is night at a tenth of daylight, 8 AM to 4 PM is
+-- full daylight, and noon looks exactly as it did before this extension
+-- existed. Below the horizon the sun casts nothing, so the night's
+-- light falls evenly on every face rather than lighting them from
+-- underneath the map.
 --
 -- That is worth dwelling on, because it is the opposite of what a
 -- server would otherwise do. The fog colour is NOT the night here: the
@@ -54,7 +57,7 @@
 --   daytime_supported(pid)    -> true once ext 0x33 is agreed
 --   daytime_now()             -> minutes since midnight, 0-1439
 --   daytime_speed_now()       -> the Speed in force
---   daytime_daylight([mins])  -> D at that time, 0 to 1. What anything
+--   daytime_daylight([mins])  -> D at that time, 0.1 to 1. What anything
 --                                wanting to know how dark it is should
 --                                ask, rather than working it out again
 --   daytime_set(mins, speed)  set the clock and tell everybody. Either
@@ -77,6 +80,13 @@ DAYTIME_MINUTES_PER_DAY = 1440;
 
 -- Noon, and the hinge the daylight curve turns on.
 local NOON = 720;
+
+-- The night floor: D never falls below this, so 6 PM to 6 AM is night
+-- rather than nothing at all. A spec constant, not a knob -- the client
+-- computes its own D and the server cannot talk it out of it, so a
+-- server-side setting here could only make the two disagree about how
+-- dark it is. If the spec's floor moves, this moves with it.
+local NIGHT_FLOOR = 0.1;
 
 -- Weather is two bytes that must be zero in version 1. Spelled out
 -- rather than left as a magic "\0\0" because version 2 is where it
@@ -163,15 +173,23 @@ function daytime_now()
 end
 
 -- The daylight at `mins`, which is the client's own formula and is here
--- so that nothing else has to reimplement it: D = clamp(2 cos a, 0, 1)
--- with a the degrees since noon, a quarter degree per minute.
+-- so that nothing else has to reimplement it:
 --
--- 0 from 6 PM to 6 AM, 1 from 8 AM to 4 PM, and the ramps between.
+--   D = max(0.1, clamp(2 cos a, 0, 1))
+--
+-- with a the degrees since noon, a quarter degree per minute. So 0.1
+-- from 6 PM to 6 AM, 1 from 8 AM to 4 PM, and the ramps between.
+--
+-- The floor is why a pinned midnight is playable. Without it half the
+-- day was exactly zero -- 719 of 1440 minutes -- and no amount of
+-- choosing the hour could get a dim sky rather than a black one,
+-- because night had no gradient to pick from at all.
 function daytime_daylight(mins)
 	mins = mins ~= nil and wrap_minutes(mins) or daytime_now();
 
 	local a = math.rad((mins - NOON) / 4);
-	return math.max(0, math.min(1, 2 * math.cos(a)));
+	return math.max(NIGHT_FLOOR,
+		math.min(1, 2 * math.cos(a)));
 end
 
 --=============================== WIRE ===============================--

@@ -188,9 +188,10 @@ load "lib_ext_policy"
 -- not a painted sky.
 --
 -- SPEED 0 STOPS THE CLOCK, pinned at daytime_start. 0 minutes is
--- midnight, and midnight is complete darkness (the spec's daylight
--- curve is zero from 6 PM to 6 AM). Which is the whole reason the
--- flashlight above is here: a hostage rescue by torchlight. Set
+-- midnight, which the spec's daylight curve puts at a tenth of full
+-- daylight -- night, with the world dim but readable, rather than the
+-- flat black it used to be. Which is the whole reason the flashlight
+-- above is here: a hostage rescue by torchlight. Set
 -- daytime_speed = 60 to let a 24-minute day run instead.
 --
 -- Clients that have not negotiated it fall back to lib_daynight below.
