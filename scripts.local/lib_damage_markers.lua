@@ -185,13 +185,17 @@ function damage_markers_show(viewer, target, amount)
 		return false;
 	end
 
-	-- the Player ID is one byte, so a target outside a byte has no
-	-- spelling in this packet at all. Fake pids run to 255 (check_nplid,
-	-- lua.c:71-76) and fit; anything else is a caller's mistake and is
-	-- refused rather than wrapped into a number naming somebody else.
+	-- Real players only: 0 to MAX_PLAYERS-1 (macros:9). The Player ID is
+	-- a byte, so 255 would fit the field -- but 255 is the first fake
+	-- pid new_fakepid hands out (commands.lua:116-120), and those climb
+	-- straight out of a byte from there, so the field's width is the
+	-- wrong place to draw the line. A fake pid has no HP to lose and no
+	-- body to float a number over; anything past the players is a
+	-- caller's mistake and is refused rather than wrapped into a number
+	-- naming somebody else.
 	target = tonumber(target);
-	if (target == nil or target ~= target
-	    or target < 0 or target > 255 or target % 1 ~= 0) then
+	if (target == nil or target ~= target or target < 0
+	    or target >= MAX_PLAYERS or target % 1 ~= 0) then
 		return false;
 	end
 
