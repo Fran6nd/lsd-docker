@@ -308,6 +308,44 @@ function mod.on_switch(pid, team, gun)
 	return mod.next.on_switch(pid, use, gun);
 end
 
+--============================== AUDIT ================================--
+
+-- Says what the policy came out as, and names anything in it that no
+-- module registered.
+--
+-- It reports and changes nothing, which is the important part. An
+-- ext_policy entry for an unregistered id is already harmless by
+-- construction: `wanted` walks lib_ext's REGISTRY and asks the policy
+-- about each id, never the other way round, so an id nothing registered
+-- is never looked at and can never make a client fail. Deleting such an
+-- entry would be the actively worse move -- the extension may simply
+-- not have loaded yet, and a policy deleted at startup would not come
+-- back when it does.
+--
+-- Deferred to a tick rather than run from on_load for exactly the same
+-- reason. config.lua may load this before or after the extensions it
+-- names, and which it is should not change what gets logged, let alone
+-- what gets enforced. By the first tick they have all registered.
+local audited = false;
+
+local function audit()
+	local known = {};
+
+	ext_each(function(id, reg) known[id] = reg; end);
+
+	for id,level in pairs(ext_policy) do
+		if (known[id] == nil) then
+			log("lib_ext_policy: ext_policy names extension %d as %s, but"
+				.. " nothing registered it -- no client can be judged on"
+				.. " it, so it does nothing. Load that extension's"
+				.. " module.", id, LEVEL_NAME[level] or tostring(level));
+		elseif (level ~= EXT_APPLIED) then
+			log("lib_ext_policy: %s is %s", known[id].title or known[id].name,
+				LEVEL_NAME[level] or tostring(level));
+		end
+	end
+end
+
 --============================== CLOCK ================================--
 
 -- The moment a client's clock starts. on_successful_connect is before
@@ -367,42 +405,6 @@ function mod.after.tick()
 end
 
 --============================= LIFECYCLE =============================--
-
--- Says what the policy came out as, and names anything in it that no
--- module registered.
---
--- It reports and changes nothing, which is the important part. An
--- ext_policy entry for an unregistered id is already harmless by
--- construction: `wanted` walks lib_ext's REGISTRY and asks the policy
--- about each id, never the other way round, so an id nothing registered
--- is never looked at and can never make a client fail. Deleting such an
--- entry would be the actively worse move -- the extension may simply
--- not have loaded yet, and a policy deleted at startup would not come
--- back when it does.
---
--- Deferred to a tick rather than run from on_load for exactly the same
--- reason. config.lua may load this before or after the extensions it
--- names, and which it is should not change what gets logged, let alone
--- what gets enforced. By the first tick they have all registered.
-local function audit()
-	local known = {};
-
-	ext_each(function(id, reg) known[id] = reg; end);
-
-	for id,level in pairs(ext_policy) do
-		if (known[id] == nil) then
-			log("lib_ext_policy: ext_policy names extension %d as %s, but"
-				.. " nothing registered it -- no client can be judged on"
-				.. " it, so it does nothing. Load that extension's"
-				.. " module.", id, LEVEL_NAME[level] or tostring(level));
-		elseif (level ~= EXT_APPLIED) then
-			log("lib_ext_policy: %s is %s", known[id].title or known[id].name,
-				LEVEL_NAME[level] or tostring(level));
-		end
-	end
-end
-
-local audited = false;
 
 function mod.on_load()
 	if (ext_replied == nil or ext_each == nil) then
