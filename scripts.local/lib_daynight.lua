@@ -100,6 +100,12 @@ local HOURS = 24;
 local pinned = nil;
 
 local last_sent = 0;
+-- Whether the one line saying what the clock is doing has gone out yet.
+-- Said from the first tick and not from on_load, because during startup
+-- register() writes each module's name with no newline (core.lua:
+-- 162-164) and anything logged from an on_load lands in the middle of
+-- that list. lib_ext_policy defers its audit for the same reason.
+local announced = false;
 
 --============================== CLOCK ===============================--
 
@@ -213,6 +219,16 @@ function mod.after.tick()
 	local rate = tonumber(daynight_rate) or 1;
 	local now = get_time();
 
+	if (not announced) then
+		announced = true;
+		log("lib_daynight: %s", pinned ~= nil
+			and string.format("pinned at %05.2f (%s)", pinned,
+				daynight_phase())
+			or string.format("%s minutes per day, now %05.2f (%s)",
+				tostring(daynight_minutes), daynight_hour(),
+				daynight_phase()));
+	end
+
 	if (rate > 0 and now - last_sent < 1 / rate) then
 		return;
 	end
@@ -241,10 +257,8 @@ function mod.on_load()
 	pinned = daynight_fixed_hour ~= nil
 		and wrap_hour(daynight_fixed_hour) or nil;
 
-	log("lib_daynight: %s", pinned ~= nil
-		and string.format("pinned at %05.2f (%s)", pinned, daynight_phase())
-		or string.format("%s minutes per day, now %05.2f (%s)",
-			tostring(daynight_minutes), daynight_hour(), daynight_phase()));
+	-- and the line saying so is the tick's, see `announced`
+	announced = false;
 end
 
 -- Everything this module put in the global table, taken back out again.
