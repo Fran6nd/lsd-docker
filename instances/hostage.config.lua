@@ -187,15 +187,22 @@ load "lib_ext_policy"
 -- lighting and darkens the fog itself -- so this is actual darkness,
 -- not a painted sky.
 --
--- SPEED 0 STOPS THE CLOCK, pinned at daytime_start. 0 minutes is
--- midnight, which the spec's daylight curve puts at a tenth of full
--- daylight -- night, with the world dim but readable, rather than the
--- flat black it used to be. Which is the whole reason the flashlight
--- above is here: a hostage rescue by torchlight. Set
--- daytime_speed = 60 to let a 24-minute day run instead.
+-- SPEED is game minutes per real minute, and a day lasts 1440/Speed of
+-- them -- so 288 is a five-minute day, an in-game hour every 12.5
+-- seconds. The same clock spicyctf runs, so the two servers tell the
+-- same time.
+--
+-- The spec's daylight curve holds 6 PM to 6 AM at a tenth of full
+-- daylight, so about half of every five minutes is night: dim but
+-- readable, and when the flashlight above earns its keep -- a hostage
+-- rescue by torchlight, for two and a half minutes out of five rather
+-- than for ever.
+--
+-- Set daytime_speed = 0 to stop the clock at daytime_start instead;
+-- 0 is midnight, 720 noon, 1050 a fixed dusk.
 --
 -- Clients that have not negotiated it fall back to lib_daynight below.
-daytime_speed = 0
+daytime_speed = 288
 daytime_start = 0
 load "lib_daytime"
 
@@ -204,16 +211,21 @@ load "lib_daytime"
 -- sky, not the brightness of the blocks. Which is still plenty: the
 -- distance closes in and the world sits in a different colour.
 --
--- PINNED AT MIDNIGHT here. The clock does not run; hour 0 forever, a
--- near-black blue sky. Which is what makes the flashlight above worth
--- carrying rather than a curiosity -- a hostage rescue in the dark is
--- the point. Set daynight_fixed_hour = nil to let the day run, or 12
--- for permanent noon.
+-- ONE DAY EVERY 5 MINUTES here, matching lib_daytime's Speed above.
+-- While lib_daytime is loaded this figure is only the fallback's own --
+-- the hour itself comes from the extension's clock, so the two cannot
+-- disagree -- but it is what the fallback would run on if lib_daytime
+-- were ever unloaded, so it is kept in step.
 --
--- It repaints over anything else that sets the fog, including each
--- map's own metadata and /fog, within a second. A server wanting a
--- fixed fog of its own choosing should not load this.
-daynight_fixed_hour = 0
+-- Pinning this (daynight_fixed_hour) while lib_daytime runs is how the
+-- two ends come apart: the clients that speak the extension would cycle
+-- while the ones that do not sat in one hour for ever. If one is
+-- pinned, pin both.
+--
+-- It paints per client and never touches the global fog, so each map's
+-- own metadata stays the server's sky and the extension's clients scale
+-- that themselves.
+daynight_minutes = 5
 load "lib_daynight"
 
 -- aosprotocol's Teamplay extension (id 48 v1, packet 112): lets the
