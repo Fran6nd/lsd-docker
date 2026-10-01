@@ -151,6 +151,13 @@ getcfg("ext_policy", {});
 -- has got through it. 30 is generous; the honest answers arrive in one
 -- round trip.
 getcfg("ext_policy_grace", 30);
+-- Seconds of silence that count as an answer once the client has
+-- joined a team, which proves it got through the map and the version
+-- request behind it. Much shorter than the figure above because the
+-- thing that one has to allow for -- a slow download -- has already
+-- happened. This is what a player standing in the game waiting to be
+-- told something actually waits.
+getcfg("ext_policy_grace_joined", 3);
 -- Seconds between re-telling a player what they are missing, so that a
 -- client hammering the team menu is answered once rather than per press.
 getcfg("ext_policy_remind", 10);
@@ -167,10 +174,20 @@ getcfg("ext_policy_debug", false);
 -- pid -> the team they asked for while undecided, put on hold
 local pending_team = pid_connected_table();
 -- pid -> when we last said anything to them about extensions, which
--- paces both the answer to a menu press and the periodic nag
-local told_at = pid_connected_table(0);
--- pid -> when they connected, which is when the clock starts
+-- paces both the answer to a menu press and the periodic nag. nil
+-- means never, and nil has to mean never rather than 0 meaning it:
+-- get_time is CLOCK_MONOTONIC (main.c:130-136), which on Linux counts
+-- from boot, so 0 is a real instant that was `uptime` ago. Treating it
+-- as "long ago" happens to work on a host that has been up a while and
+-- silently gags every warning for the first minute after a reboot.
+local told_at = pid_connected_table();
+-- pid -> when they connected, which is when the slow clock starts
 local since = pid_connected_table();
+-- pid -> when they first picked a team. A client that has joined has
+-- demonstrably processed the whole map and the version request that
+-- rides its tail, so its silence means something much sooner than a
+-- client we are still waiting on mid-download.
+local caught_up = pid_connected_table();
 
 --============================== WHO ==================================--
 
@@ -253,8 +270,22 @@ local function decided(pid)
 		return true;
 	end
 
+	local now = get_time();
+
+	-- They have joined, so they are not still downloading: the version
+	-- request goes out at the END of the map transfer
+	-- (funcs_send.c:198-208), and a client cannot have picked a team
+	-- without getting past it. Silence from here is an answer within a
+	-- couple of seconds, not thirty.
+	local up = caught_up[pid];
+	if (up ~= nil and now - up >= ext_policy_grace_joined) then
+		return true;
+	end
+
+	-- Still in limbo, possibly still pulling the map down. This is the
+	-- clock that has to be generous, and the only one that was.
 	local t = since[pid];
-	return t ~= nil and get_time() - t >= ext_policy_grace;
+	return t ~= nil and now - t >= ext_policy_grace;
 end
 
 -- May this client leave spectator? Clientless ids always may; everyone
@@ -288,8 +319,9 @@ end
 -- second later.
 local function may_tell(pid, min_gap)
 	local now = get_time();
+	local last = told_at[pid];
 
-	if (now - told_at[pid] < min_gap) then
+	if (last ~= nil and now - last < min_gap) then
 		return false;
 	end
 
@@ -361,6 +393,17 @@ local function gate(pid, team, gun)
 end
 
 function mod.on_join(pid, team, gun, name)
+	-- Picking a team is proof the client is caught up: it cannot have
+	-- got here without processing the map and the version request behind
+	-- it, so decided() may stop being patient with its silence. Stamped
+	-- here and not from a mod.after.on_join, because core.lua's
+	-- process_before_after assigns tbl[name] outright (core.lua:76-80)
+	-- -- an `after` form of a hook this module already defines plainly
+	-- would replace the gate below rather than run alongside it.
+	if (caught_up[pid] == nil) then
+		caught_up[pid] = get_time();
+	end
+
 	return mod.next.on_join(pid, gate(pid, team, gun), gun, name);
 end
 
@@ -439,6 +482,7 @@ function mod.after.on_successful_connect(pid)
 	since[pid] = get_time();
 end
 
+
 -- Everything that has to happen after an answer arrives, and the answer
 -- arrives in a packet, not in a hook we own -- lib_ext's ready callback
 -- only fires for extensions that matched, so a client supporting
@@ -461,7 +505,9 @@ function mod.after.tick()
 
 	for pid in piditer(PID_BROADCAST) do
 		local want = pending_team[pid];
-		local due = now - told_at[pid] >= ext_policy_warn_interval;
+		local last = told_at[pid];
+		local due = last == nil
+			or now - last >= ext_policy_warn_interval;
 
 		-- Two table lookups and a subtraction before anything costly.
 		-- In the steady state nothing below runs for anybody: no held
@@ -488,6 +534,14 @@ function mod.after.tick()
 			-- player who cannot play at all is told that and not also
 			-- told what they are missing cosmetically, which would bury
 			-- the part they can act on.
+			if (ext_policy_debug and due and not decided(pid)) then
+				log("lib_ext_policy: #%d still undecided -- replied %s,"
+					.. " %.1fs since connect (grace %.1f), joined %s",
+					pid, tostring(ext_replied(pid)),
+					since[pid] ~= nil and now - since[pid] or -1,
+					ext_policy_grace, tostring(caught_up[pid] ~= nil));
+			end
+
 			if (due and decided(pid)) then
 				local req, answered = ext_policy_missing(pid, EXT_REQUIRED);
 
@@ -501,6 +555,14 @@ function mod.after.tick()
 					if (#rec > 0
 					    and may_tell(pid, ext_policy_warn_interval)) then
 						tell_recommended(pid, rec);
+
+						if (ext_policy_debug) then
+							log("lib_ext_policy: told #%d it is missing %s",
+								pid, list(rec));
+						end
+					elseif (ext_policy_debug and #rec == 0) then
+						log("lib_ext_policy: #%d is missing nothing"
+							.. " recommended", pid);
 					end
 				end
 			end
@@ -526,6 +588,12 @@ function mod.on_load()
 	for pid in piditer(PID_BROADCAST) do
 		if (since[pid] == nil) then
 			since[pid] = now;
+		end
+
+		-- and anybody already on a team is already caught up, which
+		-- they plainly are, having played their way to this moment
+		if (caught_up[pid] == nil and is_joined(pid)) then
+			caught_up[pid] = now;
 		end
 	end
 end
