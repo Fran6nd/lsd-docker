@@ -145,6 +145,15 @@ load "lib_teamplay"
 -- nothing, as before. (scripts.local/)
 load "lib_damage_markers"
 
+-- aosprotocol's Flashlight extension (id 0x32 v1, packet 0x72): a light
+-- a player carries that EVERY client draws, not just its owner's. The
+-- beam is OpenSpades' legacy flashlight to the number -- reach 60, a 90
+-- degree cone, a warm 255/179/128 -- so it looks like the flashlight
+-- players already know, and the F key still switches it: the client
+-- asks and this relays, rather than lighting up locally. Off when dead
+-- or spectating, as OpenSpades has always been. (scripts.local/)
+load "lib_flashlight"
+
 -- A demo of the ESP marks above: aim at an enemy and your whole team
 -- sees them outlined for a few seconds. Inert without lib_teamplay, and
 -- invisible to any client that hasn't negotiated it. (scripts.local/)

@@ -165,6 +165,17 @@ load "lib_teamplay"
 -- it see nothing, as before. (scripts.local/)
 load "lib_damage_markers"
 
+-- aosprotocol's Flashlight extension (id 0x32 v1, packet 0x72): a light
+-- a player carries that EVERY client draws, not just its owner's. The
+-- beam is OpenSpades' legacy flashlight to the number -- reach 60, a 90
+-- degree cone, a warm 255/179/128 -- so it looks like the flashlight
+-- players already know, and the F key still switches it: the client
+-- asks and this relays, rather than lighting up locally. Off when dead
+-- or spectating, and off again on every respawn -- so a player dropped
+-- into the Fall switches it back on if they want the shaft lit on the
+-- way down. (scripts.local/)
+load "lib_flashlight"
+
 -- aosprotocol's Silent Player extension (id 3 v1): lets the server keep
 -- chosen player ids out of a client's scoreboard, player count, presence
 -- notices, kill feed and stats, without changing anything about the
