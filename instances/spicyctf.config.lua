@@ -167,21 +167,26 @@ player_limit_max = 255
 load "lib_player_limit"
 
 -- What a MISSING extension costs a client (scripts.local/). Three
--- levels, set per extension id below: EXT_APPLIED is silent and is what
--- everything is unless named here, EXT_RECOMMENDED tells the player
--- once what they are missing, EXT_REQUIRED holds them in spectator
--- until they update. Bots are exempt -- there is nothing on the other
--- end of one to ask -- so the hostages and the fallers are unaffected.
+-- levels: EXT_APPLIED is silent, EXT_RECOMMENDED tells the player once
+-- what they are missing, EXT_REQUIRED holds them in spectator until
+-- they update. Bots are exempt -- there is nothing on the other end of
+-- one to ask -- so the hostages and the fallers are unaffected.
 --
--- EMPTY ON PURPOSE. Every extension is applied, so this changes nothing
--- until you decide otherwise, which is the right default while it is
--- still an open question how many clients speak these at all. Raise one
--- by adding it here, e.g.
+-- RECOMMENDED for everything, for now. Nobody is kept out and nothing
+-- is withheld; a client missing something is told once. Expect most
+-- clients to be told they are missing most of these -- the specs are
+-- days old -- and that is the point: when the warnings stop arriving
+-- for a client you expected to be fine, that extension is worth
+-- requiring. Not before.
 --
---   ext_policy = { [192] = EXT_RECOMMENDED }   -- Player Limit
+-- Levels are written as names here, not as the EXT_* constants: those
+-- are globals the module creates when it loads, and this runs first, so
+-- `EXT_REQUIRED` would be nil and the entry would quietly vanish.
 --
--- (ids: 0x20 Damage Markers, 0x32 Flashlight, 48 Teamplay,
---  3 Silent Player, 192 Player Limit. Must be set BEFORE the load.)
+-- ext_policy names exceptions to the default, by extension id:
+-- 0x20 Damage Markers, 0x32 Flashlight, 48 Teamplay, 3 Silent Player,
+-- 192 Player Limit -- e.g. ext_policy = { [0x32] = "required" }
+ext_policy_default = "recommended"
 ext_policy = {}
 load "lib_ext_policy"
 

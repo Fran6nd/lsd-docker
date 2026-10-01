@@ -8,30 +8,41 @@
 --
 -- THREE LEVELS, and every extension has one:
 --
---   EXT_APPLIED      the default, and silent. The extension is
---                    announced and used by whoever has it; a client
---                    without it is never told and never hindered. This
---                    is what every extension is until somebody says
---                    otherwise, so loading this module changes nothing
---                    on its own.
---   EXT_RECOMMENDED  a client without it is told once, after it has
---                    answered, what it is missing and what that costs
---                    it. Then it plays normally. Nothing is withheld --
---                    the point is to tell a player why their screen
---                    looks plainer than someone else's.
+--   EXT_APPLIED      silent. The extension is announced and used by
+--                    whoever has it; a client without it is never told
+--                    and never hindered.
+--   EXT_RECOMMENDED  the default. A client without it is told what it
+--                    is missing and what that costs, and told again
+--                    every ext_policy_warn_interval for as long as it
+--                    is still missing. Nothing is withheld -- the point
+--                    is to tell a player why their screen looks
+--                    plainer than someone else's, and to find out what
+--                    clients really implement.
 --   EXT_REQUIRED     a client without it cannot leave spectator. It is
 --                    told what is missing and that its client needs
---                    updating, every time it tries.
+--                    updating -- whenever it tries to join, and on the
+--                    same interval while it sits there, since a player
+--                    who gave up on the menu still needs to know why.
 --
--- Set them in config.lua, by extension id, BEFORE this module loads:
+-- One message per round either way, and the worse news wins: a client
+-- that cannot play at all is not also told about cosmetics.
 --
+-- Set them in config.lua BEFORE this module loads. The default covers
+-- every extension at once; ext_policy names the exceptions:
+--
+--   ext_policy_default = "recommended"
 --   ext_policy = {
---       [0x32] = EXT_REQUIRED,      -- Flashlight
---       [0x20] = EXT_RECOMMENDED,   -- Damage Markers
+--       [0x32] = "required",   -- Flashlight, and only it
+--       [192]  = "applied",    -- Player Limit, never mentioned
 --   }
 --
--- Anything not named is EXT_APPLIED. Names for the messages come from
--- lib_ext's registry, which is why ext_register takes a title.
+-- Names, not the EXT_* constants: those are globals this module creates
+-- when it loads, and config.lua runs before that, so EXT_REQUIRED there
+-- is nil and the entry disappears. In Lua that runs after the load,
+-- either spelling works.
+--
+-- Names for the messages come from lib_ext's registry, which is why
+-- ext_register takes a title.
 --
 -- A POLICY ON AN EXTENSION NOBODY REGISTERED DOES NOTHING, loudly. It
 -- is the worst failure this module could have: requiring an id this
@@ -70,7 +81,7 @@
 -- that clicked early sees a flicker, not a refusal.
 --
 -- API (globals):
---   ext_policy_of(id)        -> the level set for that extension
+--   ext_policy_of(id)        -> the level in force for that extension
 --   ext_policy_missing(pid, level)
 --        -> list of titles the client is missing at that level, and
 --           whether it has answered yet. Empty list and answered=false
@@ -90,9 +101,48 @@ local LEVEL_NAME = {
 	[EXT_REQUIRED] = "required",
 };
 
--- id -> level. Empty by default, which is every extension applied and
--- this module inert: that is the point of the default being the silent
--- one. Set it in config.lua before loading.
+-- A level may also be written as its name, and in config.lua it has to
+-- be. The EXT_* constants above are globals this module creates when it
+-- loads, and config.lua sets the policy BEFORE that -- so a config
+-- saying `[0x32] = EXT_REQUIRED` is saying `[0x32] = nil`, which reads
+-- as "no entry" and quietly does the opposite of what was written.
+--
+-- Strings have no such ordering to get wrong, so they are what the
+-- config uses and what the default below is written as. The numbers
+-- stay valid for Lua that runs after the load.
+local LEVEL_BY_NAME = {
+	applied = EXT_APPLIED,
+	recommended = EXT_RECOMMENDED,
+	required = EXT_REQUIRED,
+};
+
+local function resolve_level(v)
+	if (type(v) == "string") then
+		return LEVEL_BY_NAME[string.lower(v)];
+	end
+	if (type(v) == "number" and LEVEL_NAME[v] ~= nil) then
+		return v;
+	end
+	return nil;
+end
+
+-- The level of any extension not named in ext_policy below, which with
+-- an empty ext_policy means every extension this server speaks.
+--
+-- EXT_RECOMMENDED for now. Nothing is withheld from anybody at that
+-- level and nobody is kept out; a client missing something is told
+-- once, which is the only way to find out what clients actually
+-- implement these -- the specifications are days old, and the honest
+-- answer today is that most clients will be told they are missing most
+-- of them. That is the point of running it this way round first: when
+-- the warnings stop arriving for a client you expected to be fine, the
+-- extension is worth requiring, and not before.
+--
+-- Set it to EXT_APPLIED for silence, or name individual extensions in
+-- ext_policy to take them out of whatever this says.
+getcfg("ext_policy_default", "recommended");
+-- id -> level, for the extensions that are exceptions to the default
+-- above. Empty is the normal state. Set it in config.lua before loading.
 getcfg("ext_policy", {});
 -- Seconds a client gets to answer the extension announcement before it
 -- is judged on the silence. It has to outlast a slow map download on a
@@ -104,16 +154,23 @@ getcfg("ext_policy_grace", 30);
 -- Seconds between re-telling a player what they are missing, so that a
 -- client hammering the team menu is answered once rather than per press.
 getcfg("ext_policy_remind", 10);
+-- Seconds between the unprompted re-tellings. A player missing
+-- something is told again on this interval for as long as it is still
+-- missing -- recommended or required alike, since a player who walked
+-- away from the team menu and is sitting in spectator needs to find out
+-- why, and one who was told at connect has long since lost it up the
+-- chat. 60 is often enough to be noticed and seldom enough not to be
+-- the only thing in the chat log.
+getcfg("ext_policy_warn_interval", 60);
 getcfg("ext_policy_debug", false);
 
 -- pid -> the team they asked for while undecided, put on hold
 local pending_team = pid_connected_table();
--- pid -> when we last told them something
+-- pid -> when we last said anything to them about extensions, which
+-- paces both the answer to a menu press and the periodic nag
 local told_at = pid_connected_table(0);
 -- pid -> when they connected, which is when the clock starts
 local since = pid_connected_table();
--- pid -> have we given a recommended-level warning yet
-local warned = pid_connected_table(false);
 
 --============================== WHO ==================================--
 
@@ -139,6 +196,18 @@ end
 -- Every registered extension carrying `level`, as {id, title} pairs.
 -- Read from lib_ext's registry each time rather than cached, so that a
 -- hot-loaded extension counts from the moment it registers.
+-- The level in force for one extension: its own entry, else the
+-- default. One place, so that the audit, the verdict and the public
+-- ext_policy_of cannot disagree about what the policy says.
+local function level_of(id)
+	-- An unrecognisable value falls back to applied rather than to
+	-- something stricter: a typo should cost a feature, never a player's
+	-- ability to play. The audit names anything that landed here.
+	return resolve_level(ext_policy[id])
+		or resolve_level(ext_policy_default)
+		or EXT_APPLIED;
+end
+
 local function wanted(level)
 	local out = {};
 
@@ -147,7 +216,7 @@ local function wanted(level)
 	end
 
 	ext_each(function(id, reg)
-		if ((ext_policy[id] or EXT_APPLIED) == level) then
+		if (level_of(id) == level) then
 			out[#out+1] = {id = id, title = reg.title or reg.name};
 		end
 	end);
@@ -174,7 +243,7 @@ function ext_policy_missing(pid, level)
 end
 
 function ext_policy_of(id)
-	return ext_policy[id] or EXT_APPLIED;
+	return level_of(id);
 end
 
 -- Has this client run out of time to answer? Until it has, silence is
@@ -210,16 +279,25 @@ local function list(titles)
 	return table.concat(titles, ", ");
 end
 
--- Told at most once per ext_policy_remind seconds, so that a player
--- leaning on the team menu is answered rather than drowned.
-local function tell_required(pid, missing, answered)
+-- One clock for everything said to a player, read with two different
+-- minimum gaps: ext_policy_remind when they just pressed the team menu
+-- and are owed an answer promptly, ext_policy_warn_interval for the
+-- nagging that happens on its own. Sharing the clock is what keeps the
+-- two from talking over each other -- a player who was just told why
+-- they cannot join does not also get the periodic version of it a
+-- second later.
+local function may_tell(pid, min_gap)
 	local now = get_time();
 
-	if (now - told_at[pid] < ext_policy_remind) then
-		return;
+	if (now - told_at[pid] < min_gap) then
+		return false;
 	end
-	told_at[pid] = now;
 
+	told_at[pid] = now;
+	return true;
+end
+
+local function tell_required(pid, missing, answered)
 	if (not answered) then
 		-- Never answered the announcement at all, which is what an old
 		-- client looks like from here: it is not that it declined the
@@ -239,11 +317,6 @@ local function tell_required(pid, missing, answered)
 end
 
 local function tell_recommended(pid, missing)
-	if (warned[pid] or #missing == 0) then
-		return;
-	end
-	warned[pid] = true;
-
 	say(pid, "Heads up: your client is missing %s.", list(missing));
 	say(pid, "You can play without %s, but you will not see"
 		.. " everything other players do.",
@@ -275,7 +348,7 @@ local function gate(pid, team, gun)
 	-- spectator from the moment they arrived has never had one.
 	pending_team[pid] = {team = team, gun = gun};
 
-	if (decided(pid)) then
+	if (decided(pid) and may_tell(pid, ext_policy_remind)) then
 		tell_required(pid, missing, answered);
 	end
 
@@ -330,18 +403,30 @@ local audited = false;
 
 local function audit()
 	local known = {};
+	local lines = {};
 
-	ext_each(function(id, reg) known[id] = reg; end);
+	-- every registered extension and the level actually in force for it,
+	-- which with a non-applied default is most of the interesting
+	-- information -- an operator reading ext_policy alone would see an
+	-- empty table and learn nothing
+	ext_each(function(id, reg)
+		known[id] = reg;
+		lines[#lines+1] = string.format("%s=%s", reg.title or reg.name,
+			LEVEL_NAME[level_of(id)]);
+	end);
 
+	table.sort(lines);
+	log("lib_ext_policy: default %s; %s",
+		LEVEL_NAME[level_of(-1)] or tostring(ext_policy_default),
+		#lines > 0 and table.concat(lines, ", ") or "nothing registered yet");
+
+	-- and the entries that name something nobody speaks
 	for id,level in pairs(ext_policy) do
 		if (known[id] == nil) then
 			log("lib_ext_policy: ext_policy names extension %d as %s, but"
 				.. " nothing registered it -- no client can be judged on"
 				.. " it, so it does nothing. Load that extension's"
 				.. " module.", id, LEVEL_NAME[level] or tostring(level));
-		elseif (level ~= EXT_APPLIED) then
-			log("lib_ext_policy: %s is %s", known[id].title or known[id].name,
-				LEVEL_NAME[level] or tostring(level));
 		end
 	end
 end
@@ -375,14 +460,15 @@ function mod.after.tick()
 	last_sweep = now;
 
 	for pid in piditer(PID_BROADCAST) do
-		-- Bail before anything costly. Once a player has been released
-		-- and warned there is nothing further owed to them, which is
-		-- every player on the server in the steady state -- so the sweep
-		-- is two table lookups each and the real work only touches the
-		-- handful who connected in the last few seconds.
 		local want = pending_team[pid];
+		local due = now - told_at[pid] >= ext_policy_warn_interval;
 
-		if ((want ~= nil or not warned[pid]) and not is_clientless(pid)) then
+		-- Two table lookups and a subtraction before anything costly.
+		-- In the steady state nothing below runs for anybody: no held
+		-- team, and the warning clock not yet due. is_clientless costs a
+		-- pcall and ext_policy_missing walks the registry, so neither is
+		-- reached until there is a reason.
+		if ((want ~= nil or due) and not is_clientless(pid)) then
 			-- a held team, now allowed: put them on it, with the gun
 			-- they asked for at the time
 			if (want ~= nil and ext_policy_ok(pid)) then
@@ -393,12 +479,30 @@ function mod.after.tick()
 					log("lib_ext_policy: #%d answered in time, released"
 						.. " onto team %d", pid, want.team);
 				end
+
+				want = nil;
 			end
 
-			-- a warning owed, once they have answered
-			if (not warned[pid] and is_joined(pid) and decided(pid)) then
-				tell_recommended(pid,
-					ext_policy_missing(pid, EXT_RECOMMENDED));
+			-- The periodic telling, once they have answered or run out
+			-- of time to. One message per round, the worse news first: a
+			-- player who cannot play at all is told that and not also
+			-- told what they are missing cosmetically, which would bury
+			-- the part they can act on.
+			if (due and decided(pid)) then
+				local req, answered = ext_policy_missing(pid, EXT_REQUIRED);
+
+				if (#req > 0) then
+					if (may_tell(pid, ext_policy_warn_interval)) then
+						tell_required(pid, req, answered);
+					end
+				else
+					local rec = ext_policy_missing(pid, EXT_RECOMMENDED);
+
+					if (#rec > 0
+					    and may_tell(pid, ext_policy_warn_interval)) then
+						tell_recommended(pid, rec);
+					end
+				end
 			end
 		end
 	end
