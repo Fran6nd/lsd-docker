@@ -371,6 +371,30 @@ local function say_chat(pid, fmt, ...)
 	end
 end
 
+-- Titles as a readable series, which is all a chat line needs.
+local function list(titles)
+	return table.concat(titles, ", ");
+end
+
+-- One clock for everything said to a player, read with two different
+-- minimum gaps: ext_policy_remind when they just pressed the team menu
+-- and are owed an answer promptly, ext_policy_warn_interval for the
+-- telling that happens on its own. Sharing the clock is what keeps the
+-- two from talking over each other -- a player who was just told why
+-- they cannot join does not also get the periodic version of it a
+-- second later.
+local function may_tell(pid, min_gap)
+	local now = get_time();
+	local last = told_at[pid];
+
+	if (last ~= nil and now - last < min_gap) then
+		return false;
+	end
+
+	told_at[pid] = now;
+	return true;
+end
+
 -- The alert at most once; the list in chat, every time. The list is the
 -- half worth repeating and the half worth reading twice, so it is the
 -- half that recurs.
