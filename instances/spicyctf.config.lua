@@ -208,16 +208,23 @@ load "lib_ext_policy"
 -- lighting and darkens the fog itself -- so this is actual darkness,
 -- not a painted sky.
 --
--- SPEED 60 is game minutes per real minute, so a day every 24 real
--- minutes: an in-game hour a minute. The spec's daylight curve holds
--- 6 PM to 6 AM at a tenth of full daylight, so roughly half of each
--- 24 minutes is night -- dim but readable, and when the flashlight
--- above earns its keep. The Sky goes out again every 5 minutes
--- (daytime_resync) so nobody's clock drifts away from everybody
--- else's.
+-- SPEED is game minutes per real minute, and a day lasts 1440/Speed of
+-- them -- so 288 is a five-minute day, an in-game hour every 12.5
+-- seconds. Fast enough that a single round runs through dawn, noon,
+-- dusk and night rather than sitting in one of them.
+--
+-- The spec's daylight curve holds 6 PM to 6 AM at a tenth of full
+-- daylight, so about half of every five minutes is night -- dim but
+-- readable, and when the flashlight above earns its keep.
+--
+-- The Sky goes out again every 5 minutes (daytime_resync), which at
+-- this speed is once per in-game day. The client runs its own clock
+-- between those, and its error over five real minutes is far smaller
+-- than the sky moves in a second; drop daytime_resync if you ever see
+-- players disagree about the time.
 --
 -- Clients that have not negotiated it fall back to lib_daynight below.
-daytime_speed = 60
+daytime_speed = 288
 daytime_start = 0
 load "lib_daytime"
 
@@ -226,16 +233,17 @@ load "lib_daytime"
 -- sky, not the brightness of the blocks. Which is still plenty: the
 -- distance closes in and the world sits in a different colour.
 --
--- ONE DAY EVERY 24 MINUTES here, running: an in-game hour a minute, so
--- a round sees dawn, noon, sunset and midnight go by. Night is roughly
--- the eight minutes either side of hour 0, and that is when the
--- flashlight above earns its keep. Set daynight_fixed_hour to stop the
--- clock at one hour instead.
+-- ONE DAY EVERY 5 MINUTES here, matching lib_daytime's Speed above.
+-- While lib_daytime is loaded this figure is only the fallback's own --
+-- the hour itself comes from the extension's clock, so the two cannot
+-- disagree -- but it is what the fallback would run on if lib_daytime
+-- were ever unloaded, so it is kept in step. Set daynight_fixed_hour to
+-- stop the painted clock at one hour instead.
 --
 -- It repaints over anything else that sets the fog, including each
 -- map's own metadata and /fog, within a second. A server wanting a
 -- fixed fog of its own choosing should not load this.
-daynight_minutes = 24
+daynight_minutes = 5
 load "lib_daynight"
 
 -- aosprotocol's Teamplay extension (id 48 v1, packet 112): lets the
