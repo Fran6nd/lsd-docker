@@ -169,10 +169,12 @@ getcfg("ext_policy_remind", 10);
 -- chat. 60 is often enough to be noticed and seldom enough not to be
 -- the only thing in the chat log.
 getcfg("ext_policy_warn_interval", 60);
--- Which chat type each kind of telling goes out as. The numbers are
--- the Message Types extension's (lib_message_types): 3 big and
--- centre-screen, 4 a notice, 5 a warning, 6 an error, 2 the ordinary
--- system line every client has always had.
+-- Which chat type each kind of telling goes out as -- ONE per telling,
+-- since these render as a transient alert and two in a row leaves only
+-- the second. The numbers are the Message Types extension's
+-- (lib_message_types): 3 big and centre-screen, 4 a notice, 5 a
+-- warning, 6 an error, 2 the ordinary system line every client has
+-- always had. Set either to 2 to stop alerting and use chat alone.
 --
 -- Spelled as numbers rather than as MSG_* because, like the levels
 -- above, config.lua may want to change them and those constants do not
@@ -180,10 +182,8 @@ getcfg("ext_policy_warn_interval", 60);
 -- negotiated 193 sees all of these as the plain system line regardless,
 -- so turning them down to 2 only changes what the clients that CAN be
 -- loud do.
-getcfg("ext_policy_msg_loud", 3);        -- MSG_BIG, the headline of a
-                                        -- lockout and nothing else
-getcfg("ext_policy_msg_required", 6);   -- MSG_ERROR
-getcfg("ext_policy_msg_recommended", 5);-- MSG_WARNING
+getcfg("ext_policy_msg_required", 3);    -- MSG_BIG, centre-screen
+getcfg("ext_policy_msg_recommended", 5); -- MSG_WARNING
 getcfg("ext_policy_debug", false);
 
 -- pid -> the team they asked for while undecided, put on hold
@@ -317,15 +317,17 @@ end
 
 --============================= TELLING ===============================--
 
--- One line to one player, at whichever chat type the policy asks for.
+-- EXACTLY ONE of these per telling, and that is a hard rule rather than
+-- a preference. The Message Types levels are rendered as a transient
+-- alert -- a toast -- by the clients that implement them, and a toast
+-- is one slot: send two in the same breath and the second replaces the
+-- first, so a two-line message loses its first line entirely. Which is
+-- the opposite of the problem this was meant to fix.
 --
--- Through lib_message_types when it is loaded, which is what gets the
--- text out of the grey scroll and into a warning a player actually
--- notices -- and which falls back to an ordinary system message by
--- itself for any client that has not negotiated extension 193. So this
--- never has to ask what the client can do; only whether the module is
--- here at all, since an instance may not load it.
-local function say(pid, type, fmt, ...)
+-- Falls back to an ordinary system message for a client that has not
+-- negotiated extension 193, and for an instance that has not loaded
+-- lib_message_types at all.
+local function say_loud(pid, type, fmt, ...)
 	local text = string.format(fmt, ...);
 
 	if (msg_send ~= nil) then
@@ -333,6 +335,26 @@ local function say(pid, type, fmt, ...)
 	else
 		server_msg(pid, text);
 	end
+end
+
+-- The chat channel, which is the other half of saying one thing loudly:
+-- a toast is gone in a moment and cannot be re-read, so everything a
+-- player might want to look at twice goes here as well. It does not
+-- compete with the toast -- different channel, different slot -- which
+-- is why the detail can be as long as it needs to be.
+local function say_chat(pid, fmt, ...)
+	server_msg(pid, string.format(fmt, ...));
+end
+
+-- A toast has about one line's worth of room and a player reads it in
+-- the moment it appears, so naming five extensions in it says nothing.
+-- Up to two by name, a count past that, and the full list goes to chat.
+local function brief(titles)
+	if (#titles <= 2) then
+		return table.concat(titles, " and ");
+	end
+
+	return string.format("%d extensions", #titles);
 end
 
 local function list(titles)
@@ -358,35 +380,32 @@ local function may_tell(pid, min_gap)
 	return true;
 end
 
--- A player who cannot play gets the headline across the middle of the
--- screen and the detail as an error beneath it. Two types rather than
--- one because they answer different questions -- "why am I stuck" wants
--- to be unmissable, "what do I do about it" wants to be readable and
--- still there a moment later.
+-- One alert, then the detail in chat. See say_loud for why it is one.
 local function tell_required(pid, missing, answered)
 	if (not answered) then
 		-- Never answered the announcement at all, which is what an old
 		-- client looks like from here: it is not that it declined the
 		-- extension, it is that it never heard the question. Naming the
 		-- extensions would be beside the point.
-		say(pid, ext_policy_msg_loud, "Your client is too old to play here");
-		say(pid, ext_policy_msg_required, "It never answered the extension"
-			.. " handshake. Update it, or use ZeroSpades.");
+		say_loud(pid, ext_policy_msg_required,
+			"Your client is too old to play here");
+		say_chat(pid, "Your client never answered the extension handshake,"
+			.. " so it cannot leave spectator. Update it, or use"
+			.. " ZeroSpades.");
 		return;
 	end
 
-	say(pid, ext_policy_msg_loud, "Missing: %s", list(missing));
-	say(pid, ext_policy_msg_required, "You cannot leave spectator without"
-		.. " %s. Update your client, then reconnect.",
-		#missing == 1 and "it" or "them");
+	say_loud(pid, ext_policy_msg_required,
+		"Update your client to play: missing %s", brief(missing));
+	say_chat(pid, "You cannot leave spectator without %s. Update your"
+		.. " client, then reconnect.", list(missing));
 end
 
 local function tell_recommended(pid, missing)
-	say(pid, ext_policy_msg_recommended, "Your client is missing %s.",
-		list(missing));
-	say(pid, ext_policy_msg_recommended, "You can play without %s, but you"
-		.. " will not see everything other players do.",
-		#missing == 1 and "it" or "them");
+	say_loud(pid, ext_policy_msg_recommended,
+		"Your client is missing %s", brief(missing));
+	say_chat(pid, "Missing %s -- you can play, but you will not see"
+		.. " everything other players do.", list(missing));
 end
 
 --============================== GATE =================================--
