@@ -181,6 +181,23 @@ ext_policy_default = "recommended"
 ext_policy = {}
 load "lib_ext_policy"
 
+-- A clock for the sky (scripts.local/). AoS has no sun and no light
+-- level, so a "time of day" is the fog colour -- the horizon and the
+-- sky, not the brightness of the blocks. Which is still plenty: the
+-- distance closes in and the world sits in a different colour.
+--
+-- PINNED AT MIDNIGHT here. The clock does not run; hour 0 forever, a
+-- near-black blue sky. Which is what makes the flashlight above worth
+-- carrying rather than a curiosity -- a hostage rescue in the dark is
+-- the point. Set daynight_fixed_hour = nil to let the day run, or 12
+-- for permanent noon.
+--
+-- It repaints over anything else that sets the fog, including each
+-- map's own metadata and /fog, within a second. A server wanting a
+-- fixed fog of its own choosing should not load this.
+daynight_fixed_hour = 0
+load "lib_daynight"
+
 -- aosprotocol's Teamplay extension (id 48 v1, packet 112): lets the
 -- server outline a player on a teammate's screen, lets clients ping the
 -- world, and tells clients which way north is. Loading it only
