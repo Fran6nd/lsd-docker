@@ -23,6 +23,7 @@
 --                    updating -- whenever it tries to join, and on the
 --                    same interval while it sits there, since a player
 --                    who gave up on the menu still needs to know why.
+--                    This is the only level that raises the alert.
 --
 -- One message per round either way, and the worse news wins: a client
 -- that cannot play at all is not also told about cosmetics.
@@ -169,13 +170,18 @@ getcfg("ext_policy_remind", 10);
 -- chat. 60 is often enough to be noticed and seldom enough not to be
 -- the only thing in the chat log.
 getcfg("ext_policy_warn_interval", 60);
--- THE ALERT SAYS ONE THING AND SAYS IT ONCE. The Message Types levels
--- render as a transient alert with a single slot, so it is no place for
--- detail: it cannot hold a list, it cannot be re-read, and a second one
--- replaces the first -- which is how a two-line message loses its first
--- line. What it is good for is the one sentence that makes a player
--- look at the chat, so that is all it carries, the same sentence every
--- time, whatever is missing and at whichever level.
+-- THE ALERT IS FOR BEING LOCKED OUT, AND FOR NOTHING ELSE. It goes to
+-- a player held in spectator by a required extension, once, saying one
+-- fixed sentence. A recommended extension never raises it: that player
+-- is playing, and a banner about reduced cosmetics is out of all
+-- proportion to what it costs them.
+--
+-- One sentence because the Message Types levels render as a transient
+-- alert with a single slot, so it is no place for detail: it cannot
+-- hold a list, it cannot be re-read, and a second one replaces the
+-- first -- which is how a two-line message loses its first line. What
+-- it is good for is making a player look at the chat, where the actual
+-- list is.
 --
 -- Set ext_policy_alert false to drop it entirely and use chat alone.
 getcfg("ext_policy_alert", true);
@@ -328,8 +334,8 @@ end
 
 --============================= TELLING ===============================--
 
--- The alert: one fixed sentence, once per player, and only to a client
--- that can actually render it as an alert.
+-- The alert: one fixed sentence, once per player, only on the required
+-- path, and only to a client that can actually render it as an alert.
 --
 -- Deliberately NOT routed through msg_send's fallback. That fallback
 -- turns an alert into an ordinary chat line for a client that cannot
@@ -387,8 +393,12 @@ local function tell_required(pid, missing, answered)
 		#missing == 1 and "it" or "them");
 end
 
+-- No alert here, on purpose. A recommended extension costs a player
+-- some of what the server can show them and nothing else -- they are
+-- playing, and interrupting that with a banner to tell them their
+-- cosmetics are reduced is out of all proportion. The chat line says it
+-- and keeps saying it, which is enough for something they can ignore.
 local function tell_recommended(pid, missing)
-	alert_once(pid);
 	say_chat(pid, "Missing: %s. You can play, but you will not see"
 		.. " everything other players do.", list(missing));
 end
