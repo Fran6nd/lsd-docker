@@ -26,9 +26,12 @@
 --   flashlight_get_config(pid)     -> the beam we hold for them, or nil
 --   flashlight_config(pid, opts)   set their beam and tell everyone
 --        opts.reach  blocks at which the light reaches zero (0-255)
---        opts.cone   full angle of the cone in degrees (0-255)
+--        opts.cone   full angle of the cone in degrees (0-170)
 --        opts.color  LSd's {b=,g=,r=}, linear, 255 being full
 --        any of them left out comes from the flashlight_* defaults
+--   flashlight_get_default()       -> the default beam, or nil when off
+--   flashlight_announce_default()  re-announce it after changing the
+--        flashlight_reach/cone/red/green/blue globals
 --   flashlight_listen_request(name, fn) / flashlight_unlisten_request
 --        fn(pid, want) for every light a client asks for. Return false
 --        to refuse it; the spec has a refused request simply not
@@ -45,15 +48,17 @@
 -- the humans can see -- and the relay goes to everyone who speaks the
 -- extension.
 --
--- WHOSE STATE IT IS. Both halves are held here as well as on the
--- client, because the client's copy is not askable and a client that
--- negotiates late has to be told what it missed. The two halves expire
--- differently, and this is the whole of it:
+-- WHOSE STATE IT IS. Every half is held here as well as on the client,
+-- because the client's copy is not askable and a client that negotiates
+-- late has to be told what it missed. They expire differently, and this
+-- is the whole of it:
 --
 --   on/off   off on Create Player, Kill Action and Player Left for that
 --            player, and every light off on Map Start
 --   config   lasts until Player Left, surviving death, respawn and Map
 --            Start
+--   default  lasts for the connection, and belongs to no player at all
+--            -- so nothing ends it but the client going away
 --
 -- The client applies those rules by itself and the spec has the server
 -- apply the same ones and send nothing for them -- so the hooks below
@@ -90,6 +95,33 @@ local CLIENT_MAY_SEND = {[SUB_LIGHT] = true};
 -- the others are built a field at a time and never measured.
 local LIGHT_SIZE = 4;
 
+-- The Player ID a Light Config carries to mean "every player who has no
+-- Light Config of their own, including the ones who join later". It is
+-- the one id that is never a player: the Player Limit extension
+-- reserves 255 for the server, and LSd agrees on its own account --
+-- MAX_PLAYERS is 255 (protocol.h:20), so a player id stops at 254 and
+-- 255 is the first handle new_fakepid hands out (commands.lua:116-120).
+--
+-- Which is what makes one packet do the work of a roster. The default
+-- is not held against any player, so nothing has to be sent when
+-- somebody joins, and it "lasts for the connection" -- it outlives
+-- death, respawn and Map Start, since none of those end a connection,
+-- and there is nothing to clear until the client goes away with it.
+local DEFAULT_ID = 255;
+
+-- A spotlight cannot open to a half space: "a client draws a Cone above
+-- 170 as 170". Capped on the way out rather than left to the client,
+-- for the same reason every other field is stored as it is sent -- a
+-- cone of 200 and a cone of 170 are the same light, and the one that
+-- goes in a packet log and comes back out of flashlight_get_config
+-- should be the one that gets drawn.
+--
+-- Nothing is capped at the bottom. A Cone or Reach of 0 "gives no
+-- light", which is a sayable thing to want and not a degenerate value
+-- -- a flashlight that is on and illuminating nothing is how a server
+-- spells a dead battery.
+local CONE_MAX = 170;
+
 -- The legacy OpenSpades flashlight, which is what a player who has ever
 -- pressed F already expects a flashlight to look like. Every number
 -- here is read off that light rather than invented
@@ -110,12 +142,13 @@ getcfg("flashlight_cone", 90);
 getcfg("flashlight_red", 255);
 getcfg("flashlight_green", 179);
 getcfg("flashlight_blue", 128);
--- Hand every player the default beam above as their config, so that
--- every client draws the same light rather than falling back on
--- whatever it would have used -- the spec does not say what an
--- unconfigured light looks like, and this is how a server has an
--- opinion. Off means a player's beam is the client's business until
--- flashlight_config says otherwise.
+-- Announce the beam above as the default config, so that every client
+-- draws the same light rather than falling back on whatever it would
+-- have used -- the spec does not say what an unconfigured light looks
+-- like, and this is how a server has an opinion. One packet to the
+-- reserved id covers every player at once, now and later; see
+-- DEFAULT_ID. Off means an unconfigured player's beam is the client's
+-- business until flashlight_config says otherwise.
 getcfg("flashlight_send_default", true);
 -- Relay a client's own request to switch its light. This is the F key
 -- working: OpenSpades toggles its flashlight locally, and under this
@@ -164,6 +197,12 @@ local listeners = {};
 local function put_byte(v, default)
 	v = math.floor(tonumber(v) or default);
 	return string.char(math.max(0, math.min(255, v)));
+end
+
+-- The cone, capped where a client would cap it anyway. See CONE_MAX.
+local function put_cone(v)
+	v = math.floor(tonumber(v) or flashlight_cone);
+	return string.char(math.max(0, math.min(CONE_MAX, v)));
 end
 
 -- Red, Green, Blue -- in that order, which is NOT the order the rest of
@@ -245,8 +284,37 @@ end
 local function send_config(viewer, target, c)
 	send_packet(viewer, string.char(PKT, SUB_CONFIG, target)
 		.. put_byte(c.reach, flashlight_reach)
-		.. put_byte(c.cone, flashlight_cone)
+		.. put_cone(c.cone)
 		.. put_color(c));
+end
+
+-- The default beam, as one packet addressed to the reserved id, sent to
+-- everybody who has negotiated. One packet for the whole server rather
+-- than one per player: the client applies it to every player without a
+-- config of their own, joiners included, so there is nothing to repeat
+-- when somebody arrives.
+local function announce_default(pid)
+	if (not flashlight_send_default) then
+		return;
+	end
+
+	local c = default_config();
+
+	if (pid ~= nil) then
+		send_config(pid, DEFAULT_ID, c);
+		return;
+	end
+
+	for i in piditer(PID_BROADCAST) do
+		if (negotiated(i)) then
+			send_config(i, DEFAULT_ID, c);
+		end
+	end
+
+	if (flashlight_debug) then
+		log("lib_flashlight: default beam is reach %d, cone %d, rgb"
+			.. " %d/%d/%d", c.reach, c.cone, c.r, c.g, c.b);
+	end
 end
 
 local function send_light(viewer, target, on)
@@ -262,15 +330,21 @@ end
 -- to be the whole list. This module says "id 0x32, version 1" to
 -- lib_ext and lib_ext does the talking.
 --
--- Called for every client that turns out to speak it. Two things are
--- owed to a client that has only just negotiated, and they are the two
--- halves of the state above: every beam we hold, then who is lit.
+-- Called for every client that turns out to speak it. Everything this
+-- extension holds is owed to a client that has only just negotiated,
+-- and it goes out widest first: the default beam, then the players who
+-- have one of their own, then who is lit.
 --
--- Configs first, so that no light is ever drawn in a beam its carrier
--- has already been given a different one for. Light State second, which
--- is the packet the spec has arriving "after State Data" -- and this
--- runs well after it, since negotiation finishes long after a join.
+-- That order is the whole of it. The default under the exceptions,
+-- because a per-player config overrides it and arriving second is the
+-- simplest way to be the one that wins. Light State last, so no light
+-- is ever drawn in a beam its carrier has already been given a
+-- different one for -- and it is also the packet the spec has arriving
+-- "after State Data", which this is well after, since negotiation
+-- finishes long after a join.
 local function on_ready(pid)
+	announce_default(pid);
+
 	for i in piditer(PID_BROADCAST) do
 		if (cfg[i] ~= nil) then
 			send_config(pid, i, cfg[i]);
@@ -317,30 +391,23 @@ end
 -- Player Left is the one this module does not hook: both tables are
 -- pid_connected_tables and are cleared for it already.
 
--- A joining player is handed the default beam, and everybody who can
--- see them is told what it is. The other direction -- this player
--- learning everybody else's beam -- is on_ready above, which is where
--- it belongs, since until then there is nobody there to tell.
+-- And a join is not hooked either, which is worth saying because it
+-- looks like it ought to be. A player arriving needs a beam, and the
+-- obvious way to give them one is to send them a config on on_join --
+-- which is how this module did it before the default id existed, and it
+-- was wrong twice over. Once because on_join is not only a join: a map
+-- rotation boots everybody to limbo and clears their joined flag
+-- (main.c:1181-1190), their clients re-send the same packet, and with
+-- joined clear it arrives as another on_join rather than an on_switch
+-- (funcs_packetrecv.c:549-553) -- so it fires for every player on every
+-- rotation and would reset a beam a server had chosen for them, which
+-- the spec has surviving Map Start untouched. And once because it was a
+-- packet per player per client to say the same thing every time.
 --
--- Only when we hold nothing for them, which is what keeps the config
--- rule above true. on_join is not only a join: a map rotation boots
--- everybody to limbo and clears their joined flag (main.c:1181-1190),
--- their clients re-send the same packet, and with joined clear it
--- arrives as another on_join rather than an on_switch
--- (funcs_packetrecv.c:549-553). So this fires for every player on every
--- map change -- and setting the default unconditionally would reset a
--- beam a server had chosen for them, every rotation, while the spec has
--- a config survive Map Start untouched. A real Player Left is the one
--- thing that clears cfg, which is exactly when this should speak again.
-function mod.after.on_join(pid)
-	if (not flashlight_send_default or not sane_pid(pid)) then
-		return;
-	end
-
-	if (cfg[pid] == nil) then
-		flashlight_config(pid);
-	end
-end
+-- The default config says it once, to the id that is nobody, and the
+-- client applies it to whoever has nothing of their own -- including
+-- players who have not arrived yet. So there is nothing to do on a join
+-- at all.
 
 --========================== CLIENT REQUESTS =========================--
 
@@ -572,7 +639,7 @@ function flashlight_config(pid, opts)
 	-- flashlight_get_config answers with the beam the clients have
 	-- rather than the one that was asked for
 	c.reach = string.byte(put_byte(c.reach, flashlight_reach));
-	c.cone = string.byte(put_byte(c.cone, flashlight_cone));
+	c.cone = string.byte(put_cone(c.cone));
 	c.r = string.byte(put_byte(c.r, flashlight_red));
 	c.g = string.byte(put_byte(c.g, flashlight_green));
 	c.b = string.byte(put_byte(c.b, flashlight_blue));
@@ -591,6 +658,36 @@ function flashlight_config(pid, opts)
 	end
 
 	return true;
+end
+
+-- The beam every player without one of their own is drawn in, as it
+-- stands in the flashlight_* globals. A copy, like flashlight_get_config.
+function flashlight_get_default()
+	if (not flashlight_send_default) then
+		return nil;
+	end
+
+	return default_config();
+end
+
+-- Re-announce the default beam to everybody who has negotiated. The
+-- server may send a Light Config whenever it likes and the client
+-- applies each one in full, which is how a policy change lands
+-- mid-session. Set flashlight_reach, flashlight_cone or the colour and
+-- then call this; without the call the new values only reach clients
+-- that negotiate afterwards.
+--
+-- Which is why the beam lives in globals rather than being passed here:
+-- whatever is in them is what every Light Config says, including the
+-- one on_ready sends. Exactly teamplay_send_config's bargain.
+--
+-- It does not touch a player who has a config of their own -- the
+-- client only applies the default where there is nothing more specific,
+-- and so does flashlight_get_config. Re-beaming those is
+-- flashlight_config, one at a time, because that is what asking for
+-- them by name meant in the first place.
+function flashlight_announce_default()
+	announce_default();
 end
 
 function flashlight_listen_request(name, fn)
@@ -625,19 +722,14 @@ function mod.on_load()
 			.."lib_flashlight)", 0);
 	end
 
+	-- And nothing to hand out here. Everybody already in the game is
+	-- covered by the default config on_ready sends them, and giving them
+	-- a config of their own instead -- which is what this did before the
+	-- default id existed -- would be worse than redundant: a per-player
+	-- config overrides the default, so it would pin every player present
+	-- at load time to the beam of that moment and leave later
+	-- flashlight_announce_default calls unable to move them.
 	ext_register("lib_flashlight", EXT_ID, EXT_VERSION, on_ready);
-
-	-- Anybody already in the game when this loaded never had an
-	-- on_join, so hand them the default beam the way a joiner gets one.
-	-- on_ready will send these again to each client as it renegotiates,
-	-- which is the same packet twice and settles the same way.
-	if (flashlight_send_default) then
-		for i in piditer(PID_BROADCAST) do
-			if (is_joined(i)) then
-				flashlight_config(i);
-			end
-		end
-	end
 end
 
 -- Everything this module put in the global table, taken back out again.
@@ -654,6 +746,7 @@ local EXPORTS = {
 	"flashlight_supported",
 	"flashlight_get", "flashlight_set",
 	"flashlight_get_config", "flashlight_config",
+	"flashlight_get_default", "flashlight_announce_default",
 	"flashlight_listen_request", "flashlight_unlisten_request",
 };
 

@@ -129,6 +129,15 @@ load "tip_spam"
 -- its own handshake. Must be loaded before any of them.
 load "lib_ext"
 
+-- aosprotocol's Player Limit extension (id 192 v1, packetless): tells a
+-- client this server may use the whole player id range, and that id 255
+-- is the server's and never a player -- which is the reservation the
+-- flashlight default beam below is addressed to. Announcing it does not
+-- raise anything: the cap stays at the core's 32 until an instance sets
+-- player_limit_max, and see the module header before it does.
+-- (scripts.local/)
+load "lib_player_limit"
+
 -- aosprotocol's Teamplay extension (id 48 v1, packet 112): lets the
 -- server outline a player on a teammate's screen, lets clients ping the
 -- world, and tells clients which way north is. Loading it only
@@ -151,7 +160,9 @@ load "lib_damage_markers"
 -- degree cone, a warm 255/179/128 -- so it looks like the flashlight
 -- players already know, and the F key still switches it: the client
 -- asks and this relays, rather than lighting up locally. Off when dead
--- or spectating, as OpenSpades has always been. (scripts.local/)
+-- or spectating, as OpenSpades has always been. That beam goes out once
+-- as the default config, so it covers everybody including whoever joins
+-- next. (scripts.local/)
 load "lib_flashlight"
 
 -- A demo of the ESP marks above: aim at an enemy and your whole team
