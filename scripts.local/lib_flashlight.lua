@@ -26,7 +26,7 @@
 --   flashlight_get_config(pid)     -> the beam we hold for them, or nil
 --   flashlight_config(pid, opts)   set their beam and tell everyone
 --        opts.reach  blocks at which the light reaches zero (0-255)
---        opts.cone   full angle of the cone in degrees (0-170)
+--        opts.cone   full angle of the cone in degrees (0-179)
 --        opts.color  LSd's {b=,g=,r=}, linear, 255 being full
 --        any of them left out comes from the flashlight_* defaults
 --   flashlight_get_default()       -> the default beam, or nil when off
@@ -109,18 +109,21 @@ local LIGHT_SIZE = 4;
 -- and there is nothing to clear until the client goes away with it.
 local DEFAULT_ID = 255;
 
--- A spotlight cannot open to a half space: "a client draws a Cone above
--- 170 as 170". Capped on the way out rather than left to the client,
--- for the same reason every other field is stored as it is sent -- a
--- cone of 200 and a cone of 170 are the same light, and the one that
--- goes in a packet log and comes back out of flashlight_get_config
--- should be the one that gets drawn.
+-- The widest cone there is: "a Cone above 179 is drawn as 179". One
+-- degree short of the 180 that would be a spotlight opened out into a
+-- half space, which is not a spotlight any more.
+--
+-- Capped on the way out rather than left to the client, for the same
+-- reason every other field is stored as it is sent -- a cone of 200 and
+-- a cone of 179 are the same light, and the one that goes in a packet
+-- log and comes back out of flashlight_get_config should be the one
+-- that gets drawn.
 --
 -- Nothing is capped at the bottom. A Cone or Reach of 0 "gives no
 -- light", which is a sayable thing to want and not a degenerate value
 -- -- a flashlight that is on and illuminating nothing is how a server
 -- spells a dead battery.
-local CONE_MAX = 170;
+local CONE_MAX = 179;
 
 -- The legacy OpenSpades flashlight, which is what a player who has ever
 -- pressed F already expects a flashlight to look like. Every number
