@@ -356,7 +356,8 @@ function mod.on_load()
 			.."lib_damage_markers)", 0);
 	end
 
-	ext_register("lib_damage_markers", EXT_ID, EXT_VERSION, nil);
+	ext_register("lib_damage_markers", EXT_ID, EXT_VERSION, nil,
+		"Damage Markers");
 end
 
 -- Everything this module put in the global table, taken back out again.

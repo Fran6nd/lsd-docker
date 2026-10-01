@@ -13,18 +13,29 @@
 -- cannot happen if the first module to see packet 60 swallows it.
 --
 -- API (globals):
---   ext_register(name, id, version, ready)
+--   ext_register(name, id, version, ready, title)
 --        declare that this server speaks extension `id` at `version`.
 --        `ready` is called as ready(pid) for each client that turns out
 --        to speak the same extension at the same version -- the moment
 --        to send that extension's opening packets, and the only honest
---        one: negotiation finishes well after on_join, so anything sent
---        at join time is sent before the client has agreed to hear it
+--        one: a client agrees somewhere around the time it finishes
+--        loading the map, which may be either side of the moment the
+--        player picks a team, so join time is not a safe place to send.
+--        `title` is the extension's name in the specification, e.g.
+--        "Flashlight" -- what a player is told when it is missing, as
+--        against `name`, which is the module and is for the log
 --   ext_unregister(id)         stop announcing it (on module unload)
 --   ext_supported(pid, id)     -> version, or nil. True only when both
 --                                 ends named the extension at the same
 --                                 version -- there is no negotiating
 --                                 down, see below
+--   ext_replied(pid)           -> has this client sent its list at all.
+--                                 The difference between "supports
+--                                 nothing" and "has not answered yet",
+--                                 which ext_supported cannot show you
+--                                 because both are nil
+--   ext_each(fn)               fn(id, reg) over everything registered,
+--                                 reg being {name=, version=, title=}
 --   ext_announce(pid)          re-send the list to one client
 --
 -- VERSIONS ARE MATCHED, NOT NEGOTIATED. The spec says nothing about
@@ -160,13 +171,14 @@ end
 
 --============================== API =================================--
 
-function ext_register(name, id, version, ready)
+function ext_register(name, id, version, ready, title)
 	if (type(name) ~= "string" or type(id) ~= "number"
 	    or type(version) ~= "number") then
 		error("ext_register: name, id and version required", 2);
 	end
 
-	registry[id] = {name = name, version = version, ready = ready};
+	registry[id] = {name = name, version = version, ready = ready,
+		title = title or name};
 
 	-- The list we already announced is now short by one. Re-announcing
 	-- is what makes a hot load work at all: every connected client was
@@ -196,6 +208,31 @@ function ext_supported(pid, id)
 	return reg.version;
 end
 
+-- Has this client answered the announcement at all? ext_supported says
+-- nil both for a client that listed its extensions and did not name
+-- this one, and for a client that has not got round to listing them --
+-- and those are different facts. The first is an answer, the second is
+-- silence, and anything deciding what to DO about a missing extension
+-- has to wait out the silence before it calls it an answer.
+--
+-- A client that supports nothing still replies, with a count of zero,
+-- and that reply is an answer: `agreed[pid]` becomes an empty table,
+-- which is not nil. The ones that never reply are the old clients that
+-- are never announced to in the first place, and the ones that do not
+-- speak packet 60 and drop it unread.
+function ext_replied(pid)
+	return agreed[pid] ~= nil;
+end
+
+-- Everything this server speaks, for whoever needs to name it rather
+-- than merely ask about it. Second argument is the registry entry, and
+-- it is the live table -- read it, do not keep it.
+function ext_each(fn)
+	for id,reg in pairs(registry) do
+		fn(id, reg);
+	end
+end
+
 function mod.on_unload()
 	-- see lib_teamplay's EXPORTS for why this is not optional: consumers
 	-- test these names to find out whether negotiation is available, and
@@ -203,6 +240,8 @@ function mod.on_unload()
 	ext_register = nil;
 	ext_unregister = nil;
 	ext_supported = nil;
+	ext_replied = nil;
+	ext_each = nil;
 	ext_announce = nil;
 end
 

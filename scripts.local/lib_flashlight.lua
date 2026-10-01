@@ -732,7 +732,7 @@ function mod.on_load()
 	-- config overrides the default, so it would pin every player present
 	-- at load time to the beam of that moment and leave later
 	-- flashlight_announce_default calls unable to move them.
-	ext_register("lib_flashlight", EXT_ID, EXT_VERSION, on_ready);
+	ext_register("lib_flashlight", EXT_ID, EXT_VERSION, on_ready, "Flashlight");
 end
 
 -- Everything this module put in the global table, taken back out again.

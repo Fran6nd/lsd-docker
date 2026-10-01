@@ -111,7 +111,7 @@ function mod.on_load()
 			.."lib_player_limit)", 0);
 	end
 
-	ext_register("lib_player_limit", EXT_ID, EXT_VERSION, nil);
+	ext_register("lib_player_limit", EXT_ID, EXT_VERSION, nil, "Player Limit");
 end
 
 -- No EXPORTS sweep, because there are no globals to sweep: see the API

@@ -166,6 +166,25 @@ load "lib_ext"
 player_limit_max = 255
 load "lib_player_limit"
 
+-- What a MISSING extension costs a client (scripts.local/). Three
+-- levels, set per extension id below: EXT_APPLIED is silent and is what
+-- everything is unless named here, EXT_RECOMMENDED tells the player
+-- once what they are missing, EXT_REQUIRED holds them in spectator
+-- until they update. Bots are exempt -- there is nothing on the other
+-- end of one to ask -- so the hostages and the fallers are unaffected.
+--
+-- EMPTY ON PURPOSE. Every extension is applied, so this changes nothing
+-- until you decide otherwise, which is the right default while it is
+-- still an open question how many clients speak these at all. Raise one
+-- by adding it here, e.g.
+--
+--   ext_policy = { [192] = EXT_RECOMMENDED }   -- Player Limit
+--
+-- (ids: 0x20 Damage Markers, 0x32 Flashlight, 48 Teamplay,
+--  3 Silent Player, 192 Player Limit. Must be set BEFORE the load.)
+ext_policy = {}
+load "lib_ext_policy"
+
 -- aosprotocol's Teamplay extension (id 48 v1, packet 112): lets the
 -- server outline a player on a teammate's screen, lets clients ping the
 -- world, and tells clients which way north is. Loading it only

@@ -900,7 +900,7 @@ function mod.on_load()
 			.."lib_teamplay)", 0);
 	end
 
-	ext_register("lib_teamplay", EXT_ID, EXT_VERSION, on_ready);
+	ext_register("lib_teamplay", EXT_ID, EXT_VERSION, on_ready, "Teamplay");
 end
 
 -- Everything this module put in the global table, taken back out again.

@@ -265,7 +265,8 @@ function mod.on_load()
 			.."lib_silent_player)", 0);
 	end
 
-	ext_register("lib_silent_player", EXT_ID, EXT_VERSION, on_ready);
+	ext_register("lib_silent_player", EXT_ID, EXT_VERSION, on_ready,
+		"Silent Player");
 
 	-- Whoever asked for ids to be hidden did so against a copy of this
 	-- module that no longer exists, and the table it kept went with it.
