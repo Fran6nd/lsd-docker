@@ -35,7 +35,8 @@
 --                                 which ext_supported cannot show you
 --                                 because both are nil
 --   ext_each(fn)               fn(id, reg) over everything registered,
---                                 reg being {name=, version=, title=}
+--                                 reg being {name=, version=,
+--                                 ready=, title=}
 --   ext_announce(pid)          re-send the list to one client
 --
 -- VERSIONS ARE MATCHED, NOT NEGOTIATED. The spec says nothing about

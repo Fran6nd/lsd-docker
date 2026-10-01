@@ -6,6 +6,11 @@
 -- it puts a price on each extension, from none at all up to not being
 -- allowed to play.
 --
+-- Load lib_ext before this; it is where the registry and the agreement
+-- live, and this module is nothing without them. lib_message_types is
+-- optional and is used if present -- it is what turns the lockout
+-- notice into an alert rather than another chat line.
+--
 -- THREE LEVELS, and every extension has one:
 --
 --   EXT_APPLIED      silent. The extension is announced and used by
@@ -56,10 +61,10 @@
 --
 -- BOTS ARE NOT CLIENTS and are exempt, which is not a special case so
 -- much as the absence of one: there is nothing on the other end of a
--- bot to ask. lib_bot's bots reach on_join by calling it (lib_bot.lua:
--- 120), so without this every hostage and every faller would be frozen
--- in spectator and both gamemodes would stop working. Two tests, either
--- of which exempts:
+-- bot to ask. lib_bot's bots reach on_join by calling it
+-- (lib_bot.lua:120), so without this every hostage and every faller
+-- would be frozen in spectator and both gamemodes would stop working.
+-- Two tests, either of which exempts:
 --
 --   bot_is_bot(pid)      lib_bot saying so, when it is loaded
 --   get_ipaddr(pid) == 0 no ENet peer at all (lua.c:1087-1096 answers 0
@@ -69,11 +74,18 @@
 --
 -- WHAT COUNTS AS AN ANSWER. ext_supported is nil both for a client that
 -- said "not that one" and for one that has not spoken yet, so a verdict
--- cannot be read off it alone -- see ext_replied. A client gets
--- ext_policy_grace seconds from connecting to answer; until then it is
--- undecided, and an undecided client is treated as failing a
--- requirement but is not told anything, because there is nothing to
+-- cannot be read off it alone -- see ext_replied. Until a client has
+-- either answered or run out of time to, it is undecided: treated as
+-- failing a requirement, but told nothing, because there is nothing to
 -- tell it yet and it has very likely just not got there.
+--
+-- Running out of time is two clocks, not one, because the thing being
+-- waited for changes. A client still in limbo may be halfway through a
+-- map download and gets ext_policy_grace from connecting. A client that
+-- has picked a team cannot be: it got through the map and the version
+-- request behind it, so its silence means something after only
+-- ext_policy_grace_joined. That second clock is the one a player
+-- standing in the game actually waits.
 --
 -- Which makes the join a race, and the race is handled rather than
 -- avoided: a client that picks a team before its answer arrives is put
@@ -111,6 +123,12 @@ local LEVEL_NAME = {
 -- Strings have no such ordering to get wrong, so they are what the
 -- config uses and what the default below is written as. The numbers
 -- stay valid for Lua that runs after the load.
+-- The base protocol's system chat type, which needs no extension and no
+-- agreement. Spelled here rather than as MSG_SYSTEM because that global
+-- only exists once lib_message_types has loaded, and this module works
+-- whether it ever does.
+local CHAT_SYSTEM = 2;
+
 local LEVEL_BY_NAME = {
 	applied = EXT_APPLIED,
 	recommended = EXT_RECOMMENDED,
@@ -148,9 +166,10 @@ getcfg("ext_policy", {});
 -- Seconds a client gets to answer the extension announcement before it
 -- is judged on the silence. It has to outlast a slow map download on a
 -- bad line, since the version request rides the end of the map transfer
--- (funcs_send.c:198-208) and the answer cannot come before the client
--- has got through it. 30 is generous; the honest answers arrive in one
--- round trip.
+-- -- send_map (funcs_send.c:198-208) ends in send_state (:271-275),
+-- which is what calls demand_fingerprint (main.c:1204-1223) -- and the
+-- answer cannot come before the client has got through it. 30 is
+-- generous; the honest answers arrive in one round trip.
 getcfg("ext_policy_grace", 30);
 -- Seconds of silence that count as an answer once the client has
 -- joined a team, which proves it got through the map and the version
@@ -221,7 +240,7 @@ local alerted = pid_connected_table(false);
 -- client we are still waiting on mid-download.
 local caught_up = pid_connected_table();
 
---============================== WHO ==================================--
+--============================== WHO =================================--
 
 -- Nobody on the other end: no client to announce to, no answer to wait
 -- for, and nothing an extension could mean. Exempt from everything.
@@ -240,11 +259,8 @@ local function is_clientless(pid)
 	return ok and addr == 0;
 end
 
---============================= VERDICT ===============================--
+--============================= VERDICT ==============================--
 
--- Every registered extension carrying `level`, as {id, title} pairs.
--- Read from lib_ext's registry each time rather than cached, so that a
--- hot-loaded extension counts from the moment it registers.
 -- The level in force for one extension: its own entry, else the
 -- default. One place, so that the audit, the verdict and the public
 -- ext_policy_of cannot disagree about what the policy says.
@@ -257,6 +273,14 @@ local function level_of(id)
 		or EXT_APPLIED;
 end
 
+-- Every registered extension carrying `level`, as {id, title} pairs.
+-- Read from lib_ext's registry each time rather than cached, so that a
+-- hot-loaded extension counts from the moment it registers.
+--
+-- And asked of the REGISTRY rather than of the policy, which is what
+-- makes a policy entry for an extension nobody registered harmless: an
+-- id that is not in the registry is never looked at here, so it can
+-- never put a client in the missing list. See audit().
 local function wanted(level)
 	local out = {};
 
@@ -266,7 +290,7 @@ local function wanted(level)
 
 	ext_each(function(id, reg)
 		if (level_of(id) == level) then
-			out[#out+1] = {id = id, title = reg.title or reg.name};
+			out[#out+1] = {id = id, title = reg.title};
 		end
 	end);
 
@@ -306,9 +330,9 @@ local function decided(pid)
 
 	-- They have joined, so they are not still downloading: the version
 	-- request goes out at the END of the map transfer
-	-- (funcs_send.c:198-208), and a client cannot have picked a team
-	-- without getting past it. Silence from here is an answer within a
-	-- couple of seconds, not thirty.
+	-- (main.c:1204-1223, reached from send_map), and a client cannot
+	-- have picked a team without getting past it. Silence from here is
+	-- an answer within a couple of seconds, not thirty.
 	local up = caught_up[pid];
 	if (up ~= nil and now - up >= ext_policy_grace_joined) then
 		return true;
@@ -332,7 +356,7 @@ function ext_policy_ok(pid)
 	return #missing == 0;
 end
 
---============================= TELLING ===============================--
+--============================= TELLING ==============================--
 
 -- The alert: one fixed sentence, once per player, only on the required
 -- path, and only to a client that can actually render it as an alert.
@@ -364,7 +388,14 @@ end
 local function say_chat(pid, fmt, ...)
 	local text = string.format(fmt, ...);
 
-	if (msg_send ~= nil and ext_policy_chat_type ~= 2) then
+	-- Type 2 goes through server_msg rather than through msg_send, even
+	-- when lib_message_types is loaded and would carry it perfectly
+	-- well. The two differ in one field: server_msg has always sent from
+	-- player 0 (main.c:1343-1345) and msg_send sends from the reserved
+	-- 255. For the type every client has rendered since 0.75 that is not
+	-- a difference worth introducing, so the default path stays exactly
+	-- what every other module in this tree already sends.
+	if (msg_send ~= nil and ext_policy_chat_type ~= CHAT_SYSTEM) then
 		msg_send(pid, ext_policy_chat_type, text);
 	else
 		server_msg(pid, text);
@@ -427,7 +458,7 @@ local function tell_recommended(pid, missing)
 		.. " everything other players do.", list(missing));
 end
 
---============================== GATE =================================--
+--============================== GATE ================================--
 
 -- The team a client asked for, honoured or held. Returns the team to
 -- actually use, which is SPECTATOR when they may not play yet.
@@ -496,7 +527,7 @@ function mod.on_switch(pid, team, gun)
 	return mod.next.on_switch(pid, use, gun);
 end
 
---============================== AUDIT ================================--
+--============================== AUDIT ===============================--
 
 -- Says what the policy came out as, and names anything in it that no
 -- module registered.
@@ -526,13 +557,13 @@ local function audit()
 	-- empty table and learn nothing
 	ext_each(function(id, reg)
 		known[id] = reg;
-		lines[#lines+1] = string.format("%s=%s", reg.title or reg.name,
+		lines[#lines+1] = string.format("%s=%s", reg.title,
 			LEVEL_NAME[level_of(id)]);
 	end);
 
 	table.sort(lines);
 	log("lib_ext_policy: default %s; %s",
-		LEVEL_NAME[level_of(-1)] or tostring(ext_policy_default),
+		LEVEL_NAME[resolve_level(ext_policy_default) or EXT_APPLIED],
 		#lines > 0 and table.concat(lines, ", ") or "nothing registered yet");
 
 	-- and the entries that name something nobody speaks
@@ -546,14 +577,13 @@ local function audit()
 	end
 end
 
---============================== CLOCK ================================--
+--============================== CLOCK ===============================--
 
 -- The moment a client's clock starts. on_successful_connect is before
 -- the map goes out, so the grace period covers the whole download.
 function mod.after.on_successful_connect(pid)
 	since[pid] = get_time();
 end
-
 
 -- Everything that has to happen after an answer arrives, and the answer
 -- arrives in a packet, not in a hook we own -- lib_ext's ready callback
@@ -642,7 +672,7 @@ function mod.after.tick()
 	end
 end
 
---============================= LIFECYCLE =============================--
+--============================= LIFECYCLE ============================--
 
 function mod.on_load()
 	if (ext_replied == nil or ext_each == nil) then
@@ -670,6 +700,16 @@ function mod.on_load()
 	end
 end
 
+-- Everything this module put in the global table, taken back out again.
+--
+-- Unloading a module does not undo its globals -- the functions keep
+-- working, closed over the state of a module nothing is calling any
+-- more -- and consumers test these names to find out whether the thing
+-- is available at all. Left behind, they answer yes forever and every
+-- such guard becomes dead code.
+--
+-- The list is exhaustive on purpose: a name added to the API above and
+-- forgotten here outlives its own module, and goes on answering for it.
 local EXPORTS = {
 	"ext_policy_of", "ext_policy_missing", "ext_policy_ok",
 	"EXT_APPLIED", "EXT_RECOMMENDED", "EXT_REQUIRED",

@@ -19,6 +19,9 @@
 -- there is nothing to parse and nothing to send but chat, and this
 -- module is the registration plus one function that picks the type.
 --
+-- Negotiation belongs to lib_ext, which announces every extension this
+-- server speaks in one ExtensionInfo; load lib_ext before this.
+--
 -- HOW IT DEGRADES IS THE WHOLE POINT. A client that has not negotiated
 -- 193 has no idea what a type 5 is, and what it does with one is its
 -- own business -- quite possibly nothing at all, which would mean the
@@ -136,6 +139,16 @@ function mod.on_load()
 		"Message Types");
 end
 
+-- Everything this module put in the global table, taken back out again.
+--
+-- Unloading a module does not undo its globals -- the functions keep
+-- working, closed over the state of a module nothing is calling any
+-- more -- and consumers test these names to find out whether the thing
+-- is available at all. Left behind, they answer yes forever and every
+-- such guard becomes dead code.
+--
+-- The list is exhaustive on purpose: a name added to the API above and
+-- forgotten here outlives its own module, and goes on answering for it.
 local EXPORTS = {
 	"msg_supported", "msg_send",
 	"msg_big", "msg_info", "msg_warning", "msg_error",

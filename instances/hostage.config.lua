@@ -156,10 +156,10 @@ load "lib_player_limit"
 load "lib_message_types"
 
 -- What a MISSING extension costs a client (scripts.local/). Three
--- levels: EXT_APPLIED is silent, EXT_RECOMMENDED tells the player once
--- what they are missing, EXT_REQUIRED holds them in spectator until
--- they update. Bots are exempt -- there is nothing on the other end of
--- one to ask -- so the hostages and the fallers are unaffected.
+-- levels: EXT_APPLIED is silent, EXT_RECOMMENDED tells the player what
+-- they are missing, EXT_REQUIRED holds them in spectator until they
+-- update. Bots are exempt -- there is nothing on the other end of one
+-- to ask -- so the hostages are unaffected.
 --
 -- RECOMMENDED for everything, for now. Nobody is kept out and nothing
 -- is withheld; a client missing something is told once. Expect most
@@ -172,9 +172,11 @@ load "lib_message_types"
 -- are globals the module creates when it loads, and this runs first, so
 -- `EXT_REQUIRED` would be nil and the entry would quietly vanish.
 --
--- ext_policy names exceptions to the default, by extension id:
--- 0x20 Damage Markers, 0x32 Flashlight, 48 Teamplay, 3 Silent Player,
--- 192 Player Limit -- e.g. ext_policy = { [0x32] = "required" }
+-- ext_policy names exceptions to the default, by extension id. The ones
+-- this instance loads are 0x20 Damage Markers, 0x32 Flashlight,
+-- 48 Teamplay, 192 Player Limit, 193 Message Types -- e.g.
+-- ext_policy = { [0x32] = "required" }. Naming an id no module here
+-- registered does nothing; the audit says so in the log at startup.
 ext_policy_default = "recommended"
 ext_policy = {}
 load "lib_ext_policy"
