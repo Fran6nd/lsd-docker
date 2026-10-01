@@ -6,6 +6,16 @@
 -- red sunset, and dark again. Or stops the clock at one hour and leaves
 -- it there, which is how you get a map that is always midnight.
 --
+-- THIS IS THE FALLBACK, not the day/night cycle. aosprotocol has an
+-- extension for the real thing -- Daytime and Weather, id 0x33, which
+-- lib_daytime speaks -- and a client that negotiated it gets a sun, a
+-- real light level and a fog the client itself darkens. This module is
+-- what the clients that have never heard of it get instead: a painted
+-- sky, which is the most the base 0.75 protocol can say.
+--
+-- The two do not overlap. Anything lib_daytime serves is left strictly
+-- alone here, or it would be darkened twice -- see the tick.
+--
 -- WHAT A "DAY" CAN BE HERE, honestly. The 0.75 protocol has no sun, no
 -- light level and no time: the only thing a server can repaint is the
 -- fog colour (set_fog, main.c:279-285), which is global and goes to
@@ -20,22 +30,23 @@
 -- being the reason you can see somebody. That pairing is the whole
 -- point of running the clock at all.
 --
--- THE CLOCK IS DERIVED, NOT COUNTED. The hour comes out of get_time()
--- by arithmetic every time it is asked, rather than being advanced by a
--- tick -- so it survives this module being reloaded without the sky
+-- THE CLOCK IS lib_daytime's WHEN THAT IS LOADED, so that the painted
+-- sky and the real one never tell different times. Failing that it is
+-- derived: the hour comes out of get_time() by arithmetic every time it
+-- is asked, rather than being advanced by a tick -- so it survives this module being reloaded without the sky
 -- jumping, and there is no accumulated drift to correct. get_time() is
 -- CLOCK_MONOTONIC (main.c:130-136), which counts from boot, so the
 -- phase is arbitrary but it is the same arbitrary phase before and
 -- after a hot load.
 --
--- IT REASSERTS ITSELF, which it has to. map_meta.lua repaints the fog
--- on every map load, from the map's own .txt metadata or from the `fog`
--- config (map_meta.lua:41-45), and that runs in a before.load_map hook.
--- Rather than racing it, this compares the sky it wants against the fog
--- actually in place (get_fog) and corrects a difference -- so a map
--- load, an /fog from an admin, or anything else that repaints the sky
--- is simply undone within a second. A server that wants a fixed fog
--- does not want this module loaded.
+-- IT LEAVES THE GLOBAL FOG ALONE. map_meta.lua repaints it on every map
+-- load, from the map's own .txt metadata or from the `fog` config
+-- (map_meta.lua:41-45), and that is correct and wanted: the global is
+-- what a joining client reads out of its State Data, and what an
+-- extension client multiplies by its own daylight. So this paints per
+-- client instead and never writes the global -- a map load resets the
+-- clients it painted, and the next pass a second later paints them
+-- again.
 --
 -- API (globals):
 --   daynight_hour()       -> the hour now, 0 to 24, fractional
@@ -100,6 +111,11 @@ local HOURS = 24;
 local pinned = nil;
 
 local last_sent = 0;
+-- pid -> the sky we last painted for them, so a client is sent a fog
+-- packet only when its own sky actually changed. Per client because the
+-- sky now is: see the tick. Cleared on disconnect, since the next
+-- occupant of that id has been painted nothing.
+local painted = pid_connected_table();
 -- Whether the one line saying what the clock is doing has gone out yet.
 -- Said from the first tick and not from on_load, because during startup
 -- register() writes each module's name with no newline (core.lua:
@@ -134,6 +150,14 @@ end
 function daynight_hour()
 	if (pinned ~= nil) then
 		return pinned;
+	end
+
+	-- lib_daytime, when it is loaded, owns the clock: it is the one the
+	-- protocol puts on the wire and the one the supporting clients are
+	-- running. Two clocks would mean two skies, so this defers rather
+	-- than keeping its own.
+	if (daytime_now ~= nil) then
+		return wrap_hour(daytime_now() / 60);
 	end
 
 	local minutes = tonumber(daynight_minutes) or 0;
@@ -208,13 +232,24 @@ end
 
 --============================== DRIVE ===============================--
 
--- Repaint if the sky we want is not the sky in place.
+-- Repaint, per client, and only for the clients nobody else is already
+-- painting for.
 --
--- Asked of get_fog rather than of a value we remember, which is what
--- makes this self-healing: map_meta repaints on every map load and an
--- admin can repaint with /fog, and either way the difference shows up
--- here on the next pass and is corrected. Remembering what we last sent
--- would miss both.
+-- THIS IS A FALLBACK NOW, and the reason it must be per-client rather
+-- than global is worth spelling out. A client that negotiated the
+-- Daytime and Weather extension (lib_daytime) draws the fog as the fog
+-- colour TIMES its own daylight figure. Darkening the fog here as well
+-- would be darkening it twice: dusk fog at a dusk multiplier is not
+-- dusk, it is black. So anything lib_daytime is already serving is left
+-- strictly alone, and this paints only the clients that cannot do it
+-- themselves.
+--
+-- Which is why set_fog is not used. set_fog writes the global and
+-- broadcasts it to everybody (main.c:279-285) -- one sky for the whole
+-- server, which is exactly what cannot be right here. send_fog takes a
+-- pid (send:2), so each client gets the sky that suits it, and the
+-- global stays the map's own: untouched, correct for the extension
+-- clients, and the thing a joining client gets in its State Data.
 function mod.after.tick()
 	local rate = tonumber(daynight_rate) or 1;
 	local now = get_time();
@@ -232,21 +267,29 @@ function mod.after.tick()
 	if (rate > 0 and now - last_sent < 1 / rate) then
 		return;
 	end
+	last_sent = now;
 
 	local want = daynight_color();
-	local have = get_fog();
+	local sent = 0;
 
-	if (have ~= nil and have.r == want.r and have.g == want.g
-	    and have.b == want.b) then
-		return;
+	for pid in piditer(PID_BROADCAST) do
+		-- served by the extension, so not ours to paint
+		if (daytime_supported == nil or not daytime_supported(pid)) then
+			local had = painted[pid];
+
+			if (had == nil or had.r ~= want.r or had.g ~= want.g
+			    or had.b ~= want.b) then
+				painted[pid] = want;
+				send_fog(pid, want);
+				sent = sent + 1;
+			end
+		end
 	end
 
-	last_sent = now;
-	set_fog(want);
-
-	if (daynight_debug) then
-		log("lib_daynight: %05.2f (%s) -> %d/%d/%d", daynight_hour(),
-			daynight_phase(), want.r, want.g, want.b);
+	if (daynight_debug and sent > 0) then
+		log("lib_daynight: %05.2f (%s) -> %d/%d/%d, to %d client(s)",
+			daynight_hour(), daynight_phase(), want.r, want.g, want.b,
+			sent);
 	end
 end
 
@@ -276,11 +319,22 @@ local EXPORTS = {
 	"daynight_set_hour",
 };
 
--- The sky is left where it stopped, deliberately. Putting the `fog`
--- config back would be a guess at what the server wanted, and the next
--- map load repaints it from map_meta anyway (map_meta.lua:41-45), which
--- is the server's own answer rather than this module's.
+-- The clients this painted are put back to the server's own sky, which
+-- it can do exactly because it never touched the global: get_fog still
+-- holds whatever map_meta last set, so there is a right answer to
+-- return them to rather than a guess. Without this they would keep the
+-- last sky they were painted until the next map load.
 function mod.on_unload()
+	local fog = get_fog();
+
+	if (fog ~= nil) then
+		for pid in piditer(PID_BROADCAST) do
+			if (painted[pid] ~= nil) then
+				send_fog(pid, fog);
+			end
+		end
+	end
+
 	for _,name in ipairs(EXPORTS) do
 		_G[name] = nil;
 	end

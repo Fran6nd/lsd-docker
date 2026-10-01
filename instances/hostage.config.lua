@@ -181,6 +181,23 @@ ext_policy_default = "recommended"
 ext_policy = {}
 load "lib_ext_policy"
 
+-- aosprotocol's Daytime and Weather extension (id 0x33 v1, packet
+-- 0x73): the real day/night cycle. The server says the time and how
+-- fast time runs, and the CLIENT draws the sun, scales the world's
+-- lighting and darkens the fog itself -- so this is actual darkness,
+-- not a painted sky.
+--
+-- SPEED 0 STOPS THE CLOCK, pinned at daytime_start. 0 minutes is
+-- midnight, and midnight is complete darkness (the spec's daylight
+-- curve is zero from 6 PM to 6 AM). Which is the whole reason the
+-- flashlight above is here: a hostage rescue by torchlight. Set
+-- daytime_speed = 60 to let a 24-minute day run instead.
+--
+-- Clients that have not negotiated it fall back to lib_daynight below.
+daytime_speed = 0
+daytime_start = 0
+load "lib_daytime"
+
 -- A clock for the sky (scripts.local/). AoS has no sun and no light
 -- level, so a "time of day" is the fog colour -- the horizon and the
 -- sky, not the brightness of the blocks. Which is still plenty: the

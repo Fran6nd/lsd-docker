@@ -202,6 +202,24 @@ ext_policy_default = "recommended"
 ext_policy = {}
 load "lib_ext_policy"
 
+-- aosprotocol's Daytime and Weather extension (id 0x33 v1, packet
+-- 0x73): the real day/night cycle. The server says the time and how
+-- fast time runs, and the CLIENT draws the sun, scales the world's
+-- lighting and darkens the fog itself -- so this is actual darkness,
+-- not a painted sky.
+--
+-- SPEED 60 is game minutes per real minute, so a day every 24 real
+-- minutes: an in-game hour a minute. The spec's daylight curve is zero
+-- from 6 PM to 6 AM, so roughly half of each 24 minutes is properly
+-- dark -- which is when the flashlight above earns its keep. The Sky
+-- goes out again every 5 minutes (daytime_resync) so nobody's clock
+-- drifts away from everybody else's.
+--
+-- Clients that have not negotiated it fall back to lib_daynight below.
+daytime_speed = 60
+daytime_start = 0
+load "lib_daytime"
+
 -- A clock for the sky (scripts.local/). AoS has no sun and no light
 -- level, so a "time of day" is the fog colour -- the horizon and the
 -- sky, not the brightness of the blocks. Which is still plenty: the
