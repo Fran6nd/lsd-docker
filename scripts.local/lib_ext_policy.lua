@@ -169,21 +169,30 @@ getcfg("ext_policy_remind", 10);
 -- chat. 60 is often enough to be noticed and seldom enough not to be
 -- the only thing in the chat log.
 getcfg("ext_policy_warn_interval", 60);
--- Which chat type each kind of telling goes out as -- ONE per telling,
--- since these render as a transient alert and two in a row leaves only
--- the second. The numbers are the Message Types extension's
--- (lib_message_types): 3 big and centre-screen, 4 a notice, 5 a
--- warning, 6 an error, 2 the ordinary system line every client has
--- always had. Set either to 2 to stop alerting and use chat alone.
+-- THE ALERT SAYS ONE THING AND SAYS IT ONCE. The Message Types levels
+-- render as a transient alert with a single slot, so it is no place for
+-- detail: it cannot hold a list, it cannot be re-read, and a second one
+-- replaces the first -- which is how a two-line message loses its first
+-- line. What it is good for is the one sentence that makes a player
+-- look at the chat, so that is all it carries, the same sentence every
+-- time, whatever is missing and at whichever level.
 --
--- Spelled as numbers rather than as MSG_* because, like the levels
--- above, config.lua may want to change them and those constants do not
--- exist until lib_message_types loads. A client that has not
--- negotiated 193 sees all of these as the plain system line regardless,
--- so turning them down to 2 only changes what the clients that CAN be
--- loud do.
-getcfg("ext_policy_msg_required", 3);    -- MSG_BIG, centre-screen
-getcfg("ext_policy_msg_recommended", 5); -- MSG_WARNING
+-- Set ext_policy_alert false to drop it entirely and use chat alone.
+getcfg("ext_policy_alert", true);
+getcfg("ext_policy_alert_text",
+	"Your client is outdated, please update");
+getcfg("ext_policy_alert_type", 3); -- MSG_BIG, centre-screen
+-- And the chat type the periodic listing goes out as. 2 is the ordinary
+-- system line every client has always had, which is the one that
+-- reliably lands IN the chat log and stays there to be read -- the
+-- whole job of this half. The Message Types values are available (4 a
+-- notice, 5 a warning) if your clients render those as chat lines
+-- rather than as another banner, but 2 is the one that cannot surprise
+-- you.
+--
+-- Numbers, not MSG_*: those constants do not exist until
+-- lib_message_types loads, and config.lua runs first.
+getcfg("ext_policy_chat_type", 2); -- MSG_SYSTEM
 getcfg("ext_policy_debug", false);
 
 -- pid -> the team they asked for while undecided, put on hold
@@ -198,6 +207,8 @@ local pending_team = pid_connected_table();
 local told_at = pid_connected_table();
 -- pid -> when they connected, which is when the slow clock starts
 local since = pid_connected_table();
+-- pid -> has the one fixed alert gone out to them yet
+local alerted = pid_connected_table(false);
 -- pid -> when they first picked a team. A client that has joined has
 -- demonstrably processed the whole map and the version request that
 -- rides its tail, so its silence means something much sooner than a
@@ -317,24 +328,26 @@ end
 
 --============================= TELLING ===============================--
 
--- EXACTLY ONE of these per telling, and that is a hard rule rather than
--- a preference. The Message Types levels are rendered as a transient
--- alert -- a toast -- by the clients that implement them, and a toast
--- is one slot: send two in the same breath and the second replaces the
--- first, so a two-line message loses its first line entirely. Which is
--- the opposite of the problem this was meant to fix.
+-- The alert: one fixed sentence, once per player, and only to a client
+-- that can actually render it as an alert.
 --
--- Falls back to an ordinary system message for a client that has not
--- negotiated extension 193, and for an instance that has not loaded
--- lib_message_types at all.
-local function say_loud(pid, type, fmt, ...)
-	local text = string.format(fmt, ...);
-
-	if (msg_send ~= nil) then
-		msg_send(pid, type, text);
-	else
-		server_msg(pid, text);
+-- Deliberately NOT routed through msg_send's fallback. That fallback
+-- turns an alert into an ordinary chat line for a client that cannot
+-- render one -- which here would put a second, vaguer line directly
+-- above the specific one below it. Noise, for no gain: a client that
+-- cannot be alerted is told in chat, which it can read.
+local function alert_once(pid)
+	if (not ext_policy_alert or alerted[pid]) then
+		return;
 	end
+
+	if (msg_send == nil or msg_supported == nil
+	    or not msg_supported(pid)) then
+		return;
+	end
+
+	alerted[pid] = true;
+	msg_send(pid, ext_policy_alert_type, ext_policy_alert_text);
 end
 
 -- The chat channel, which is the other half of saying one thing loudly:
@@ -343,68 +356,40 @@ end
 -- compete with the toast -- different channel, different slot -- which
 -- is why the detail can be as long as it needs to be.
 local function say_chat(pid, fmt, ...)
-	server_msg(pid, string.format(fmt, ...));
-end
+	local text = string.format(fmt, ...);
 
--- A toast has about one line's worth of room and a player reads it in
--- the moment it appears, so naming five extensions in it says nothing.
--- Up to two by name, a count past that, and the full list goes to chat.
-local function brief(titles)
-	if (#titles <= 2) then
-		return table.concat(titles, " and ");
+	if (msg_send ~= nil and ext_policy_chat_type ~= 2) then
+		msg_send(pid, ext_policy_chat_type, text);
+	else
+		server_msg(pid, text);
 	end
-
-	return string.format("%d extensions", #titles);
 end
 
-local function list(titles)
-	return table.concat(titles, ", ");
-end
-
--- One clock for everything said to a player, read with two different
--- minimum gaps: ext_policy_remind when they just pressed the team menu
--- and are owed an answer promptly, ext_policy_warn_interval for the
--- nagging that happens on its own. Sharing the clock is what keeps the
--- two from talking over each other -- a player who was just told why
--- they cannot join does not also get the periodic version of it a
--- second later.
-local function may_tell(pid, min_gap)
-	local now = get_time();
-	local last = told_at[pid];
-
-	if (last ~= nil and now - last < min_gap) then
-		return false;
-	end
-
-	told_at[pid] = now;
-	return true;
-end
-
--- One alert, then the detail in chat. See say_loud for why it is one.
+-- The alert at most once; the list in chat, every time. The list is the
+-- half worth repeating and the half worth reading twice, so it is the
+-- half that recurs.
 local function tell_required(pid, missing, answered)
+	alert_once(pid);
+
 	if (not answered) then
 		-- Never answered the announcement at all, which is what an old
 		-- client looks like from here: it is not that it declined the
 		-- extension, it is that it never heard the question. Naming the
 		-- extensions would be beside the point.
-		say_loud(pid, ext_policy_msg_required,
-			"Your client is too old to play here");
 		say_chat(pid, "Your client never answered the extension handshake,"
 			.. " so it cannot leave spectator. Update it, or use"
 			.. " ZeroSpades.");
 		return;
 	end
 
-	say_loud(pid, ext_policy_msg_required,
-		"Update your client to play: missing %s", brief(missing));
-	say_chat(pid, "You cannot leave spectator without %s. Update your"
-		.. " client, then reconnect.", list(missing));
+	say_chat(pid, "Missing: %s. You cannot leave spectator without %s --"
+		.. " update your client, then reconnect.", list(missing),
+		#missing == 1 and "it" or "them");
 end
 
 local function tell_recommended(pid, missing)
-	say_loud(pid, ext_policy_msg_recommended,
-		"Your client is missing %s", brief(missing));
-	say_chat(pid, "Missing %s -- you can play, but you will not see"
+	alert_once(pid);
+	say_chat(pid, "Missing: %s. You can play, but you will not see"
 		.. " everything other players do.", list(missing));
 end
 
