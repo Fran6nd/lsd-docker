@@ -133,9 +133,17 @@ load "lib_ext"
 -- client this server may use the whole player id range, and that id 255
 -- is the server's and never a player -- which is the reservation the
 -- flashlight default beam below is addressed to. Announcing it does not
--- raise anything: the cap stays at the core's 32 until an instance sets
--- player_limit_max, and see the module header before it does.
+-- raise anything on its own: the cap is player_limit_max, below.
 -- (scripts.local/)
+--
+-- Wide open: 255 is every id the protocol has, handed out as 0-254 with
+-- 255 left to the server, which is the most the extension allows and
+-- the most a masterlist byte can carry. The risk is the one the module
+-- header spells out -- a pid is chosen when a client connects, before
+-- the extension handshake, so a client that keeps a 32-slot array can
+-- be handed pid 40 and do whatever it does about that. Drop this back
+-- to 32 if old clients start falling over.
+player_limit_max = 255
 load "lib_player_limit"
 
 -- aosprotocol's Teamplay extension (id 48 v1, packet 112): lets the

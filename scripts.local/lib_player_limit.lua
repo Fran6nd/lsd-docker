@@ -63,12 +63,21 @@ local mod = init_mod();
 local EXT_ID = 192;
 local EXT_VERSION = 1;
 
--- The most player ids this server will hand out. 32 is the core's own
+-- How many players this server will seat. 32 is the core's own
 -- DEFAULT_MAX_PLAYERS and the value every client copes with; anything
--- above it needs the paragraph above read first. Clamped to
--- MAX_PLAYERS, because 255 is the reserved id and not a slot, and to 1
--- at the bottom, since a server that can seat nobody is a typo rather
--- than a configuration.
+-- above it needs the paragraph above read first.
+--
+-- A COUNT, not a highest id, and the difference is the whole reason
+-- MAX_PLAYERS is the right ceiling rather than one less. assign_new_pid
+-- counts up to this and stops short of it (main.c:187-191), so a value
+-- of N hands out 0 to N-1 -- and MAX_PLAYERS, 255, hands out 0 to 254.
+-- That is 255 players with 255 itself never assigned, which is exactly
+-- what the extension promises: "up to 255 players, Player ID 255 is
+-- reserved for the server". Clamping to 254 would seat 254 and reserve
+-- two ids, keeping a promise nobody made.
+--
+-- Clamped at the bottom to 1 as well, since a server that can seat
+-- nobody is a typo rather than a configuration.
 getcfg("player_limit_max", 32);
 
 -- Hooked rather than left alone even at the default, so that the number
