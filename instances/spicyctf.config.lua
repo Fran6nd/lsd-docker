@@ -166,6 +166,15 @@ load "lib_ext"
 player_limit_max = 255
 load "lib_player_limit"
 
+-- aosprotocol's Message Types extension (id 193 v1, packetless): four
+-- more chat types on top of the base three -- big and centre-screen, a
+-- notice, a warning, an error -- so the server can say something a
+-- player actually notices instead of another grey line that scrolls
+-- away. Nothing sends one by itself; lib_ext_policy below uses them for
+-- its warnings. Clients that have not negotiated it get the ordinary
+-- system line, automatically. (scripts.local/)
+load "lib_message_types"
+
 -- What a MISSING extension costs a client (scripts.local/). Three
 -- levels: EXT_APPLIED is silent, EXT_RECOMMENDED tells the player once
 -- what they are missing, EXT_REQUIRED holds them in spectator until

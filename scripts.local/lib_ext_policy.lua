@@ -169,6 +169,21 @@ getcfg("ext_policy_remind", 10);
 -- chat. 60 is often enough to be noticed and seldom enough not to be
 -- the only thing in the chat log.
 getcfg("ext_policy_warn_interval", 60);
+-- Which chat type each kind of telling goes out as. The numbers are
+-- the Message Types extension's (lib_message_types): 3 big and
+-- centre-screen, 4 a notice, 5 a warning, 6 an error, 2 the ordinary
+-- system line every client has always had.
+--
+-- Spelled as numbers rather than as MSG_* because, like the levels
+-- above, config.lua may want to change them and those constants do not
+-- exist until lib_message_types loads. A client that has not
+-- negotiated 193 sees all of these as the plain system line regardless,
+-- so turning them down to 2 only changes what the clients that CAN be
+-- loud do.
+getcfg("ext_policy_msg_loud", 3);        -- MSG_BIG, the headline of a
+                                        -- lockout and nothing else
+getcfg("ext_policy_msg_required", 6);   -- MSG_ERROR
+getcfg("ext_policy_msg_recommended", 5);-- MSG_WARNING
 getcfg("ext_policy_debug", false);
 
 -- pid -> the team they asked for while undecided, put on hold
@@ -302,8 +317,22 @@ end
 
 --============================= TELLING ===============================--
 
-local function say(pid, fmt, ...)
-	server_msg(pid, string.format(fmt, ...));
+-- One line to one player, at whichever chat type the policy asks for.
+--
+-- Through lib_message_types when it is loaded, which is what gets the
+-- text out of the grey scroll and into a warning a player actually
+-- notices -- and which falls back to an ordinary system message by
+-- itself for any client that has not negotiated extension 193. So this
+-- never has to ask what the client can do; only whether the module is
+-- here at all, since an instance may not load it.
+local function say(pid, type, fmt, ...)
+	local text = string.format(fmt, ...);
+
+	if (msg_send ~= nil) then
+		msg_send(pid, type, text);
+	else
+		server_msg(pid, text);
+	end
 end
 
 local function list(titles)
@@ -329,29 +358,34 @@ local function may_tell(pid, min_gap)
 	return true;
 end
 
+-- A player who cannot play gets the headline across the middle of the
+-- screen and the detail as an error beneath it. Two types rather than
+-- one because they answer different questions -- "why am I stuck" wants
+-- to be unmissable, "what do I do about it" wants to be readable and
+-- still there a moment later.
 local function tell_required(pid, missing, answered)
 	if (not answered) then
 		-- Never answered the announcement at all, which is what an old
 		-- client looks like from here: it is not that it declined the
 		-- extension, it is that it never heard the question. Naming the
 		-- extensions would be beside the point.
-		say(pid, "Your client is too old for this server and cannot join.");
-		say(pid, "It never answered the extension handshake. Update it,"
-			.. " or use ZeroSpades.");
+		say(pid, ext_policy_msg_loud, "Your client is too old to play here");
+		say(pid, ext_policy_msg_required, "It never answered the extension"
+			.. " handshake. Update it, or use ZeroSpades.");
 		return;
 	end
 
-	say(pid, "You cannot join: your client is missing %s.",
-		list(missing));
-	say(pid, "Update your client -- ZeroSpades supports %s --"
-		.. " then reconnect.",
+	say(pid, ext_policy_msg_loud, "Missing: %s", list(missing));
+	say(pid, ext_policy_msg_required, "You cannot leave spectator without"
+		.. " %s. Update your client, then reconnect.",
 		#missing == 1 and "it" or "them");
 end
 
 local function tell_recommended(pid, missing)
-	say(pid, "Heads up: your client is missing %s.", list(missing));
-	say(pid, "You can play without %s, but you will not see"
-		.. " everything other players do.",
+	say(pid, ext_policy_msg_recommended, "Your client is missing %s.",
+		list(missing));
+	say(pid, ext_policy_msg_recommended, "You can play without %s, but you"
+		.. " will not see everything other players do.",
 		#missing == 1 and "it" or "them");
 end
 
