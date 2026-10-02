@@ -182,51 +182,26 @@ ext_policy = {}
 load "lib_ext_policy"
 
 -- aosprotocol's Daytime and Weather extension (id 0x33 v1, packet
--- 0x73): the real day/night cycle. The server says the time and how
--- fast time runs, and the CLIENT draws the sun, scales the world's
--- lighting and darkens the fog itself -- so this is actual darkness,
--- not a painted sky.
+-- 0x73): day or night, and in v1 that is the whole of it -- there is no
+-- clock, because moving the sun and its shadows is still too costly for
+-- clients to draw. The CLIENT does the dark, and by night it is FULL
+-- darkness: nothing lights the world and the sky is black.
 --
--- SPEED is game minutes per real minute, and a day lasts 1440/Speed of
--- them -- so 288 is a five-minute day, an in-game hour every 12.5
--- seconds. The same clock spicyctf runs, so the two servers tell the
--- same time.
+-- DAY. The world is drawn exactly as it is without the extension;
+-- set daytime_night = true for night. Escorting a hostage is hard
+-- enough without doing it blind.
 --
--- The spec's daylight curve holds 6 PM to 6 AM at a tenth of full
--- daylight, so about half of every five minutes is night: dim but
--- readable, and when the flashlight above earns its keep -- a hostage
--- rescue by torchlight, for two and a half minutes out of five rather
--- than for ever.
+-- A flashlight is then the ONLY light there is, and it burns as
+-- brightly as by day. Which is what makes the flashlight above the
+-- difference between playing and not, rather than decoration.
 --
--- Set daytime_speed = 0 to stop the clock at daytime_start instead;
--- 0 is midnight, 720 noon, 1050 a fixed dusk.
---
--- Clients that have not negotiated it fall back to lib_daynight below.
-daytime_speed = 288
-daytime_start = 0
+-- Clients that have not negotiated it get a black sky painted for them
+-- per client (daytime_fog_fallback), which is the most base 0.75 can
+-- say -- it cannot touch their lighting, so for them night is a black
+-- horizon over a fully lit world.
+daytime_night = false
 load "lib_daytime"
 
--- A clock for the sky (scripts.local/). AoS has no sun and no light
--- level, so a "time of day" is the fog colour -- the horizon and the
--- sky, not the brightness of the blocks. Which is still plenty: the
--- distance closes in and the world sits in a different colour.
---
--- ONE DAY EVERY 5 MINUTES here, matching lib_daytime's Speed above.
--- While lib_daytime is loaded this figure is only the fallback's own --
--- the hour itself comes from the extension's clock, so the two cannot
--- disagree -- but it is what the fallback would run on if lib_daytime
--- were ever unloaded, so it is kept in step.
---
--- Pinning this (daynight_fixed_hour) while lib_daytime runs is how the
--- two ends come apart: the clients that speak the extension would cycle
--- while the ones that do not sat in one hour for ever. If one is
--- pinned, pin both.
---
--- It paints per client and never touches the global fog, so each map's
--- own metadata stays the server's sky and the extension's clients scale
--- that themselves.
-daynight_minutes = 5
-load "lib_daynight"
 
 -- aosprotocol's Teamplay extension (id 48 v1, packet 112): lets the
 -- server outline a player on a teammate's screen, lets clients ping the
