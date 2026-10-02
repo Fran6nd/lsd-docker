@@ -34,10 +34,19 @@ services:
       # LSD_MAPS_DIR at instances/<name>.map/, and ./maps is only the
       # fallback for an instance created before maps were split.
       - ${LSD_CONFIG_FILE:-./templates/config.lua}:/lsd/config.lua:ro
-      # the settings file lib_settings reads, beside config.lua and read
-      # only: it is input. Settings are added to it host-side by
-      # `lsdctl <instance> settings --sync`, never by the server.
-      - ${LSD_SETTINGS_FILE:-./templates/settings}:/lsd/settings:ro
+      # The settings directory, read only: the settings file is input.
+      #
+      # The DIRECTORY and not the file, which matters more than it looks.
+      # A single-file bind mount is bound to that file's inode, and sed,
+      # vim and most editors save by writing a temp file and renaming it
+      # over the original -- a new inode. The container would go on
+      # reading the old one for ever, so an edit would never be seen and
+      # `settings reload` could never work. Mounting the directory
+      # follows the rename.
+      #
+      # The entrypoint links /lsd/settings to this instance's file
+      # inside it; see docker-entrypoint.sh.
+      - ./instances:/lsd/instances:ro
       # the map dir is writable: world_editor persists component layouts
       # to <map>.editor.json next to the .vxl it belongs to. Whatever the
       # host path, the container always sees it as /lsd/maps.

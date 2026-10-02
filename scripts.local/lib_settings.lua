@@ -556,9 +556,20 @@ function settings_reload()
 	local fresh = parse(text);
 	local changed = {};
 
+	-- Compared as text, not with ~=. A table parsed afresh is a new
+	-- table, so identity says every table-valued setting changed on
+	-- every reload -- ext_policy would be reported every time and the
+	-- report would be worthless.
+	local function same(a, b)
+		if (type(a) == "table" or type(b) == "table") then
+			return emit(a) == emit(b);
+		end
+		return a == b;
+	end
+
 	-- changed or newly set
 	for k,v in pairs(fresh) do
-		if (values[k] ~= v) then
+		if (not same(values[k], v)) then
 			changed[#changed+1] = k;
 		end
 		_G[k] = v;
