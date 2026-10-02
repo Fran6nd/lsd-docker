@@ -75,7 +75,7 @@ fog = {r=128, g=232, b=255}
 set_fog(fog);
 
 -- THE SETTINGS FILE, and it loads before everything because that is
--- the only order that works: it applies instances/hallway.settings to
+-- the only order that works: it applies instances/hallwayatnight.settings to
 -- the globals, and core.lua's getcfg then fills only what the file left
 -- alone. A value applied after a module has defaulted its global does
 -- nothing.
@@ -85,7 +85,7 @@ set_fog(fog);
 -- this instance's .env it is read by Lua, so a natively run
 -- `./server -c config.lua` sees the same settings as the container.
 --
--- Add settings to it with:  ./lsdctl hallway settings --sync
+-- Add settings to it with:  ./lsdctl hallwayatnight settings --sync
 load "lib_settings"
 
 -- Makes every module's config fields discoverable (scripts.local/).
@@ -167,7 +167,7 @@ load "lib_ext"
 
 -- Player Limit (id 192 v1, packetless): this server may use the whole
 -- player id range, and id 255 is the server's and never a player.
--- player_limit_max lives in instances/hallway.settings.
+-- player_limit_max lives in instances/hallwayatnight.settings.
 load "lib_player_limit"
 
 -- Message Types (id 193 v1, packetless): four more chat types on top of
@@ -194,7 +194,7 @@ load "lib_message_types"
 --
 -- Levels are names, not the EXT_* constants: those are globals the
 -- module creates when it loads, and this runs first.
--- The levels themselves live in instances/hallway.settings, under
+-- The levels themselves live in instances/hallwayatnight.settings, under
 -- ext_policy_default and ext_policy, where every registered extension
 -- is listed by name. Nothing is assigned here on purpose: config.lua
 -- runs AFTER lib_settings, so a literal here would silently replace
@@ -205,7 +205,7 @@ load "lib_ext_policy"
 -- v1 that is the whole of it. NIGHT here, permanently -- full darkness:
 -- nothing lights the world and the sky is black. It is the entire point
 -- of the server.
--- daytime_night lives in instances/hallway.settings. Not here: this
+-- daytime_night lives in instances/hallwayatnight.settings. Not here: this
 -- file runs after lib_settings and would override it.
 load "lib_daytime"
 

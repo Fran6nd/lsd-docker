@@ -1,10 +1,10 @@
-# instances/hallway.settings -- Fran6nd's Hallway At Night
+# instances/hallwayatnight.settings -- Fran6nd's Hallway At Night
 #
 # A real config: values and comments, no code. Read by lib_settings,
 # which config.lua loads first; every module then keeps whatever this
 # file set and defaults only what it left alone.
 #
-# Portable on purpose. Unlike instances/hallway.env this is read by Lua
+# Portable on purpose. Unlike instances/hallwayatnight.env this is read by Lua
 # rather than by docker, so a natively run `./server -c config.lua`
 # honours it too.
 #
