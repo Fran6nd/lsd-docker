@@ -37,6 +37,12 @@
 --   ext_each(fn)               fn(id, reg) over everything registered,
 --                                 reg being {name=, version=,
 --                                 ready=, title=}
+--   ext_disable(id) / ext_enable(id)
+--        stop or resume OFFERING an extension. The module stays
+--        loaded; the id is left out of the announcement, nobody can
+--        agree to it, and ext_supported answers no for everybody --
+--        including clients that agreed before it was disabled
+--   ext_is_disabled(id)        -> is it being withheld
 --   ext_announce(pid)          re-send the list to one client
 --
 -- VERSIONS ARE MATCHED, NOT NEGOTIATED. The spec says nothing about
@@ -76,6 +82,19 @@ getcfg("ext_min_patch", 3);
 -- ext_unregister keeps it honest as modules come and go.
 ext_registry = ext_registry or {};
 local registry = ext_registry;
+
+-- id -> true for an extension this server speaks but will not offer.
+-- Disabling is not unregistering: the module stays loaded and its code
+-- stays live, it is simply left out of the announcement, so no client
+-- can agree to it and every ext_supported about it answers no. That is
+-- what makes it switchable from a settings file -- unregistering would
+-- mean unloading a module.
+--
+-- A global for the same reason the registry is: it has to survive a
+-- reload of this module, or disabling something would quietly undo
+-- itself the next time lib_ext was loaded.
+ext_disabled = ext_disabled or {};
+local disabled = ext_disabled;
 -- pid -> {id -> version}. What the client said it speaks. Cleared on
 -- disconnect, because the next occupant of that slot has agreed to
 -- nothing -- ids are recycled and an inherited agreement is a client
@@ -96,7 +115,9 @@ local function build_list()
 	local ids = {};
 
 	for id in pairs(registry) do
-		ids[#ids+1] = id;
+		if (not disabled[id]) then
+			ids[#ids+1] = id;
+		end
 	end
 	table.sort(ids);
 
@@ -270,10 +291,54 @@ function ext_supported(pid, id)
 	local reg = registry[id];
 	local seen = agreed[pid];
 
+	-- A disabled extension is not supported by anybody, including a
+	-- client that agreed to it before it was disabled. Otherwise
+	-- disabling would only stop new clients using it and leave the ones
+	-- already here being sent packets the server has decided not to
+	-- speak.
+	if (disabled[id]) then
+		return nil;
+	end
+
 	if (reg == nil or seen == nil or seen[id] ~= reg.version) then
 		return nil;
 	end
 	return reg.version;
+end
+
+-- Stop offering an extension, or start again. Re-announces either way:
+-- the list every connected client was told is now wrong, and none of
+-- them will ask again on their own.
+local function set_disabled(id, off)
+	if (type(id) ~= "number") then
+		error("ext_disable/ext_enable: id must be a number", 3);
+	end
+
+	if ((disabled[id] and true or false) == off) then
+		return false; -- already so, and a re-announce would say nothing
+	end
+
+	disabled[id] = off or nil;
+
+	for i in piditer(PID_BROADCAST) do
+		if (announced[i]) then
+			ext_announce(i);
+		end
+	end
+
+	return true;
+end
+
+function ext_disable(id)
+	return set_disabled(id, true);
+end
+
+function ext_enable(id)
+	return set_disabled(id, false);
+end
+
+function ext_is_disabled(id)
+	return disabled[id] and true or false;
 end
 
 -- Has this client answered the announcement at all? ext_supported says
@@ -330,6 +395,9 @@ function mod.on_unload()
 	ext_register = nil;
 	ext_unregister = nil;
 	ext_supported = nil;
+	ext_disable = nil;
+	ext_enable = nil;
+	ext_is_disabled = nil;
 	ext_replied = nil;
 	ext_each = nil;
 	ext_announce = nil;

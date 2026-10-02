@@ -13,6 +13,13 @@
 --
 -- THREE LEVELS, and every extension has one:
 --
+--   EXT_DISABLED     not offered at all. The module stays loaded, but
+--                    the id is left out of the announcement, so no
+--                    client can agree to it and every ext_supported
+--                    about it answers no -- including for clients that
+--                    had already agreed. This is how you turn an
+--                    extension off from the settings file without
+--                    unloading its module.
 --   EXT_APPLIED      silent. The extension is announced and used by
 --                    whoever has it; a client without it is never told
 --                    and never hindered.
@@ -100,15 +107,22 @@
 --           whether it has answered yet. Empty list and answered=false
 --           means undecided
 --   ext_policy_ok(pid)       -> may this client leave spectator
+--   ext_policy_apply()       make lib_ext's offered list match the
+--                            policy, after editing ext_policy live
 --
 --   EXT_APPLIED / EXT_RECOMMENDED / EXT_REQUIRED
 local mod = init_mod();
 
+-- Below applied rather than above required, which is what -1 is saying:
+-- disabled is not a stricter policy, it is the absence of the extension
+-- from the conversation altogether.
+EXT_DISABLED = -1;
 EXT_APPLIED = 0;
 EXT_RECOMMENDED = 1;
 EXT_REQUIRED = 2;
 
 local LEVEL_NAME = {
+	[EXT_DISABLED] = "disabled",
 	[EXT_APPLIED] = "applied",
 	[EXT_RECOMMENDED] = "recommended",
 	[EXT_REQUIRED] = "required",
@@ -130,6 +144,7 @@ local LEVEL_NAME = {
 local CHAT_SYSTEM = 2;
 
 local LEVEL_BY_NAME = {
+	disabled = EXT_DISABLED,
 	applied = EXT_APPLIED,
 	recommended = EXT_RECOMMENDED,
 	required = EXT_REQUIRED,
@@ -545,6 +560,32 @@ end
 -- reason. config.lua may load this before or after the extensions it
 -- names, and which it is should not change what gets logged, let alone
 -- what gets enforced. By the first tick they have all registered.
+-- Make lib_ext's offered list match the policy. Disabling is an act,
+-- not a label: lib_ext has to be told, because it is the one that
+-- builds the announcement.
+--
+-- Called from the tick below once everything has registered, and
+-- exported so an operator who edits ext_policy live can re-apply it.
+function ext_policy_apply()
+	if (ext_disable == nil or ext_each == nil) then
+		return 0;
+	end
+
+	local changed = 0;
+
+	ext_each(function(id)
+		local want_off = level_of(id) == EXT_DISABLED;
+
+		if (want_off and ext_disable(id)) then
+			changed = changed + 1;
+		elseif (not want_off and ext_enable(id)) then
+			changed = changed + 1;
+		end
+	end);
+
+	return changed;
+end
+
 local audited = false;
 
 local function audit()
@@ -565,6 +606,28 @@ local function audit()
 	log("lib_ext_policy: default %s; %s",
 		LEVEL_NAME[resolve_level(ext_policy_default) or EXT_APPLIED],
 		#lines > 0 and table.concat(lines, ", ") or "nothing registered yet");
+
+	-- Every extension this server speaks should be named in ext_policy,
+	-- so the settings file is the whole picture rather than a list of
+	-- exceptions to a default nobody can see. An absent one still works
+	-- -- it takes ext_policy_default -- but it is invisible to whoever
+	-- is editing the file, which is the thing worth complaining about.
+	local absent = {};
+
+	for id,reg in pairs(known) do
+		if (ext_policy[id] == nil) then
+			absent[#absent+1] = string.format("0x%02x %s", id,
+				reg.title or reg.name);
+		end
+	end
+
+	if (#absent > 0) then
+		table.sort(absent);
+		log("lib_ext_policy: not named in ext_policy, so running at the"
+			.. " default (%s): %s", LEVEL_NAME[resolve_level(
+				ext_policy_default) or EXT_APPLIED],
+			table.concat(absent, ", "));
+	end
 
 	-- and the entries that name something nobody speaks
 	for id,level in pairs(ext_policy) do
@@ -597,6 +660,7 @@ function mod.after.tick()
 
 	if (not audited) then
 		audited = true;
+		ext_policy_apply();
 		audit();
 	end
 
@@ -712,7 +776,8 @@ end
 -- forgotten here outlives its own module, and goes on answering for it.
 local EXPORTS = {
 	"ext_policy_of", "ext_policy_missing", "ext_policy_ok",
-	"EXT_APPLIED", "EXT_RECOMMENDED", "EXT_REQUIRED",
+	"ext_policy_apply",
+	"EXT_DISABLED", "EXT_APPLIED", "EXT_RECOMMENDED", "EXT_REQUIRED",
 };
 
 function mod.on_unload()
