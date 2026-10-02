@@ -1,0 +1,5 @@
+# Shooting Range -- a flat plain, 512x512, surface at z=62.
+# Generated flat; nothing to see but your own shots landing.
+name = 'Shooting Range'
+author = 'Fran6nd'
+fog = (128, 232, 255)
