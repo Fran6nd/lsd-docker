@@ -78,7 +78,8 @@ local EXTENDED = {
 -- falling back to.
 local SERVER_FROM = 255;
 
-getcfg("message_types_debug", false);
+getcfg("message_types_debug", false,
+	"Log every typed message sent.");
 
 local function negotiated(pid)
 	return ext_supported ~= nil and ext_supported(pid, EXT_ID) ~= nil;

@@ -140,11 +140,18 @@ local CONE_MAX = 179;
 -- through by the largest of them keeps the hue and spends the whole
 -- range on it: (1.0, 0.7, 0.5) becomes (255, 178.5, 127.5), and the
 -- rounding is what the spec's own example says -- 255, 179, 128.
-getcfg("flashlight_reach", 60);
-getcfg("flashlight_cone", 90);
-getcfg("flashlight_red", 255);
-getcfg("flashlight_green", 179);
-getcfg("flashlight_blue", 128);
+getcfg("flashlight_reach", 60,
+	"Blocks at which the beam reaches zero. OpenSpades' own light "
+		.."uses 60.");
+getcfg("flashlight_cone", 90,
+	"Full angle of the beam in degrees, 0 to 179.");
+getcfg("flashlight_red", 255,
+	"Beam colour, red channel. 255/179/128 is OpenSpades' warm "
+		.."white.");
+getcfg("flashlight_green", 179,
+	"Beam colour, green channel.");
+getcfg("flashlight_blue", 128,
+	"Beam colour, blue channel.");
 -- Announce the beam above as the default config, so that every client
 -- draws the same light rather than falling back on whatever it would
 -- have used -- the spec does not say what an unconfigured light looks
@@ -152,22 +159,27 @@ getcfg("flashlight_blue", 128);
 -- reserved id covers every player at once, now and later; see
 -- DEFAULT_ID. Off means an unconfigured player's beam is the client's
 -- business until flashlight_config says otherwise.
-getcfg("flashlight_send_default", true);
+getcfg("flashlight_send_default", true,
+	"Announce the beam above as every player's default, so all "
+		.."clients draw the same light.");
 -- Relay a client's own request to switch its light. This is the F key
 -- working: OpenSpades toggles its flashlight locally, and under this
 -- extension a client asks instead and draws nothing until the server
 -- agrees. Off makes every light the server's to switch.
-getcfg("flashlight_allow_requests", true);
+getcfg("flashlight_allow_requests", true,
+	"Let a client switch its own light. This is the F key working.");
 -- Seconds between accepted requests from one player. A toggle is a
 -- keypress and a quarter second is far longer than anybody can press a
 -- key usefully, while still being short enough that an honest toggle
 -- never feels refused. Only a request that would actually change
 -- something is rated: asking for the state you are already in costs
 -- nothing and is not held against the next one.
-getcfg("flashlight_request_interval", 0.25);
+getcfg("flashlight_request_interval", 0.25,
+	"Seconds between accepted requests from one player.");
 -- Log every light switched and every request refused. Noisy; off
 -- unless you are asking why a client's light is not coming on.
-getcfg("flashlight_debug", false);
+getcfg("flashlight_debug", false,
+	"Log every light switched and every request refused.");
 -- (Which clients are new enough to be told about extensions at all is
 -- lib_ext's ext_min_major/minor/patch, since it is one announcement for
 -- every extension and cannot be per-module.)

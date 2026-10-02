@@ -95,7 +95,9 @@ local I32_MIN, I32_MAX = -2147483648, 2147483647;
 -- Hook damage_player/damage_player_directional and send a marker for
 -- every hit that lands. Off leaves the wire silent and the API below
 -- working, for a server that would rather decide each marker itself.
-getcfg("damage_markers_auto", true);
+getcfg("damage_markers_auto", true,
+	"Send a marker for every hit that lands. Off leaves the API "
+		.."working and the wire silent.");
 -- Whether damage a player did to themselves gets a marker: their own
 -- grenade, a fall (fall_damage.lua calls damage_player(i, dmg, 4, i)),
 -- drowning. The dealer and the taker are the same man, so the number
@@ -103,10 +105,13 @@ getcfg("damage_markers_auto", true);
 -- Harmless either way; on, because a number that appears when you hit
 -- the ground is information, and one that never appears is a client
 -- that looks broken.
-getcfg("damage_markers_self", true);
+getcfg("damage_markers_self", true,
+	"Show a marker for damage a player did to themselves: a fall, "
+		.."their own grenade.");
 -- Log every marker sent and every reason one wasn't. Noisy; off unless
 -- you are asking why a client is showing nothing.
-getcfg("damage_markers_debug", false);
+getcfg("damage_markers_debug", false,
+	"Log every marker sent and every one withheld.");
 -- (Which clients are new enough to be told about extensions at all is
 -- lib_ext's ext_min_major/minor/patch, since it is one announcement for
 -- every extension and cannot be per-module.)

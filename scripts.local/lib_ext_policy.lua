@@ -174,10 +174,14 @@ end
 --
 -- Set it to EXT_APPLIED for silence, or name individual extensions in
 -- ext_policy to take them out of whatever this says.
-getcfg("ext_policy_default", "recommended");
+getcfg("ext_policy_default", "recommended",
+	"Level for any extension not named in ext_policy: disabled, "
+		.."applied, recommended or required.");
 -- id -> level, for the extensions that are exceptions to the default
 -- above. Empty is the normal state. Set it in config.lua before loading.
-getcfg("ext_policy", {});
+getcfg("ext_policy", {},
+	"Per-extension levels, by protocol id. Every registered "
+		.."extension should be listed.");
 -- Seconds a client gets to answer the extension announcement before it
 -- is judged on the silence. It has to outlast a slow map download on a
 -- bad line, since the version request rides the end of the map transfer
@@ -185,17 +189,22 @@ getcfg("ext_policy", {});
 -- which is what calls demand_fingerprint (main.c:1204-1223) -- and the
 -- answer cannot come before the client has got through it. 30 is
 -- generous; the honest answers arrive in one round trip.
-getcfg("ext_policy_grace", 30);
+getcfg("ext_policy_grace", 30,
+	"Seconds a client gets to answer the extension handshake while "
+		.."still in limbo.");
 -- Seconds of silence that count as an answer once the client has
 -- joined a team, which proves it got through the map and the version
 -- request behind it. Much shorter than the figure above because the
 -- thing that one has to allow for -- a slow download -- has already
 -- happened. This is what a player standing in the game waiting to be
 -- told something actually waits.
-getcfg("ext_policy_grace_joined", 3);
+getcfg("ext_policy_grace_joined", 3,
+	"Seconds of silence that count as an answer once a client has "
+		.."picked a team.");
 -- Seconds between re-telling a player what they are missing, so that a
 -- client hammering the team menu is answered once rather than per press.
-getcfg("ext_policy_remind", 10);
+getcfg("ext_policy_remind", 10,
+	"Minimum seconds between two tellings to the same player.");
 -- Seconds between the unprompted re-tellings. A player missing
 -- something is told again on this interval for as long as it is still
 -- missing -- recommended or required alike, since a player who walked
@@ -203,7 +212,9 @@ getcfg("ext_policy_remind", 10);
 -- why, and one who was told at connect has long since lost it up the
 -- chat. 60 is often enough to be noticed and seldom enough not to be
 -- the only thing in the chat log.
-getcfg("ext_policy_warn_interval", 60);
+getcfg("ext_policy_warn_interval", 60,
+	"Seconds between unprompted re-tellings of what a client is "
+		.."missing.");
 -- THE ALERT IS FOR BEING LOCKED OUT, AND FOR NOTHING ELSE. It goes to
 -- a player held in spectator by a required extension, once, saying one
 -- fixed sentence. A recommended extension never raises it: that player
@@ -218,10 +229,14 @@ getcfg("ext_policy_warn_interval", 60);
 -- list is.
 --
 -- Set ext_policy_alert false to drop it entirely and use chat alone.
-getcfg("ext_policy_alert", true);
-getcfg("ext_policy_alert_text",
-	"Your client is outdated, please update");
-getcfg("ext_policy_alert_type", 3); -- MSG_BIG, centre-screen
+getcfg("ext_policy_alert", true,
+	"Raise a one-off alert when a client is held out. Only a "
+		.."lockout raises it.");
+getcfg("ext_policy_alert_text", "Your client is outdated, please update",
+	"The one sentence that alert carries.");
+getcfg("ext_policy_alert_type", 3,
+	"Message Types value for the alert: 3 big and centre-screen, 5 "
+		.."a warning, 6 an error. "); -- MSG_BIG, centre-screen
 -- And the chat type the periodic listing goes out as. 2 is the ordinary
 -- system line every client has always had, which is the one that
 -- reliably lands IN the chat log and stays there to be read -- the
@@ -232,8 +247,11 @@ getcfg("ext_policy_alert_type", 3); -- MSG_BIG, centre-screen
 --
 -- Numbers, not MSG_*: those constants do not exist until
 -- lib_message_types loads, and config.lua runs first.
-getcfg("ext_policy_chat_type", 2); -- MSG_SYSTEM
-getcfg("ext_policy_debug", false);
+getcfg("ext_policy_chat_type", 2,
+	"Chat type the periodic listing uses. 2 is the ordinary system "
+		.."line. "); -- MSG_SYSTEM
+getcfg("ext_policy_debug", false,
+	"Log every verdict and every telling.");
 
 -- pid -> the team they asked for while undecided, put on hold
 local pending_team = pid_connected_table();

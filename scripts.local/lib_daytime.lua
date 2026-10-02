@@ -97,20 +97,27 @@ local NIGHT_FOG = {r = 0, g = 0, b = 0};
 local NIGHT_LIGHT = 0;
 
 -- Night, or day. The whole configuration of this extension in v1.
-getcfg("daytime_night", false);
+getcfg("daytime_night", false,
+	"Night instead of day. By night nothing lights the world and "
+		.."the sky is black; only flashlights light it.");
 -- Seconds between unprompted re-sends of the Sky. There is no clock to
 -- drift in v1, so this is not the correction it was when Time was an
 -- hour -- it is belt and braces: eight bytes a client every five
 -- minutes against the chance that one somehow missed the Sky it is
 -- waiting for and is sitting there not drawing the world. 0 turns it
 -- off.
-getcfg("daytime_resync", 300);
+getcfg("daytime_resync", 300,
+	"Seconds between unprompted re-sends of the Sky. 0 turns it "
+		.."off.");
 -- Paint the fog for clients that have NOT negotiated the extension, so
 -- that night at least looks like night to them -- a black sky, which is
 -- the half of it the base protocol can express. Off leaves them the
 -- map's own sky. See the fallback below for what it cannot do.
-getcfg("daytime_fog_fallback", true);
-getcfg("daytime_debug", false);
+getcfg("daytime_fog_fallback", true,
+	"Paint a black sky for clients that cannot draw the night "
+		.."themselves.");
+getcfg("daytime_debug", false,
+	"Log every Sky sent and every client that negotiated.");
 
 local function negotiated(pid)
 	return ext_supported ~= nil and ext_supported(pid, EXT_ID) ~= nil;

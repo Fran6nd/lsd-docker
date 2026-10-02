@@ -78,7 +78,9 @@ local EXT_VERSION = 1;
 --
 -- Clamped at the bottom to 1 as well, since a server that can seat
 -- nobody is a typo rather than a configuration.
-getcfg("player_limit_max", 32);
+getcfg("player_limit_max", 32,
+	"How many players this server will seat, 1 to 255. 32 is the "
+		.."value every client copes with.");
 
 -- Hooked rather than left alone even at the default, so that the number
 -- has one home. An instance that sets player_limit_max gets it applied

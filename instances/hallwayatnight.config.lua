@@ -10,6 +10,20 @@
 --
 -- Pass -c on the command line to use a different config path.
 
+-- THE SETTINGS FILE, and it loads before everything because that is
+-- the only order that works: it applies instances/hallwayatnight.settings to
+-- the globals, and core.lua's getcfg then fills only what the file left
+-- alone. A value applied after a module has defaulted its global does
+-- nothing.
+--
+-- It is a real config -- values, comments, no code -- in the same
+-- `key = value` syntax LSd already scrapes out of map sidecars. Unlike
+-- this instance's .env it is read by Lua, so a natively run
+-- `./server -c config.lua` sees the same settings as the container.
+--
+-- Add settings to it with:  ./lsdctl hallwayatnight settings --sync
+load "lib_settings"
+
 -- The masterlist caps a name at 31 characters. The fallback is only for
 -- running the server by hand outside docker, where nothing sets the env.
 getcfg("masterlist_name", "LSd server",
@@ -74,19 +88,6 @@ set_max_score(10);
 fog = {r=128, g=232, b=255}
 set_fog(fog);
 
--- THE SETTINGS FILE, and it loads before everything because that is
--- the only order that works: it applies instances/hallwayatnight.settings to
--- the globals, and core.lua's getcfg then fills only what the file left
--- alone. A value applied after a module has defaulted its global does
--- nothing.
---
--- It is a real config -- values, comments, no code -- in the same
--- `key = value` syntax LSd already scrapes out of map sidecars. Unlike
--- this instance's .env it is read by Lua, so a natively run
--- `./server -c config.lua` sees the same settings as the container.
---
--- Add settings to it with:  ./lsdctl hallwayatnight settings --sync
-load "lib_settings"
 
 
 load "group_deps"
