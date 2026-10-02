@@ -22,14 +22,4 @@ case "${LSD_SCRIPTS_DEV:-1}" in
 *) [ ! -d scripts.dev ] || cp -R scripts.dev/. scripts/ ;;
 esac
 
-# lib_settings reads ./settings. The instances directory is mounted (see
-# docker-compose.yml for why the directory and not the file), so point a
-# link at this instance's file inside it. A symlink is resolved on every
-# open, so an edit that replaces the file is picked up by the next
-# `settings reload` rather than being invisible for the life of the
-# container.
-if [ -n "${LSD_SETTINGS_FILE:-}" ]; then
-	ln -sf "/lsd/instances/$(basename "${LSD_SETTINGS_FILE}")" settings
-fi
-
 exec ./server -c "${LSD_CONFIG}" -p "${LSD_PORT}" "$@"

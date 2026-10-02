@@ -81,11 +81,28 @@ local py = require "lib_pyscrape";
 -- the thing being fed: a setting naming the settings file would have to
 -- be read out of the file it names.
 --
--- The working directory, which is /lsd in the container and wherever
--- you ran it natively -- the same place LSd looks for config.lua when
--- -c says nothing else (main.c:60).
+-- Natively: the working directory, the same place LSd looks for
+-- config.lua when -c says nothing else (main.c:60).
+--
+-- In a container: the instances directory is mounted at
+-- /lsd/instances -- the directory and not the file, because a
+-- single-file bind mount is pinned to that file's inode and every
+-- editor that saves by rename would leave the server reading the old
+-- one -- so the file is found by name inside it.
+--
+-- LSD_SETTINGS_FILE is read for that name alone, and this is the one
+-- place an environment variable is still right: finding the config is
+-- not configuration. It is what -c does for config.lua. Natively there
+-- is no such variable and the fallback applies, so the file stays
+-- portable; what is in it is never read from the environment.
 if (settings_file == nil) then
-	settings_file = "settings";
+	local env = os.getenv and os.getenv("LSD_SETTINGS_FILE");
+
+	if (env ~= nil and env ~= "") then
+		settings_file = "instances/" .. string.gsub(env, "^.*/", "");
+	else
+		settings_file = "settings";
+	end
 end
 
 -- key -> {default=, source=, doc=, set=}. Every setting any loaded
