@@ -60,7 +60,19 @@
 --        it is what --sync writes into the file as a comment.
 --   settings_file                path read, set before loading this
 --   settings_loaded()      -> true if a file was found and parsed
---   settings_values()      -> {key = value} as parsed, for --sync
+--   settings_values()      -> {key = value} as parsed
+--   settings_fields()      -> every declared setting: key, default,
+--                             value, source module, doc, and whether
+--                             the file sets it
+--   settings_template()    -> the whole file, for every setting every
+--                             loaded module declares, grouped by
+--                             module, with their own descriptions.
+--                             Settings the file does not mention come
+--                             out commented at their default.
+--   settings_reload()      re-read the file and apply it live
+--   settings_listen(name, fn) / settings_unlisten(name)
+--        fn(changed) after a reload, for a module that has to
+--        re-announce what it already told clients
 --   settings_doc(key)      -> the doc string a module declared, or nil
 local mod = init_mod();
 local py = require "lib_pyscrape";
@@ -76,10 +88,20 @@ if (settings_file == nil) then
 	settings_file = "settings";
 end
 
--- key -> the doc string its module declared. Filled by the getcfg
--- wrapper as modules load, which is after this file has been read --
--- so it describes what CAN be set, while `values` below is what IS.
-local docs = {};
+-- key -> {default=, source=, doc=, set=}. Every setting any loaded
+-- module declared, filled by the getcfg wrapper as they load -- so this
+-- is what CAN be set, while `values` below is what IS.
+--
+-- ONE wrapper around getcfg, and that is not tidiness. There used to be
+-- two -- this module for the doc string, lib_config for the key and the
+-- default -- and the outer one took (key, default) and called the inner
+-- with (key, default). So every doc string in the server was silently
+-- dropped on the floor. Two wrappers on one function cannot be kept
+-- honest; one can.
+local fields = {};
+-- name -> fn, called after a reload so a module can re-announce
+-- whatever it had already told clients.
+local listeners = {};
 -- key -> value, exactly as parsed out of the file
 local values = {};
 local parsed = false;
@@ -330,17 +352,260 @@ end
 
 --============================== GETCFG ==============================--
 
--- core.lua's getcfg, wrapped for the third argument and nothing else.
--- The fill is still its: these are its semantics and a copy of them
--- here would be a second place for them to drift.
+-- Where the call came from, as the script that made it.
+--
+-- Level 3 counting from here: 1 is this function, 2 is the getcfg
+-- wrapper below, 3 is the module that called it. And NOT through
+-- pcall -- a pcall puts its own frame in between, every level shifts by
+-- one, and the answer comes back as this file instead of the caller's.
+-- getinfo returns nil for a level that does not exist rather than
+-- failing, so there is nothing to catch.
+local function caller_source()
+	local info = debug and debug.getinfo and debug.getinfo(3, "S");
+
+	if (info == nil or info.source == nil) then
+		return "?";
+	end
+
+	-- "@./scripts/lib_daytime.lua" -> "lib_daytime"
+	local src = string.gsub(info.source, "^@", "");
+	return (string.gsub(string.gsub(src, "^.*/", ""), "%.lua$", ""));
+end
+
+-- core.lua's getcfg, wrapped. The fill is still its -- these are its
+-- semantics and a copy of them here would be a second place for them to
+-- drift -- and everything else is bookkeeping.
 local core_getcfg = getcfg;
 
 function getcfg(key, default, doc)
-	if (type(key) == "string" and type(doc) == "string") then
-		docs[key] = doc;
+	if (type(key) == "string") then
+		-- Only true before the fill below runs: a global that is
+		-- already non-nil was set by the settings file or by config.lua,
+		-- because nothing else sets one this early. That one bit is the
+		-- difference between "you chose this" and "this is the default".
+		local already = _G[key] ~= nil;
+		local was = fields[key];
+
+		fields[key] = {
+			default = default,
+			source = caller_source(),
+			doc = type(doc) == "string" and doc
+				or (was ~= nil and was.doc or nil),
+			-- a key declared twice keeps the first reading, taken
+			-- before any default could have filled it
+			set = was ~= nil and was.set or already,
+		};
 	end
 
 	return core_getcfg(key, default);
+end
+
+--============================= TEMPLATE =============================--
+
+-- A value as this file's own syntax, which is the inverse of the parser
+-- above: whatever the template emits must read back as the same value.
+local function emit(v, depth)
+	depth = depth or 0;
+	local t = type(v);
+
+	if (t == "boolean") then return v and "True" or "False"; end
+	if (t == "number") then return tostring(v); end
+	if (t == "nil") then return "None"; end
+
+	if (t == "string") then
+		-- double quotes unless the text has one, so an apostrophe in a
+		-- server name needs no escaping -- which is as well, since this
+		-- format has no escapes
+		if (string.find(v, '"') == nil) then
+			return '"' .. v .. '"';
+		end
+		return "'" .. string.gsub(v, "'", "") .. "'";
+	end
+
+	if (t == "table" and depth < 2) then
+		local arr = {};
+		for _,x in ipairs(v) do
+			arr[#arr+1] = emit(x, depth+1);
+		end
+
+		-- r/g/b is a tuple, which is how a fog reads in a map sidecar
+		if (#arr == 0 and v.r and v.g and v.b) then
+			return string.format("(%d, %d, %d)", v.r, v.g, v.b);
+		end
+
+		local keys = {};
+		for k in pairs(v) do
+			if (type(k) ~= "number" or k < 1 or k > #arr or k % 1 ~= 0) then
+				keys[#keys+1] = k;
+			end
+		end
+
+		if (#keys == 0) then
+			return "[" .. table.concat(arr, ", ") .. "]";
+		end
+
+		table.sort(keys, function(a, b)
+			return tostring(a) < tostring(b);
+		end);
+
+		local pairs_out = {};
+		for _,k in ipairs(keys) do
+			pairs_out[#pairs_out+1] = emit(k, depth+1) .. ": "
+				.. emit(v[k], depth+1);
+		end
+
+		return "{" .. table.concat(pairs_out, ", ") .. "}";
+	end
+
+	-- a function, or something nested deeper than this format goes.
+	-- Named rather than emitted, so the template says why it is absent.
+	return nil;
+end
+
+-- The whole file, for every setting every loaded module declared,
+-- grouped by the module that declared it.
+--
+-- This is the point of watching getcfg at all: drop a script into
+-- scripts.local/, start the server, and its settings are here with its
+-- own descriptions, without the script registering anything or anyone
+-- editing a list. A setting already in the file keeps its current
+-- value; one that is not is written commented out, at its default, so
+-- uncommenting is the whole act of setting it.
+--
+-- Returned as a list of lines, because the console carries lines.
+function settings_template()
+	local by_source, sources = {}, {};
+
+	for key,f in pairs(fields) do
+		local src = f.source or "?";
+
+		if (by_source[src] == nil) then
+			by_source[src] = {};
+			sources[#sources+1] = src;
+		end
+
+		by_source[src][#by_source[src]+1] = key;
+	end
+
+	table.sort(sources);
+
+	local out = {};
+	local function add(fmt, ...)
+		out[#out+1] = select("#", ...) > 0 and string.format(fmt, ...)
+			or fmt;
+	end
+
+	for _,src in ipairs(sources) do
+		local keys = by_source[src];
+		table.sort(keys);
+
+		add("");
+		add("# ---- %s ----", src);
+
+		for _,key in ipairs(keys) do
+			local f = fields[key];
+			local v = _G[key];
+			if (v == nil) then v = f.default; end
+
+			local text = emit(v);
+
+			add("");
+			if (f.doc ~= nil) then
+				add("# %s", f.doc);
+			end
+
+			if (text == nil) then
+				add("# %s is a %s: it has no form in this file and stays"
+					.. " in config.lua.", key, type(v));
+			elseif (values[key] ~= nil) then
+				add("%s = %s", key, text);
+			else
+				add("# %s = %s", key, text);
+			end
+		end
+	end
+
+	return out;
+end
+
+--============================== RELOAD ==============================--
+
+-- Re-read the file and apply it, without restarting.
+--
+-- WHAT THIS CAN AND CANNOT DO, because the difference matters. A
+-- setting read every time it is used -- daytime_night, ext_policy,
+-- flashlight_reach -- changes behaviour the moment this returns. One
+-- consumed once, while its module was loading, does not: masterlist_name
+-- was already handed to the masterlist, and `gamemode` already decided
+-- which module to load. Those need that module reloaded, or a restart.
+--
+-- So this reports what changed rather than claiming to have applied it,
+-- and modules that have already told clients something re-announce it
+-- through a listener.
+function settings_reload()
+	local f = io.open(settings_file, "r");
+
+	if (f == nil) then
+		log("lib_settings: no %s to reload", settings_file);
+		return 0;
+	end
+
+	local text = f:read("*a");
+	f:close();
+
+	local fresh = parse(text);
+	local changed = {};
+
+	-- changed or newly set
+	for k,v in pairs(fresh) do
+		if (values[k] ~= v) then
+			changed[#changed+1] = k;
+		end
+		_G[k] = v;
+	end
+
+	-- removed from the file: back to the default its module declared,
+	-- which is what the file no longer mentioning it has to mean
+	for k in pairs(values) do
+		if (fresh[k] == nil) then
+			changed[#changed+1] = k;
+			_G[k] = fields[k] ~= nil and fields[k].default or nil;
+		end
+	end
+
+	values = fresh;
+	parsed = true;
+
+	table.sort(changed);
+	log("lib_settings: reloaded %s, %d changed%s", settings_file,
+		#changed,
+		#changed > 0 and ": " .. table.concat(changed, ", ") or "");
+
+	for name,fn in pairs(listeners) do
+		local ok, err = pcall(fn, changed);
+
+		if (not ok) then
+			listeners[name] = nil;
+			log("lib_settings: %s crashed on reload, dropped: %s",
+				name, tostring(err));
+		end
+	end
+
+	return #changed;
+end
+
+-- Called as fn(changed) after a reload, `changed` being the list of
+-- keys. For a module that has already told clients something and needs
+-- to say it again -- lib_daytime's Sky, lib_ext_policy's offered list.
+function settings_listen(name, fn)
+	if (type(name) ~= "string" or type(fn) ~= "function") then
+		error("settings_listen: name and fn required", 2);
+	end
+	listeners[name] = fn;
+end
+
+function settings_unlisten(name)
+	listeners[name] = nil;
 end
 
 --=============================== API ================================--
@@ -360,30 +625,81 @@ function settings_values()
 end
 
 function settings_doc(key)
-	return docs[key];
+	return fields[key] ~= nil and fields[key].doc or nil;
 end
+
+-- Every declared setting, sorted. The shape lib_config used to return,
+-- because lsdctl's `config` subcommand reads it.
+function settings_fields()
+	local keys = {};
+
+	for k in pairs(fields) do
+		keys[#keys+1] = k;
+	end
+	table.sort(keys);
+
+	local out = {};
+	for _,k in ipairs(keys) do
+		local f = fields[k];
+
+		out[#out+1] = {
+			key = k,
+			default = f.default,
+			value = _G[k],
+			source = f.source,
+			doc = f.doc,
+			set = values[k] ~= nil or f.set,
+		};
+	end
+
+	return out;
+end
+
+-- lib_config's names, kept so that `lsdctl <instance> config` and
+-- anything else built on them keeps working now that this module is the
+-- single getcfg observer. It is the same registry either way.
+config_fields = settings_fields;
 
 -- Logged for lsdctl to read back over the console, the same way
 -- config_dump is: one line per declared setting, with whether this file
 -- sets it and what its module says it is for. --sync turns the ones
 -- marked `unset` into commented lines in the file.
-function settings_dump()
-	local keys = {};
+-- Logged for lsdctl to read back over the console. One line per
+-- setting, with a stable prefix so it can be grepped out of whatever
+-- else the server is saying.
+function settings_dump(pattern, opts)
+	opts = opts or {};
 
-	for k in pairs(docs) do
-		keys[#keys+1] = k;
+	local shown = 0;
+
+	for _,f in ipairs(settings_fields()) do
+		local hit = pattern == nil or pattern == ""
+			or string.find(f.key, pattern) ~= nil
+			or string.find(f.source, pattern) ~= nil;
+
+		if (hit and not (opts.new_only and f.set)) then
+			shown = shown + 1;
+			log("CFG| %-28s %-20s %-8s %s", f.key, f.source,
+				f.set and "set" or "default",
+				tostring(emit(f.value) or type(f.value)));
+		end
 	end
-	table.sort(keys);
 
-	for _,k in ipairs(keys) do
-		log("SET| %s\t%s\t%s", k,
-			values[k] ~= nil and "file" or "unset",
-			docs[k]);
-	end
-
-	log("SET-END %d documented, %d in %s", #keys,
+	log("CFG-END %d shown, %d declared, %d in %s", shown,
+		#settings_fields(),
 		(function() local n = 0 for _ in pairs(values) do n = n + 1 end
 			return n end)(), settings_file);
+end
+
+config_dump = settings_dump;
+
+-- The template, line by line, for lsdctl to write out.
+function settings_dump_template()
+	for _,line in ipairs(settings_template()) do
+		log("TPL|%s", line);
+	end
+
+	log("TPL-END %d declared", #settings_fields());
 end
 
 --============================ LIFECYCLE =============================--
@@ -412,7 +728,11 @@ end
 
 local EXPORTS = {
 	"settings_loaded", "settings_values", "settings_doc",
-	"settings_dump",
+	"settings_fields", "settings_template", "settings_reload",
+	"settings_listen", "settings_unlisten",
+	"settings_dump", "settings_dump_template",
+	-- lib_config's names, which this module now answers for
+	"config_fields", "config_dump",
 };
 
 function mod.on_unload()

@@ -764,6 +764,18 @@ function mod.on_load()
 	end
 end
 
+
+-- Settings can be reloaded without restarting (lib_settings), and the
+-- policy decides what lib_ext offers. So reconcile again when the file
+-- changes, or a reload would move a level in ext_policy and leave the
+-- announcement built from the old one.
+if (settings_listen ~= nil) then
+	settings_listen("lib_ext_policy", function()
+		if (ext_policy_apply ~= nil) then
+			ext_policy_apply();
+		end
+	end);
+end
 -- Everything this module put in the global table, taken back out again.
 --
 -- Unloading a module does not undo its globals -- the functions keep

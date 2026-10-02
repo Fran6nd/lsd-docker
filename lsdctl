@@ -59,6 +59,11 @@ per-instance (first arg is the instance name)
                       whether your config sets it or it is the default.
                       --new shows only what you are not setting; --lua
                       prints pasteable lines. Printed, never written.
+  settings            what the loaded modules support, from this
+                      instance's .settings file
+  settings --template the whole file for every setting every loaded
+                      module declares, with their own descriptions
+  settings reload     re-read the .settings file and apply it live
   console             attach to the in-game admin console (Ctrl-C to leave)
   shell               open a shell inside the container
 
@@ -91,7 +96,7 @@ EOF
 # the per-instance subcommands -- the set that also gets an All twin
 is_instance_command() {
 	case "$1" in
-	up|down|restart|reload|status|logs|console|shell|load|unload|lsmod|edit|map|gamemode|set|dev|masterlist|config) return 0 ;;
+	up|down|restart|reload|status|logs|console|shell|load|unload|lsmod|edit|map|gamemode|set|dev|masterlist|config|settings) return 0 ;;
 	*) return 1 ;;
 	esac
 }
@@ -429,6 +434,40 @@ module_layer() {
 dispatch() {
 	sub=$1; shift
 	case "$sub" in
+	settings)
+		# The declarative settings file: what the loaded modules support,
+		# the template of all of it, or a live reload. Printed and
+		# reloaded, never written by the server -- see
+		# scripts.local/lib_settings.lua.
+		sf=$(settingsf_for "$INSTANCE")
+		case "${1:-}" in
+		reload)
+			{ printf 'exec if settings_reload == nil then log("SET-NOLIB") else settings_reload() end\n'
+			  sleep 2; } | console_pipe 2>/dev/null | grep -v '@console' \
+			| sed -n 's/.*\(lib_settings: .*\)/\1/p'
+			;;
+		--template)
+			out=$({ printf 'exec if settings_dump_template == nil then log("TPL-NOLIB") else settings_dump_template() end\n'
+				sleep 3; } | console_pipe 2>/dev/null | grep -v '@console' || true)
+			if printf '%s' "$out" | grep -q TPL-NOLIB; then
+				echo "error: lib_settings is not loaded on $INSTANCE" >&2; exit 1
+			fi
+			printf '%s\n' "$out" | sed -n 's/.*TPL|//p'
+			;;
+		"")
+			echo "# $sf"
+			printf '%-28s %-20s %-8s %s\n' KEY MODULE SOURCE VALUE
+			out=$({ printf 'exec if settings_dump == nil then log("CFG-NOLIB") else settings_dump(nil, {}) end\n'
+				sleep 3; } | console_pipe 2>/dev/null | grep -v '@console' || true)
+			printf '%s\n' "$out" | sed -n 's/.*CFG| //p'
+			printf '%s\n' "$out" | sed -n 's/.*\(CFG-END .*\)/-- \1/p'
+			;;
+		*)
+			echo "usage: lsdctl $INSTANCE settings [reload|--template]" >&2
+			exit 1
+			;;
+		esac
+		;;
 	config)
 		# Ask the running server what its loaded modules can be
 		# configured with. lib_config watches getcfg, so this covers any

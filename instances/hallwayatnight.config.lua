@@ -88,17 +88,6 @@ set_fog(fog);
 -- Add settings to it with:  ./lsdctl hallwayatnight settings --sync
 load "lib_settings"
 
--- Makes every module's config fields discoverable (scripts.local/).
--- It wraps core.lua's getcfg, which every module already uses to
--- declare a setting, so dropping a new script into scripts.local/ is
--- all it takes for its knobs to show up in:
---
---   ./lsdctl <instance> config [pattern] [--new] [--lua]
---
--- FIRST, before anything else is loaded: a field is recorded when its
--- getcfg runs, and this cannot see into the past. It never writes this
--- file -- it prints, you edit.
-load "lib_config"
 
 load "group_deps"
 load "group_commands"

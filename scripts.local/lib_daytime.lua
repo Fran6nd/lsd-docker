@@ -321,6 +321,16 @@ function mod.on_load()
 		"Daytime and Weather");
 end
 
+
+-- Settings can be reloaded without restarting (lib_settings), and this
+-- module has already told every client what the sky is. So say it again
+-- when the file changes, or a reload would move the setting and leave
+-- the clients on the old one.
+if (settings_listen ~= nil) then
+	settings_listen("lib_daytime", function()
+		daytime_announce();
+	end);
+end
 -- Everything this module put in the global table, taken back out again.
 --
 -- Unloading a module does not undo its globals -- the functions keep
