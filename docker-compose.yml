@@ -27,6 +27,13 @@ services:
       LSD_SCRIPTS_DEV: ${LSD_SCRIPTS_DEV:-1}
       # 0 keeps the server off the public server lists (lsdctl masterlist)
       LSD_MASTERLIST: ${LSD_MASTERLIST:-1}
+      # Which file in the mounted instances/ directory is this server's
+      # settings. Declared HERE and not only in the .env, because an
+      # .env only feeds interpolation in this file -- a variable reaches
+      # the container solely by being listed in this block, and without
+      # that the entrypoint links nothing and every setting silently
+      # falls back to its module default.
+      LSD_SETTINGS_FILE: ${LSD_SETTINGS_FILE:-}
     ports:
       - "${LSD_PORT:-32887}:${LSD_PORT:-32887}/udp"
     volumes:
