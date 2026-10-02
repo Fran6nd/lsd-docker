@@ -1,5 +1,89 @@
-# Settings template. An instance's own file is instances/<name>.settings
-# and lsdctl points LSD_SETTINGS_FILE at it; this is the fallback so a
-# container always has something to mount.
+# instances/@NAME@.settings -- everything this server is
 #
-# Fill it with:   ./lsdctl <instance> settings --sync
+# A real config: values and comments, no code. Read by lib_settings,
+# which ./config.lua loads first; every module then keeps whatever this
+# file set and defaults only what it left alone.
+#
+# Read by Lua rather than by docker, so a natively run
+# `./server -c config.lua` honours it too.
+#
+# Syntax is the one LSd already reads out of map sidecars:
+#   name = 'text'        name = "text with an apostrophe's"
+#   flag = True          flag = False
+#   number = 300         hex = 0x33
+#   tuple = (128, 232, 255)   list = ['a', 'b']   map = {key: value}
+# Anything after an unquoted # or ; is a comment.
+#
+# Everything the loaded modules support:
+#   ./lsdctl @NAME@ settings --template
+# Apply an edit without restarting:
+#   ./lsdctl @NAME@ settings reload
+
+# Server name shown in the server lists.
+masterlist_name = "@NAME@"
+
+# Announce this server to the public server lists.
+masterlist_enabled = True
+
+# Which gamemode runs: arena, babel, ctf, ffa, hostage.
+gamemode = 'ctf'
+
+# Maps to play, space separated, in order. Empty plays every .vxl in
+# this instance's map folder.
+# map_rotation = None
+
+# What a MISSING protocol extension costs a client:
+#   'disabled'     not offered at all
+#   'applied'      offered and used, silently
+#   'recommended'  the client is told what it is missing
+#   'required'     the client is held in spectator until it updates
+ext_policy_default = 'recommended'
+ext_policy = {
+	0x20: 'recommended',   # Damage Markers
+	0x32: 'recommended',   # Flashlight
+	0x33: 'recommended',   # Daytime and Weather
+	  48: 'recommended',   # Teamplay
+	 192: 'recommended',   # Player Limit
+	 193: 'recommended',   # Message Types
+}
+
+# Message of the day, shown on join. A list of lines.
+motd = [
+	"Welcome to @NAME@, running [LSd].",
+]
+
+# Everything this server loads, in order -- and the order is not a
+# preference, it is a set of constraints. lib_ext must precede the
+# extensions that register with it; the gamemode must precede tentspawns
+# and lib_bot; a rider like hostage must follow lib_bot.
+#
+# Two entries are positions rather than modules:
+#   @gamemode        the base mode, from `gamemode` above
+#   @gamemode_extra  its rider, if the mode has one (hostage on ctf)
+#
+# `masterlist` is loaded only when masterlist_enabled is true.
+modules = [
+	'group_deps',
+	'group_commands',
+	'group_moderation',
+	'group_feature',
+	'masterlist',
+	'sock_console',
+	'trashheap',
+	'motd',
+	'tip_spam',
+	'lib_ext',
+	'lib_player_limit',
+	'lib_message_types',
+	'lib_ext_policy',
+	'lib_daytime',
+	'lib_flashlight',
+	'lib_teamplay',
+	'lib_damage_markers',
+	'votekick',
+	'group_world_editor',
+	'@gamemode',
+	'tentspawns',
+	'lib_bot',
+	'@gamemode_extra',
+]

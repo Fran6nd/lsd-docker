@@ -66,3 +66,55 @@ ext_policy = {
 	   192: 'recommended',  # Player Limit
 	   193: 'recommended',  # Message Types
 }
+
+# Message of the day, shown on join. A list of lines.
+motd = [
+	"This server runs [LSd] from [totally not a burner].",
+	"It is meant to test this server and have fun.",
+	"I recommend using ZeroSpades as client.",
+]
+
+# Tips shown in rotation.
+tips = [
+	"Tip: use smg to avoid injuring the hostage.",
+	"Use /kill to die.",
+	"This is not Build and Shoot. This is ACE OF SPADES.",
+]
+
+# Everything this server loads, in order -- and the order is not a
+# preference, it is a set of constraints. lib_ext must precede the
+# extensions that register with it; the gamemode must precede tentspawns
+# and lib_bot; a rider like hostage must follow lib_bot so lib_bot's own
+# spawn_at stays outermost.
+#
+# Two entries are positions rather than modules:
+#   @gamemode        the base mode, from `gamemode` above
+#   @gamemode_extra  its rider, if the mode has one (hostage on ctf)
+#
+# `masterlist` is loaded only when masterlist_enabled is true.
+modules = [
+	'group_deps',
+	'group_commands',
+	'group_moderation',
+	'group_feature',
+	'masterlist',
+	'sock_console',
+	'trashheap',
+	'motd',
+	'tip_spam',
+	'lib_ext',
+	'lib_player_limit',
+	'lib_message_types',
+	'lib_ext_policy',
+	'lib_daytime',
+	'lib_flashlight',
+	'lib_teamplay',
+	'lib_damage_markers',
+	'esp_demo',
+	'votekick',
+	'@gamemode',
+	'tentspawns',
+	'lib_bot',
+	'@gamemode_extra',
+	'world_editor',
+]

@@ -1,7 +1,7 @@
 # LSD server (lsd-dev.fran6nd.online). Multi-instance: this one file is
 # reused for every instance via `docker compose -p lsd-<name>
 # --env-file instances/<name>.env` (see lsdctl). Each instance mounts
-# its own config.lua and owns a private rw volume; ports must differ.
+# the one shared config.lua and owns a private rw volume; ports differ.
 #
 # The defaults below keep a bare `docker compose up` working as a single
 # instance on 32887, so nothing breaks outside lsdctl.
@@ -16,22 +16,14 @@ services:
       # the instance config is always mounted at /lsd/config.lua below,
       # so the server always loads it under this fixed in-container path
       LSD_CONFIG: config.lua
-      LSD_NAME: ${LSD_NAME:-untitled LSd server}
-      LSD_GAMEMODE: ${LSD_GAMEMODE:-ctf}
-      # no default: unset means "rotate whatever is in the map folder",
-      # which the instance config resolves by listing it (see
-      # templates/config.lua). A default here would silently pin a queue.
-      LSD_MAPS: ${LSD_MAPS:-}
       # overlay the in-development scripts.dev/ layer on top of the
       # released scripts.local/ one (0 to run released scripts only)
       LSD_SCRIPTS_DEV: ${LSD_SCRIPTS_DEV:-1}
-      # 0 keeps the server off the public server lists (lsdctl masterlist)
-      LSD_MASTERLIST: ${LSD_MASTERLIST:-1}
       # Which file in the mounted instances/ directory is this server's
       # settings. Declared HERE and not only in the .env, because an
       # .env only feeds interpolation in this file -- a variable reaches
       # the container solely by being listed in this block, and without
-      # that the entrypoint links nothing and every setting silently
+      # that lib_settings finds no file and every setting silently
       # falls back to its module default.
       LSD_SETTINGS_FILE: ${LSD_SETTINGS_FILE:-}
     ports:
@@ -40,7 +32,7 @@ services:
       # per-instance config. Maps are per-instance too: lsdctl points
       # LSD_MAPS_DIR at instances/<name>.map/, and ./maps is only the
       # fallback for an instance created before maps were split.
-      - ${LSD_CONFIG_FILE:-./templates/config.lua}:/lsd/config.lua:ro
+      - ${LSD_CONFIG_FILE:-./config.lua}:/lsd/config.lua:ro
       # The settings directory, read only: the settings file is input.
       #
       # The DIRECTORY and not the file, which matters more than it looks.
@@ -51,8 +43,8 @@ services:
       # `settings reload` could never work. Mounting the directory
       # follows the rename.
       #
-      # The entrypoint links /lsd/settings to this instance's file
-      # inside it; see docker-entrypoint.sh.
+      # lib_settings finds this instance's file by name inside it,
+      # from LSD_SETTINGS_FILE; nothing is written or linked.
       - ./instances:/lsd/instances:ro
       # the map dir is writable: world_editor persists component layouts
       # to <map>.editor.json next to the .vxl it belongs to. Whatever the

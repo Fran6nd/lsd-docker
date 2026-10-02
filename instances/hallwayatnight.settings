@@ -68,3 +68,54 @@ ext_policy = {
 	 192: 'recommended',   # Player Limit -- the full player id range
 	 193: 'recommended',   # Message Types -- warnings and notices
 }
+
+# Message of the day, shown on join. A list of lines.
+motd = [
+	"Welcome to Fran6nd's Hallway At Night, running [LSd].",
+	"It is night here, and it does not get light. Press F for your torch.",
+	"Your client must support the Flashlight and Daytime extensions.",
+]
+
+# Tips shown in rotation.
+tips = [
+	"Press F for your flashlight. It is the only light there is.",
+	"Ping what you cannot describe: your team sees the marker.",
+	"Use /kill to die.",
+]
+
+# Everything this server loads, in order -- and the order is not a
+# preference, it is a set of constraints. lib_ext must precede the
+# extensions that register with it; the gamemode must precede tentspawns
+# and lib_bot; a rider like hostage must follow lib_bot so lib_bot's own
+# spawn_at stays outermost.
+#
+# Two entries are positions rather than modules:
+#   @gamemode        the base mode, from `gamemode` above
+#   @gamemode_extra  its rider, if the mode has one (hostage on ctf)
+#
+# `masterlist` is loaded only when masterlist_enabled is true.
+modules = [
+	'group_deps',
+	'group_commands',
+	'group_moderation',
+	'group_feature',
+	'masterlist',
+	'sock_console',
+	'trashheap',
+	'motd',
+	'tip_spam',
+	'lib_ext',
+	'lib_player_limit',
+	'lib_message_types',
+	'lib_ext_policy',
+	'lib_daytime',
+	'lib_flashlight',
+	'lib_teamplay',
+	'lib_damage_markers',
+	'votekick',
+	'group_world_editor',
+	'@gamemode',
+	'tentspawns',
+	'lib_bot',
+	'@gamemode_extra',
+]
