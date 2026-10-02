@@ -62,13 +62,30 @@ getcfg("ext_min_major", 0);
 getcfg("ext_min_minor", 1);
 getcfg("ext_min_patch", 3);
 
--- id -> {name=, version=, ready=}. What this server speaks.
-local registry = {};
+-- id -> {name=, version=, ready=, title=}. What this server speaks.
+--
+-- Kept in a global, and that is deliberate rather than sloppy: a module
+-- local would be a fresh empty table every time THIS module reloaded,
+-- and every extension already loaded would silently stop being
+-- announced -- they registered once, at their own load, and nothing
+-- would ever ask them again. So `lsdctl load lib_ext` would quietly
+-- strip the server of every extension but the ones reloaded after it.
+--
+-- Surviving the reload is what makes lib_ext safe to reload on its own,
+-- which is the whole point of centralising the negotiation here.
+-- ext_unregister keeps it honest as modules come and go.
+ext_registry = ext_registry or {};
+local registry = ext_registry;
 -- pid -> {id -> version}. What the client said it speaks. Cleared on
 -- disconnect, because the next occupant of that slot has agreed to
 -- nothing -- ids are recycled and an inherited agreement is a client
 -- being sent packets it never asked for and cannot parse.
 local agreed = pid_connected_table();
+-- pid -> true once the list has gone out to them, so a client that
+-- reports its version twice -- or by both of the two routes below -- is
+-- announced to once. Also the set ext_register re-announces to on a hot
+-- load: "everyone who has told us what they are".
+local announced = pid_connected_table(false);
 
 --=========================== THE WIRE ===============================--
 
@@ -119,10 +136,54 @@ end
 
 --========================== NEGOTIATION =============================--
 
+-- A CLIENT CAN REPORT ITSELF TWO WAYS, and both of them have to land
+-- here or the negotiation is not centralised at all -- it is centralised
+-- for the clients that happen to use the route we hooked.
+--
+--   on_version      the VersionResponse packet (funcs_packetrecv.c:611),
+--                   which is what most clients answer
+--                   demand_fingerprint with
+--   on_version_ext  a specially formed ExistingPlayer carrying an
+--                   extended version block (funcs_packetrecv.c:525-547),
+--                   which the apidoc describes as "called by very few
+--                   clients (mostly OpenSpades v0.1.5) in response to
+--                   demand_fingerprint()" -- the same demand, a
+--                   different answer
+--
+-- Hooking only the first is a client that supports every extension we
+-- have, never being told any of them exist, and looking from here
+-- exactly like a client that supports none. Harmless while a missing
+-- extension costs nothing; a permanent spectator sentence the moment one
+-- is required (lib_ext_policy). So: both.
+local function announce_once(pid)
+	if (announced[pid]) then
+		return;
+	end
+
+	announced[pid] = true;
+	ext_announce(pid);
+end
+
 function mod.after.on_version(pid, idChar, major, minor, patch, msg)
 	if (new_enough(major, minor, patch)) then
-		ext_announce(pid);
+		announce_once(pid);
 	end
+end
+
+-- No version gate on this route, and that asymmetry is the point. The
+-- gate exists because clients older than 0.1.3 "are not known to handle
+-- packet 60 gracefully" -- but a client that answered with an extended
+-- version block has demonstrably implemented a protocol extension of
+-- its own, so it is not one of those, whatever numbers it reports. The
+-- apidoc warns the ext version and the standard version need not agree
+-- and that the standard one may be spoofed, which makes those numbers
+-- the wrong thing to gate on anyway.
+--
+-- And the cost of being wrong is lopsided: gate it and a modern client
+-- is locked out of a server with a required extension; do not, and at
+-- worst a client that asked for extensions receives a list of them.
+function mod.after.on_version_ext(pid, major, minor, patch, flags, cli, lang)
+	announce_once(pid);
 end
 
 -- Their half. An extension is mutually supported once both sides have
@@ -185,8 +246,14 @@ function ext_register(name, id, version, ready, title)
 	-- is what makes a hot load work at all: every connected client was
 	-- told a list that did not have this extension in it, and none of
 	-- them will ask again on their own.
+	--
+	-- To everyone we have announced to, which is not the same as
+	-- everyone get_client_char answers for: that is nil for a client
+	-- that reported itself through on_version_ext instead, and skipping
+	-- those would hot-load an extension that one half of the server
+	-- never hears about.
 	for i in piditer(PID_BROADCAST) do
-		if (get_client_char(i) ~= nil) then
+		if (announced[i]) then
 			ext_announce(i);
 		end
 	end
@@ -234,6 +301,28 @@ function ext_each(fn)
 	end
 end
 
+-- The registry survives a reload of this module; the per-client
+-- bookkeeping cannot, since pid tables are made fresh. So rebuild the
+-- announced set from what the core itself remembers about each client:
+-- an id char means it answered with a VersionResponse, ext-supported
+-- means it answered with an extended version block. Either way we have
+-- already told it the list, and either way ext_register must reach it
+-- when a new extension hot-loads.
+function mod.on_load()
+	for i in piditer(PID_BROADCAST) do
+		local ok_char, char = pcall(get_client_char, i);
+		local ok_ext, ext = pcall(get_client_ext_supported, i);
+
+		if ((ok_char and char ~= nil) or (ok_ext and ext)) then
+			announced[i] = true;
+		end
+	end
+end
+
+-- ext_registry is deliberately NOT cleared here. It is what lets this
+-- module be reloaded without every already-loaded extension falling
+-- silently out of the announcement, and a module that is going away for
+-- good leaves behind a table nothing reads.
 function mod.on_unload()
 	-- see lib_teamplay's EXPORTS for why this is not optional: consumers
 	-- test these names to find out whether negotiation is available, and
