@@ -129,6 +129,11 @@ local parsed = false;
 -- Strings quoted either way, Python's True/False/None, numbers in
 -- decimal or hex, and a bare word left as a string so that
 -- `level = required` means what it looks like.
+-- Where parse_scalar is, for a complaint. Set by the walker; a bare
+-- number because the alternative is threading it through five
+-- functions that have no other use for it.
+local at_line = 0;
+
 local function parse_scalar(raw)
 	raw = string.gsub(raw, "^%s+", "");
 	raw = string.gsub(raw, "%s+$", "");
@@ -153,13 +158,30 @@ local function parse_scalar(raw)
 			return body;
 		end
 
-		-- an unterminated quote: say so rather than guessing where it
-		-- was meant to end
+		-- An unterminated quote. SAY so: silence here is the worst
+		-- failure this file has, because the key simply goes missing
+		-- and its module's default applies -- a server quietly named
+		-- "LSd server" rather than one that refuses to start.
+		log("lib_settings: %s:%d unterminated quote, setting ignored: %s",
+			settings_file, at_line, raw);
 		return nil;
 	end
 
-	if (raw == "True" or raw == "true") then return true; end
-	if (raw == "False" or raw == "false") then return false; end
+	-- Booleans as lib_pyscrape reads them (lua_pyscrape's parse_bool,
+	-- lib_pyscrape.lua:18-24), plus the spellings an operator actually
+	-- types. This matters more than it looks: 0 and "off" are TRUTHY in
+	-- Lua, so without naming them here `masterlist_enabled = 0` would
+	-- switch the listing ON -- and lsdctl, which reads the same file
+	-- with flag_on, would report it off. The two have to agree.
+	local lower = string.lower(raw);
+
+	if (lower == "true" or lower == "yes" or lower == "on") then
+		return true;
+	end
+	if (lower == "false" or lower == "no" or lower == "off"
+	    or raw == "0") then
+		return false;
+	end
 	if (raw == "None" or raw == "nil") then return nil; end
 
 	-- 0x33 as well as 51, because every extension id in this tree is
@@ -306,6 +328,7 @@ local function parse(text)
 
 	for line in string.gmatch(text .. "\n", "([^\n]*)\n") do
 		lineno = lineno + 1;
+		at_line = lineno;
 
 		-- Comments come off every line, inside an open value as well as
 		-- outside one -- a multi-line ext_policy naming each extension

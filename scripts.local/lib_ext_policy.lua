@@ -297,12 +297,35 @@ end
 -- The level in force for one extension: its own entry, else the
 -- default. One place, so that the audit, the verdict and the public
 -- ext_policy_of cannot disagree about what the policy says.
+-- Names a value nobody recognises, once per distinct value, so that a
+-- typo in the settings file is heard. Silence here downgraded a
+-- required extension to applied without a word -- the exact failure the
+-- policy exists to prevent.
+local moaned = {};
+
+local function resolve_or_moan(v, what)
+	if (v == nil) then
+		return nil;
+	end
+
+	local level = resolve_level(v);
+
+	if (level == nil and not moaned[tostring(v)]) then
+		moaned[tostring(v)] = true;
+		log("lib_ext_policy: %s is %q, which is not a level -- expected"
+			.. " disabled, applied, recommended or required. IGNORED.",
+			what, tostring(v));
+	end
+
+	return level;
+end
+
 local function level_of(id)
 	-- An unrecognisable value falls back to applied rather than to
 	-- something stricter: a typo should cost a feature, never a player's
-	-- ability to play. The audit names anything that landed here.
-	return resolve_level(ext_policy[id])
-		or resolve_level(ext_policy_default)
+	-- ability to play. It is logged rather than swallowed, though.
+	return resolve_or_moan(ext_policy[id], string.format("ext_policy[0x%02x]", id))
+		or resolve_or_moan(ext_policy_default, "ext_policy_default")
 		or EXT_APPLIED;
 end
 
