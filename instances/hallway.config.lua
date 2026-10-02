@@ -12,7 +12,8 @@
 
 -- The masterlist caps a name at 31 characters. The fallback is only for
 -- running the server by hand outside docker, where nothing sets the env.
-masterlist_name = os.getenv("LSD_NAME") or "LSd server"
+getcfg("masterlist_name", "LSd server",
+	"Server name shown in the server lists.")
 
 -- Which maps rotate, and in what order.
 --
@@ -30,12 +31,15 @@ masterlist_name = os.getenv("LSD_NAME") or "LSd server"
 --
 -- The path is the container's, which is always /lsd/maps whatever the
 -- host directory behind it is (see LSD_MAPS_DIR).
-local function queue_from_env()
-	local env = os.getenv("LSD_MAPS")
-	if (env == nil) then return nil end
+getcfg("map_rotation", nil,
+	"Maps to play, space separated, in order. Empty plays every .vxl "
+	.."in the instance's map folder.")
+
+local function queue_from_setting()
+	if (type(map_rotation) ~= "string") then return nil end
 
 	local q = {}
-	for m in string.gmatch(env, "%S+") do table.insert(q, m) end
+	for m in string.gmatch(map_rotation, "%S+") do table.insert(q, m) end
 	return #q > 0 and q or nil
 end
 
@@ -57,7 +61,7 @@ local function queue_from_folder()
 end
 
 -- left nil if both come up empty, so map_queue.lua's own default applies
-map_queue = queue_from_env() or queue_from_folder()
+map_queue = queue_from_setting() or queue_from_folder()
 
 set_team_name (1, "Blue")
 set_team_color(1, {r=  0, g=  0, b=196})
@@ -69,6 +73,20 @@ set_max_score(10);
 
 fog = {r=128, g=232, b=255}
 set_fog(fog);
+
+-- THE SETTINGS FILE, and it loads before everything because that is
+-- the only order that works: it applies instances/hallway.settings to
+-- the globals, and core.lua's getcfg then fills only what the file left
+-- alone. A value applied after a module has defaulted its global does
+-- nothing.
+--
+-- It is a real config -- values, comments, no code -- in the same
+-- `key = value` syntax LSd already scrapes out of map sidecars. Unlike
+-- this instance's .env it is read by Lua, so a natively run
+-- `./server -c config.lua` sees the same settings as the container.
+--
+-- Add settings to it with:  ./lsdctl hallway settings --sync
+load "lib_settings"
 
 -- Makes every module's config fields discoverable (scripts.local/).
 -- It wraps core.lua's getcfg, which every module already uses to
@@ -100,7 +118,9 @@ masterlist_remotes = {
 	"66.135.15.57",
 	"master.buildandshoot.com",
 }
-if (os.getenv("LSD_MASTERLIST") ~= "0") then
+getcfg("masterlist_enabled", true,
+	"Announce this server to the public server lists.")
+if (masterlist_enabled) then
 	load "masterlist"
 end
 
@@ -229,10 +249,14 @@ load "group_world_editor"
 -- then hostage -- it only *uses* their globals, never load()s them, so
 -- nothing is registered twice. A double register makes a hook's `next`
 -- point at itself and stack-overflows the tick chain.
-local gamemode = os.getenv("LSD_GAMEMODE") or "ctf"
-local hostage = (gamemode == "hostage");
-if (hostage) then gamemode = "ctf" end
-load(gamemode)
+getcfg("gamemode", "ctf",
+	"Gamemode module: ctf, arena, babel, ffa, dd, or hostage "
+	.."(which rides on ctf).")
+-- the setting names the mode; `hostage` is not a gamemode of its own
+local mode = gamemode;
+local hostage = (mode == "hostage");
+if (hostage) then mode = "ctf" end
+load(mode)
 
 -- random spawn around the team tent; BEFORE lib_bot so a bot's own
 -- spawn_at stays outermost and wins, while real players fall through to

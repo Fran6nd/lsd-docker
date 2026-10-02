@@ -34,6 +34,10 @@ services:
       # LSD_MAPS_DIR at instances/<name>.map/, and ./maps is only the
       # fallback for an instance created before maps were split.
       - ${LSD_CONFIG_FILE:-./templates/config.lua}:/lsd/config.lua:ro
+      # the settings file lib_settings reads, beside config.lua and read
+      # only: it is input. Settings are added to it host-side by
+      # `lsdctl <instance> settings --sync`, never by the server.
+      - ${LSD_SETTINGS_FILE:-./templates/settings}:/lsd/settings:ro
       # the map dir is writable: world_editor persists component layouts
       # to <map>.editor.json next to the .vxl it belongs to. Whatever the
       # host path, the container always sees it as /lsd/maps.

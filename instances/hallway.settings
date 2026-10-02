@@ -1,0 +1,35 @@
+# instances/hallway.settings -- Fran6nd's Hallway At Night
+#
+# A real config: values and comments, no code. Read by lib_settings,
+# which config.lua loads first; every module then keeps whatever this
+# file set and defaults only what it left alone.
+#
+# Portable on purpose. Unlike instances/hallway.env this is read by Lua
+# rather than by docker, so a natively run `./server -c config.lua`
+# honours it too.
+#
+# Add the settings your loaded modules support, with their own
+# descriptions, using:   ./lsdctl hallway settings --sync
+
+# Server name shown in the server lists.
+masterlist_name = "Fran6nd's Hallway At Night"
+
+# Announce this server to the public server lists.
+masterlist_enabled = True
+
+# Gamemode module: ctf, arena, babel, ffa, dd, or hostage.
+gamemode = 'ctf'
+
+# Maps to play, space separated, in order. Empty plays every .vxl in the
+# instance's map folder.
+map_rotation = 'hallway'
+
+# Night instead of day. The client draws full darkness: nothing lights
+# the world and the sky is black, so a flashlight is the only light.
+daytime_night = True
+
+# What a missing extension costs. Flashlight and Daytime and Weather are
+# the price of entry here -- without them a client would see a black sky
+# over a fully lit world, which is the easy version of this map.
+ext_policy_default = 'recommended'
+ext_policy = {0x33: 'required', 0x32: 'required'}

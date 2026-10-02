@@ -1,0 +1,5 @@
+# Settings template. An instance's own file is instances/<name>.settings
+# and lsdctl points LSD_SETTINGS_FILE at it; this is the fallback so a
+# container always has something to mount.
+#
+# Fill it with:   ./lsdctl <instance> settings --sync

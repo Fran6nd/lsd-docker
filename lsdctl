@@ -125,8 +125,12 @@ env_get_file() {
 # on/off settings: anything but an explicit off value counts as on, so an
 # unset key means on (matching the compose defaults)
 flag_on() {
-	case "${1:-}" in
-	0|false|no|off|FALSE|NO|OFF) return 1 ;;
+	# case-folded, because these values now come from a settings file as
+	# well as from .env: Python's False/True spelling is what
+	# lib_pyscrape's format uses, and a case-sensitive list that knew
+	# "false" and "FALSE" but not "False" read it as on.
+	case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+	0|false|no|off) return 1 ;;
 	*) return 0 ;;
 	esac
 }
@@ -148,8 +152,9 @@ list_instances() {
 		found=1
 		name=$(basename "$f" .env)
 		port=$(env_get_file LSD_PORT "$f")
-		mode=$(env_get_file LSD_GAMEMODE "$f")
-		if flag_on "$(env_get_file LSD_MASTERLIST "$f")"; then
+		sf=$(settingsf_for "$name")
+		mode=$(setting_or_env_file gamemode LSD_GAMEMODE "$sf" "$f")
+		if flag_on "$(setting_or_env_file masterlist_enabled LSD_MASTERLIST "$sf" "$f")"; then
 			listing=public
 		else
 			listing=private
@@ -321,6 +326,28 @@ env_set() {
 console_pipe() { compose exec -T lsd socat - UNIX-CONNECT:rw/console.sock; }
 
 # on/off settings of the current instance, read from its .env
+# this instance's settings file, which lib_settings reads as /lsd/settings
+settingsf_for() { printf '%s/%s.settings' "$INSTANCES_DIR" "$1"; }
+
+# Read `key = value` out of a settings file, unquoted. Deliberately
+# simple: this is for the handful of values lsdctl itself displays, not a
+# general parser -- lib_settings owns that, in Lua, where the server is.
+setting_get_file() {
+	[ -f "$2" ] || return 0
+	sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "$2" \
+		| sed -e 's/[[:space:]]*[#;].*$//' -e 's/^[\"'"'"']//' -e 's/[\"'"'"']$//' \
+		| tail -1
+}
+
+# A setting if the instance has a settings file, else the .env variable
+# it used to live in -- so a migrated instance reports the truth and one
+# that has not moved yet keeps working unchanged.
+setting_or_env_file() {
+	v=$(setting_get_file "$1" "$3")
+	[ -n "$v" ] || v=$(env_get_file "$2" "$4")
+	printf '%s' "$v"
+}
+
 # this instance's map directory: an explicit LSD_MAPS_DIR wins, else the
 # per-instance default. Instances created before maps were split have no
 # LSD_MAPS_DIR and fall back to the old shared pool.
@@ -331,7 +358,10 @@ mapsd() {
 }
 
 dev_on() { flag_on "$(env_get LSD_SCRIPTS_DEV)"; }
-masterlist_on() { flag_on "$(env_get LSD_MASTERLIST)"; }
+masterlist_on() {
+	flag_on "$(setting_or_env_file masterlist_enabled LSD_MASTERLIST \
+		"$(settingsf_for "$INSTANCE")" "$ENVF")"
+}
 
 # container id of the running instance, empty when it isn't up
 container_id() { compose ps -q lsd 2>/dev/null || true; }
@@ -593,8 +623,16 @@ dispatch() {
 		# the .env keeps it across restarts.
 		what=${1:-status}
 		case "$what" in
-		on) env_set LSD_MASTERLIST 1 >/dev/null ;;
-		off) env_set LSD_MASTERLIST 0 >/dev/null ;;
+		on|off)
+			sf=$(settingsf_for "$INSTANCE")
+			if [ -n "$(setting_get_file masterlist_enabled "$sf")" ]; then
+				echo "error: $INSTANCE reads masterlist_enabled from $sf" >&2
+				echo "edit that line instead -- writing .env would change nothing" >&2
+				exit 1
+			fi
+			[ "$1" = on ] && env_set LSD_MASTERLIST 1 >/dev/null \
+				|| env_set LSD_MASTERLIST 0 >/dev/null
+			;;
 		status) ;;
 		*) echo "usage: lsdctl <instance> masterlist [on|off|status]" >&2; exit 1 ;;
 		esac
@@ -694,6 +732,12 @@ dispatch() {
 		else
 			if ! module_layer "$1" >/dev/null; then
 				echo "error: no gamemode '$1' (no $1.lua in lsd/scripts/, scripts.local/ or scripts.dev/)" >&2
+				exit 1
+			fi
+			sf=$(settingsf_for "$INSTANCE")
+			if [ -n "$(setting_get_file gamemode "$sf")" ]; then
+				echo "error: $INSTANCE reads gamemode from $sf" >&2
+				echo "edit that line instead -- writing .env would change nothing" >&2
 				exit 1
 			fi
 			env_set LSD_GAMEMODE "$1"
