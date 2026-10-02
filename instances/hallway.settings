@@ -8,8 +8,14 @@
 # rather than by docker, so a natively run `./server -c config.lua`
 # honours it too.
 #
-# Add the settings your loaded modules support, with their own
-# descriptions, using:   ./lsdctl hallway settings --sync
+# Syntax is the one LSd already reads out of map sidecars:
+#   name = 'text'        name = "text with an apostrophe's"
+#   flag = True          flag = False
+#   number = 300         hex = 0x33
+#   tuple = (128, 232, 255)
+#   list  = ['a', 'b']
+#   map   = {key: value}     # may span lines
+# Anything after an unquoted # or ; is a comment.
 
 # Server name shown in the server lists.
 masterlist_name = "Fran6nd's Hallway At Night"
@@ -28,8 +34,24 @@ map_rotation = 'hallway'
 # the world and the sky is black, so a flashlight is the only light.
 daytime_night = True
 
-# What a missing extension costs. Flashlight and Daytime and Weather are
-# the price of entry here -- without them a client would see a black sky
-# over a fully lit world, which is the easy version of this map.
+# What a MISSING extension costs a client.
+#   'applied'      silent; the client is never told and never hindered
+#   'recommended'  the client is told what it is missing, and told again
+#   'required'     the client is held in spectator until it updates
 ext_policy_default = 'recommended'
-ext_policy = {0x33: 'required', 0x32: 'required'}
+
+# Per-extension overrides. The ids are the protocol's, so they are
+# listed here by name -- these are every extension this server knows:
+#
+#     3  Silent Player        0x32  Flashlight
+#  0x20  Damage Markers       0x33  Daytime and Weather
+#    48  Teamplay              192  Player Limit
+#                              193  Message Types
+#
+# Flashlight and Daytime and Weather are the price of entry here:
+# without them a client sees a black sky over a fully lit world, which
+# is the easy version of this map.
+ext_policy = {
+	0x33: 'required',      # Daytime and Weather -- the dark itself
+	0x32: 'required',      # Flashlight -- the only light there is
+}

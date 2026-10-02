@@ -147,6 +147,8 @@ local function parse_map(body)
 	local out = {};
 
 	for item in string.gmatch(body .. ",", "%s*([^,]-)%s*,") do
+		-- an empty item is the trailing comma a one-entry-per-line
+		-- layout ends with, which is normal rather than a mistake
 		if (item ~= "") then
 			local k, v = string.match(item, "^(.-)%s*:%s*(.*)$");
 
@@ -193,6 +195,36 @@ local function parse_tuple(body)
 	return out;
 end
 
+-- Everything before an unquoted # or ;, which is the comment. Walked a
+-- character at a time rather than matched, because the obvious
+-- `gsub("%s*[#;].*$", "")` cuts inside strings too: a server named
+-- "Server #1" becomes an unterminated quote, and a per-entry comment
+-- in a multi-line value is not stripped at all unless this is applied
+-- to every line of it.
+local function strip_comment(line)
+	local out, quote = {}, nil;
+
+	for i = 1, #line do
+		local c = string.sub(line, i, i);
+
+		if (quote ~= nil) then
+			if (c == quote) then
+				quote = nil;
+			end
+			out[#out+1] = c;
+		elseif (c == '"' or c == "'") then
+			quote = c;
+			out[#out+1] = c;
+		elseif (c == "#" or c == ";") then
+			break;
+		else
+			out[#out+1] = c;
+		end
+	end
+
+	return (string.gsub(table.concat(out), "%s+$", ""));
+end
+
 local function parse_value(raw)
 	raw = string.gsub(string.gsub(raw, "^%s+", ""), "%s+$", "");
 
@@ -236,13 +268,15 @@ local function parse(text)
 	for line in string.gmatch(text .. "\n", "([^\n]*)\n") do
 		lineno = lineno + 1;
 
-		-- comments and blank lines, outside an open value
-		local stripped = key == nil
-			and string.gsub(line, "%s*[#;].*$", "") or line;
+		-- Comments come off every line, inside an open value as well as
+		-- outside one -- a multi-line ext_policy naming each extension
+		-- in a trailing comment is the whole point of it being
+		-- multi-line.
+		local stripped = strip_comment(line);
 
 		if (key ~= nil) then
-			acc = acc .. " " .. line;
-			depth = depth + depth_of(line);
+			acc = acc .. " " .. stripped;
+			depth = depth + depth_of(stripped);
 
 			if (depth <= 0) then
 				out[key] = parse_value(acc);
