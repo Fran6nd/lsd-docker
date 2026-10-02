@@ -1,0 +1,4 @@
+# Hallway, played in the dark.
+# Flashlight and Daytime and Weather are mandatory on this server.
+name = 'Hallway At Night'
+fog = (128, 232, 255)
