@@ -53,6 +53,12 @@ per-instance (first arg is the instance name)
   reload [msg]        warn players in-game, then restart (reloads scripts)
   status              show container state and published ports
   logs [-f]           show server logs (-f to follow)
+  config [pat] [--new|--lua]
+                      what the loaded modules can be configured with:
+                      every getcfg field, which module declared it, and
+                      whether your config sets it or it is the default.
+                      --new shows only what you are not setting; --lua
+                      prints pasteable lines. Printed, never written.
   console             attach to the in-game admin console (Ctrl-C to leave)
   shell               open a shell inside the container
 
@@ -85,7 +91,7 @@ EOF
 # the per-instance subcommands -- the set that also gets an All twin
 is_instance_command() {
 	case "$1" in
-	up|down|restart|reload|status|logs|console|shell|load|unload|lsmod|edit|map|gamemode|set|dev|masterlist) return 0 ;;
+	up|down|restart|reload|status|logs|console|shell|load|unload|lsmod|edit|map|gamemode|set|dev|masterlist|config) return 0 ;;
 	*) return 1 ;;
 	esac
 }
@@ -393,6 +399,44 @@ module_layer() {
 dispatch() {
 	sub=$1; shift
 	case "$sub" in
+	config)
+		# Ask the running server what its loaded modules can be
+		# configured with. lib_config watches getcfg, so this covers any
+		# script dropped into scripts.local/ without it declaring
+		# anything -- see scripts.local/lib_config.lua.
+		#
+		# Printed, never written: config.lua is yours to edit. --lua
+		# gives you lines to paste.
+		pattern=; want_new=false; want_lua=false
+		while [ $# -gt 0 ]; do
+			case "$1" in
+			--new) want_new=true; shift ;;
+			--lua) want_lua=true; shift ;;
+			-*) echo "usage: lsdctl $INSTANCE config [pattern] [--new] [--lua]" >&2; exit 1 ;;
+			*) pattern=$1; shift ;;
+			esac
+		done
+
+		if [ "$want_lua" = false ]; then
+			printf '%-28s %-20s %-10s %s\n' KEY MODULE SOURCE VALUE
+		else
+			echo "-- paste what you want into instances/$INSTANCE.config.lua"
+		fi
+
+		out=$({ printf 'exec if config_dump == nil then log("CFG-NOLIB") else config_dump(%s, {new_only=%s, lua=%s}) end\n' \
+			"$([ -n "$pattern" ] && printf '%s' "\"$pattern\"" || printf 'nil')" \
+			"$want_new" "$want_lua"
+			sleep 2; } | console_pipe 2>/dev/null)
+
+		if printf '%s' "$out" | grep -q CFG-NOLIB; then
+			echo "error: lib_config is not loaded on $INSTANCE" >&2
+			echo "add  load \"lib_config\"  near the top of its config.lua" >&2
+			exit 1
+		fi
+
+		printf '%s\n' "$out" | sed -n 's/.*CFG| //p'
+		printf '%s\n' "$out" | sed -n 's/.*\(CFG-END .*\)/-- \1/p'
+		;;
 	up)
 		compose up -d --build "$@"
 		;;
