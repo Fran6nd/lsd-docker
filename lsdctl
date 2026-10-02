@@ -426,8 +426,13 @@ dispatch() {
 		out=$({ printf 'exec if config_dump == nil then log("CFG-NOLIB") else config_dump(%s, {new_only=%s, lua=%s}) end\n' \
 			"$([ -n "$pattern" ] && printf '%s' "\"$pattern\"" || printf 'nil')" \
 			"$want_new" "$want_lua"
-			sleep 2; } | console_pipe 2>/dev/null)
+			sleep 2; } | console_pipe 2>/dev/null | grep -v '@console' || true)
 
+		# NOTE: the console echoes back the command it was given, so the
+		# text of the exec above appears in its output verbatim. Any
+		# sentinel we look for would match that echo rather than the
+		# server's reply -- hence the grep -v above, which drops the
+		# echoed line before anything is matched against it.
 		if printf '%s' "$out" | grep -q CFG-NOLIB; then
 			echo "error: lib_config is not loaded on $INSTANCE" >&2
 			echo "add  load \"lib_config\"  near the top of its config.lua" >&2

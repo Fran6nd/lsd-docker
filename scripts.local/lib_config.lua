@@ -80,13 +80,20 @@ getcfg("config_debug", false);
 -- drift.
 local core_getcfg = getcfg;
 
--- Where the call came from, as the script that made it. Level 2 is
--- whoever called getcfg; "S" asks only for source information, which is
--- the cheap half of getinfo.
+-- Where the call came from, as the script that made it.
+--
+-- Level 3 counting from here: 1 is this function, 2 is the getcfg
+-- wrapper below, 3 is the module that called it. And NOT through pcall
+-- -- a pcall puts its own frame between getinfo and this function, so
+-- every level shifts by one and the answer comes back as this file
+-- instead of the caller's. getinfo returns nil for a level that does
+-- not exist rather than failing, so there is nothing to catch anyway.
+--
+-- "S" asks only for source information, which is the cheap half.
 local function caller_source()
-	local ok, info = pcall(debug.getinfo, 3, "S");
+	local info = debug and debug.getinfo and debug.getinfo(3, "S");
 
-	if (not ok or info == nil or info.source == nil) then
+	if (info == nil or info.source == nil) then
 		return "?";
 	end
 
