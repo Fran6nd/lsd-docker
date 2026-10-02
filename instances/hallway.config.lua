@@ -167,7 +167,7 @@ load "lib_ext"
 
 -- Player Limit (id 192 v1, packetless): this server may use the whole
 -- player id range, and id 255 is the server's and never a player.
-player_limit_max = 255
+-- player_limit_max lives in instances/hallway.settings.
 load "lib_player_limit"
 
 -- Message Types (id 193 v1, packetless): four more chat types on top of
@@ -194,18 +194,19 @@ load "lib_message_types"
 --
 -- Levels are names, not the EXT_* constants: those are globals the
 -- module creates when it loads, and this runs first.
-ext_policy_default = "recommended"
-ext_policy = {
-	[0x33] = "required",   -- Daytime and Weather
-	[0x32] = "required",   -- Flashlight
-}
+-- The levels themselves live in instances/hallway.settings, under
+-- ext_policy_default and ext_policy, where every registered extension
+-- is listed by name. Nothing is assigned here on purpose: config.lua
+-- runs AFTER lib_settings, so a literal here would silently replace
+-- whatever the settings file said.
 load "lib_ext_policy"
 
 -- Daytime and Weather (id 0x33 v1, packet 0x73): day or night, and in
 -- v1 that is the whole of it. NIGHT here, permanently -- full darkness:
 -- nothing lights the world and the sky is black. It is the entire point
 -- of the server.
-daytime_night = true
+-- daytime_night lives in instances/hallway.settings. Not here: this
+-- file runs after lib_settings and would override it.
 load "lib_daytime"
 
 -- Flashlight (id 0x32 v1, packet 0x72): a carried light every client

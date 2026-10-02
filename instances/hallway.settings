@@ -34,6 +34,12 @@ map_rotation = 'hallway'
 # the world and the sky is black, so a flashlight is the only light.
 daytime_night = True
 
+# How many players this server will seat. 255 is every id the protocol
+# has, handed out as 0-254 with 255 left to the server. A client that
+# cannot handle a large id may be handed one, so drop to 32 if old
+# clients fall over.
+player_limit_max = 255
+
 # What a MISSING extension costs a client, and whether it is offered at
 # all. Every extension this server registers is listed below -- the
 # whole picture, not a list of exceptions -- so there is nothing to look
