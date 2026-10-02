@@ -68,3 +68,9 @@ ext_policy = {
 	 192: 'recommended',   # Player Limit -- the full player id range
 	 193: 'recommended',   # Message Types -- warnings and notices
 }
+
+# -- diagnostics, temporary: remove these two once the night is sorted --
+# Log every Sky sent and every client that negotiated.
+daytime_debug = True
+# Log every verdict and every telling.
+ext_policy_debug = True
