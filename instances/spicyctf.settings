@@ -1,0 +1,65 @@
+# instances/spicyctf.settings -- Fran6nd's CTF with spicy guns
+#
+# A real config: values and comments, no code. Read by lib_settings,
+# which config.lua loads first; every module then keeps whatever this
+# file set and defaults only what it left alone.
+#
+# Portable on purpose. Unlike instances/spicyctf.env this is read by Lua
+# rather than by docker, so a natively run `./server -c config.lua`
+# honours it too.
+#
+# Syntax is the one LSd already reads out of map sidecars:
+#   name = 'text'        name = "text with an apostrophe's"
+#   flag = True          flag = False
+#   number = 300         hex = 0x33
+#   tuple = (128, 232, 255)   list = ['a', 'b']   map = {key: value}
+# Anything after an unquoted # or ; is a comment.
+#
+# Everything the loaded modules support:
+#   ./lsdctl spicyctf settings --template
+# Apply an edit without restarting:
+#   ./lsdctl spicyctf settings reload
+
+# Server name shown in the server lists.
+masterlist_name = "Fran6nd's CTF with spicy guns"
+
+# Announce this server to the public server lists.
+masterlist_enabled = True
+
+# Gamemode module: ctf, arena, babel, ffa, dd, or hostage.
+gamemode = 'ctf'
+
+# Maps to play, space separated, in order. Empty plays every .vxl
+# in the instance's map folder.
+# map_rotation = None
+
+# How many players this server will seat, 1 to 255. 32 is the value
+# every client copes with.
+player_limit_max = 255
+
+# Night instead of day. By night nothing lights the world and the sky
+# is black; only flashlights light it.
+daytime_night = True
+
+# What a MISSING extension costs a client, and whether it is offered at
+# all. Every extension this server registers is listed below -- the
+# whole picture, not a list of exceptions.
+#
+#   'disabled'     not offered; the module stays loaded but the
+#                  extension is left out of the handshake
+#   'applied'      offered and used, silently
+#   'recommended'  as applied, plus the client is told what it misses
+#   'required'     the client is held in spectator until it updates
+#
+# This is the level for anything somehow not listed below.
+ext_policy_default = 'recommended'
+
+ext_policy = {
+	  0x03: 'recommended',  # Silent Player
+	  0x20: 'recommended',  # Damage Markers
+	    48: 'recommended',  # Teamplay
+	  0x32: 'recommended',  # Flashlight
+	  0x33: 'recommended',  # Daytime and Weather
+	   192: 'recommended',  # Player Limit
+	   193: 'recommended',  # Message Types
+}

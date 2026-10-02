@@ -5,14 +5,30 @@
 -- specific to one server belongs in that server's copy, not here, or
 -- every server created afterwards inherits it.
 --
--- Settings that differ per instance come from its .env rather than being
--- written in: LSD_NAME, LSD_MAPS, LSD_GAMEMODE, LSD_MASTERLIST.
+-- Settings that differ per instance live in its .settings file rather
+-- than being written in here.
 --
 -- Pass -c on the command line to use a different config path.
 
+-- THE SETTINGS FILE, loaded before everything because that is the only
+-- order that works: it applies instances/shootingrange.settings to the
+-- globals, and core.lua's getcfg then fills only what the file left
+-- alone. A value applied after a module has defaulted its global does
+-- nothing -- and a value that never arrives falls back to the default
+-- silently, which is the one failure here that looks like success.
+--
+-- A real config: values, comments, no code, in the same `key = value`
+-- syntax LSd already scrapes out of map sidecars. Read by Lua, not by
+-- docker, so a natively run `./server -c config.lua` honours it too.
+--
+--   ./lsdctl shootingrange settings --template   everything supported
+--   ./lsdctl shootingrange settings reload       apply an edit live
+load "lib_settings"
+
 -- The masterlist caps a name at 31 characters. The fallback is only for
 -- running the server by hand outside docker, where nothing sets the env.
-masterlist_name = os.getenv("LSD_NAME") or "LSd server"
+getcfg("masterlist_name", "LSd server",
+	"Server name shown in the server lists.")
 
 -- Which maps rotate, and in what order.
 --
@@ -30,12 +46,15 @@ masterlist_name = os.getenv("LSD_NAME") or "LSd server"
 --
 -- The path is the container's, which is always /lsd/maps whatever the
 -- host directory behind it is (see LSD_MAPS_DIR).
-local function queue_from_env()
-	local env = os.getenv("LSD_MAPS")
-	if (env == nil) then return nil end
+getcfg("map_rotation", nil,
+	"Maps to play, space separated, in order. Empty plays every .vxl "
+		.."in the instance's map folder.")
+
+local function queue_from_setting()
+	if (type(map_rotation) ~= "string") then return nil end
 
 	local q = {}
-	for m in string.gmatch(env, "%S+") do table.insert(q, m) end
+	for m in string.gmatch(map_rotation, "%S+") do table.insert(q, m) end
 	return #q > 0 and q or nil
 end
 
@@ -57,7 +76,7 @@ local function queue_from_folder()
 end
 
 -- left nil if both come up empty, so map_queue.lua's own default applies
-map_queue = queue_from_env() or queue_from_folder()
+map_queue = queue_from_setting() or queue_from_folder()
 
 set_team_name (1, "Blue")
 set_team_color(1, {r=  0, g=  0, b=196})
@@ -89,7 +108,9 @@ masterlist_remotes = {
 	"66.135.15.57",
 	"master.buildandshoot.com",
 }
-if (os.getenv("LSD_MASTERLIST") ~= "0") then
+getcfg("masterlist_enabled", true,
+	"Announce this server to the public server lists.")
+if (masterlist_enabled) then
 	load "masterlist"
 end
 
@@ -137,7 +158,8 @@ load "lib_ext"
 -- Player Limit (id 192 v1, packetless): this server may use the whole
 -- player id range, and id 255 is the server's and never a player.
 -- Announcing it raises nothing on its own; the cap is player_limit_max.
-player_limit_max = 255
+-- player_limit_max lives in instances/shootingrange.settings. Not here: this file
+-- runs after lib_settings and a literal would override it.
 load "lib_player_limit"
 
 -- Message Types (id 193 v1, packetless): four more chat types on top of
@@ -150,15 +172,18 @@ load "lib_message_types"
 -- EXT_REQUIRED holds them in spectator until they update. Bots are
 -- exempt. Recommended for everything for now: nobody is kept out, and
 -- it is how you find out what clients really implement.
-ext_policy_default = "recommended"
-ext_policy = {}
+-- The levels live in instances/shootingrange.settings, under
+-- ext_policy_default and ext_policy, where every registered
+-- extension is listed by name. Nothing is assigned here: this
+-- file runs AFTER lib_settings and a literal would replace it.
 load "lib_ext_policy"
 
 -- Daytime and Weather (id 0x33 v1, packet 0x73): day or night, and in
 -- v1 that is the whole of it. DAY here -- a range you cannot see is not
 -- a range. Set daytime_night = true if you want to practise in the dark
 -- with the flashlight below.
-daytime_night = false
+-- daytime_night lives in instances/shootingrange.settings. Not here: this file
+-- runs after lib_settings and a literal would override it.
 load "lib_daytime"
 
 -- Teamplay (id 48 v1, packet 112): server-driven ESP marks, client
@@ -200,10 +225,14 @@ load "group_world_editor"
 -- then hostage -- it only *uses* their globals, never load()s them, so
 -- nothing is registered twice. A double register makes a hook's `next`
 -- point at itself and stack-overflows the tick chain.
-local gamemode = os.getenv("LSD_GAMEMODE") or "ctf"
-local hostage = (gamemode == "hostage");
-if (hostage) then gamemode = "ctf" end
-load(gamemode)
+getcfg("gamemode", "ctf",
+	"Gamemode module: ctf, arena, babel, ffa, dd, or hostage "
+		.."(which rides on ctf).")
+-- the setting names the mode; `hostage` is not a gamemode of its own
+local mode = gamemode
+local hostage = (mode == "hostage");
+if (hostage) then mode = "ctf" end
+load(mode)
 
 -- random spawn around the team tent; BEFORE lib_bot so a bot's own
 -- spawn_at stays outermost and wins, while real players fall through to

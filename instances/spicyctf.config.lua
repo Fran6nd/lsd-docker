@@ -1,12 +1,28 @@
+-- THE SETTINGS FILE, loaded before everything because that is the only
+-- order that works: it applies instances/spicyctf.settings to the
+-- globals, and core.lua's getcfg then fills only what the file left
+-- alone. A value applied after a module has defaulted its global does
+-- nothing -- and a value that never arrives falls back to the default
+-- silently, which is the one failure here that looks like success.
+--
+-- A real config: values, comments, no code, in the same `key = value`
+-- syntax LSd already scrapes out of map sidecars. Read by Lua, not by
+-- docker, so a natively run `./server -c config.lua` honours it too.
+--
+--   ./lsdctl spicyctf settings --template   everything supported
+--   ./lsdctl spicyctf settings reload       apply an edit live
+load "lib_settings"
+
 -- config.lua -- Lua script executed on server start
 -- Pass the -c option on the command line to use a
 -- different path for the config file
 --
 -- Common settings can be overridden from the environment
--- (see .env / docker-compose.yml): LSD_NAME, LSD_MAPS, LSD_GAMEMODE
+-- (see instances/spicyctf.settings)
 -- masterlist caps the name at 31 chars, so "server" is dropped from
 -- "Fran6nd's Spicy CTF server under LSd"
-masterlist_name = os.getenv("LSD_NAME")
+getcfg("masterlist_name", "LSd server",
+	"Server name shown in the server lists.")
 
 -- Which maps rotate, and in what order.
 --
@@ -24,12 +40,15 @@ masterlist_name = os.getenv("LSD_NAME")
 --
 -- The path is the container's, which is always /lsd/maps whatever the
 -- host directory behind it is (see LSD_MAPS_DIR).
-local function queue_from_env()
-	local env = os.getenv("LSD_MAPS")
-	if (env == nil) then return nil end
+getcfg("map_rotation", nil,
+	"Maps to play, space separated, in order. Empty plays every .vxl "
+		.."in the instance's map folder.")
+
+local function queue_from_setting()
+	if (type(map_rotation) ~= "string") then return nil end
 
 	local q = {}
-	for m in string.gmatch(env, "%S+") do table.insert(q, m) end
+	for m in string.gmatch(map_rotation, "%S+") do table.insert(q, m) end
 	return #q > 0 and q or nil
 end
 
@@ -51,7 +70,7 @@ local function queue_from_folder()
 end
 
 -- left nil if both come up empty, so map_queue.lua's own default applies
-map_queue = queue_from_env() or queue_from_folder()
+map_queue = queue_from_setting() or queue_from_folder()
 
 set_team_name (1, "Blue")
 set_team_color(1, {r=  0, g=  0, b=196})
@@ -83,7 +102,9 @@ masterlist_remotes = {
 	"66.135.15.57",
 	"master.buildandshoot.com",
 }
-if (os.getenv("LSD_MASTERLIST") ~= "0") then
+getcfg("masterlist_enabled", true,
+	"Announce this server to the public server lists.")
+if (masterlist_enabled) then
 	load "masterlist"
 end
 
@@ -164,7 +185,8 @@ load "lib_ext"
 -- the extension handshake, so a client that keeps a 32-slot array can
 -- be handed pid 40 and do whatever it does about that. Drop this back
 -- to 32 if old clients start falling over.
-player_limit_max = 255
+-- player_limit_max lives in instances/spicyctf.settings. Not here: this file
+-- runs after lib_settings and a literal would override it.
 load "lib_player_limit"
 
 -- aosprotocol's Message Types extension (id 193 v1, packetless): four
@@ -199,8 +221,10 @@ load "lib_message_types"
 -- e.g. ext_policy = { [0x32] = "required" }. Naming an id no module
 -- here registered does nothing; the audit says so in the log at
 -- startup.
-ext_policy_default = "recommended"
-ext_policy = {}
+-- The levels live in instances/spicyctf.settings, under
+-- ext_policy_default and ext_policy, where every registered
+-- extension is listed by name. Nothing is assigned here: this
+-- file runs AFTER lib_settings and a literal would replace it.
 load "lib_ext_policy"
 
 -- aosprotocol's Daytime and Weather extension (id 0x33 v1, packet
@@ -209,7 +233,8 @@ load "lib_ext_policy"
 -- clients to draw. The CLIENT does the dark, and by night it is FULL
 -- darkness: nothing lights the world and the sky is black.
 --
--- NIGHT. The sky is dark and stays dark; set daytime_night = false
+-- NIGHT. The sky is dark and stays dark; set -- daytime_night lives in instances/spicyctf.settings. Not here: this file
+-- runs after lib_settings and a literal would override it.
 -- for day. On open ground the dark is most of the difficulty, and
 -- the flashlight is how you deal with it.
 --
@@ -221,7 +246,8 @@ load "lib_ext_policy"
 -- per client (daytime_fog_fallback), which is the most base 0.75 can
 -- say -- it cannot touch their lighting, so for them night is a black
 -- horizon over a fully lit world.
-daytime_night = true
+-- daytime_night lives in instances/spicyctf.settings. Not here: this file
+-- runs after lib_settings and a literal would override it.
 load "lib_daytime"
 
 
@@ -274,9 +300,13 @@ load "votekick"
 -- minus the hostage gamemode). Load the base gamemode and lib_bot, each
 -- exactly once. "hostage" folds onto ctf, so guard against it here too.
 -- Also try "arena", "babel".
-local gamemode = os.getenv("LSD_GAMEMODE") or "ctf"
-if (gamemode == "hostage") then gamemode = "ctf" end
-load(gamemode)
+getcfg("gamemode", "ctf",
+	"Gamemode module: ctf, arena, babel, ffa, dd, or hostage "
+		.."(which rides on ctf).")
+-- the setting names the mode; `hostage` is not a gamemode of its own
+local mode = gamemode
+if (mode == "hostage") then mode = "ctf" end
+load(mode)
 -- random spawn around the team tent; BEFORE lib_bot so lib_bot's bot
 -- spawn_at stays outermost, while real players fall through to the
 -- random tent spawn

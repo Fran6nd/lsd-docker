@@ -1,10 +1,26 @@
+-- THE SETTINGS FILE, loaded before everything because that is the only
+-- order that works: it applies instances/hostage.settings to the
+-- globals, and core.lua's getcfg then fills only what the file left
+-- alone. A value applied after a module has defaulted its global does
+-- nothing -- and a value that never arrives falls back to the default
+-- silently, which is the one failure here that looks like success.
+--
+-- A real config: values, comments, no code, in the same `key = value`
+-- syntax LSd already scrapes out of map sidecars. Read by Lua, not by
+-- docker, so a natively run `./server -c config.lua` honours it too.
+--
+--   ./lsdctl hostage settings --template   everything supported
+--   ./lsdctl hostage settings reload       apply an edit live
+load "lib_settings"
+
 -- config.lua -- Lua script executed on server start
 -- Pass the -c option on the command line to use a
 -- different path for the config file
 --
 -- Common settings can be overridden from the environment
--- (see .env / docker-compose.yml): LSD_NAME, LSD_MAPS, LSD_GAMEMODE
-masterlist_name = os.getenv("LSD_NAME")
+-- (see instances/hostage.settings)
+getcfg("masterlist_name", "LSd server",
+	"Server name shown in the server lists.")
 
 -- Which maps rotate, and in what order.
 --
@@ -22,12 +38,15 @@ masterlist_name = os.getenv("LSD_NAME")
 --
 -- The path is the container's, which is always /lsd/maps whatever the
 -- host directory behind it is (see LSD_MAPS_DIR).
-local function queue_from_env()
-	local env = os.getenv("LSD_MAPS")
-	if (env == nil) then return nil end
+getcfg("map_rotation", nil,
+	"Maps to play, space separated, in order. Empty plays every .vxl "
+		.."in the instance's map folder.")
+
+local function queue_from_setting()
+	if (type(map_rotation) ~= "string") then return nil end
 
 	local q = {}
-	for m in string.gmatch(env, "%S+") do table.insert(q, m) end
+	for m in string.gmatch(map_rotation, "%S+") do table.insert(q, m) end
 	return #q > 0 and q or nil
 end
 
@@ -49,7 +68,7 @@ local function queue_from_folder()
 end
 
 -- left nil if both come up empty, so map_queue.lua's own default applies
-map_queue = queue_from_env() or queue_from_folder()
+map_queue = queue_from_setting() or queue_from_folder()
 
 set_team_name (1, "Blue")
 set_team_color(1, {r=  0, g=  0, b=196})
@@ -81,7 +100,9 @@ masterlist_remotes = {
 	"66.135.15.57",
 	"master.buildandshoot.com",
 }
-if (os.getenv("LSD_MASTERLIST") ~= "0") then
+getcfg("masterlist_enabled", true,
+	"Announce this server to the public server lists.")
+if (masterlist_enabled) then
 	load "masterlist"
 end
 
@@ -144,7 +165,8 @@ load "lib_ext"
 -- the extension handshake, so a client that keeps a 32-slot array can
 -- be handed pid 40 and do whatever it does about that. Drop this back
 -- to 32 if old clients start falling over.
-player_limit_max = 255
+-- player_limit_max lives in instances/hostage.settings. Not here: this file
+-- runs after lib_settings and a literal would override it.
 load "lib_player_limit"
 
 -- aosprotocol's Message Types extension (id 193 v1, packetless): four
@@ -178,8 +200,10 @@ load "lib_message_types"
 -- 48 Teamplay, 192 Player Limit, 193 Message Types -- e.g.
 -- ext_policy = { [0x32] = "required" }. Naming an id no module here
 -- registered does nothing; the audit says so in the log at startup.
-ext_policy_default = "recommended"
-ext_policy = {}
+-- The levels live in instances/hostage.settings, under
+-- ext_policy_default and ext_policy, where every registered
+-- extension is listed by name. Nothing is assigned here: this
+-- file runs AFTER lib_settings and a literal would replace it.
 load "lib_ext_policy"
 
 -- aosprotocol's Daytime and Weather extension (id 0x33 v1, packet
@@ -200,7 +224,8 @@ load "lib_ext_policy"
 -- per client (daytime_fog_fallback), which is the most base 0.75 can
 -- say -- it cannot touch their lighting, so for them night is a black
 -- horizon over a fully lit world.
-daytime_night = false
+-- daytime_night lives in instances/hostage.settings. Not here: this file
+-- runs after lib_settings and a literal would override it.
 load "lib_daytime"
 
 
@@ -245,9 +270,13 @@ load "votekick"
 -- them, so nothing is registered twice. A double register makes a
 -- hook's `next` point at itself and stack-overflows the tick chain.
 -- Also try "arena", "babel" (hostage stays idle without tents).
-local gamemode = os.getenv("LSD_GAMEMODE") or "ctf"
-if (gamemode == "hostage") then gamemode = "ctf" end
-load(gamemode)
+getcfg("gamemode", "ctf",
+	"Gamemode module: ctf, arena, babel, ffa, dd, or hostage "
+		.."(which rides on ctf).")
+-- the setting names the mode; `hostage` is not a gamemode of its own
+local mode = gamemode
+if (mode == "hostage") then mode = "ctf" end
+load(mode)
 -- random spawn around the team tent; BEFORE lib_bot so lib_bot's bot
 -- spawn_at (the hostage's enemy-tent post) stays outermost and wins,
 -- while real players fall through to the random tent spawn
@@ -256,7 +285,8 @@ load "tentspawns"
 -- hostages, and bot_standard's guards) out of the advertised player
 -- count and off the advertised capacity, since their slots aren't free
 -- for humans either. Set false to advertise bots as players again.
-bot_hide_from_masterlist = true
+-- bot_hide_from_masterlist lives in instances/hostage.settings. Not here: this file
+-- runs after lib_settings and a literal would override it.
 load "lib_bot"
 load "hostage"
 -- combat guard bots, 5 per team (scripts.local/) -- disabled for now;
