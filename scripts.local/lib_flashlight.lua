@@ -39,6 +39,24 @@
 --        listener that throws is dropped and refuses that request --
 --        a veto that cannot answer is not read as consent.
 --
+-- THE LAMP GIVES THE CARRIER AWAY, and that is the client's work
+-- entirely -- there is nothing extra on the wire for it. A client draws
+-- a glare at the lamp of every lit player but its own, and derives the
+-- whole thing from what this module already sends: the beam's colour,
+-- and Reach and Cone out of the Light Config.
+--
+-- Which quietly turns those two into gameplay. Cone sets the angle the
+-- glare is visible through (the spec's Beam term falls off over
+-- Cone/2), and Reach sets how far (Distance is 1/(1+(d/Reach)^2)). So a
+-- wider, longer beam does not merely light more -- it shows its carrier
+-- to more people, from further away. A narrow beam is the stealthy one.
+--
+-- And the glare brightens as the world darkens: the spec scales it by a
+-- dark adaptation of 1 in daylight up to 8 in total darkness. Switch
+-- lib_daytime to night and a lit player is not subtly visible, they are
+-- a beacon. Which is the point on a map played in the dark -- see
+-- hallwayatnight's guards, who carry theirs lit on purpose.
+--
 -- A LIGHT IS NOT ADDRESSED TO ANYBODY, which is what makes this
 -- different from lib_teamplay. A mark is drawn for one viewer and is
 -- that viewer's alone; a light belongs to the player carrying it and
@@ -141,10 +159,12 @@ local CONE_MAX = 179;
 -- range on it: (1.0, 0.7, 0.5) becomes (255, 178.5, 127.5), and the
 -- rounding is what the spec's own example says -- 255, 179, 128.
 getcfg("flashlight_reach", 60,
-	"Blocks at which the beam reaches zero. OpenSpades' own light "
-		.."uses 60.");
+	"Blocks at which the beam reaches zero. OpenSpades' own light uses "
+		.."60. Also how far off the carrier's lamp glare is visible.");
 getcfg("flashlight_cone", 90,
-	"Full angle of the beam in degrees, 0 to 179.");
+	"Full angle of the beam in degrees, 0 to 179. Also the angle the "
+		.."carrier's lamp glare is visible through, so a narrow beam "
+		.."is the stealthy one.");
 getcfg("flashlight_red", 255,
 	"Beam colour, red channel. 255/179/128 is OpenSpades' warm "
 		.."white.");
