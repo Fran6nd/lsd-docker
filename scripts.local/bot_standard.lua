@@ -10,20 +10,35 @@
 -- its way out of being stuck. The aiming, spread/recoil shooting and
 -- grenade ballistics are all lib_bot's; this is just the AI.
 --
+-- Where lib_flashlight is loaded, every living guard carries its light
+-- lit (guard_flashlight). The client and lib_flashlight both put a
+-- light out on a kill and a respawn, so the think re-lights it on the
+-- first tick of each life rather than once at creation.
+--
 -- Command: /guards -- list each guard's HP and state.
 --
 -- DEPENDENCIES: lib_bot loaded first (config.lua does this), and a
--- tent gamemode (ctf) for the roam target. It never load()s its deps.
+-- tent gamemode (ctf) for the roam target. It never load()s its deps;
+-- lib_flashlight is optional and only used when it is there.
 require "lib_bulk_destroy"; -- global bdestroy_* for the dig-out stage
 
 local mod = init_mod();
 
-getcfg("guard_count", 5);         -- fighters per team
-getcfg("guard_shoot_range", 24);  -- start shooting within this many blocks
-getcfg("guard_grenade_range", 12);-- lob a grenade within this many blocks
-getcfg("guard_grenade_cd", 5);    -- seconds between a guard's grenades
-getcfg("guard_grenade_safe_r", 16);-- skip the grenade if a hostage is this close to the target
-getcfg("guard_lowhp", 30);        -- shout for help below this HP
+getcfg("guard_count", 5,
+	"Guard bots kept alive per team.");
+getcfg("guard_shoot_range", 24,
+	"Blocks within which a guard stops and shoots.");
+getcfg("guard_grenade_range", 12,
+	"Blocks within which a guard lobs a grenade.");
+getcfg("guard_grenade_cd", 5,
+	"Seconds between one guard's grenades.");
+getcfg("guard_grenade_safe_r", 16,
+	"No grenade when a hostage is this many blocks from the target.");
+getcfg("guard_lowhp", 30,
+	"A guard shouts for help in team chat below this HP.");
+getcfg("guard_flashlight", true,
+	"Guards keep their flashlight lit while alive, where lib_flashlight "
+	.."is loaded.");
 
 local STUCK_CHECK = 0.5;  -- seconds between progress checks
 local STUCK_MOVE = 0.8;   -- blocks of horizontal progress that count as moving
@@ -150,6 +165,14 @@ local function guard_think(pid)
 	if (dt <= 0) then dt = 1/60; end
 
 	d.gren_cd = math.max(0, (d.gren_cd or 0) - dt);
+
+	-- checked every tick, not only on spawn: a kill and a respawn both
+	-- put the light out (lib_flashlight mirrors the client), and
+	-- guard_flashlight turned off live puts it out here too
+	local light = guard_flashlight and true or false;
+	if (flashlight_set ~= nil and flashlight_get(pid) ~= light) then
+		flashlight_set(pid, light);
+	end
 
 	-- shout once when hurt, rearm the shout when patched up
 	local hp = get_hp(pid);

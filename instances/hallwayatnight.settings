@@ -69,6 +69,15 @@ ext_policy = {
 	 193: 'recommended',   # Message Types -- warnings and notices
 }
 
+# Guard bots kept alive per team.
+guard_count = 5
+
+# Guards keep their flashlight lit while alive, so they are seen coming.
+guard_flashlight = True
+
+# Advertise humans only: keep bots out of the published player count.
+bot_hide_from_masterlist = True
+
 # Message of the day, shown on join. A list of lines.
 motd = [
 	"Welcome to Fran6nd's Hallway At Night, running [LSd].",
@@ -118,4 +127,5 @@ modules = [
 	'tentspawns',
 	'lib_bot',
 	'@gamemode_extra',
+	'bot_standard',
 ]
