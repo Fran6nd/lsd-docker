@@ -91,7 +91,13 @@ tips = [
 #   @gamemode_extra  its rider, if the mode has one (hostage on ctf)
 #
 # `masterlist` is loaded only when masterlist_enabled is true.
-modules = [
+#
+# Named load_order and not `modules`: core.lua already uses a global
+# called `modules` for its registry of loaded module tables
+# (core.lua:55), and a settings key of that name overwrote it with a
+# list of strings -- which broke register/unregister and threw on
+# every shutdown.
+load_order = [
 	'group_deps',
 	'group_commands',
 	'group_moderation',

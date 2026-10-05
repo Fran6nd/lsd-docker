@@ -118,17 +118,17 @@ end
 -- A name that is neither is loaded as a module. An unknown module name
 -- fails here with its own name in the error, which is a better place to
 -- find out than halfway through a round.
-getcfg("modules", nil,
+getcfg("load_order", nil,
 	"Modules to load, in order. @gamemode and @gamemode_extra mark "
 		.."where the gamemode and its rider go.")
 
-if (type(modules) ~= "table") then
-	error("config.lua: this instance's settings file sets no `modules` "
+if (type(load_order) ~= "table") then
+	error("config.lua: this instance's settings file sets no `load_order` "
 		.."list, so the server would load nothing. See "
 		.."templates/settings.", 0);
 end
 
-for _,name in ipairs(modules) do
+for _,name in ipairs(load_order) do
 	if (name == "@gamemode") then
 		gamemode_base();
 	elseif (name == "@gamemode_extra") then
