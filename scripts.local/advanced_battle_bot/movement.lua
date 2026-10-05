@@ -22,14 +22,15 @@ local STUCK_CHECK = 0.5;  -- seconds between progress checks
 local STUCK_MOVE = 0.7;   -- blocks of progress that count as moving
 local JUMP_GRACE = 0.6;   -- let a jump land before escalating to digging
 
--- spade the wall ahead from head to feet
+-- spade the wall ahead from head to feet: the three blocks around the
+-- middle of the body, not around the eye, which is the top of it
 local function dig(pid, p)
 	local o = get_orientation(pid);
 	local h = sqrt(o.x*o.x + o.y*o.y);
 	if (h < 0.001) then return; end
 	local fx, fy = floor(p.x + o.x/h), floor(p.y + o.y/h);
-	local iz = floor(p.z);
-	for _, z in ipairs({iz-1, iz, iz+1, iz+2}) do
+	local cz = bot_body_center_z(pid);
+	for _, z in ipairs({cz-1, cz, cz+1}) do
 		if (z < 62) then bot_dig_block(fx, fy, z); end
 	end
 	bdestroy_finish();

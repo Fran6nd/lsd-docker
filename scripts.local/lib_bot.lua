@@ -34,6 +34,8 @@
 --   bot_teleport(pid, pos)
 --   bot_heal(pid)
 --   bot_distance_to(pid, pos_or_pid) -> dist
+--   bot_solid(x, y, z) / bot_dig_block(x, y, z)  -- off-map safe
+--   bot_body_center_z(pid) -> z      -- middle of the 3-block body
 --   bot_nearest_player(pid, {team=, within=, include_bots=, visible=, reject=}) -> pid, dist | nil
 --
 -- Combat (see the COMBAT section for the AoS math):
@@ -367,6 +369,30 @@ function bot_dig_block(x, y, z)
 	if (not bot_solid(x, y, z)) then return false; end
 	bdestroy_block_action({x=x, y=y, z=z}, 1);
 	return true;
+end
+
+-- The z of the block at the middle of a bot's body, with the block
+-- above it and the one below making the three a standing body fills --
+-- which is what a bot has to dig to walk on through a wall.
+--
+-- Measured up from the feet and not down from the eye, because the
+-- eye moves when the body crouches and the feet do not. Standing, the
+-- feet are 2.25 below pos.z: the box demoncore clips (demoncore.c,
+-- boxclipmove and try_uncrouch) and the spawn height (main.c's
+-- highest_point_spawn, 2.251 above the ground) agree. Crouching moves
+-- pos.z down by 0.9 and leaves the feet where they were (change_crouch),
+-- so there they are 1.35 below it. The server's inputs are the body's
+-- real crouch state: on_move_input moves the body exactly when the
+-- crouch bit changes (funcs_event.c).
+--
+-- The 0.01 keeps feet resting on a floor in the block above it instead
+-- of rounding them into the floor itself.
+function bot_body_center_z(pid)
+	local p = get_position(pid);
+	local crouched = has_bit(get_inputs(pid), KEY.crouch);
+	local feet = p.z + (crouched and 1.35 or 2.25);
+
+	return math.floor(feet - 0.01) - 1;
 end
 
 function bot_distance_to(pid, target)

@@ -72,8 +72,8 @@ local function hostage_near(pos, radius)
 	return false;
 end
 
--- destroy the block ahead at the bot's level and the ones above/below
-local function dig_forward(pid, p, iz)
+-- destroy the three blocks ahead that the bot's body would walk into
+local function dig_forward(pid, p)
 	local o = get_orientation(pid);
 	local h = math.sqrt(o.x*o.x + o.y*o.y);
 	if (h < 0.001) then
@@ -84,7 +84,11 @@ local function dig_forward(pid, p, iz)
 	-- bot faces an edge, and an ivec3 out of bounds raises rather than
 	-- returning (see bot_solid)
 	local fx, fy = math.floor(p.x + o.x/h), math.floor(p.y + o.y/h);
-	for _, fz in ipairs({iz, iz+1, iz-1}) do
+	-- centred on the body, not the eye: the eye is the top of a body
+	-- three blocks tall, so around it digs one block above the head and
+	-- leaves the feet's block standing
+	local cz = bot_body_center_z(pid);
+	for _, fz in ipairs({cz, cz-1, cz+1}) do
 		bot_dig_block(fx, fy, fz);
 	end
 	bdestroy_finish();
@@ -126,7 +130,7 @@ local function try_unstick(pid, dt, d)
 
 	if (d.crouch_tried) then
 		d.crouch_tried = false; d.jump_tried = false;
-		dig_forward(pid, p, iz);
+		dig_forward(pid, p);
 		return false, true; -- stay crouched while digging
 	end
 
