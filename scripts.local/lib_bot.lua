@@ -104,12 +104,41 @@ local TOOL = {spade=0, block=1, gun=2, grenade=3};
 local bots = {};    -- pid -> bot table
 local ready = true; -- false while a map is loading
 
+-- pid -> true for a client that has a real peer but is not a person:
+-- a headless client driven by a script, which is population no more
+-- than a scripted bot is. Nothing here detects them -- it cannot, the
+-- evidence is in the version handshake -- so another module marks
+-- them and this one only has to agree about what the count means.
+-- lib_headless is that module.
+local nonhuman = {};
+
+-- Defined in the MASTERLIST section at the bottom, declared here
+-- because bot_mark_nonhuman above it calls it. A forward local and not
+-- a global: a global would be one more name in a table this file
+-- otherwise keeps clean, and nothing outside has any business calling
+-- it.
+local advertise_humans;
+
 local function has_bit(bits, key)
 	return bits % (2*key) >= key;
 end
 
 function bot_is_bot(pid)
 	return bots[pid] ~= nil;
+end
+
+-- Mark (or unmark) a pid as a client that must not be advertised as a
+-- player. Separate from bot_is_bot on purpose: these have a peer, a
+-- handshake and an RTT, so everything else in the server should keep
+-- treating them as the clients they are. The masterlist count is the
+-- one place the distinction matters.
+function bot_mark_nonhuman(pid, yes)
+	nonhuman[pid] = yes and true or nil;
+	advertise_humans();
+end
+
+function bot_is_nonhuman(pid)
+	return bots[pid] ~= nil or nonhuman[pid] == true;
 end
 
 function bot_get(pid)
@@ -766,8 +795,9 @@ end
 -- bot. So five bots on a 32-slot server read "0/27": nobody playing,
 -- and 27 seats really are free. The recompute is absolute, not a
 -- subtraction, so it can run as often as we like.
-local function advertise_humans()
-	if (not bot_hide_from_masterlist or next(bots) == nil) then
+advertise_humans = function()
+	if (not bot_hide_from_masterlist
+			or (next(bots) == nil and next(nonhuman) == nil)) then
 		return; -- nothing of ours to hide; masterlist.lua is right
 	end
 
@@ -775,7 +805,7 @@ local function advertise_humans()
 	local max = get_effective_max_players();
 
 	for i in piditer(PID_BROADCAST) do
-		if (bots[i] ~= nil or not is_joined(i)) then
+		if (bots[i] ~= nil or nonhuman[i] or not is_joined(i)) then
 			max = max - 1;
 		else
 			players = players + 1;
@@ -794,7 +824,12 @@ end
 mod.xearly.after.on_successful_connect = advertise_humans;
 mod.xearly.after.on_join = advertise_humans;
 mod.xearly.after.boot_players_to_limbo = advertise_humans;
-mod.xearly.after.on_disconnect = advertise_humans;
+mod.xearly.after.on_disconnect = function(pid)
+	-- Clear first: pids are recycled, and a mark left behind would hide
+	-- the next person to be given this one from the player count.
+	nonhuman[pid] = nil;
+	advertise_humans();
+end;
 mod.xearly.after.disconnect_now = advertise_humans;
 
 function mod.after.tick()

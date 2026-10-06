@@ -73,7 +73,12 @@
 -- would be frozen in spectator and both gamemodes would stop working.
 -- Two tests, either of which exempts:
 --
---   bot_is_bot(pid)      lib_bot saying so, when it is loaded
+--   bot_is_nonhuman(pid) lib_bot saying so, which covers its own bots
+--                        and any client lib_headless has marked as
+--                        headless -- an aosbot fleet, say, which has a
+--                        real peer and would pass every test below
+--   bot_is_bot(pid)      lib_bot's narrower answer, if an older copy of
+--                        it is loaded without the above
 --   get_ipaddr(pid) == 0 no ENet peer at all (lua.c:1087-1096 answers 0
 --                        rather than failing), which covers a bot from
 --                        any other source, and anything else holding a
@@ -278,12 +283,33 @@ local caught_up = pid_connected_table();
 -- Nobody on the other end: no client to announce to, no answer to wait
 -- for, and nothing an extension could mean. Exempt from everything.
 --
--- The peer test is the general one and the bot test is the explicit
--- one, and both are here because they fail in opposite directions: a
--- bot library other than lib_bot would pass bot_is_bot and still have
--- no peer, while a future lib_bot bot given a real connection would
--- have a peer and still be a bot.
-local function is_clientless(pid)
+-- Three tests, because they fail in different directions.
+--
+-- bot_is_nonhuman is lib_bot's answer, and covers both kinds it knows
+-- about: its own scripted bots, and a client another module has marked
+-- as headless (lib_headless does that for an aosbot fleet, off the
+-- os_info in the version handshake).
+--
+-- The peer test is the general one, for a bot from any other source
+-- holding a player id with nobody behind it.
+--
+-- Neither subsumes the other. A headless client has a real peer and a
+-- real address, so the peer test alone never sees it -- which is why
+-- the old pair of tests did not, and why a hundred of them would each
+-- have collected the periodic "your client is out of date" message for
+-- extensions no headless client will ever implement. A bot library
+-- other than lib_bot has no peer and lib_bot has never heard of it.
+--
+-- Named for what it decides rather than for one of the tests: these
+-- are the player ids with no PERSON behind them, which is the only
+-- thing an extension policy can sensibly be about.
+local function is_not_a_person(pid)
+	if (bot_is_nonhuman ~= nil and bot_is_nonhuman(pid)) then
+		return true;
+	end
+
+	-- lib_bot not loaded at all: fall back to its narrower predecessor
+	-- rather than silently exempting nobody.
 	if (bot_is_bot ~= nil and bot_is_bot(pid)) then
 		return true;
 	end
@@ -404,7 +430,7 @@ end
 -- else needs every required extension. An undecided client may not yet,
 -- which is why the caller holds their team rather than refusing it.
 function ext_policy_ok(pid)
-	if (is_clientless(pid)) then
+	if (is_not_a_person(pid)) then
 		return true;
 	end
 
@@ -519,7 +545,7 @@ end
 -- The team a client asked for, honoured or held. Returns the team to
 -- actually use, which is SPECTATOR when they may not play yet.
 local function gate(pid, team, gun)
-	if (team == SPECTATOR or is_clientless(pid)) then
+	if (team == SPECTATOR or is_not_a_person(pid)) then
 		return team;
 	end
 
@@ -718,10 +744,10 @@ function mod.after.tick()
 
 		-- Two table lookups and a subtraction before anything costly.
 		-- In the steady state nothing below runs for anybody: no held
-		-- team, and the warning clock not yet due. is_clientless costs a
+		-- team, and the warning clock not yet due. is_not_a_person costs a
 		-- pcall and ext_policy_missing walks the registry, so neither is
 		-- reached until there is a reason.
-		if ((want ~= nil or due) and not is_clientless(pid)) then
+		if ((want ~= nil or due) and not is_not_a_person(pid)) then
 			-- a held team, now allowed: put them on it, with the gun
 			-- they asked for at the time
 			if (want ~= nil and ext_policy_ok(pid)) then

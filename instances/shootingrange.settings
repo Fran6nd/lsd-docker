@@ -26,6 +26,15 @@ masterlist_name = "Fran6nd's Shooting Range"
 # Announce this server to the public server lists.
 masterlist_enabled = True
 
+# Advertise humans only. The aosbot fleet pointed at this server dials
+# in over UDP and completes the handshake like any client, so without
+# this it would be advertised as a hundred players who are not there --
+# which is indistinguishable from padding the count to climb the list,
+# and is what a list operator delists a server for. lib_headless reads
+# the ident out of the version handshake; lib_bot keeps the count.
+bot_hide_from_masterlist = True
+headless_idents = ['AosBot']
+
 # Gamemode module: ctf, arena, babel, ffa, dd, or hostage.
 gamemode = 'ctf'
 
@@ -117,5 +126,6 @@ load_order = [
 	'@gamemode',
 	'tentspawns',
 	'lib_bot',
+	'lib_headless',
 	'@gamemode_extra',
 ]
