@@ -37,9 +37,12 @@ gamemode = 'ctf'
 # every client copes with.
 player_limit_max = 255
 
-# Night instead of day. By night nothing lights the world and the sky
-# is black; only flashlights light it.
-daytime_night = True
+# No daytime: lib_daytime is deliberately not in load_order below, so
+# this server never touches the sky and the map's own fog stands. Setting
+# the extension to 'disabled' in ext_policy would NOT have done this --
+# the module would still be loaded, and with daytime_fog_fallback on it
+# pushes the night fog per-client to everyone who cannot negotiate the
+# extension, which with the extension withdrawn is everyone.
 
 # What a MISSING extension costs a client, and whether it is offered at
 # all. Every extension this server registers is listed below -- the
@@ -59,7 +62,6 @@ ext_policy = {
 	  0x20: 'recommended',  # Damage Markers
 	    48: 'recommended',  # Teamplay
 	  0x32: 'recommended',  # Flashlight
-	  0x33: 'recommended',  # Daytime and Weather
 	   192: 'recommended',  # Player Limit
 	   193: 'recommended',  # Message Types
 }
@@ -115,7 +117,6 @@ load_order = [
 	'lib_player_limit',
 	'lib_message_types',
 	'lib_ext_policy',
-	'lib_daytime',
 	'lib_flashlight',
 	'lib_teamplay',
 	'lib_damage_markers',
