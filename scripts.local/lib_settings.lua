@@ -475,8 +475,53 @@ end
 -- drift -- and everything else is bookkeeping.
 local core_getcfg = getcfg;
 
+-- A list where the module wants a STRING, joined with newlines.
+--
+-- This is the only place it can be done. The file is parsed before any
+-- module has run, so when the value is assigned nothing knows what
+-- shape the module wants; getcfg is the moment the declared default
+-- arrives, and the global is already sitting there from the file.
+--
+-- It earns its keep on multi-line text. motd.lua takes one string and
+-- splits it on newlines (`for line in string.gmatch(motd, "([^\n]+)")`),
+-- so a motd of three lines can only be written as one string -- and the
+-- syntax has no \n escape, so it cannot be written at all. Meanwhile a
+-- LIST is the obvious way to put three lines in a config file, it is
+-- how tips are already written, and it was what motd said to use. The
+-- result was a motd that silently came out as its first line.
+--
+-- Only lists of scalars, and only when every element is one: anything
+-- else is a real type mismatch and the module should say so rather than
+-- have this paper over it.
+local function join_if_text(key, default)
+	if (type(default) ~= "string" or type(_G[key]) ~= "table") then
+		return;
+	end
+
+	local parts, n = {}, 0;
+	for i, v in ipairs(_G[key]) do
+		local t = type(v);
+		if (t ~= "string" and t ~= "number") then
+			return;   -- not a list of lines; leave it alone
+		end
+		parts[i] = tostring(v);
+		n = i;
+	end
+
+	-- An empty table is not a list of lines either, and joining it would
+	-- turn "you set nothing useful" into "" rather than leaving the
+	-- module's default alone.
+	if (n == 0) then
+		return;
+	end
+
+	_G[key] = table.concat(parts, "\n");
+end
+
 function getcfg(key, default, doc)
 	if (type(key) == "string") then
+		join_if_text(key, default);
+
 		-- Only true before the fill below runs: a global that is
 		-- already non-nil was set by the settings file or by config.lua,
 		-- because nothing else sets one this early. That one bit is the
