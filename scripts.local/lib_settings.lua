@@ -49,15 +49,16 @@
 -- config.lua, so `./server -c config.lua` and the container see the
 -- same settings.
 --
--- IT NEVER WRITES ITSELF. The file is input. New settings are added to
--- it by  ./lsdctl <instance> settings --sync , on the host, when you
--- ask -- the server only ever says what it supports.
+-- IT NEVER WRITES ITSELF. The file is input, and the server only ever
+-- says what it supports: `settings --template` prints the whole file
+-- every loaded module would accept, with each setting's own
+-- description, to copy what you want out of.
 --
 -- API (globals):
 --   getcfg(key, default, doc)    core.lua's, plus an optional third
 --        argument: what the setting means, in one line. This is how a
 --        module exposes a setting rather than merely having one, and
---        it is what --sync writes into the file as a comment.
+--        it is the comment settings_template() writes above it.
 --   settings_file                path read, set before loading this
 --   settings_loaded()      -> true if a file was found and parsed
 --   settings_values()      -> {key = value} as parsed
@@ -90,16 +91,28 @@ local py = require "lib_pyscrape";
 -- editor that saves by rename would leave the server reading the old
 -- one -- so the file is found by name inside it.
 --
--- LSD_SETTINGS_FILE is read for that name alone, and this is the one
--- place an environment variable is still right: finding the config is
--- not configuration. It is what -c does for config.lua. Natively there
--- is no such variable and the fallback applies, so the file stays
--- portable; what is in it is never read from the environment.
+-- LSD_SETTINGS_FILE names it, and this is the one place an environment
+-- variable is still right: finding the config is not configuration. It
+-- is what -c does for config.lua.
+--
+-- Used AS GIVEN, relative to the server's working directory. It used to
+-- take the basename and re-prefix "instances/", which happened to suit
+-- one docker layout and quietly broke every other: a native server
+-- told /etc/lsd/my.settings got instances/my.settings and reported the
+-- file missing. Where the file lives is the caller's business.
+--
+-- Three ways in, in order, so nothing here is docker-specific:
+--   settings_file = "..."    set in config.lua before loading this
+--   LSD_SETTINGS_FILE        the environment, for a supervisor
+--   "settings"               beside the server, which is the native
+--                            default and needs no configuration at all
 if (settings_file == nil) then
 	local env = os.getenv and os.getenv("LSD_SETTINGS_FILE");
 
 	if (env ~= nil and env ~= "") then
-		settings_file = "instances/" .. string.gsub(env, "^.*/", "");
+		-- "./x" and "x" are the same path; the server may be chdir'd
+		-- elsewhere, so leave anything absolute exactly as it is.
+		settings_file = (string.gsub(env, "^%./", ""));
 	else
 		settings_file = "settings";
 	end
@@ -124,6 +137,25 @@ local values = {};
 local parsed = false;
 
 --============================== PARSING =============================--
+
+-- \n, \t and friends inside a quoted string. The value of having them
+-- is that a setting whose module wants several lines -- a motd, a rules
+-- blurb -- can be written as one, instead of the format having no way
+-- to say "newline" at all.
+--
+-- An unknown escape is kept verbatim, backslash and all: a Windows path
+-- in a setting should survive being read, and guessing at \d would lose
+-- it silently.
+local ESCAPES = {
+	n = "\n", t = "\t", r = "\r",
+	["\\"] = "\\", ['"'] = '"', ["'"] = "'",
+};
+
+local function unescape(body)
+	return (string.gsub(body, "\\(.)", function(c)
+		return ESCAPES[c] or ("\\" .. c);
+	end));
+end
 
 -- A scalar, in the syntaxes lib_pyscrape's sidecars already use.
 -- Strings quoted either way, Python's True/False/None, numbers in
@@ -155,7 +187,7 @@ local function parse_scalar(raw)
 		local body = string.match(raw, "^" .. q .. "(.*)" .. q .. "$");
 
 		if (body ~= nil) then
-			return body;
+			return unescape(body);
 		end
 
 		-- An unterminated quote. SAY so: silence here is the worst
@@ -226,11 +258,19 @@ local function split_items(body)
 	local quote = nil;   -- the quote character we are inside, if any
 	local depth = 0;     -- how deep in {} [] () we are
 
+	local skip = false;
+
 	for i=1,#body do
 		local c = string.sub(body, i, i);
 
-		if (quote ~= nil) then
-			if (c == quote) then quote = nil; end
+		if (skip) then
+			-- the character a backslash protected; see unescape, which
+			-- is what finally turns the pair into one character
+			skip = false;
+			buf[#buf+1] = c;
+		elseif (quote ~= nil) then
+			if (c == "\\") then skip = true;
+			elseif (c == quote) then quote = nil; end
 			buf[#buf+1] = c;
 		elseif (c == "'" or c == '"') then
 			quote = c;
@@ -323,11 +363,18 @@ end
 local function strip_comment(line)
 	local out, quote = {}, nil;
 
+	local skip = false;
+
 	for i = 1, #line do
 		local c = string.sub(line, i, i);
 
-		if (quote ~= nil) then
-			if (c == quote) then
+		if (skip) then
+			skip = false;
+			out[#out+1] = c;
+		elseif (quote ~= nil) then
+			if (c == "\\") then
+				skip = true;
+			elseif (c == quote) then
 				quote = nil;
 			end
 			out[#out+1] = c;
@@ -518,9 +565,44 @@ local function join_if_text(key, default)
 	_G[key] = table.concat(parts, "\n");
 end
 
+-- The file said one kind of thing and the module wants another: a
+-- number written in quotes, a flag written as the word "yes" where the
+-- module reads a string, a list where a single value belongs.
+--
+-- Here and not in the parser, because this is the first moment both
+-- halves are known: the file is read before any module runs, so until
+-- the module declares its default nothing knows what the value was
+-- meant to be.
+--
+-- WARNS AND KEEPS, rather than reverting to the default. The value is
+-- what the operator wrote and may well be what they meant -- Lua will
+-- happily do arithmetic on "300" -- so silently replacing it would hide
+-- the mistake behind working-looking behaviour. Saying so costs one
+-- line in the log and leaves the decision where it belongs.
+local function check_type(key, default)
+	if (default == nil) then
+		return;   -- the module declared no default to compare against
+	end
+
+	local v = _G[key];
+
+	if (v == nil) then
+		return;   -- unset: the default is about to apply, nothing to check
+	end
+
+	local want, got = type(default), type(v);
+
+	if (want ~= got) then
+		log("lib_settings: %s: %s is a %s, but the module that reads it"
+			.. " expects a %s -- used as written", settings_file, key,
+			got, want);
+	end
+end
+
 function getcfg(key, default, doc)
 	if (type(key) == "string") then
 		join_if_text(key, default);
+		check_type(key, default);
 
 		-- Only true before the fill below runs: a global that is
 		-- already non-nil was set by the settings file or by config.lua,
@@ -816,8 +898,8 @@ config_fields = settings_fields;
 
 -- Logged for lsdctl to read back over the console, the same way
 -- config_dump is: one line per declared setting, with whether this file
--- sets it and what its module says it is for. --sync turns the ones
--- marked `unset` into commented lines in the file.
+-- sets it and what its module says it is for. `settings --template`
+-- prints the ones marked `unset` as commented lines, ready to copy.
 -- Logged for lsdctl to read back over the console. One line per
 -- setting, with a stable prefix so it can be grepped out of whatever
 -- else the server is saying.
@@ -861,6 +943,45 @@ end
 -- Read and applied at load, not at a tick: everything that reads a
 -- setting does so while it is loading, which is after this and before
 -- the first tick.
+-- A key in the file that no module declares: a typo, or a setting
+-- belonging to a module this instance does not load.
+--
+-- It cannot be checked while reading the file -- nothing has declared
+-- anything yet -- nor as each module loads, because the next one along
+-- might be the owner. The first tick is the earliest moment the answer
+-- is knowable, which is the same reason lib_ext_policy audits there.
+--
+-- Worth the trouble because the failure it catches is the quietest one
+-- this file has: `masterlist_nmae = "..."` is accepted, assigned, and
+-- reported by `settings reload` as a setting that changed. Nothing
+-- reads it, the server keeps its default, and the operator has every
+-- reason to believe it worked.
+local validated = false;
+
+local function validate_unknown()
+	local unknown = {};
+
+	for k in pairs(values) do
+		if (fields[k] == nil) then
+			unknown[#unknown+1] = k;
+		end
+	end
+
+	if (#unknown > 0) then
+		table.sort(unknown);
+		log("lib_settings: %s: no loaded module reads %s -- misspelt, or"
+			.. " belonging to a module this server does not load",
+			settings_file, table.concat(unknown, ", "));
+	end
+end
+
+function mod.after.tick()
+	if (not validated) then
+		validated = true;
+		validate_unknown();
+	end
+end
+
 function mod.on_load()
 	local f = io.open(settings_file, "r");
 
