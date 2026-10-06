@@ -21,11 +21,25 @@
 -- "worldedit_build" is granted automatically, to everyone present, for
 -- as long as edit mode is on. It is not meant to be in a cap group.
 
--- lib_bulk_destroy and lib_l10n are required directly by world_editor
--- and its components, but load them here too so they are registered
--- modules rather than bare requires -- that is how group_deps treats
--- them, and it keeps /lsmod honest about what is running.
-load "lib_bulk_destroy"
+-- lib_l10n is loaded rather than required so it is a registered module
+-- and /lsmod stays honest about what is running, which is how group_deps
+-- treats it.
+--
+-- lib_bulk_destroy is REQUIRED and not loaded, which looks inconsistent
+-- and is not. It ends without returning anything, so `require` puts
+-- `true` in package.loaded for it, and core.lua's load() refuses to
+-- register a non-table anyway (it clears package.loaded and moves on) --
+-- so loading it could never have made it a registered module.
+--
+-- Worse than useless, since core.lua was reimplemented: load() now
+-- unloads first when a module is already loaded, and unload() passes
+-- `package.loaded[name] or {name=name}` to unregister(). That guard
+-- catches nil and not `true`, so unregister() indexed a boolean and the
+-- server panicked on startup -- "attempt to index local 'module'" --
+-- for every instance that loads the editor. Something earlier in the
+-- load order has always required it, so the already-loaded branch is
+-- the one that runs.
+require "lib_bulk_destroy"
 load "lib_l10n"
 
 load "world_editor"

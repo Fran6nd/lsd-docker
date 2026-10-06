@@ -56,7 +56,7 @@
 -- question, and answers it before anybody can undo it.
 --
 -- WHERE IN THE CHAIN. mod.late, which is as close to the implementation
--- as a script gets (callchain_late in core.lua:50, run after every
+-- as a script gets (chains[2] in core.lua, run after every
 -- ordinary mod.* hook). Anything that halves damage, caps it or cancels
 -- it outright hooks the std chain and therefore runs above this, so the
 -- amount that arrives here is the amount that is about to be handed to
