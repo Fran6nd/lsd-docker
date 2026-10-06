@@ -201,23 +201,83 @@ local function parse_scalar(raw)
 	return raw;
 end
 
+-- Split a list or mapping body on its commas -- the ones that separate
+-- items, and not the ones inside a quoted string or a nested bracket.
+--
+-- What this replaced was `gmatch(body .. ",", "%s*([^,]-)%s*,")`, which
+-- knows nothing about quotes, so
+--
+--   motd = ["One flat plain, 512 by 512, and nothing to hide behind."]
+--
+-- came apart into three fragments, two of them with an unterminated
+-- quote that parse_scalar then rejected one by one. The survivor was
+-- the tail end of the last line. Every motd and every tip with a comma
+-- in it was quietly rubbish, and the only sign was a warning that
+-- named the quote rather than the comma that broke it.
+--
+-- Nesting is tracked too, so a list of tuples or a map of maps splits
+-- where it should.
+--
+-- No escape handling, because the syntax has none: a quote is closed by
+-- the next matching quote, which is why both kinds exist (lib_pyscrape
+-- reads sidecars the same way, and "an apostrophe's" is why).
+local function split_items(body)
+	local out, buf = {}, {};
+	local quote = nil;   -- the quote character we are inside, if any
+	local depth = 0;     -- how deep in {} [] () we are
+
+	for i=1,#body do
+		local c = string.sub(body, i, i);
+
+		if (quote ~= nil) then
+			if (c == quote) then quote = nil; end
+			buf[#buf+1] = c;
+		elseif (c == "'" or c == '"') then
+			quote = c;
+			buf[#buf+1] = c;
+		elseif (c == "{" or c == "[" or c == "(") then
+			depth = depth + 1;
+			buf[#buf+1] = c;
+		elseif (c == "}" or c == "]" or c == ")") then
+			depth = depth - 1;
+			buf[#buf+1] = c;
+		elseif (c == "," and depth == 0) then
+			out[#out+1] = table.concat(buf);
+			buf = {};
+		else
+			buf[#buf+1] = c;
+		end
+	end
+
+	out[#out+1] = table.concat(buf);
+
+	-- Trim, and drop the empty item a trailing comma leaves -- which a
+	-- one-entry-per-line layout always ends with, and is normal rather
+	-- than a mistake.
+	local items = {};
+	for _, item in ipairs(out) do
+		item = string.gsub(string.gsub(item, "^%s+", ""), "%s+$", "");
+		if (item ~= "") then
+			items[#items+1] = item;
+		end
+	end
+
+	return items;
+end
+
 -- A braced mapping: {0x33: 'required', 0x32: 'required'}. Colons rather
 -- than equals, which is the shape lib_pyscrape's get_ext already reads
 -- out of a sidecar's JSON-ish blocks.
 local function parse_map(body)
 	local out = {};
 
-	for item in string.gmatch(body .. ",", "%s*([^,]-)%s*,") do
-		-- an empty item is the trailing comma a one-entry-per-line
-		-- layout ends with, which is normal rather than a mistake
-		if (item ~= "") then
-			local k, v = string.match(item, "^(.-)%s*:%s*(.*)$");
+	for _, item in ipairs(split_items(body)) do
+		local k, v = string.match(item, "^(.-)%s*:%s*(.*)$");
 
-			if (k ~= nil) then
-				local key = parse_scalar(k);
-				if (key ~= nil) then
-					out[key] = parse_scalar(v);
-				end
+		if (k ~= nil) then
+			local key = parse_scalar(k);
+			if (key ~= nil) then
+				out[key] = parse_scalar(v);
 			end
 		end
 	end
@@ -229,10 +289,8 @@ end
 local function parse_list(body)
 	local out = {};
 
-	for item in string.gmatch(body .. ",", "%s*([^,]-)%s*,") do
-		if (item ~= "") then
-			out[#out+1] = parse_scalar(item);
-		end
+	for _, item in ipairs(split_items(body)) do
+		out[#out+1] = parse_scalar(item);
 	end
 
 	return out;
