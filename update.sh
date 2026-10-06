@@ -33,6 +33,10 @@ NEW=$(as_owner git -C lsd rev-parse HEAD)
 # recorded (set -e aborts here and the old container keeps running).
 # The image is shared by every instance, so build once, then recreate
 # each instance so it picks up the rebuilt image.
+# the commit for /version; see the Dockerfile for why it cannot be read
+# during the build
+LSD_COMMIT=$(as_owner git -C lsd rev-parse --short=10 HEAD)
+export LSD_COMMIT
 docker compose build --pull
 for envf in instances/*.env; do
 	[ -f "$envf" ] || continue

@@ -42,6 +42,30 @@ RUN wget -q -O lsqlite3.zip 'https://lua.sqlite.org/home/zip/lsqlite3_fsl09y.zip
 
 COPY lsd/ /build
 WORKDIR /build
+
+# The server stamps itself with the commit it was built from, for /version:
+# upstream's Makefile has `src/commit.h: .git` and runs `git rev-parse` into
+# that header. Neither half of it works here, for a reason on each side.
+#
+# .dockerignore keeps lsd/.git out of the build context deliberately -- it is a
+# submodule, so its .git is a file pointing into the superproject's
+# .git/modules, and copying the history in would both bloat the image and
+# invalidate this layer on every commit to it. Nothing in the image has git
+# installed either.
+#
+# So the commit arrives as a build argument and the header is written here. The
+# empty .git is what the Makefile's rule wants -- a prerequisite to take a
+# timestamp from, nothing more -- and dating it to 2000 keeps it older than the
+# header, so make leaves both alone instead of running a `git rev-parse` that
+# would fail.
+#
+# A build that does not pass the argument still works and reports "unknown",
+# which is the honest answer for a build that cannot say.
+ARG LSD_COMMIT=unknown
+RUN touch -d '2000-01-01 00:00:00' .git \
+ && printf '#ifndef GIT_COMMIT\n#define GIT_COMMIT "%s"\n#endif\n' \
+        "$LSD_COMMIT" > src/commit.h
+
 RUN make OPTS='-DWITH_ANYASCII -DNO_DEFAULT_SANDBOX -DWITH_LIBSECCOMP'
 
 # lsqlite3 -> exec/lsqlite3.so

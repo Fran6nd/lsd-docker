@@ -7,7 +7,15 @@
 # instance on 32887, so nothing breaks outside lsdctl.
 services:
   lsd:
-    build: .
+    build:
+      context: .
+      args:
+        # The commit the server reports for /version. See the Dockerfile:
+        # lsd/.git is kept out of the build context on purpose, so the value
+        # cannot be read during the build and is passed in instead. lsdctl and
+        # update.sh set it from the submodule's HEAD; a bare `docker compose
+        # build` leaves it "unknown".
+        LSD_COMMIT: ${LSD_COMMIT:-unknown}
     image: lsd
     restart: unless-stopped
     init: true

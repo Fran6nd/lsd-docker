@@ -321,7 +321,14 @@ promote_module() {
 # ---- per-instance helpers (operate on the current $INSTANCE / $ENVF) -----
 
 # every docker compose call for the current instance goes through here
-compose() { docker compose -p "lsd-$INSTANCE" --env-file "$ENVF" "$@"; }
+# LSD_COMMIT is the submodule HEAD, passed to the image build as a build arg
+# (see the Dockerfile): .dockerignore keeps lsd/.git out of the context, so the
+# build cannot read it itself. Exported on every compose call rather than only
+# the build ones, because `up -d --build` is a build too.
+compose() {
+	LSD_COMMIT=$(git -C "$DIR/lsd" rev-parse --short=10 HEAD 2>/dev/null || echo unknown) \
+	docker compose -p "lsd-$INSTANCE" --env-file "$ENVF" "$@";
+}
 
 # read/set a key in the current instance's env file
 env_get() { env_get_file "$1" "$ENVF"; }
