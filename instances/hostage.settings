@@ -55,8 +55,10 @@ bot_hide_from_masterlist = True
 #   'recommended'  as applied, plus the client is told what it misses
 #   'required'     the client is held in spectator until it updates
 #
-# This is the level for anything somehow not listed below.
-ext_policy_default = 'recommended'
+# Every extension the server registers is named below, so there
+# is no default to set: one would be a second place for the answer
+# to live, and an invisible one. A registered extension missing
+# from the table is reported in the log and runs as 'applied'.
 
 ext_policy = {
 	  0x20: 'recommended',  # Damage Markers

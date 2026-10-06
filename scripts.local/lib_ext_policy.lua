@@ -40,10 +40,10 @@
 -- One message per round either way, and the worse news wins: a client
 -- that cannot play at all is not also told about cosmetics.
 --
--- Set them in config.lua BEFORE this module loads. The default covers
--- every extension at once; ext_policy names the exceptions:
+-- Set it in config.lua BEFORE this module loads. ext_policy names every
+-- extension this server registers -- the whole picture, not a list of
+-- exceptions to a default:
 --
---   ext_policy_default = "recommended"
 --   ext_policy = {
 --       [0x32] = "required",   -- Flashlight, and only it
 --       [192]  = "applied",    -- Player Limit, never mentioned
@@ -175,13 +175,6 @@ end
 -- answer today is that most clients will be told they are missing most
 -- of them. That is the point of running it this way round first: when
 -- the warnings stop arriving for a client you expected to be fine, the
--- extension is worth requiring, and not before.
---
--- Set it to EXT_APPLIED for silence, or name individual extensions in
--- ext_policy to take them out of whatever this says.
-getcfg("ext_policy_default", "recommended",
-	"Level for any extension not named in ext_policy: disabled, "
-		.."applied, recommended or required.");
 -- id -> level, for the extensions that are exceptions to the default
 -- above. Empty is the normal state. Set it in config.lua before loading.
 getcfg("ext_policy", {},
@@ -346,13 +339,26 @@ local function resolve_or_moan(v, what)
 	return level;
 end
 
+-- What an extension gets when ext_policy does not name it. NOT a
+-- setting, and deliberately: every registered extension belongs in
+-- ext_policy, the audit below says so out loud when one is missing, and
+-- a configurable default would be a second place for the answer to live
+-- -- one that is invisible in the file you are reading. With the table
+-- exhaustive this never fires.
+--
+-- APPLIED, so when it does fire the extension simply works and nobody
+-- is told anything. The alternative is nagging a player, or locking one
+-- into spectator, over an entry the operator forgot to write. That is
+-- the same rule as the fallback below: a mistake in the config should
+-- cost a feature, never somebody's ability to play.
+local DEFAULT_LEVEL = EXT_APPLIED;
+
 local function level_of(id)
 	-- An unrecognisable value falls back to applied rather than to
-	-- something stricter: a typo should cost a feature, never a player's
-	-- ability to play. It is logged rather than swallowed, though.
+	-- something stricter, for the same reason. It is logged rather than
+	-- swallowed, though.
 	return resolve_or_moan(ext_policy[id], string.format("ext_policy[0x%02x]", id))
-		or resolve_or_moan(ext_policy_default, "ext_policy_default")
-		or EXT_APPLIED;
+		or DEFAULT_LEVEL;
 end
 
 -- Every registered extension carrying `level`, as {id, title} pairs.
@@ -670,14 +676,12 @@ local function audit()
 	end);
 
 	table.sort(lines);
-	log("lib_ext_policy: default %s; %s",
-		LEVEL_NAME[resolve_level(ext_policy_default) or EXT_APPLIED],
+	log("lib_ext_policy: %s",
 		#lines > 0 and table.concat(lines, ", ") or "nothing registered yet");
 
 	-- Every extension this server speaks should be named in ext_policy,
-	-- so the settings file is the whole picture rather than a list of
-	-- exceptions to a default nobody can see. An absent one still works
-	-- -- it takes ext_policy_default -- but it is invisible to whoever
+	-- so the settings file is the whole picture. An absent one still
+	-- works -- it takes DEFAULT_LEVEL -- but it is invisible to whoever
 	-- is editing the file, which is the thing worth complaining about.
 	local absent = {};
 
@@ -691,8 +695,7 @@ local function audit()
 	if (#absent > 0) then
 		table.sort(absent);
 		log("lib_ext_policy: not named in ext_policy, so running at the"
-			.. " default (%s): %s", LEVEL_NAME[resolve_level(
-				ext_policy_default) or EXT_APPLIED],
+			.. " default (%s): %s", LEVEL_NAME[DEFAULT_LEVEL],
 			table.concat(absent, ", "));
 	end
 
