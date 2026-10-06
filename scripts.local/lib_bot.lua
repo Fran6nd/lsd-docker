@@ -812,6 +812,16 @@ advertise_humans = function()
 		end
 	end
 
+	-- The advertised maximum cannot be less than the number of people
+	-- already playing, and must not go below zero: st->ms.maxplayers is a
+	-- uint8_t (masterlist.h:12), so a negative Lua number would wrap to
+	-- something large and the server would advertise hundreds of free
+	-- seats. Reachable without trying: player_limit_max of 32 with a
+	-- hundred headless clients connected gives 32 - 100.
+	if (max < players) then
+		max = players;
+	end
+
 	masterlist_set_players(players);
 	masterlist_set_max_players(max);
 end
