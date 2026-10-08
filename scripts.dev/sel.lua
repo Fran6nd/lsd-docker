@@ -585,57 +585,60 @@ end
 register_command(cmd, mod);
 
 local function do_rm(pid)
+	bdestroy_session(function()
+
 	-- TODO: range iter for single points, this is a mess
 	if (sel_shape[pid] == "cube") then
 		-- Destroy perimeter
 		for z=sel_start[pid].z, sel_end[pid].z, sel_start[pid].z > sel_end[pid].z and -1 or 1 do
-			for y=sel_start[pid].y, sel_end[pid].y, sel_start[pid].y > sel_end[pid].y and -1 or 1 do
-				bdestroy_block_action({x=sel_start[pid].x, y=y, z=z}, 1);
-				bdestroy_block_action({x=sel_end[pid].x, y=y, z=z}, 1);
-			end
+		for y=sel_start[pid].y, sel_end[pid].y, sel_start[pid].y > sel_end[pid].y and -1 or 1 do
+			bdestroy_block_action({x=sel_start[pid].x, y=y, z=z}, 1);
+			bdestroy_block_action({x=sel_end[pid].x, y=y, z=z}, 1);
+		end
 		end
 
 		for z=sel_start[pid].z, sel_end[pid].z, sel_start[pid].z > sel_end[pid].z and -1 or 1 do
-			for x=sel_start[pid].x, sel_end[pid].x, sel_start[pid].x > sel_end[pid].x and -1 or 1 do
-				bdestroy_block_action({x=x, y=sel_start[pid].y, z=z}, 1);
-				bdestroy_block_action({x=x, y=sel_end[pid].y, z=z}, 1);
-			end
+		for x=sel_start[pid].x, sel_end[pid].x, sel_start[pid].x > sel_end[pid].x and -1 or 1 do
+			bdestroy_block_action({x=x, y=sel_start[pid].y, z=z}, 1);
+			bdestroy_block_action({x=x, y=sel_end[pid].y, z=z}, 1);
+		end
 		end
 
 		for y=sel_start[pid].y, sel_end[pid].y, sel_start[pid].y > sel_end[pid].y and -1 or 1 do
-			for x=sel_start[pid].x, sel_end[pid].x, sel_start[pid].x > sel_end[pid].x and -1 or 1 do
-				bdestroy_block_action({x=x, y=y, z=sel_start[pid].z}, 1);
-				bdestroy_block_action({x=x, y=y, z=sel_end[pid].z}, 1);
-			end
+		for x=sel_start[pid].x, sel_end[pid].x, sel_start[pid].x > sel_end[pid].x and -1 or 1 do
+			bdestroy_block_action({x=x, y=y, z=sel_start[pid].z}, 1);
+			bdestroy_block_action({x=x, y=y, z=sel_end[pid].z}, 1);
+		end
 		end
 		bdestroy_finish();
 
 		-- Clean up after floating blocks
 		for z=sel_start[pid].z, sel_end[pid].z, sel_start[pid].z > sel_end[pid].z and -1 or 1 do
-			for y=sel_start[pid].y, sel_end[pid].y, sel_start[pid].y > sel_end[pid].y and -1 or 1 do
-				for x=sel_start[pid].x, sel_end[pid].x, sel_start[pid].x > sel_end[pid].x and -1 or 1 do
-					local pos = {x=x, y=y, z=z};
-					if (is_solid(pos)) then
-						block_action(pos, 1, get_anon_pid());
-					end
-				end
+		for y=sel_start[pid].y, sel_end[pid].y, sel_start[pid].y > sel_end[pid].y and -1 or 1 do
+		for x=sel_start[pid].x, sel_end[pid].x, sel_start[pid].x > sel_end[pid].x and -1 or 1 do
+			local pos = {x=x, y=y, z=z};
+			if (is_solid(pos)) then
+				block_action(pos, 1, get_anon_pid());
 			end
+		end
+		end
 		end
 
 		return;
 	end
 
 	for z=sel_start[pid].z, sel_end[pid].z, sel_start[pid].z > sel_end[pid].z and -1 or 1 do
-		for y=sel_start[pid].y, sel_end[pid].y, sel_start[pid].y > sel_end[pid].y and -1 or 1 do
-			for x=sel_start[pid].x, sel_end[pid].x, sel_start[pid].x > sel_end[pid].x and -1 or 1 do
-				local pos = {x=x, y=y, z=z};
-				if (in_shape(pos, sel_start[pid], sel_end[pid], sel_shape[pid], pid)) then
-					bdestroy_block_action(pos, 1);
-				end
-			end
+	for y=sel_start[pid].y, sel_end[pid].y, sel_start[pid].y > sel_end[pid].y and -1 or 1 do
+	for x=sel_start[pid].x, sel_end[pid].x, sel_start[pid].x > sel_end[pid].x and -1 or 1 do
+		local pos = {x=x, y=y, z=z};
+		if (in_shape(pos, sel_start[pid], sel_end[pid], sel_shape[pid], pid)) then
+			bdestroy_block_action(pos, 1);
 		end
 	end
-	bdestroy_finish();
+	end
+	end
+
+	end)
 end
 
 -- TODO: integrate bulk operations into core, and do it smartly
