@@ -3,14 +3,17 @@
 --
 -- So bot scripts read as intent instead of protocol calls.
 --
--- A bot is an ordinary player slot with no ENet peer: the C core
--- already sends packets for peerless players to /dev/null, runs full
+-- A bot is an ordinary player slot with no ENet peer: the C core runs full
 -- demoncore physics for every joined+alive player, and broadcasts
 -- them in WorldUpdate -- so to every client (and almost every script)
 -- a bot is just a player. Bots are created by calling the same
 -- chained events a real connection would fire (on_successful_connect,
 -- on_join, on_move_input, ...), which is why other modules -- scores,
 -- masterlist counts, kill feeds -- see them like humans.
+--
+-- What the core does NOT do is drop a packet for a peerless player: it
+-- leaks it. See mod.send_packet below; this module stops those sends
+-- before they reach C.
 --
 -- API (all globals, pids are ordinary player pids):
 --   bot_create{team=, name=, gun=, tool=, block_color=,
@@ -955,6 +958,51 @@ end
 
 function mod.after.on_disconnect(pid)
 	bots[pid] = nil;
+end
+
+-- Every packet addressed to a bot alone, or to a group with only bots
+-- in it, would never be sent and never be freed.
+--
+-- send_packet_flags (lsd/src/funcs_send.c:16-36) calls
+-- enet_packet_create first and checks for a peer second. For a single
+-- pid with peer == NULL it returns 0 with the packet still in hand, and
+-- ENet frees a packet only once a peer has taken it, so it is gone for
+-- good. A group send (team, all-but-one) leaks the same way when no
+-- member has a peer. A plain PID_BROADCAST does not: enet_host_broadcast
+-- destroys a packet nobody took. With fifty guards each being sent a
+-- WorldUpdate per tick that was ~175MB a minute, and it ran the machine
+-- out of memory.
+--
+-- Dropping the send here, before C, costs nothing anyone could see: the
+-- core would have sent these nowhere anyway.
+local function only_bots(pid)
+	if (pid < MAX_PLAYERS) then
+		return bots[pid] ~= nil;
+	end
+	if (pid == PID_BROADCAST) then
+		return false;
+	end
+	-- piditer walks pid_matches, the same test the C loop uses
+	for i in piditer(pid) do
+		if (bots[i] == nil) then
+			return false;
+		end
+	end
+	return true;
+end
+
+function mod.send_packet(pid, data)
+	if (only_bots(pid)) then
+		return 0;
+	end
+	return mod.next.send_packet(pid, data);
+end
+
+function mod.send_packet_unreliable(pid, data)
+	if (only_bots(pid)) then
+		return 0;
+	end
+	return mod.next.send_packet_unreliable(pid, data);
 end
 
 function mod.after.prepare_map_load()
