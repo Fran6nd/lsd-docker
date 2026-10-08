@@ -40,6 +40,10 @@
 --        listener that throws is dropped and refuses that request --
 --        a veto that cannot answer is not read as consent.
 --
+-- OPTIONAL: flashlight_blast makes a grenade going off nearby shake
+-- every beam in reach into a flicker that settles over a few seconds.
+-- Off by default; see BLASTS.
+--
 -- THE LAMP GIVES THE CARRIER AWAY, and that is the client's work
 -- entirely -- there is nothing extra on the wire for it. A client draws
 -- a glare at the lamp of every lit player but its own, and derives the
@@ -186,6 +190,23 @@ getcfg("flashlight_blue", 128,
 getcfg("flashlight_flicker", 0,
 	"0 is a steady beam. Otherwise the beam drops out in bursts, dark "
 		.."about flicker/512 of the time (255 is roughly half).");
+-- A grenade going off near a player shakes their bulb: their beam
+-- flickers, hardest at the blast and fading with distance, then settles
+-- back over flashlight_blast_seconds. Optional, because it is an effect
+-- on a map's mood and not part of the extension; see BLASTS below.
+getcfg("flashlight_blast", false,
+	"A grenade going off nearby makes a player's beam flicker for a "
+		.."while.");
+-- The grenade's own reach: detonate_grenade only hurts a player within
+-- 16 blocks of it on every axis (main.c:690-693), so the bulb is shaken
+-- by exactly the blasts that could have shaken its carrier.
+getcfg("flashlight_blast_radius", 16,
+	"Blocks from a grenade within which a beam is shaken.");
+getcfg("flashlight_blast_flicker", 200,
+	"Flicker given at the blast itself, 1 to 255; it falls off to 0 at "
+		.."the radius.");
+getcfg("flashlight_blast_seconds", 4,
+	"Seconds for a shaken beam to settle back to steady.");
 -- Announce the beam above as the default config, so that every client
 -- draws the same light rather than falling back on whatever it would
 -- have used -- the spec does not say what an unconfigured light looks
@@ -226,7 +247,7 @@ local function negotiated(pid)
 	return ext_supported ~= nil and ext_supported(pid, EXT_ID) ~= nil;
 end
 
--- Both tables are pid_connected_tables, which is Player Left exactly:
+-- These are pid_connected_tables, which is Player Left exactly:
 -- they are cleared on disconnect (pid_tables.lua:87-94), which is the
 -- one event that ends a config and the last of the four that ends a
 -- light. Ids are recycled, and an inherited light would be a new player
@@ -234,6 +255,12 @@ end
 local lit = pid_connected_table(false);
 local cfg = pid_connected_table();
 local asked_at = pid_connected_table(0);
+
+-- The blast effect's own state, beside cfg rather than in it: cfg is
+-- the beam the server chose, a shake is a passing disturbance on top of
+-- it. See BLASTS.
+local shaken = pid_connected_table();
+local pinned = pid_connected_table(false);
 
 local listeners = {};
 
@@ -346,6 +373,58 @@ local function describe(w)
 		w.r, w.g, w.b, w.flicker);
 end
 
+-- How hard pid's bulb is still shaking, 0 once it has settled. Linear
+-- from the strength the blast gave down to nothing.
+local function shake_flicker(pid, now)
+	local s = shaken[pid];
+
+	if (s == nil) then
+		return 0;
+	end
+
+	local left = 1 - (now - s.at) / math.max(flashlight_blast_seconds, 0.01);
+	if (left <= 0) then
+		return 0;
+	end
+
+	return math.floor(s.strength * left + 0.5);
+end
+
+-- The beam pid is drawn in right now: their own config or the default,
+-- with the shake on top where it is the stronger flicker. Never the
+-- weaker: a bulb the server has set flickering does not steady itself
+-- because a grenade went off.
+local function effective(pid, now)
+	local w = cfg[pid] or default_config();
+	local f = shake_flicker(pid, now or get_time());
+
+	if (f > w.flicker) then
+		w = {reach = w.reach, cone = w.cone, r = w.r, g = w.g, b = w.b,
+			flicker = f};
+	end
+
+	return w;
+end
+
+-- Whether pid has a Light Config of their own on the clients, which is
+-- every player the server configured and every one a blast has shaken.
+local function has_own_beam(pid)
+	return cfg[pid] ~= nil or pinned[pid];
+end
+
+-- pid's beam, as it stands, to everybody who has negotiated.
+local function broadcast_beam(pid, now)
+	local w = effective(pid, now);
+
+	for i in piditer(PID_BROADCAST) do
+		if (negotiated(i)) then
+			send_config(i, pid, w);
+		end
+	end
+
+	return w;
+end
+
 -- The default beam, as one packet addressed to the reserved id, sent to
 -- everybody who has negotiated. One packet for the whole server rather
 -- than one per player: the client applies it to every player without a
@@ -366,6 +445,15 @@ local function announce_default(pid)
 	for i in piditer(PID_BROADCAST) do
 		if (negotiated(i)) then
 			send_config(i, DEFAULT_ID, c);
+		end
+	end
+
+	-- A player a blast pinned is still meant to be on the default, and
+	-- the default packet does not reach them any more: their beam is
+	-- their own on every client now. So they are told it by name.
+	for i in piditer(PID_BROADCAST) do
+		if (pinned[i] and cfg[i] == nil) then
+			broadcast_beam(i);
 		end
 	end
 
@@ -402,9 +490,10 @@ end
 local function on_ready(pid)
 	announce_default(pid);
 
+	local now = get_time();
 	for i in piditer(PID_BROADCAST) do
-		if (cfg[i] ~= nil) then
-			send_config(pid, i, cfg[i]);
+		if (has_own_beam(i)) then
+			send_config(pid, i, effective(i, now));
 		end
 	end
 
@@ -445,8 +534,8 @@ function mod.after.finish_map_load()
 	end
 end
 
--- Player Left is the one this module does not hook: both tables are
--- pid_connected_tables and are cleared for it already.
+-- Player Left is the one this module does not hook: every table here is
+-- a pid_connected_table and is cleared for it already.
 
 -- And a join is not hooked either, which is worth saying because it
 -- looks like it ought to be. A player arriving needs a beam, and the
@@ -465,6 +554,112 @@ end
 -- client applies it to whoever has nothing of their own -- including
 -- players who have not arrived yet. So there is nothing to do on a join
 -- at all.
+
+--============================== BLASTS ==============================--
+-- flashlight_blast: a grenade going off near a player shakes their
+-- bulb. Nothing on the wire is new for it -- it is the Flicker field of
+-- an ordinary Light Config, raised at the blast and walked back down
+-- over flashlight_blast_seconds, which the spec has the server send
+-- "whenever it likes ... when it starts or stops flickering".
+--
+-- Every player in reach is shaken, lit or not and whichever team threw
+-- it: a config holds whether the light is on or off, so a player who
+-- switches on mid-shake finds the bulb still unsteady, and the blast
+-- does not care whose it was. Walls do not shield a bulb either -- the
+-- shake is felt, not seen.
+--
+-- The cost is a pin. Shaking a player who has no config of their own
+-- means sending them one, and there is no packet to take it back, so
+-- from then on the default (DEFAULT_ID) no longer reaches them on any
+-- client. `pinned` remembers who that happened to, and announce_default
+-- tells them the default by name instead -- so flashlight_announce_
+-- default still moves everybody it is meant to. With
+-- flashlight_send_default off the pinned beam is the flashlight_*
+-- globals, since a shake has to be a shake of some beam.
+
+-- How often a settling beam is re-sent at most. A config per tick per
+-- shaken player would be one packet every few milliseconds to every
+-- client for a change nobody can see that finely; five steps a second
+-- is a bulb steadying, not stepping.
+local SETTLE_INTERVAL = 0.2;
+
+local function dist3(a, b)
+	local dx, dy, dz = a.x - b.x, a.y - b.y, a.z - b.z;
+	return math.sqrt(dx*dx + dy*dy + dz*dz);
+end
+
+local function shake(pid, strength, now)
+	-- A weaker blast does not cut a stronger shake short.
+	if (strength <= shake_flicker(pid, now)) then
+		return;
+	end
+
+	shaken[pid] = {at = now, strength = strength};
+	if (cfg[pid] == nil) then
+		pinned[pid] = true;
+	end
+
+	local w = broadcast_beam(pid, now);
+	shaken[pid].sent = w.flicker;
+	shaken[pid].sent_at = now;
+
+	if (flashlight_debug) then
+		log("lib_flashlight: #%d's bulb shaken, flicker %d", pid, w.flicker);
+	end
+end
+
+-- Before, because detonate_grenade removes the grenade first thing
+-- (main.c:684) and its position goes with it. Every detonation passes
+-- here, the ones a script sets off by calling detonate_grenade included,
+-- since that is the same hooked chain.
+function mod.before.detonate_grenade(index)
+	if (not flashlight_blast) then
+		return;
+	end
+
+	local at = get_grenade_position(index);
+	local radius = tonumber(flashlight_blast_radius) or 0;
+	local max = math.max(0, math.min(255, tonumber(flashlight_blast_flicker) or 0));
+	local now = get_time();
+
+	if (radius <= 0 or max <= 0) then
+		return;
+	end
+
+	for i in piditer(PID_BROADCAST) do
+		if (is_alive(i)) then
+			local d = dist3(at, get_position(i));
+
+			if (d < radius) then
+				shake(i, math.floor(max * (1 - d/radius) + 0.5), now);
+			end
+		end
+	end
+end
+
+-- The settling. Each shaken beam is re-sent as its flicker comes down,
+-- at most every SETTLE_INTERVAL, and once more when it reaches the
+-- beam's own -- which is the one that must not be skipped, or the bulb
+-- stays as unsteady as the last step left it.
+function mod.after.tick()
+	local now;
+
+	for pid, s in pairs(shaken) do
+		if (type(pid) == "number") then
+			now = now or get_time();
+
+			local f = shake_flicker(pid, now);
+
+			if (f == 0) then
+				shaken[pid] = nil;
+				broadcast_beam(pid, now);
+			elseif (f ~= s.sent and now - s.sent_at >= SETTLE_INTERVAL) then
+				s.sent = broadcast_beam(pid, now).flicker;
+				s.sent_at = now;
+			end
+		end
+	end
+end
 
 --========================== CLIENT REQUESTS =========================--
 
@@ -694,11 +889,9 @@ function flashlight_config(pid, opts)
 
 	cfg[pid] = c;
 
-	for i in piditer(PID_BROADCAST) do
-		if (negotiated(i)) then
-			send_config(i, pid, c);
-		end
-	end
+	-- with any shake still on top, so that a beam reconfigured mid-blast
+	-- does not steady for the rest of it
+	broadcast_beam(pid);
 
 	if (flashlight_debug) then
 		log("lib_flashlight: #%d's beam is %s", pid, describe(c));

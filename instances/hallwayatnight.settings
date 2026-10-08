@@ -77,6 +77,10 @@ guard_count = 5
 # Guards keep their flashlight lit while alive, so they are seen coming.
 guard_flashlight = True
 
+# A grenade going off nearby shakes every flashlight in reach into a
+# flicker that settles over a few seconds.
+flashlight_blast = True
+
 # Advertise humans only: keep bots out of the published player count.
 bot_hide_from_masterlist = True
 
