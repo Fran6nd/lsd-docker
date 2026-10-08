@@ -5,7 +5,7 @@ Spades server for **lsd-dev.fran6nd.online**. The server source is the
 pristine `lsd/` git submodule; this project adds packaging only.
 
 The image compiles everything itself (Alpine/musl, matching the seccomp
-sandbox in `src/sandbox.c`), including the native Lua modules the stock
+sandbox in `src/sandbox/linux_seccomp.c`), including the native Lua modules the stock
 scripts need: lsqlite3, luasodium, linenoise, stb_image, lfs.
 
 ## Setup

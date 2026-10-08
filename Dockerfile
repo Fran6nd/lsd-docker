@@ -3,16 +3,22 @@
 # packaging. Everything compiles inside the image: the server plus the
 # native Lua modules the stock scripts need.
 #
-# Alpine/musl is used on purpose: the seccomp allowlist in src/sandbox.c
-# is written against musl's syscalls, so the sandbox works as designed.
-# The container replaces the pivot_root/userns half of the sandbox, so
-# the server is built like the Makefile's serverstatic-crust target:
-# no unshare, seccomp kept.
+# Alpine/musl is used on purpose: the seccomp allowlist in
+# src/sandbox/linux_seccomp.c is written against musl's syscalls, so the
+# sandbox works as designed.
+#
+# Of the four layers src/sandbox/linux.c applies, two are compiled out.
+# unshare + pivot_root is what the container already does, and inside one
+# it fails for want of CAP_SYS_ADMIN -- and its failure is exit(1).
+# Landlock, without that pivot_root to build its new root, only lets
+# ./exec/ be executed, so luasodium.so and lsqlite3.so could not map
+# libsodium and libsqlite3 from /usr/lib. no_new_privs and seccomp stay:
+# the same seccomp-only sandbox this image always ran.
 
 FROM alpine:3.22 AS build
 
 RUN apk add --no-cache build-base pkgconf unzip \
-        luajit-dev enet-dev isa-l-dev libseccomp-dev \
+        luajit-dev enet-dev isa-l-dev linux-headers \
         sqlite-dev libsodium-dev
 
 # third-party Lua bindings, pinned by version/commit and checksummed so
@@ -66,7 +72,13 @@ RUN touch -d '2000-01-01 00:00:00' .git \
  && printf '#ifndef GIT_COMMIT\n#define GIT_COMMIT "%s"\n#endif\n' \
         "$LSD_COMMIT" > src/commit.h
 
-RUN make OPTS='-DWITH_ANYASCII -DNO_DEFAULT_SANDBOX -DWITH_LIBSECCOMP'
+# The forced include is a missing upstream include: linux_seccomp.c calls
+# syscall() and only gets its declaration from the unshare and landlock
+# files, which are compiled out here. musl declares it in <unistd.h> only
+# under _GNU_SOURCE, which a forced <unistd.h> would arrive before, so the
+# prototype itself -- musl's own -- is what gets included.
+RUN printf 'long syscall(long, ...);\n' > /deps/syscall_decl.h \
+ && make OPTS='-DWITH_ANYASCII -DWITHOUT_UNSHARE -DWITHOUT_LANDLOCK -include /deps/syscall_decl.h'
 
 # lsqlite3 -> exec/lsqlite3.so
 RUN cc -O2 -fPIC -shared $(pkg-config --cflags luajit) \
@@ -89,7 +101,7 @@ RUN cc -O2 -fPIC -shared /deps/linenoise.c -o exec/liblinenoise.so \
 FROM alpine:3.22
 
 # socat is only for `lsdctl console` (attach to sock_console in rw/)
-RUN apk add --no-cache luajit enet isa-l libseccomp sqlite-libs libsodium socat \
+RUN apk add --no-cache luajit enet isa-l sqlite-libs libsodium socat \
  && adduser -D -H -h /lsd lsd
 
 WORKDIR /lsd
