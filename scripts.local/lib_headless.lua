@@ -99,6 +99,40 @@ function mod.on_version(pid, idChar, major, minor, patch, msg)
 	return mod.next.on_version(pid, idChar, major, minor, patch, msg);
 end
 
+-- How often a headless client is sent WorldUpdate.
+--
+-- Every player is sent every other player's position each tick, so the
+-- work grows with the square of the server: with a 150-client fleet on
+-- the shooting range the 60Hz loop fell so far behind that the one
+-- person playing got 5 updates a second, and the fleet's own clients
+-- drifted until the server refused their positions and dropped them. A
+-- headless client does not need 60: aosbot is written against
+-- piqueserver, which sends 10, and reconciles its model on each one.
+-- People keep whatever rate they asked for with /ups.
+--
+-- The same counter command_ups uses, so the two compose: a tick reaches
+-- a headless client only when both let it through.
+getcfg("headless_ups", 10,
+	"WorldUpdates per second sent to headless clients; one of 60, 30, "
+		.."20, 15, 12, 10, 6 or 5. People are not affected.");
+
+local valid_ups = {[60]=true, [30]=true, [20]=true, [15]=true, [12]=true,
+	[10]=true, [6]=true, [5]=true};
+local ctr = 0;
+
+function mod.send_player_update(pid)
+	local ups = valid_ups[headless_ups] and headless_ups or 10;
+	local every = 60 / ups;
+	local due = (ctr % every == 0);
+	ctr = (ctr + 1) % 60;
+
+	for i in piditer(pid) do
+		if (due or not bot_is_headless(i)) then
+			mod.next.send_player_update(i);
+		end
+	end
+end
+
 -- No on_disconnect hook: lib_bot clears the mark in its own, because
 -- pids are recycled and the clear has to happen whether this module is
 -- loaded or not.

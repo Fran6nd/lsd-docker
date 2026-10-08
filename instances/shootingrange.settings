@@ -35,6 +35,11 @@ masterlist_enabled = True
 bot_hide_from_masterlist = True
 headless_idents = ['AosBot']
 
+# WorldUpdates per second for those clients (60, 30, 20, 15, 12, 10, 6
+# or 5). Every player is sent every position each tick, so a big fleet at
+# 60 starves the server loop and the people on it. People keep their /ups.
+headless_ups = 10
+
 # Gamemode module: ctf, arena, babel, ffa, dd, or hostage.
 gamemode = 'ctf'
 
