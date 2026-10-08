@@ -484,11 +484,16 @@ end
 -- getcfg fills a global only when it is nil, so a value already sitting
 -- there when a module loads is a value that module keeps. Nothing has
 -- to be told about this file, and nothing is.
+--
+-- Defined below getcfg's helpers and filled in there, because a value
+-- has to go in shaped as getcfg would shape it -- see assign.
+local assign;
+
 local function apply(vals)
 	local n = 0;
 
 	for k,v in pairs(vals) do
-		_G[k] = v;
+		assign(k, v);
 		n = n + 1;
 	end
 
@@ -563,6 +568,26 @@ local function join_if_text(key, default)
 	end
 
 	_G[key] = table.concat(parts, "\n");
+end
+
+-- A value from the file into its global, shaped as getcfg shapes it.
+--
+-- getcfg only runs when a module loads, so a value assigned after that
+-- -- by settings_reload, or by this module being hot-loaded under
+-- modules that have long since declared their keys -- never passes
+-- through it. Assigned raw, a motd written as a list stayed a table and
+-- motd.lua's gmatch threw on every join and every tick.
+--
+-- The shape is the declared default's where this copy saw the
+-- declaration, and otherwise the global's own type as it stood: a
+-- string there is a module that already had its say, which is all a
+-- hot load of this module leaves to go on. At boot the global is nil
+-- and nothing is guessed -- the module's getcfg does it later.
+assign = function(k, v)
+	local prior = _G[k];
+
+	_G[k] = v;
+	join_if_text(k, fields[k] ~= nil and fields[k].default or prior);
 end
 
 -- The file said one kind of thing and the module wants another: a
@@ -797,7 +822,7 @@ function settings_reload()
 		if (not same(values[k], v)) then
 			changed[#changed+1] = k;
 		end
-		_G[k] = v;
+		assign(k, v);
 	end
 
 	-- removed from the file: back to the default its module declared,

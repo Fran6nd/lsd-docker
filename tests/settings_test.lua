@@ -236,6 +236,29 @@ check(logged_matching("expects a number") ~= nil,
 	table.concat(logged, " | "));
 eq(player_limit_max, "32", "...and used as written rather than replaced");
 
+print("\n12. a reload shapes a list the way the first read did");
+-- THE THIRD BUG, which reached a live server: settings_reload assigned
+-- the parsed table straight to motd, and motd.lua's gmatch threw on
+-- every join and every tick until the next restart.
+load_settings([[
+motd = ["one", "two"]
+tips = ["a", "b"]
+]], {"motd","tips"});
+getcfg("motd", "a default string");
+getcfg("tips", {});
+local f = assert(io.open(tmp, "w"));
+f:write('motd = ["one", "two", "three"]\ntips = ["a", "b", "c"]\n');
+f:close();
+settings_reload();
+eq(motd, "one\ntwo\nthree", "a reloaded motd is still one string");
+eq(type(tips), "table", "and a reloaded list setting is still a list");
+
+print("\n13. so does a hot load of lib_settings itself");
+-- The fresh copy never saw motd.lua's getcfg and motd.lua will not run
+-- it again, so the global's current type is all there is to go on.
+load_settings('motd = ["x", "y"]\n', {});
+eq(motd, "x\ny", "a motd already a string stays one");
+
 os.remove(tmp);
 
 --============================== RESULT ==============================--

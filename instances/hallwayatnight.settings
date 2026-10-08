@@ -71,8 +71,9 @@ ext_policy = {
 	 193: 'recommended',   # Message Types -- warnings and notices
 }
 
-# Guard bots kept alive per team.
-guard_count = 5
+# Guard bots kept alive per team: 100 a side is 200 in all, which leaves
+# 55 of the 255 seats for people.
+guard_count = 100
 
 # Guards keep their flashlight lit while alive, so they are seen coming.
 guard_flashlight = True
