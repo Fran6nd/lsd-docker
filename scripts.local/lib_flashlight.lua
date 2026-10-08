@@ -25,13 +25,14 @@
 --   flashlight_set(pid, on)        switch it, and tell everyone
 --   flashlight_get_config(pid)     -> the beam we hold for them, or nil
 --   flashlight_config(pid, opts)   set their beam and tell everyone
---        opts.reach  blocks at which the light reaches zero (0-255)
---        opts.cone   full angle of the cone in degrees (0-179)
---        opts.color  LSd's {b=,g=,r=}, linear, 255 being full
+--        opts.reach    blocks at which the light reaches zero (0-255)
+--        opts.cone     full angle of the cone in degrees (0 to ~179.3)
+--        opts.color    LSd's {b=,g=,r=}, linear, 255 being full
+--        opts.flicker  0 steady; dark about flicker/512 of the time
 --        any of them left out comes from the flashlight_* defaults
 --   flashlight_get_default()       -> the default beam, or nil when off
 --   flashlight_announce_default()  re-announce it after changing the
---        flashlight_reach/cone/red/green/blue globals
+--        flashlight_reach/cone/red/green/blue/flicker globals
 --   flashlight_listen_request(name, fn) / flashlight_unlisten_request
 --        fn(pid, want) for every light a client asks for. Return false
 --        to refuse it; the spec has a refused request simply not
@@ -49,7 +50,9 @@
 -- glare is visible through (the spec's Beam term falls off over
 -- Cone/2), and Reach sets how far (Distance is 1/(1+(d/Reach)^2)). So a
 -- wider, longer beam does not merely light more -- it shows its carrier
--- to more people, from further away. A narrow beam is the stealthy one.
+-- to more people, from further away. A narrow beam is the stealthy one,
+-- and a flickering one goes dark glare and all for Flicker/512 of the
+-- time.
 --
 -- And the glare brightens as the world darkens: the spec scales it by a
 -- dark adaptation of 1 in daylight up to 8 in total darkness. Switch
@@ -97,7 +100,7 @@ local EXT_VERSION = 1;
 local PKT = 64 + EXT_ID;
 local SUB_LIGHT = 0;  -- S<->C [PKT][0][pid][state]
 local SUB_STATE = 1;  -- S->C  [PKT][1][bitmap ...]
-local SUB_CONFIG = 2; -- S->C  [PKT][2][pid][reach][cone][r][g][b]
+local SUB_CONFIG = 2; -- S->C  [PKT][2][pid][reach][cone][r][g][b][flicker]
 
 -- Direction is part of the specification, not a detail of it. Light is
 -- the only sub-packet a client may send, and even that one it may only
@@ -108,7 +111,7 @@ local SUB_CONFIG = 2; -- S->C  [PKT][2][pid][reach][cone][r][g][b]
 -- table is read at all, let alone acted on.
 local CLIENT_MAY_SEND = {[SUB_LIGHT] = true};
 
--- Light is a fixed four bytes and Config a fixed eight. Light is the
+-- Light is a fixed four bytes and Config a fixed nine. Light is the
 -- only one that arrives, so it is the only size checked on the way in;
 -- the others are built a field at a time and never measured.
 local LIGHT_SIZE = 4;
@@ -127,21 +130,24 @@ local LIGHT_SIZE = 4;
 -- and there is nothing to clear until the client goes away with it.
 local DEFAULT_ID = 255;
 
--- The widest cone there is: "a Cone above 179 is drawn as 179". One
--- degree short of the 180 that would be a spotlight opened out into a
--- half space, which is not a spotlight any more.
+-- The Cone field is not degrees: it is the full angle in units of
+-- pi/256, so 128 is 90 degrees and 255, the widest a byte holds, is
+-- about 179.3 -- the unit is chosen so the cone can never open out into
+-- a half space, which would not be a spotlight any more. Degrees stay
+-- the unit of the API and of flashlight_cone, because that is how
+-- anybody writing a setting thinks of a beam; this is the one place
+-- they turn into the field and back.
 --
--- Capped on the way out rather than left to the client, for the same
--- reason every other field is stored as it is sent -- a cone of 200 and
--- a cone of 179 are the same light, and the one that goes in a packet
--- log and comes back out of flashlight_get_config should be the one
--- that gets drawn.
+-- Converted on the way out and stored as sent, for the same reason
+-- every other field is -- a cone of 200 degrees and one of 179.3 are
+-- the same light, and the one that goes in a packet log and comes back
+-- out of flashlight_get_config should be the one that gets drawn.
 --
 -- Nothing is capped at the bottom. A Cone or Reach of 0 "gives no
 -- light", which is a sayable thing to want and not a degenerate value
 -- -- a flashlight that is on and illuminating nothing is how a server
 -- spells a dead battery.
-local CONE_MAX = 179;
+local CONE_UNITS_PER_DEGREE = 256/180;
 
 -- The legacy OpenSpades flashlight, which is what a player who has ever
 -- pressed F already expects a flashlight to look like. Every number
@@ -162,7 +168,7 @@ getcfg("flashlight_reach", 60,
 	"Blocks at which the beam reaches zero. OpenSpades' own light uses "
 		.."60. Also how far off the carrier's lamp glare is visible.");
 getcfg("flashlight_cone", 90,
-	"Full angle of the beam in degrees, 0 to 179. Also the angle the "
+	"Full angle of the beam in degrees, 0 to 179.3. Also the angle the "
 		.."carrier's lamp glare is visible through, so a narrow beam "
 		.."is the stealthy one.");
 getcfg("flashlight_red", 255,
@@ -172,6 +178,14 @@ getcfg("flashlight_green", 179,
 	"Beam colour, green channel.");
 getcfg("flashlight_blue", 128,
 	"Beam colour, blue channel.");
+-- A failing bulb: the light drops out in short irregular bursts, dark
+-- about flashlight_flicker/512 of the time, so 255 is out roughly half
+-- of it. The glare drops out with the beam, which makes a flickering
+-- carrier harder to track as well as harder to see by. The pattern is
+-- the client's; only the duty is on the wire.
+getcfg("flashlight_flicker", 0,
+	"0 is a steady beam. Otherwise the beam drops out in bursts, dark "
+		.."about flicker/512 of the time (255 is roughly half).");
 -- Announce the beam above as the default config, so that every client
 -- draws the same light rather than falling back on whatever it would
 -- have used -- the spec does not say what an unconfigured light looks
@@ -229,29 +243,32 @@ local listeners = {};
 -- a quantity, so the honest thing to say about a reach of 400 is the
 -- largest reach the field can hold, not the 144 that 400 becomes if the
 -- top bits are simply dropped.
-local function put_byte(v, default)
-	v = math.floor(tonumber(v) or default);
-	return string.char(math.max(0, math.min(255, v)));
+local function to_byte(v, default)
+	v = math.floor((tonumber(v) or default) + 0.5);
+	return math.max(0, math.min(255, v));
 end
 
--- The cone, capped where a client would cap it anyway. See CONE_MAX.
-local function put_cone(v)
-	v = math.floor(tonumber(v) or flashlight_cone);
-	return string.char(math.max(0, math.min(CONE_MAX, v)));
+-- A beam as it goes on the wire, from one in the API's units: every
+-- field a byte, and the cone turned from degrees into pi/256ths. See
+-- CONE_UNITS_PER_DEGREE.
+local function to_wire(b)
+	return {
+		reach = to_byte(b.reach, flashlight_reach),
+		cone = to_byte((tonumber(b.cone) or flashlight_cone)
+			* CONE_UNITS_PER_DEGREE, 0),
+		r = to_byte(b.r, flashlight_red),
+		g = to_byte(b.g, flashlight_green),
+		b = to_byte(b.b, flashlight_blue),
+		flicker = to_byte(b.flicker, flashlight_flicker),
+	};
 end
 
--- Red, Green, Blue -- in that order, which is NOT the order the rest of
--- this server writes a colour in. The base protocol puts Set Colour and
--- State Data on the wire as Blue Green Red, and LSd's own colour tables
--- are stored to match (lua.c:219-232), so get_team_color hands back
--- {b=,g=,r=} and lib_teamplay writes it straight out. This sub-packet
--- reverses it. The field names in the spec are the authority and the
--- table is read by name here for exactly that reason.
-local function put_color(c)
-	c = c or {};
-	return put_byte(c.r, flashlight_red)
-		.. put_byte(c.g, flashlight_green)
-		.. put_byte(c.b, flashlight_blue);
+-- And back, for answering what a beam is: the cone in the degrees the
+-- clients will actually draw, which is the asked-for angle rounded to
+-- the nearest pi/256.
+local function from_wire(w)
+	return {reach = w.reach, cone = w.cone / CONE_UNITS_PER_DEGREE,
+		r = w.r, g = w.g, b = w.b, flicker = w.flicker};
 end
 
 -- One bit per player id, bit n of byte n/8, low bit first. Only the
@@ -303,24 +320,30 @@ end
 
 --=========================== THE DEFAULTS ===========================--
 
--- The configured beam, as a stored config. Read out of the globals
--- every time rather than captured once, so changing flashlight_reach
--- and re-announcing works the way the other modules' knobs do.
+-- The configured beam, as a stored (wire) config. Read out of the
+-- globals every time rather than captured once, so changing
+-- flashlight_reach and re-announcing works the way the other modules'
+-- knobs do.
 local function default_config()
-	return {
-		reach = flashlight_reach,
-		cone = flashlight_cone,
-		r = flashlight_red,
-		g = flashlight_green,
-		b = flashlight_blue,
-	};
+	return to_wire({});
 end
 
-local function send_config(viewer, target, c)
-	send_packet(viewer, string.char(PKT, SUB_CONFIG, target)
-		.. put_byte(c.reach, flashlight_reach)
-		.. put_cone(c.cone)
-		.. put_color(c));
+-- Red, Green, Blue -- in that order, which is NOT the order the rest of
+-- this server writes a colour in. The base protocol puts Set Colour and
+-- State Data on the wire as Blue Green Red, and LSd's own colour tables
+-- are stored to match (lua.c:219-232), so get_team_color hands back
+-- {b=,g=,r=} and lib_teamplay writes it straight out. This sub-packet
+-- reverses it. The field names in the spec are the authority and the
+-- table is read by name here for exactly that reason.
+local function send_config(viewer, target, w)
+	send_packet(viewer, string.char(PKT, SUB_CONFIG, target,
+		w.reach, w.cone, w.r, w.g, w.b, w.flicker));
+end
+
+local function describe(w)
+	return string.format("reach %d, cone %d (%.1f deg), rgb %d/%d/%d,"
+		.. " flicker %d", w.reach, w.cone, w.cone / CONE_UNITS_PER_DEGREE,
+		w.r, w.g, w.b, w.flicker);
 end
 
 -- The default beam, as one packet addressed to the reserved id, sent to
@@ -347,8 +370,7 @@ local function announce_default(pid)
 	end
 
 	if (flashlight_debug) then
-		log("lib_flashlight: default beam is reach %d, cone %d, rgb"
-			.. " %d/%d/%d", c.reach, c.cone, c.r, c.g, c.b);
+		log("lib_flashlight: default beam is %s", describe(c));
 	end
 end
 
@@ -605,7 +627,7 @@ function flashlight_get_config(pid)
 
 	-- a copy, because the caller editing the table in place would
 	-- change what every later Light Config says without sending one
-	return {reach = c.reach, cone = c.cone, r = c.r, g = c.g, b = c.b};
+	return from_wire(c);
 end
 
 -- Switch pid's light and tell everyone who can see it. `on` is the
@@ -662,22 +684,13 @@ function flashlight_config(pid, opts)
 	end
 
 	opts = opts or {};
-
-	local c = default_config();
-	if (opts.reach ~= nil) then c.reach = opts.reach; end
-	if (opts.cone ~= nil) then c.cone = opts.cone; end
-	if (opts.color ~= nil) then
-		c.r, c.g, c.b = opts.color.r, opts.color.g, opts.color.b;
-	end
+	local color = opts.color or {};
 
 	-- stored as it goes out, clamped and rounded once, so that
 	-- flashlight_get_config answers with the beam the clients have
 	-- rather than the one that was asked for
-	c.reach = string.byte(put_byte(c.reach, flashlight_reach));
-	c.cone = string.byte(put_cone(c.cone));
-	c.r = string.byte(put_byte(c.r, flashlight_red));
-	c.g = string.byte(put_byte(c.g, flashlight_green));
-	c.b = string.byte(put_byte(c.b, flashlight_blue));
+	local c = to_wire({reach = opts.reach, cone = opts.cone,
+		r = color.r, g = color.g, b = color.b, flicker = opts.flicker});
 
 	cfg[pid] = c;
 
@@ -688,8 +701,7 @@ function flashlight_config(pid, opts)
 	end
 
 	if (flashlight_debug) then
-		log("lib_flashlight: #%d's beam is reach %d, cone %d, rgb %d/%d/%d",
-			pid, c.reach, c.cone, c.r, c.g, c.b);
+		log("lib_flashlight: #%d's beam is %s", pid, describe(c));
 	end
 
 	return true;
@@ -702,13 +714,14 @@ function flashlight_get_default()
 		return nil;
 	end
 
-	return default_config();
+	return from_wire(default_config());
 end
 
 -- Re-announce the default beam to everybody who has negotiated. The
 -- server may send a Light Config whenever it likes and the client
 -- applies each one in full, which is how a policy change lands
--- mid-session. Set flashlight_reach, flashlight_cone or the colour and
+-- mid-session. Set flashlight_reach, flashlight_cone, the colour or
+-- flashlight_flicker and
 -- then call this; without the call the new values only reach clients
 -- that negotiate afterwards.
 --
