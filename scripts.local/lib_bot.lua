@@ -141,6 +141,17 @@ function bot_is_nonhuman(pid)
 	return bots[pid] ~= nil or nonhuman[pid] == true;
 end
 
+-- Headless and nothing else: a client with a peer and a handshake, but
+-- no person. NOT the same question as bot_is_nonhuman, which also
+-- answers yes for this lib's own bots, and the difference matters to
+-- anything a scripted bot genuinely takes part in. A guard bot on
+-- hallwayatnight carries a lit flashlight that every client has to be
+-- told about; a headless client carries nothing and cannot read the
+-- extension that would describe it.
+function bot_is_headless(pid)
+	return nonhuman[pid] == true;
+end
+
 function bot_get(pid)
 	return bots[pid];
 end

@@ -589,6 +589,20 @@ local function dist3(a, b)
 end
 
 local function shake(pid, strength, now)
+	-- Nobody is holding that torch. A headless client has no person
+	-- behind it and does not speak this extension, so shaking its beam
+	-- costs a broadcast to every viewer now, another on every settle
+	-- step for the next few seconds, and buys a flicker in a bulb that
+	-- does not exist. One grenade among a fleet of them used to enter
+	-- every one of them into `shaken`.
+	--
+	-- Scripted bots are deliberately NOT excluded: a guard bot's lit
+	-- flashlight is the point of hallwayatnight, and every client has to
+	-- be told when it flickers.
+	if (bot_is_headless ~= nil and bot_is_headless(pid)) then
+		return;
+	end
+
 	-- A weaker blast does not cut a stronger shake short.
 	if (strength <= shake_flicker(pid, now)) then
 		return;
