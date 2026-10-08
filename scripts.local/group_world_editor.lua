@@ -25,20 +25,11 @@
 -- and /lsmod stays honest about what is running, which is how group_deps
 -- treats it.
 --
--- lib_bulk_destroy is REQUIRED and not loaded, which looks inconsistent
--- and is not. It ends without returning anything, so `require` puts
--- `true` in package.loaded for it, and core.lua's load() refuses to
--- register a non-table anyway (it clears package.loaded and moves on) --
--- so loading it could never have made it a registered module.
---
--- Worse than useless, since core.lua was reimplemented: load() now
--- unloads first when a module is already loaded, and unload() passes
--- `package.loaded[name] or {name=name}` to unregister(). That guard
--- catches nil and not `true`, so unregister() indexed a boolean and the
--- server panicked on startup -- "attempt to index local 'module'" --
--- for every instance that loads the editor. Something earlier in the
--- load order has always required it, so the already-loaded branch is
--- the one that runs.
+-- lib_bulk_destroy is a registered module (upstream 079db5d) that
+-- group_deps loads before anything else, and it is its registration that
+-- publishes bdestroy_* as globals. So it is required here, not loaded:
+-- this states the dependency without load()'s unload-and-reload of a
+-- module already running.
 require "lib_bulk_destroy"
 load "lib_l10n"
 

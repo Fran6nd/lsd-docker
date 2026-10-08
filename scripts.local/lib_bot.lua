@@ -11,9 +11,9 @@
 -- on_join, on_move_input, ...), which is why other modules -- scores,
 -- masterlist counts, kill feeds -- see them like humans.
 --
--- What the core does NOT do is drop a packet for a peerless player: it
--- leaks it. See mod.send_packet below; this module stops those sends
--- before they reach C.
+-- What the core does NOT do is drop every packet for peerless players:
+-- some it leaks. See mod.send_packet below; this module stops those
+-- sends before they reach C.
 --
 -- API (all globals, pids are ordinary player pids):
 --   bot_create{team=, name=, gun=, tool=, block_color=,
@@ -963,18 +963,20 @@ end
 -- Every packet addressed to a bot alone, or to a group with only bots
 -- in it, would never be sent and never be freed.
 --
--- send_packet_flags (lsd/src/funcs_send.c:16-36) calls
--- enet_packet_create first and checks for a peer second. For a single
--- pid with peer == NULL it returns 0 with the packet still in hand, and
--- ENet frees a packet only once a peer has taken it, so it is gone for
--- good. A group send (team, all-but-one) leaks the same way when no
--- member has a peer. A plain PID_BROADCAST does not: enet_host_broadcast
--- destroys a packet nobody took. With fifty guards each being sent a
--- WorldUpdate per tick that was ~175MB a minute, and it ran the machine
--- out of memory.
+-- send_packet_flags (lsd/src/funcs_send.c) creates the ENet packet and
+-- then hands it to the peers that match, and ENet frees a packet only
+-- once a peer has taken it. A group send (team, all-but-one) with no
+-- member that has a peer is therefore created and never freed. A
+-- single peerless pid used to leak the same way -- fifty guards each
+-- sent a WorldUpdate per tick was ~175MB a minute, and it ran the
+-- machine out of memory -- and upstream 2cd8e5b fixed that case by
+-- returning before the packet is made; the group case is still open.
+-- A plain PID_BROADCAST never leaked: enet_host_broadcast destroys a
+-- packet nobody took.
 --
 -- Dropping the send here, before C, costs nothing anyone could see: the
--- core would have sent these nowhere anyway.
+-- core would have sent these nowhere anyway. The single-pid branch is
+-- kept because it is free and saves the trip into C.
 local function only_bots(pid)
 	if (pid < MAX_PLAYERS) then
 		return bots[pid] ~= nil;
