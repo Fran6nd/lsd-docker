@@ -188,9 +188,11 @@ the tag makes CI build, smoke-test and publish
 `ghcr.io/fran6nd/lsd-docker:<version>` and `:latest`. Every push and
 pull request runs the tests, shellcheck and the smoke test.
 
-The image is linux/amd64: upstream's seccomp filter knows x86, x86_64
-and 32-bit arm, but not arm64. On an arm64 machine Docker runs it under
-emulation.
+Images are published for linux/amd64 and linux/arm64, each built and
+smoke-tested on its own architecture. Upstream's seccomp filter knows
+x86_64, i386 and 32-bit arm but not arm64, so the arm64 image runs
+without seccomp (no_new_privs and the container's isolation remain);
+`lsdctl status` shows which sandbox a server has.
 
 ### Moving from the multi-instance layout
 

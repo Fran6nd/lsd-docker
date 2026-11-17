@@ -15,7 +15,8 @@
 # Landlock, without that pivot_root to build its new root, only lets
 # ./exec/ be executed, so luasodium.so and lsqlite3.so could not map
 # libsodium and libsqlite3 from /usr/lib. no_new_privs and seccomp stay:
-# the same seccomp-only sandbox this image always ran.
+# the same seccomp-only sandbox this image always ran -- on the arches
+# upstream's seccomp filter supports; see below.
 
 FROM alpine:3.22 AS build
 
@@ -80,13 +81,24 @@ RUN touch -d '2000-01-01 00:00:00' .git \
 # under _GNU_SOURCE, which a forced <unistd.h> would arrive before, so the
 # prototype itself -- musl's own -- is what gets included.
 #
-# SANDBOX=none also compiles seccomp out. Only for running the amd64
-# image under emulation (an arm64 laptop), which cannot install a
-# seccomp filter and fails with EINVAL; published images keep it.
-ARG SANDBOX=seccomp
+# Seccomp goes in where upstream's filter knows the syscall table --
+# x86_64, i386 and 32-bit arm -- and is compiled out elsewhere, which is
+# arm64: linux_seccomp.c stops with "unknown seccomp arch" there. Such
+# an image keeps no_new_privs and the container's own isolation, and
+# `lsdctl status` says which sandbox it has.
+#
+# SANDBOX=none forces it out on any arch: for running an amd64 image
+# under emulation, which cannot install a seccomp filter (EINVAL).
+ARG TARGETARCH
+ARG SANDBOX=auto
 RUN printf 'long syscall(long, ...);\n' > /deps/syscall_decl.h \
- && extra= && if [ "$SANDBOX" = none ]; then extra=-DWITHOUT_SECCOMP; fi \
- && make OPTS="-DWITH_ANYASCII -DWITHOUT_UNSHARE -DWITHOUT_LANDLOCK $extra -include /deps/syscall_decl.h"
+ && case "$SANDBOX:$TARGETARCH" in \
+        seccomp:*|auto:amd64|auto:386|auto:arm|auto:) sandbox=seccomp ;; \
+        *) sandbox=none ;; \
+    esac \
+ && extra= && if [ "$sandbox" = none ]; then extra=-DWITHOUT_SECCOMP; fi \
+ && make OPTS="-DWITH_ANYASCII -DWITHOUT_UNSHARE -DWITHOUT_LANDLOCK $extra -include /deps/syscall_decl.h" \
+ && echo "$sandbox" > exec/SANDBOX
 
 # lsqlite3 -> exec/lsqlite3.so
 RUN cc -O2 -fPIC -shared $(pkg-config --cflags luajit) \

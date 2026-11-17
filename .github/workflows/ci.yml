@@ -32,8 +32,16 @@ jobs:
             image/ctl/selfupdate.sh install.sh dev/*.sh githooks/commit-msg
 
   image:
-    name: Image build and smoke test
-    runs-on: ubuntu-latest
+    name: Image (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       # Not `submodules:` -- checkout fetches them shallow, and upstream's
@@ -45,17 +53,17 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/${{ matrix.arch }}
           load: true
           tags: lsd-docker:smoke
           build-args: |
             VERSION=ci-${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
       - name: Smoke test
         run: SKIP_BUILD=1 dev/smoke.sh
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-log
+          name: smoke-log-${{ matrix.arch }}
           path: smoke.log

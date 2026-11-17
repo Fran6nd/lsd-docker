@@ -12,10 +12,8 @@ NAME=lsd-smoke-$$
 VOL=lsd-smoke-$$
 
 if [ -z "${SKIP_BUILD:-}" ]; then
-	# emulated amd64 cannot install a seccomp filter; see the Dockerfile
-	sandbox=seccomp
-	[ "$(uname -m)" = x86_64 ] || sandbox=none
-	docker build --platform linux/amd64 --build-arg SANDBOX=$sandbox \
+	# for this machine's own arch, so nothing runs under emulation
+	docker build \
 		--build-arg VERSION="$(cat VERSION)" \
 		--build-arg LSD_COMMIT="$(git -C lsd rev-parse --short=10 HEAD 2>/dev/null || echo unknown)" \
 		-t "$IMAGE" .
@@ -40,11 +38,11 @@ wait_up() {
 
 # Settings first, unlisted: a test server must never show up on the
 # public server lists.
-docker run --rm --platform linux/amd64 -v "$VOL:/data" "$IMAGE" setup --defaults >/dev/null \
+docker run --rm -v "$VOL:/data" "$IMAGE" setup --defaults >/dev/null \
 	|| fail "setup --defaults"
-docker run --rm --platform linux/amd64 -v "$VOL:/data" "$IMAGE" set masterlist_enabled False >/dev/null \
+docker run --rm -v "$VOL:/data" "$IMAGE" set masterlist_enabled False >/dev/null \
 	|| fail "set before start"
-docker run -d --platform linux/amd64 --name "$NAME" -v "$VOL:/data" "$IMAGE" >/dev/null
+docker run -d --name "$NAME" -v "$VOL:/data" "$IMAGE" >/dev/null
 wait_up "first boot"
 echo "ok: first boot on default settings"
 

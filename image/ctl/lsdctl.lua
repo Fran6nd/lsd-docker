@@ -84,6 +84,15 @@ local function version()
 	return (string.gsub(v, "%s+$", "")), (string.gsub(c, "%s+$", ""));
 end
 
+-- Which sandbox the server binary was built with; see the Dockerfile.
+local function sandbox()
+	local s = string.gsub(read_file(HOME .. "/exec/SANDBOX") or "unknown", "%s+$", "");
+	if (s == "none") then
+		return "no seccomp (upstream's filter does not support this arch)";
+	end
+	return s;
+end
+
 -- A reader for catalog.open over the shell, so lsdctl needs nothing
 -- compiled -- lfs is used when it is there.
 local function reader()
@@ -1034,6 +1043,7 @@ command("status", "status", "version, state, gamemode, scripts, maps",
 			return;
 		end
 		say("server:     %s", running() and "running" or "not running");
+		say("sandbox:    %s", sandbox());
 		say("name:       %s", tostring(doc:get("masterlist_name") or "LSd server"));
 		say("port:       %s/udp", tostring(doc:get("port") or 32887));
 		say("listed:     %s", doc:get("masterlist_enabled") == false and "no" or "yes");
