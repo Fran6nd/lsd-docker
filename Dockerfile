@@ -1,4 +1,6 @@
-# Build and run the LSD server (lsd-dev.fran6nd.online).
+# lsd-docker: the LSD Ace of Spades server, its script catalog, and the
+# lsdctl tool that administers it -- one image, one server.
+#
 # Server source lives in the ./lsd git submodule; this project adds the
 # packaging. Everything compiles inside the image: the server plus the
 # native Lua modules the stock scripts need.
@@ -77,8 +79,14 @@ RUN touch -d '2000-01-01 00:00:00' .git \
 # files, which are compiled out here. musl declares it in <unistd.h> only
 # under _GNU_SOURCE, which a forced <unistd.h> would arrive before, so the
 # prototype itself -- musl's own -- is what gets included.
+#
+# SANDBOX=none also compiles seccomp out. Only for running the amd64
+# image under emulation (an arm64 laptop), which cannot install a
+# seccomp filter and fails with EINVAL; published images keep it.
+ARG SANDBOX=seccomp
 RUN printf 'long syscall(long, ...);\n' > /deps/syscall_decl.h \
- && make OPTS='-DWITH_ANYASCII -DWITHOUT_UNSHARE -DWITHOUT_LANDLOCK -include /deps/syscall_decl.h'
+ && extra= && if [ "$SANDBOX" = none ]; then extra=-DWITHOUT_SECCOMP; fi \
+ && make OPTS="-DWITH_ANYASCII -DWITHOUT_UNSHARE -DWITHOUT_LANDLOCK $extra -include /deps/syscall_decl.h"
 
 # lsqlite3 -> exec/lsqlite3.so
 RUN cc -O2 -fPIC -shared $(pkg-config --cflags luajit) \
@@ -100,27 +108,48 @@ RUN cc -O2 -fPIC -shared /deps/linenoise.c -o exec/liblinenoise.so \
 
 FROM alpine:3.22
 
-# socat is only for `lsdctl console` (attach to sock_console in rw/)
-RUN apk add --no-cache luajit enet isa-l sqlite-libs libsodium socat \
- && adduser -D -H -h /lsd lsd
+# socat: lsdctl talks to the server's console socket
+# su-exec: the server and lsdctl run as lsd, the entrypoint as root
+# tini: reaps and forwards signals to the server supervisor
+# curl, jq: map downloads, and `update`'s Docker Engine API calls
+RUN apk add --no-cache luajit enet isa-l sqlite-libs libsodium \
+        socat su-exec tini curl jq \
+ && adduser -D -H -u 1000 -h /lsd lsd
 
 WORKDIR /lsd
 COPY --from=build /build/server ./server
 COPY --from=build /build/exec ./exec
-# upstream scripts are baked as scripts.dist; the entrypoint assembles
-# the runtime scripts/ dir from them plus the scripts.local/ mount
+# upstream's scripts, kept apart: the entrypoint assembles scripts/
+# from them, the catalog and the data volume at every start
 COPY --from=build /build/scripts ./scripts.dist
-# default config baked in; compose mounts the live one from the host
-COPY config.lua ./config.lua
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
- && mkdir -p rw maps scripts && chown lsd:lsd rw maps scripts
+COPY catalog ./catalog
+COPY image/config.lua ./config.lua
+COPY image/entrypoint.sh /usr/local/bin/entrypoint
+COPY image/ctl/lsdctl.sh /usr/local/bin/lsdctl
+COPY image/ctl/lsdctl.lua image/ctl/selfupdate.sh /usr/local/lib/lsdctl/
 
-USER lsd
-# override at run time: -e LSD_PORT=... -e LSD_CONFIG=/path/inside/container
-ENV LSD_PORT=32887 \
-    LSD_CONFIG=config.lua \
-    LSD_NO_STDIO_CONSOLE=1
+ARG VERSION=dev
+ARG LSD_COMMIT=unknown
+RUN printf '%s\n' "$VERSION" > VERSION \
+ && printf '%s\n' "$LSD_COMMIT" > LSD_COMMIT \
+ && chmod +x /usr/local/bin/entrypoint /usr/local/bin/lsdctl \
+        /usr/local/lib/lsdctl/selfupdate.sh \
+ && mkdir -p scripts /data \
+ && ln -s /data/maps maps && ln -s /data/rw rw \
+ && chown lsd:lsd scripts /data
+
+LABEL org.opencontainers.image.title="lsd-docker" \
+      org.opencontainers.image.description="LSD Ace of Spades server with a script catalog, administered with lsdctl" \
+      org.opencontainers.image.source="https://github.com/Fran6nd/lsd-docker" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
+      org.opencontainers.image.version="$VERSION"
+
+ENV LSD_NO_STDIO_CONSOLE=1 \
+    LSD_SETTINGS_FILE=/data/settings
+VOLUME /data
 EXPOSE 32887/udp
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s \
+    CMD test -S /data/rw/console.sock
 
-ENTRYPOINT ["docker-entrypoint.sh"]
+ENTRYPOINT ["/sbin/tini", "--", "entrypoint"]
+CMD ["serve"]

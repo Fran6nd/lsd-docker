@@ -1,0 +1,720 @@
+-- hostage.lua -- The Hostage gamemode
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+--
+-- Each team has a hostage (a lib_bot) held prisoner at the enemy tent,
+-- standing with a block in its team's color. Come closer than
+-- after you (hostages are too weary to run) -- but only while you keep
+-- moving; stop, stray past hostage_lose_dist, or die and it gives up
+-- and stands where it is. Walk it
+-- into its own tent to score its team a point, and the keepers
+-- executing it hands its team a point too; either way the hostage
+-- respawns back at the enemy tent, facing the map center.
+--
+-- It cuts both ways: a hostage left loose in the open with no teammate
+-- near will surrender to a nearby captor and follow them, and a captor
+-- who marches it back to their own tent re-imprisons it (no points).
+-- When a hostage slips loose the server sends the captors hunting.
+--
+-- It plays like team deathmatch over ctf's bones: ctf is loaded
+-- underneath for tents, spawns and team score, but the flags are
+-- stashed in the sky where nobody can reach them, the masterlist
+-- advertises "Hostage", and joining players get told the rules.
+--
+-- COMMUNICATION -- two voices, both localized via lib_l10n:
+-- * the hostage itself speaks in chat, only to its own team (the ones
+--   who can rescue it), rendered in each listener's language, with a
+--   different voice per situation: pleading while held at the enemy
+--   tent, "I'm lost" while stranded, nervous/urging chatter while being
+--   walked home, plus a private "thanks" to a new escort, a cheer on
+--   arrival and a cry when executed (hostage_say/_to). Each recurring
+--   line is on its own sparse, jittered timer so they stay quiet.
+-- * the server announces to everyone (l10n_send_chat): a rescue, an
+--   execution, and the rules on join -- and tells a hostage's own team
+--   (PID_BROADCAST_TEAM) when someone starts freeing it.
+-- Add a language by dropping another key into the message tables
+-- below (en/fr are provided).
+--
+-- /hostage shows each hostage's status; /hostage reset (needs the
+-- "hostage" cap) despawns and respawns them.
+--
+-- THE FLAG: each hostage carries one, permanently. It is its own
+-- team's objective made visible -- the Blue hostage holds Green's flag,
+-- so walking it into the Blue tent is a capture in ctf's own terms and
+-- the score moves by the ordinary route, scoreboard and all. It cannot
+-- be taken from the hostage: death does not drop it (see
+-- after_player_destroy below), and the tick puts it back the moment
+-- anything separates them. That also means the intel chat and the
+-- capture jingle are the client's to play, as in any ctf -- they are no
+-- longer vetoed, because the flag is no longer a hidden token but the
+-- thing everyone is fighting over.
+--
+-- LIMITATIONS:
+-- * Needs a mode with tents: on maps/modes without them the hostages
+--   simply never spawn (creation retries every tick).
+-- * Escorting is straight-line walking with a hop -- no pathfinding.
+--   Hostages fall off cliffs, drown, and take fall damage; route
+--   your rescue accordingly. The tent spawn height is a guess
+--   (tent z - 2.5), so they may drop a step on odd tents.
+-- * All lib_bot limitations apply: hostages use two player slots,
+--   kicks silently fail on them, and this script must be reloaded
+--   together with the lib (lsdctl load lib_bot hostage).
+--
+-- DEPENDENCIES: needs lib_bot, lib_l10n, and a tent gamemode (ctf)
+-- loaded FIRST -- config.lua does this. The script never load()s them
+-- itself: a load() at file-execution time re-registers an
+-- already-loaded module, which points one of its hook's `next` at
+-- itself and stack-overflows the tick chain. We only check the
+-- globals those modules export and bail cleanly if they are missing.
+local mod = init_mod();
+
+getcfg("hostage_engage_dist", 5);    -- follow when a teammate gets this close
+getcfg("hostage_lose_dist", 10);     -- stop when the escort is this far
+getcfg("hostage_move_threshold", 0.002);-- min horizontal speed^2 to count as leading
+getcfg("hostage_follow_grace", 1.0); -- seconds a leader may pause before the hostage gives up
+getcfg("hostage_home_radius", 3);    -- how close to home counts as a rescue
+getcfg("hostage_tent_radius", 4);    -- how close to a tent counts as "safe"
+getcfg("hostage_captive_interval", 40);-- avg seconds between pleas while held at the tent
+getcfg("hostage_lost_interval", 40); -- avg seconds between "I'm lost" calls
+getcfg("hostage_chatter_interval", 32);-- avg seconds between while-escorted lines
+getcfg("hostage_scared_dist", 8);    -- enemy within this = nervous chatter
+
+-- flags get stashed here: negative z is high in the sky, unreachable,
+-- and safely non-solid to everything (is_solid() guards z < 0)
+
+-- every AoS map is 512x512, so the middle is here
+local CENTER = {x=256, y=256};
+
+local byteam = {}; -- team -> hostage pid
+
+-- Player-facing text. Server announcements (system messages) and the
+-- hostage's own lines (chat attributed to it) share the same table
+-- shape: one string per language, %(key) filled from an interp table.
+local welcome_msg = {
+	en="This is HOSTAGE mode: free the hostage held at the enemy tent. "
+		.."Get close and it follows; walk it home to score.",
+	fr="Mode OTAGE : libere l'otage retenu au camp ennemi. Approche-toi "
+		.."et il te suit ; ramene-le chez toi pour marquer.",
+};
+local thanks_msg = {
+	en="Thanks for picking me up!",
+	fr="Merci de me sauver !",
+};
+local saved_msg = {
+	en="%(hero) brought the %(team) hostage home! +1 %(team)",
+	fr="%(hero) a ramene l'otage %(team) ! +1 %(team)",
+};
+local executed_msg = {
+	en="%(killer) executed the %(team) hostage! +1 %(team)",
+	fr="%(killer) a execute l'otage %(team) ! +1 %(team)",
+};
+-- told to the hostage's own team when a rescue begins
+local freeing_msg = {
+	en="%(escort) is freeing your hostage -- go support!",
+	fr="%(escort) libere votre otage -- allez l'aider !",
+};
+-- told to the captor team when a hostage slips loose in the field
+local missing_msg = {
+	en="A %(team) hostage is loose -- hunt it down and drag it back!",
+	fr="Un otage %(team) s'est echappe -- retrouvez-le et ramenez-le !",
+};
+-- told to everyone when a captor returns a loose hostage to its prison
+local recaptured_msg = {
+	en="The %(team) hostage was dragged back to captivity.",
+	fr="L'otage %(team) a ete ramene en captivite.",
+};
+-- held at the enemy tent, waiting to be sprung
+local captive_msgs = {
+	{en="Get me out of here!", fr="Sortez-moi de la !"},
+	{en="I'm a prisoner -- someone free me!",
+	 fr="Je suis prisonnier -- que quelqu'un me libere !"},
+	{en="Psst! Come spring me from their tent!",
+	 fr="Psst ! Venez me delivrer de leur camp !"},
+};
+-- stranded in the open, no idea which way is home
+local lost_msgs = {
+	{en="I'm lost! Somebody come get me!",
+	 fr="Je suis perdu ! Que quelqu'un vienne me chercher !"},
+	{en="Hello? Anyone? I'm stranded out here!",
+	 fr="Ohe ? Il y a quelqu'un ? Je suis coince ici !"},
+	{en="Help, I don't know the way home!",
+	 fr="A l'aide, je ne trouve pas le chemin du retour !"},
+};
+-- the hostage's own reactions: a cheer at home, a cry when executed,
+-- and while-escorted chatter (nervous if a foe is near, else urging)
+local saved_cheer_msg = {
+	en="Home at last -- thank you!",
+	fr="Enfin rentre -- merci !",
+};
+local executed_cry_msg = {
+	en="Argh -- they got me!",
+	fr="Argh -- ils m'ont eu !",
+};
+local nervous_msgs = {
+	{en="They're right behind us!", fr="Ils sont juste derriere nous !"},
+	{en="Hurry, enemies close!", fr="Vite, des ennemis tout pres !"},
+	{en="Watch out -- keepers!", fr="Attention -- des gardiens !"},
+};
+local urge_msgs = {
+	{en="This way, we're almost there!", fr="Par ici, on y est presque !"},
+	{en="Keep going, take me home!", fr="Continue, ramene-moi a la base !"},
+	{en="Don't leave me behind!", fr="Ne me laisse pas derriere !"},
+};
+-- crying to its team while a captor drags it back to prison
+local surrender_msgs = {
+	{en="They've caught me -- help!", fr="Ils m'ont repris -- a l'aide !"},
+	{en="I'm being dragged back!", fr="On me ramene de force !"},
+	{en="No -- not back to the cage!", fr="Non -- pas encore la cage !"},
+};
+
+-- the hostage speaks, attributed to it (from = its pid), only to its
+-- own team (the ones who can rescue it), each in their own language
+local function hostage_say(hpid, msgtab, interptab)
+	local team = get_team(hpid);
+	for i in piditer(PID_BROADCAST) do
+		if (not bot_is_bot(i) and get_team(i) == team) then
+			send_chat(i, l10n_get_str_pid(i, msgtab, interptab or {}), 0, hpid);
+		end
+	end
+end
+
+local function hostage_say_to(hpid, target, msgtab, interptab)
+	send_chat(target, l10n_get_str_pid(target, msgtab, interptab or {}), 0, hpid);
+end
+
+local function length2(vec)
+	return math.sqrt(vec.x*vec.x + vec.y*vec.y);
+end
+
+local function within_cylinder(pos, cylinderpos, radius, bottom, top)
+	pos.x = pos.x - cylinderpos.x;
+	pos.y = pos.y - cylinderpos.y;
+	pos.z = pos.z - cylinderpos.z;
+
+	if (length2(pos) > radius or pos.z < top or pos.z > bottom) then
+		return false;
+	end
+
+	return true;
+end
+
+-- one shared tent test (within_cylinder mutates pos, so callers hand
+-- it a fresh get_position each time)
+local function near_tent(pos, tentpos, radius)
+	return tentpos ~= nil and within_cylinder(pos, tentpos, radius, 2, -4);
+end
+
+-- where team's hostage is held: the enemy tent
+local function post(team)
+	local t = get_tentloc()[3 - team];
+	if (t == nil) then
+		return nil;
+	end
+	-- tent z is ground level, internal player pos rides ~2.25 above
+	return {x=t.x, y=t.y, z=t.z - 2.5};
+end
+
+-- standing near either tent (its spawn post, or home)?
+local function near_a_tent(pid)
+	local t = get_tentloc();
+	return near_tent(get_position(pid), t[1], hostage_tent_radius)
+	    or near_tent(get_position(pid), t[2], hostage_tent_radius);
+end
+
+-- a hostage follows movement, not people: a leader only counts while
+-- actually moving, so it never stands grinding into terrain behind
+-- someone who has stopped
+local function is_leading(pid)
+	local v = get_velocity(pid);
+	return v.x*v.x + v.y*v.y >= hostage_move_threshold;
+end
+
+-- nearest *moving* real player of `team` within `range`, or nil
+local function nearest_mover(from, team, range)
+	local best, bestd;
+	for i in piditer(PID_BROADCAST) do
+		if (i ~= from and is_alive(i) and not bot_is_bot(i)
+		    and get_team(i) == team and is_leading(i)) then
+			local d = bot_distance_to(from, i);
+			if (d <= range and (best == nil or d < bestd)) then
+				best, bestd = i, d;
+			end
+		end
+	end
+	return best;
+end
+
+-- A hostage never lets go of the flag, not even by dying.
+--
+-- ctf drops a carrier's intel where they fell -- its own
+-- after_player_destroy calls try_drop -- which for a hostage would
+-- leave the flag lying on the ground for anyone to walk off with, and
+-- take the rescue out of the escort's hands entirely. This module is
+-- loaded after ctf, so it wraps it: not chaining is all it takes. The
+-- hostage keeps the flag through its death and carries it into its next
+-- life, which is what "the hostage is the objective" has to mean if it
+-- is to mean anything.
+--
+-- Everyone else drops normally; this is the only exception, and only
+-- for the two of them.
+function mod.after_player_destroy(pid)
+	local b = bot_get(pid);
+
+	if (b ~= nil and b.data.hostage) then
+		return;
+	end
+	mod.next.after_player_destroy(pid);
+end
+
+-- The flags are just a hidden scoring token; capture_intel is the only
+-- Lua-reachable way to move the team score. Its packet (send_intel_capture)
+-- is vetoed above, so the scoreboard number won't visibly tick on clients
+-- -- but the game still ends correctly server-side and the hostage-themed
+-- "+1 <team>" lines announce every point. We deliberately do NOT re-push
+-- ctf state to sync the number: that packet (StateData, the same one sent
+-- when you first join) re-initialises clients, so firing it on every kill
+-- is far worse than a static scoreboard.
+local function award_point(to)
+	capture_intel(to, get_team_score(get_team(to))+1 >= get_max_score());
+end
+
+-- a per-hostage speech timer: true once `key` comes due, then it
+-- reschedules with +-40% jitter so the two hostages drift apart instead
+-- of talking in unison. The very first fire is staggered a random
+-- fraction of the interval in, so they don't open together at spawn.
+local function due(mem, key, interval)
+	local now = get_time();
+	if (mem[key] == nil) then
+		mem[key] = now + interval * math.random();
+		return false;
+	end
+	if (now < mem[key]) then
+		return false;
+	end
+	mem[key] = now + interval * (0.6 + math.random()*0.8);
+	return true;
+end
+
+local function reset_follow_state(mem)
+	mem.follow = nil;
+	mem.follow_moved = nil;
+	mem.hero = nil;
+	mem.thanked = nil;
+	mem.missing_alerted = nil;
+end
+
+local function think(pid)
+	local me = bot_get(pid);
+	local mem = me.data;
+	local myteam = me.team;
+
+	-- Pick who the hostage follows. Keep the current follower while it
+	-- lives and stays within lose range; a teammate rescuer always
+	-- takes priority (rescue beats surrender); and a hostage loose in
+	-- the open with no teammate near surrenders to a nearby captor.
+	-- Keep the current follower only while it lives, stays in range,
+	-- AND keeps moving. A leader that stops strands the hostage (it
+	-- grinds into terrain trying to reach an idle player), so after a
+	-- short grace it gives up and drops to stuck mode; it re-latches
+	-- once someone is moving near it again.
+	local follow = mem.follow;
+	if (follow ~= nil) then
+		if (not is_alive(follow)
+		    or bot_distance_to(pid, follow) > hostage_lose_dist) then
+			follow = nil;
+		elseif (is_leading(follow)) then
+			mem.follow_moved = get_time();
+		elseif (get_time() - (mem.follow_moved or 0) > hostage_follow_grace) then
+			follow = nil;
+		end
+	end
+	local by_enemy = follow ~= nil and get_team(follow) ~= myteam;
+
+	-- a moving teammate rescuer always takes priority
+	if (follow == nil or by_enemy) then
+		local mate = nearest_mover(pid, myteam, hostage_engage_dist);
+		if (mate ~= nil) then
+			follow = mate;
+			by_enemy = false;
+			mem.follow_moved = get_time();
+		end
+	end
+	-- loose in the open with no teammate: surrender to a moving captor
+	if (follow == nil and not near_a_tent(pid)) then
+		local foe = nearest_mover(pid, 3-myteam, hostage_engage_dist);
+		if (foe ~= nil) then
+			follow = foe;
+			by_enemy = true;
+			mem.follow_moved = get_time();
+		end
+	end
+	mem.follow = follow;
+
+	-- rescued: a teammate walked it into its own home tent. That is the
+	-- point -- award it and let capture_intel's after-hook cheer,
+	-- announce, heal and send it back to its post.
+	if (not by_enemy and follow ~= nil and near_tent(get_position(pid),
+	    get_tentloc()[myteam], hostage_home_radius)) then
+		-- remember who walked it home, then stop and let go: the
+		-- hostage is standing in its own tent holding the enemy flag,
+		-- and ctf's own tick is one frame away from calling that a
+		-- capture. Scoring it here as well would score it twice.
+		mem.hero = follow;
+		bot_stop(pid);
+		return;
+	end
+
+	-- recaptured: a captor dragged it back to its prison (the enemy
+	-- tent, which is the post) -- no points, just back in the cage
+	if (by_enemy and near_tent(get_position(pid),
+	    get_tentloc()[3-myteam], hostage_home_radius)) then
+		l10n_send_chat(PID_BROADCAST, recaptured_msg,
+			{team=get_team_name(myteam)});
+		reset_follow_state(mem);
+		bot_stop(pid);
+		return;
+	end
+
+	if (follow == nil) then
+		mem.hero = nil;
+		-- NB: keep mem.thanked. An escort who merely paused (>grace)
+		-- drops the follow for a moment; forgetting we thanked them
+		-- would re-thank and re-fire the "freeing your hostage" alert
+		-- every time they stop and start. A full reset (score, recapture,
+		-- death) still clears it via reset_follow_state.
+		-- idle, and talking to match: held at the tent it stands and
+		-- pleads to its team; loose in the open it crouches, calls that
+		-- it is lost, and the server sends the captors hunting -- each
+		-- on its own sparse, jittered timer
+		if (near_a_tent(pid)) then
+			mem.missing_alerted = nil; -- safe at a tent, call off the hunt
+			bot_stop(pid);
+			if (due(mem, "captive", hostage_captive_interval)) then
+				hostage_say(pid, captive_msgs[math.random(#captive_msgs)]);
+			end
+		else
+			bot_crouch(pid);
+			if (due(mem, "lost", hostage_lost_interval)) then
+				hostage_say(pid, lost_msgs[math.random(#lost_msgs)]);
+			end
+			if (not mem.missing_alerted) then
+				mem.missing_alerted = true;
+				l10n_send_chat(PID_BROADCAST_TEAM(3-myteam), missing_msg,
+					{team=get_team_name(myteam)});
+			end
+		end
+		return;
+	end
+
+	mem.missing_alerted = nil; -- someone has it now
+
+	if (not by_enemy) then
+		-- rescue: greet the escort once and rally the team, then chatter
+		if (mem.thanked ~= follow) then
+			mem.thanked = follow;
+			hostage_say_to(pid, follow, thanks_msg);
+			l10n_send_chat(PID_BROADCAST_TEAM(myteam), freeing_msg,
+				{escort=get_name(follow)});
+		end
+		mem.hero = follow;
+
+		if (due(mem, "chatter", hostage_chatter_interval)) then
+			if (bot_nearest_player(pid, {team=3-myteam, within=hostage_scared_dist}) ~= nil) then
+				hostage_say(pid, nervous_msgs[math.random(#nervous_msgs)]);
+			else
+				hostage_say(pid, urge_msgs[math.random(#urge_msgs)]);
+			end
+		end
+	else
+		-- surrender: dragged off by a captor, cry to the team for a
+		-- last-ditch intercept
+		mem.hero = nil;
+		mem.thanked = nil;
+		if (due(mem, "chatter", hostage_chatter_interval)) then
+			hostage_say(pid, surrender_msgs[math.random(#surrender_msgs)]);
+		end
+	end
+
+	if (bot_distance_to(pid, follow) <= 1) then
+		bot_stop(pid); -- close enough, don't headbutt whoever leads it
+		return;
+	end
+
+	bot_look_at(pid, get_position(follow));
+
+	local v = get_velocity(pid);
+	bot_walk(pid, {
+		forward = true,
+		-- no sprint: hostages are too weary to run
+		-- hop over whatever demoncore's step-up can't clear
+		jump = v.x*v.x + v.y*v.y < 0.0004 and not is_airborne(pid),
+	});
+end
+
+function mod.after.tick()
+	-- Every hostage carries the flag its rescuers are trying to bring
+	-- home, always. pickup_intel hands a player their ENEMY's flag,
+	-- which for the Blue hostage is Green's -- and a carrier reaching
+	-- the Blue tent is already, exactly, what ctf underneath calls a
+	-- capture. So a rescue scores itself through the gamemode rather
+	-- than through a score call of ours, and the flag on the hostage's
+	-- back is the same object the scoreboard is counting.
+	--
+	-- Re-given rather than given once: a capture puts the flag back on
+	-- the ground, a map change relocates it, and this is where it is
+	-- noticed. The test is cheap -- a held flag reads as the holder's
+	-- pid, a loose one as a position -- so the usual case costs a
+	-- comparison and nothing else.
+	for team=1,2 do
+		local hpid = byteam[team];
+
+		if (hpid ~= nil and is_alive(hpid)
+		    and get_intelloc()[3 - team] ~= hpid) then
+			pickup_intel(hpid);
+		end
+	end
+
+	for team=1,2 do
+		-- adopt before creating: if a tagged hostage of this team
+		-- already exists (lost byteam, earlier instance), take it
+		-- over instead of spawning a duplicate
+		if (byteam[team] == nil) then
+			for i in piditer(PID_BROADCAST) do
+				local b = bot_get(i);
+				if (b ~= nil and b.data.hostage and b.team == team) then
+					b.think = think;
+					b.spawn_at = function() return post(team); end;
+					byteam[team] = i;
+					break;
+				end
+			end
+		end
+
+		if (byteam[team] == nil and post(team) ~= nil) then
+			byteam[team] = bot_create{
+				team = team,
+				name = "Hostage "..get_team_name(team),
+				tool = "block",
+				block_color = get_team_color(team),
+				spawn_at = function() return post(team); end,
+				think = think,
+				data = {hostage=true},
+			};
+		end
+	end
+end
+
+-- every spawn (the C core sets orientation from team), turn the
+-- hostage to look across the map at its center. Keyed off the bot's
+-- own tag, not byteam: the very first spawn fires inside bot_create,
+-- before byteam is assigned. think() leaves orientation alone while
+-- idle, so it keeps facing in until someone comes to escort it
+function mod.after.spawn_player(pid)
+	local b = bot_get(pid);
+	if (b ~= nil and b.data.hostage) then
+		bot_look_at(pid, {x=CENTER.x, y=CENTER.y, z=get_position(pid).z});
+	end
+end
+
+-- keepers executing their hostage hands its team the point
+function mod.after.kill(pid, ktype, killer)
+	local b = bot_get(pid);
+	if (b == nil or not b.data.hostage) then
+		return;
+	end
+
+	reset_follow_state(b.data);
+
+	-- only a real execution by the enemy (gun/melee/grenade), not a
+	-- fall, a drowning or a team/gun switch
+	if (ktype <= 3 and killer ~= pid and get_team(killer) == 3 - b.team) then
+		hostage_say(pid, executed_cry_msg); -- a last word before it drops
+		b.data.executing = true; -- tell the capture hook this is an execution
+		award_point(pid);
+		l10n_send_chat(PID_BROADCAST, executed_msg,
+			{killer=get_name(killer), team=get_team_name(b.team)});
+	end
+
+	-- Straight back to its post, with no respawn wait. A hostage is the
+	-- objective and it carries the flag; a hole where it should be, for
+	-- the one to eight seconds the engine would otherwise take, is a
+	-- hole in the game itself -- and the flag would be missing with it.
+	--
+	-- The post is the enemy tent, so it comes back where it started: in
+	-- the cage. post() answers nil on a map with no tents, which is the
+	-- one case worth falling back for rather than handing spawn_player a
+	-- nil and taking the server down with it.
+	local at = post(b.team) or get_spawn_position(pid);
+
+	spawn_player(pid, at);
+end
+
+-- Both ways a hostage scores end here, and the executing flag tells them
+-- apart. An execution is award_point's doing, in the kill hook above. A
+-- rescue is not ours at all any more: the hostage is standing in its own
+-- tent holding the enemy flag, and ctf's tick captures it the way it
+-- would for any carrier -- which is the whole point of giving them the
+-- flag to carry.
+function mod.after.capture_intel(scorer)
+	local b = bot_get(scorer);
+	if (b == nil or not b.data.hostage) then
+		return;
+	end
+	local mem = b.data;
+
+	if (mem.executing) then
+		mem.executing = nil; -- scored via execution; the kill hook said it all
+		return;
+	end
+
+	-- rescued: cheer, credit the escort, and send the hostage back to
+	-- its post (the tick hands it a fresh flag next frame)
+	hostage_say(scorer, saved_cheer_msg);
+	l10n_send_chat(PID_BROADCAST, saved_msg,
+		{hero=get_name(mem.hero or mem.follow or scorer),
+		 team=get_team_name(b.team)});
+	reset_follow_state(mem);
+	bot_heal(scorer);
+	bot_teleport(scorer, post(b.team));
+	bot_stop(scorer);
+end
+
+function mod.after.on_join(pid)
+	if (not bot_is_bot(pid)) then
+		l10n_send_chat(pid, welcome_msg);
+	end
+end
+
+function mod.after.on_disconnect(pid)
+	for team=1,2 do
+		if (byteam[team] == pid) then
+			byteam[team] = nil;
+		end
+	end
+end
+
+local function advertise()
+	masterlist_set_gamemode("Hostage");
+end
+
+function mod.after.finish_map_load()
+	advertise(); -- whoever re-advertised on map change, override them
+end
+
+-- loading starts from a clean slate: every hostage a previous life of
+-- this script spawned gets removed. Lib bots are identified by their
+-- tag or name; peerless players named like hostages (get_ipaddr 0 --
+-- impossible for a real client) catch bots from older, lib-less
+-- versions whose registry is long gone.
+local function sweep_stale_hostages()
+	-- collect first, then act: destroying/disconnecting mutates the
+	-- player set, and doing it mid-piditer would skip entries
+	local doomed = {};
+	for i in piditer(PID_BROADCAST) do
+		local b = bot_get(i);
+		if (b ~= nil and (b.data.hostage
+		    or string.sub(b.name, 1, 8) == "Hostage ")) then
+			doomed[#doomed+1] = i;
+		elseif (b == nil and get_ipaddr(i) == 0 and is_joined(i)
+		        and string.sub(get_name(i), 1, 7) == "Hostage") then
+			doomed[#doomed+1] = i;
+		end
+	end
+	for _, i in ipairs(doomed) do
+		if (bot_get(i) ~= nil) then bot_destroy(i); else on_disconnect(i); end
+	end
+end
+
+function mod.on_load()
+	-- check, never load: erroring here unregisters us cleanly, while
+	-- a stray load() would corrupt the callchain (see DEPENDENCIES)
+	if (bot_create == nil) then
+		error("hostage needs lib_bot loaded first "
+			.."(its script pulls lib_bot in; check with: lsdctl status)", 0);
+	end
+	if (l10n_send_chat == nil) then
+		error("hostage needs lib_l10n loaded first", 0);
+	end
+
+	sweep_stale_hostages();
+	advertise();
+	-- catch anyone already connected up on the rules (on a fresh boot
+	-- there is nobody yet, so this is a no-op then)
+	l10n_send_chat(PID_BROADCAST, welcome_msg);
+
+end
+
+function mod.on_unload()
+
+	for team=1,2 do
+		if (byteam[team] ~= nil) then
+			bot_destroy(byteam[team]);
+		end
+	end
+end
+
+-- one status line per hostage: whose it is, what it's doing, how far
+-- from home it still is
+local function hostage_status_line(team)
+	local name = get_team_name(team);
+	local hpid = byteam[team];
+
+	if (hpid == nil) then
+		return name.." hostage: not spawned (no tents?)";
+	end
+	if (not is_alive(hpid)) then
+		return name.." hostage: down, respawning";
+	end
+
+	local mem = bot_get(hpid).data;
+	local home = get_tentloc()[team];
+	local dist = home ~= nil and math.floor(bot_distance_to(hpid, home)) or -1;
+
+	local state;
+	if (mem.follow ~= nil and is_alive(mem.follow)) then
+		if (get_team(mem.follow) == team) then
+			state = "following "..get_name(mem.follow);
+		else
+			state = "being recaptured by "..get_name(mem.follow);
+		end
+	elseif (near_a_tent(hpid)) then
+		state = "waiting at a tent";
+	else
+		state = "stranded";
+	end
+
+	return string.format("%s hostage: %s (%d blocks from home)",
+		name, state, dist);
+end
+
+local function reset_hostages()
+	for team=1,2 do
+		if (byteam[team] ~= nil) then
+			bot_destroy(byteam[team]); -- our on_disconnect clears byteam
+			byteam[team] = nil;        -- and clear now so tick respawns it
+		end
+	end
+end
+
+-- /hostage [reset] -- status is open to all; reset needs the hostage cap
+local cmd = {name="hostage", fakepid=true, usage="[reset]",
+	desc="Show hostage status, or 'reset' them (needs the hostage cap)."};
+function cmd.func(pid, argv)
+	cmd_assert(pid, cmd, #argv <= 1);
+
+	if (argv[1] == "reset") then
+		if (not has_cap(pid, "hostage")) then
+			server_msg(pid, "you lack the 'hostage' cap");
+			return;
+		end
+		reset_hostages();
+		server_msg(pid, "hostages reset");
+		return;
+	end
+
+	for team=1,2 do
+		server_msg(pid, hostage_status_line(team));
+	end
+end
+register_command(cmd, mod);
+
+return mod;

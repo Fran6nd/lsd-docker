@@ -1,0 +1,75 @@
+# Publishes the image when dev/release.sh pushes a version tag.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Version
+        id: v
+        run: |
+          v=${GITHUB_REF_NAME#v}
+          [ "$v" = "$(cat VERSION)" ] || { echo "tag $v but VERSION says $(cat VERSION)"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "lsd=$(git -C lsd rev-parse --short=10 HEAD)" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - run: sudo apt-get update && sudo apt-get install -y luajit && dev/test.sh
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Smoke-test the exact build that is about to be published.
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: lsd-docker:smoke
+          build-args: |
+            VERSION=${{ steps.v.outputs.version }}
+            LSD_COMMIT=${{ steps.v.outputs.lsd }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - run: SKIP_BUILD=1 dev/smoke.sh
+
+      # amd64 only: upstream's seccomp filter knows x86, x86_64 and
+      # 32-bit arm, not arm64.
+      - name: Publish
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.v.outputs.image }}:${{ steps.v.outputs.version }}
+            ${{ steps.v.outputs.image }}:latest
+          build-args: |
+            VERSION=${{ steps.v.outputs.version }}
+            LSD_COMMIT=${{ steps.v.outputs.lsd }}
+          cache-from: type=gha
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --generate-notes \
+            --title "lsd-docker ${{ steps.v.outputs.version }}" \
+            --notes "Image: \`${{ steps.v.outputs.image }}:${{ steps.v.outputs.version }}\` (lsd ${{ steps.v.outputs.lsd }})"
