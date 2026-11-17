@@ -14,8 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+      # Not `submodules:` -- checkout fetches them shallow, and upstream's
+      # server speaks dumb HTTP, which cannot serve a shallow fetch.
+      - name: Submodules
+        run: git submodule update --init --recursive
 
       - name: Version
         id: v
