@@ -5,3 +5,6 @@
 /*.patch
 
 .claude/
+
+# dev/smoke.sh writes the server log here
+smoke.log
