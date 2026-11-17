@@ -135,7 +135,7 @@ RUN printf '%s\n' "$VERSION" > VERSION \
  && chmod +x /usr/local/bin/entrypoint /usr/local/bin/lsdctl \
         /usr/local/lib/lsdctl/selfupdate.sh \
  && mkdir -p scripts /data \
- && ln -s /data/maps maps && ln -s /data/rw rw \
+ && ln -s /data/maps maps \
  && chown lsd:lsd scripts /data
 
 LABEL org.opencontainers.image.title="lsd-docker" \

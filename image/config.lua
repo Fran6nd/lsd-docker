@@ -60,6 +60,18 @@ do
 	end
 end
 
+-- Upstream keeps its databases and console socket under rw/. Here that
+-- is the data volume, named by its real path and never through a
+-- symlink: SQLite resolves a symlink in a database path with readlink(),
+-- which the seccomp sandbox does not allow, so the server would be
+-- killed ("Bad system call") the moment auth opened its database.
+local RW = (os.getenv("LSD_DATA") or "/data") .. "/rw/";
+getcfg("auth_db", RW .. "auth.db");
+getcfg("bans_db", RW .. "bans.db");
+getcfg("irc_console_db", RW .. "auth.db");
+getcfg("sock_console", RW .. "console.sock");
+getcfg("command_savemap_basedir", RW .. "maps/");
+
 -- name, port, listing, rotation, fog
 load "lib_server"
 
