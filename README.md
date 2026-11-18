@@ -153,6 +153,20 @@ never given the docker socket.
 | tools | `Tool` | everything else | world_editor, votekick, esp_demo, headless, time_limit, ... |
 | libs | `Library` | what the others need; installed with them, not listed | ext, ext_policy, bot, shot_detect, player_effect |
 
+A player effect forced on in setup is everybody's (`<id>_everyone = true`).
+A gamemode can hand one out instead, per player, for a time, until death
+or until the map changes, replacing or stacking:
+
+```lua
+local rail = PlayerEffect.get("railgun")
+rail.everyone = false
+rail:give(pid, {secs = 30})                    -- replaces what they had
+rail:give(pid, {minutes = 2, stack = true})    -- on top of it
+rail:give(pid, {death = true})                 -- until they die
+rail:give(pid, {map = true})                   -- until the map changes
+rail:take(pid)
+```
+
 The flashlight's presets:
 
 | preset | |

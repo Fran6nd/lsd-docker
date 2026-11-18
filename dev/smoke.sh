@@ -63,9 +63,7 @@ docker exec "$NAME" lsdctl install railgun grenade_shotgun pinning_smg the_fall 
 	|| fail "install effects"
 sleep 3
 wait_up "after effects"
-# (lib_player_effect registers no module, so it is not in the log: the
-# three effects built on it loading is the proof it loaded)
-for m in rifle_is_a_rail_gun shotgun_are_grenade_launchers \
+for m in lib_player_effect rifle_is_a_rail_gun shotgun_are_grenade_launchers \
          smg_is_incapacitating the_fall; do
 	docker logs "$NAME" 2>&1 | grep -q "$m" || fail "$m not loaded"
 done

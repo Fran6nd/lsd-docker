@@ -57,6 +57,7 @@ local pending = pid_spawn_table();
 -- shell is resolved: the recoil kick is on its way and would otherwise
 -- be what the pellets are traced along.
 local fx = PlayerEffect {
+	name = "grenade_shotgun",
 	gun = PlayerEffect.GUN_SHOTGUN,
 	warning = "here shotguns are grenade launchers.",
 	tip = "Spicy: every shotgun blast drops a grenade pellet -- mind the splash.",

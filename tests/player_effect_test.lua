@@ -45,25 +45,28 @@ function pid_spawn_table() return {}; end
 function piditer() local i = -1; return function() i = i + 1; if (i <= 2) then return i; end end; end
 function shot_listen(name, fn) listeners[name] = fn; end
 function shot_unlisten(name) listeners[name] = nil; end
-function get_time() return 10; end
+NOW = 10;
+function get_time() return NOW; end
+function pid_connected_table() return {default = nil}; end
 function get_position() return {x = 1, y = 2, z = 3}; end
 function get_orientation() return {x = 1, y = 0, z = 0}; end
 package.loaded.lib_bulk_destroy = true;
 
-require "lib_player_effect";
+pe_mod = require "lib_player_effect";
 local PE = PlayerEffect;
 
 print("\n1. the class refuses a bad spec");
-check(not pcall(PE, {gun = 0}), "a warning is required");
-check(not pcall(PE, {warning = "x"}), "a gun is required");
-check(not pcall(PE, {gun = 0, warning = "x", tipp = "typo"}), "an unknown field is refused");
-check(not pcall(PE, {gun = "rifle", warning = "x"}), "a mistyped field is refused");
+check(not pcall(PE, {name = "x", gun = 0}), "a warning is required");
+check(not pcall(PE, {gun = 0, warning = "x"}), "a name is required");
+check(not pcall(PE, {name = "x", warning = "x"}), "a gun is required");
+check(not pcall(PE, {name = "x", gun = 0, warning = "x", tipp = "typo"}), "an unknown field is refused");
+check(not pcall(PE, {name = "x", gun = "rifle", warning = "x"}), "a mistyped field is refused");
 
 print("\n2. load, join and unload");
 tips = {"a stock tip"};
 local shots, loads, unloads = {}, 0, 0;
 local fx = PE {
-	gun = PE.GUN_RIFLE, warning = "here rifles are odd.", tip = "Spicy: odd rifles.",
+	name = "odd", gun = PE.GUN_RIFLE, warning = "here rifles are odd.", tip = "Spicy: odd rifles.",
 	on_shot = function(pid) shots[#shots+1] = pid; end,
 	load = function() loads = loads + 1; end,
 	unload = function() unloads = unloads + 1; end,
@@ -79,6 +82,7 @@ check(listeners.odd_rifles ~= nil, "shots are heard under the module's name");
 listeners.odd_rifles(0, PE.GUN_RIFLE);
 listeners.odd_rifles(1, PE.GUN_SMG);
 eq(#shots, 1, "only this effect's gun reaches on_shot");
+check(PE.get("odd") == fx, "a loaded effect is found by name");
 eq(shots[1], 0, "with the shooter");
 mod.after.on_join(2);
 eq(said[1] and said[1][2], "warning: here rifles are odd.", "a joining player is warned");
@@ -97,6 +101,75 @@ check(fx:hostile(0, 2) and not fx:hostile(0, 1), "hostile: the other team only")
 fall_is_hostile = function() return true; end
 check(fx:hostile(0, 1), "hostile: the_fall's answer when it is running");
 fall_is_hostile = nil;
+
+print("\n3b. giving the effect to a player");
+local fxmod = fx.mod;
+fxmod.on_load();
+fx.everyone = false;
+said = {};
+fxmod.after.on_join(2);
+eq(#said, 0, "nobody is warned of an effect that is not everybody's");
+check(not fx:has(0), "without a grant, nobody has it");
+listeners.odd_rifles(0, PE.GUN_RIFLE);
+eq(#shots, 1, "and their shots do not reach on_shot");
+check(not fx:holding(0), "nor do they count as holding it");
+
+NOW = 10;
+fx:give(0, {ms = 500});
+check(fx:has(0) and fx:holding(0), "500 ms: has it");
+NOW = 10.4; check(fx:has(0), "still at 400 ms");
+NOW = 10.5; check(not fx:has(0), "gone at 500 ms");
+eq(fx.grants[0], nil, "and its grant is dropped");
+
+NOW = 0;
+fx:give(0, {minutes = 2});
+NOW = 119; check(fx:has(0), "2 minutes: has it at 119 s");
+NOW = 120; check(not fx:has(0), "gone at 120 s");
+
+NOW = 0;
+fx:give(0, {secs = 10});
+fx:give(0, {secs = 100});
+eq(fx:stacks(0), 1, "giving again replaces");
+NOW = 50; check(fx:has(0), "with the new one's time");
+NOW = 0;
+fx:take(0);
+fx:give(0, {secs = 10});
+fx:give(0, {secs = 100, stack = true});
+eq(fx:stacks(0), 2, "stack: both live");
+NOW = 50; eq(fx:stacks(0), 1, "the shorter one runs out on its own");
+check(fx:has(0), "and the longer one still holds");
+NOW = 100; check(not fx:has(0), "until it runs out too");
+
+NOW = 0;
+fx:give(0, {death = true});
+fx:give(1, {death = true});
+local keep = fx:give(0, {map = true, stack = true});
+NOW = 1e9; check(fx:has(0), "until death: no time limit");
+pe_mod.after.kill(0);
+eq(fx:stacks(0), 1, "death ends the death grant only");
+check(fx:has(1), "and only the dead player's");
+pe_mod.after.load_map();
+check(not fx:has(0), "a new map ends the map grant");
+check(fx:has(1), "and leaves the death grant");
+
+NOW = 0;
+fx:give(2, {secs = 5, death = true});
+pe_mod.after.kill(2);
+check(not fx:has(2), "time and death: whichever comes first (death)");
+fx:give(2, {secs = 5, death = true});
+NOW = 5; check(not fx:has(2), "time and death: whichever comes first (time)");
+
+NOW = 0;
+local a = fx:give(2, {stack = true});
+fx:give(2, {stack = true});
+eq(fx:stacks(2), 2, "no limit: until taken");
+fx:take(2, a); eq(fx:stacks(2), 1, "take one grant back");
+fx:take(2); check(not fx:has(2), "or all of them");
+
+fx.everyone = true;
+check(fx:has(2), "everyone: has it without a grant");
+fxmod.on_unload();
+check(PE.get("odd") == nil, "an unloaded effect is no longer found");
 
 print("\n4. without lib_shot_detect, an effect that wants shots refuses to load");
 local saved = shot_listen; shot_listen = nil;

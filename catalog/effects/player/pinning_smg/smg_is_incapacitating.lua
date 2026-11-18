@@ -53,6 +53,7 @@
 local frozen = pid_spawn_table();
 
 local fx = PlayerEffect {
+	name = "pinning_smg",
 	gun = PlayerEffect.GUN_SMG,
 	warning = "here the smg pins what it hits and never reloads.",
 	tip = "Spicy: the SMG pins whoever it hits where they stand, and never reloads.",
@@ -153,8 +154,9 @@ function mod.after.tick()
 	for pid in piditer(PID_BROADCAST) do
 		-- the magazine. Guarded on the gun rather than on what is in
 		-- hand: ammunition belongs to the gun, so a man who has switched
-		-- to his spade mid-fight comes back to a full one.
-		if (is_alive(pid) and get_gun(pid) == fx.gun) then
+		-- to his spade mid-fight comes back to a full one. Only for
+		-- whoever has the effect: everybody else reloads as usual.
+		if (is_alive(pid) and get_gun(pid) == fx.gun and fx:has(pid)) then
 			refill(pid);
 		end
 

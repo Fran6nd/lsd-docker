@@ -29,6 +29,7 @@ require "lib_bulk_destroy";
 local shoot;
 
 local fx = PlayerEffect {
+	name = "railgun",
 	gun = PlayerEffect.GUN_RIFLE,
 	warning = "here rifles are railguns.",
 	tip = "Spicy: rifles are railguns -- they pierce the whole map and leave a tracer.",

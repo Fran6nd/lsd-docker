@@ -105,6 +105,8 @@ for _, e in ipairs(cat:of_class(C.PlayerEffect)) do
 		check(not src:find("mod%.on_load") and not src:find("mod%.on_unload")
 			and not src:find("mod%.after%.on_join"),
 			m .. " leaves on_load, on_unload and on_join to the class");
+		check(src:find('name = "' .. e.id .. '"', 1, true),
+			m .. " is named by its catalog id, " .. e.id);
 	end
 end
 -- what a gamemode requires is how it plays with an effect; a manifest
