@@ -106,6 +106,8 @@ l10n_get_str_lang = mod.impl.l10n_get_str_lang;
 l10n_get_str_pid = mod.impl.l10n_get_str_pid;
 l10n_send_chat = mod.impl.l10n_send_chat;
 l10n_log = mod.impl.l10n_log;
+local changed = {};
+l10n_lang_changed = function(pid) changed[#changed+1] = pid; end
 mod.xearly.next.server_msg = function(pid, s) sent[#sent+1] = {pid, s}; end
 mod.xearly.next.send_chat = function(pid, s, t, from) sent[#sent+1] = {pid, s, t, from}; end
 server_msg = mod.xearly.server_msg;
@@ -186,6 +188,7 @@ check(lang ~= nil, "/lang is registered");
 sent = {};
 lang.func(2, {"fr"});
 eq(l10n_get_lang(2), "fr", "a player can choose");
+eq(changed[#changed], 2, "and whoever shows them text is told (l10n_lang_changed)");
 eq(sent[1][2], "Language set to fr.", "and is told");
 eq(l10n_str(2, kicked), "Bob a été expulsé", "and then reads it");
 sent = {};

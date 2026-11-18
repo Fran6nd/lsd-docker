@@ -314,14 +314,18 @@ langs[0] = "fr_fr";
 mod.after.on_version_ext(0, 1, 0, 0, 1, "OpenSpades", "fr_fr");
 b = menu_to(0);
 check(b ~= nil, "the menu is sent again once the locale arrives");
-eq(texts(b)["Thanks!"], "Merci", "now in French");
 sent = {};
 mod.after.on_version_ext(0, 1, 0, 0, 1, "OpenSpades", "fr_fr");
 check(#sent == 0, "and not a third time for the same locale");
 
--- Teamplay and votekick turn up
-commands.votekick = {name = {"votekick", "vk"}};
-commands.pingmark = {name = "pingmark"};
+-- Teamplay and votekick turn up, each putting itself in the menu, as
+-- their scripts declare it
+commands.votekick = {name = {"votekick", "vk"},
+	pie = {pie = "player", slot = 1, args = "%p", label = {en = "Vote kick"}}};
+commands.pingmark = {name = "pingmark", pie = {
+	{pie = "mark", args = "%h Enemy", label = {en = "Enemy"}},
+	{pie = "mark", args = "%h Attack", label = {en = "Attack"}},
+}};
 sent = {};
 pie_menu_refresh();
 t = texts(menu_to(0) or "");
@@ -360,6 +364,87 @@ pie_menu_add("shown", only);
 check(texts(pie_menu_build(0))["hi"] ~= nil, "show() offers a slice to whom it answers true");
 check(pie_menu_build(1) == nil or texts(pie_menu_build(1))["hi"] == nil, "and to nobody else");
 pie_menu_remove("shown");
+
+print("\n7b. registering actions into pies");
+local function pie_of(b, theme)
+	for _, pie in ipairs(assert(client_parse(b))) do
+		if (pie.theme == theme) then return pie; end
+	end
+end
+local function count(b, theme)
+	local n = 0;
+	for _, pie in ipairs(assert(client_parse(b))) do
+		if (pie.theme == theme) then n = n + 1; end
+	end
+	return n;
+end
+commands.pie_a = {name = "pie_a"};
+commands.pie_b = {name = "pie_b"};
+eq(pie_of(pie_menu_build(0), "Player").slices[1].text, "/votekick %p",
+	"a command takes the slot it asks for");
+pie_menu_slice("x", {pie = "player", text = "/pie_a", label = {en = "A"}});
+eq(pie_of(pie_menu_build(0), "Player").slices[6].text, "/pie_a",
+	"a registered slice stacks into the first free wedge");
+pie_menu_slice("y", {{pie = "player", text = "/pie_b", label = {en = "B"}},
+	{pie = "player", text = "hello", label = {en = "Hi"}}});
+eq(count(pie_menu_build(0), "Player"), 2, "a full pie goes on in a second one");
+local second = client_parse(pie_menu_build(0));
+local i1, i2;
+for i, pie in ipairs(second) do
+	if (pie.theme == "Player") then if (i1 == nil) then i1 = i; else i2 = i; end end
+end
+eq(i2, i1 and i1 + 1, "right after the first");
+eq(second[i2].slices[2].text, "hello", "the second filled in order");
+eq(second[i2].contexts, second[i1].contexts, "offered where the first is");
+pie_menu_remove("y");
+eq(count(pie_menu_build(0), "Player"), 1, "removing it takes the second pie away");
+check(not pcall(pie_menu_slice, "z", {pie = "nope", text = "hi", label = {en = "x"}}),
+	"a pie nothing defines is refused");
+pie_menu_slice("z", {pie = {id = "flag", theme = {en = "Flag"}, when = "sky"},
+	text = "hi", label = {en = "Hi"}});
+check(pie_of(pie_menu_build(0), "Flag") ~= nil, "a pie that is not there is created");
+pie_menu_slice("z2", {pie = "flag", text = "bye", label = {en = "Bye"}});
+eq(pie_of(pie_menu_build(0), "Flag").slices[2].text, "bye", "and others stack into it");
+pie_menu_remove("z"); pie_menu_remove("z2"); pie_menu_remove("x");
+check(not pcall(pie_menu_slice, "w", {pie = "chat", text = "\1"}),
+	"a slice that could not be sent is refused");
+check(not pcall(pie_menu_slice, "w", {pie = "chat", text = "x", slot = 9}),
+	"so is a slot that is not 1-6");
+commands.bad = {name = "bad", pie = {pie = "chat", text = "/other"}};
+check(pcall(pie_menu_build, 0), "a bad cmd.pie is logged and left out, not raised");
+commands.bad = nil;
+-- a command registered after the menu went out
+sent = {};
+commands.late = {name = "late", pie = {pie = "watching", label = {en = "Late"}}};
+commands_register_hook(commands.late);
+check(menu_to(0) ~= nil and texts(menu_to(0))["/late"] ~= nil,
+	"a command registered later is sent to whoever has a menu");
+commands.late = nil;
+pie_menu_refresh();
+
+print("\n7c. language through lib_l10n");
+local chosen = {};
+l10n_get_lang = function(pid) return chosen[pid] or "en"; end
+l10n_default_lang = "en";
+local FR = {Thanks = "Merci", ["Quick chat"] = "Messages", ["Vote kick"] = "Voter l'exclusion"};
+l10n_get_str_lang = function(lang, v)
+	local en = type(v) == "table" and v.en or v;
+	if (lang == "fr" and type(v) == "table" and v.fr) then return v.fr; end
+	return (lang == "fr" and FR[en]) or en;
+end
+chosen[0] = "fr";
+sent = {};
+mod.after.l10n_lang_changed(0);
+b = menu_to(0);
+check(b ~= nil, "/lang re-sends the menu");
+eq(texts(b)["Thanks!"], "Merci", "with the labels translated by lib_l10n");
+eq(texts(b)["/votekick %p"], "Voter l'exclusion", "a command's label too");
+check(pie_of(b, "Messages") ~= nil, "and the themes");
+eq(texts(b)["Thanks!"] and "Thanks!", "Thanks!", "the text itself is not translated");
+sent = {};
+mod.after.l10n_lang_changed(0);
+check(#sent == 0, "the same language again sends nothing");
+l10n_get_lang, l10n_get_str_lang, l10n_default_lang = nil, nil, nil;
 
 -- incoming
 eq(mod.on_any_packet(0, "\113\0\0"), 0, "a Menu from a client is dropped");

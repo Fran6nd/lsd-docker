@@ -25,6 +25,14 @@ msgstr ""
 msgid "%(lang) is not a language code (en, fr, pt_br, ...)."
 msgstr ""
 
+#: catalog/overrides/lib_l10n.lua
+msgid "Language"
+msgstr ""
+
+#: catalog/overrides/lib_l10n.lua
+msgid "Show or change the language you read"
+msgstr ""
+
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "Beginning selection."

@@ -27,7 +27,26 @@
 --        comes after them and 0 before. Raises on a pie that could not
 --        be sent -- the mistake belongs to the caller, at the call.
 --        Every negotiated client is re-sent its menu if it changed.
+--   pie_menu_slice(name, slices, order)
+--        register actions one slice at a time into pies named by id
+--        (the default layout's mark, chat, player, watching), stacking
+--        with what is there: the slot asked for if free, else the
+--        first free one, else a new pie of the same theme after it; a
+--        pie not there is created. See REGISTERED SLICES
 --   pie_menu_remove(name)         take a contribution back out
+--
+-- A COMMAND PUTS ITSELF IN THE MENU by carrying a pie field when it
+-- registers -- one slice, or a list:
+--
+--   local cmd = {name = "votekick", ...,
+--       pie = {pie = "player", slot = 1, args = "%p",
+--              label = {en = "Vote kick"}, tooltip = {en = "..."}}};
+--   register_command(cmd, mod);
+--
+-- The slice sends "/votekick %p". Labels are written {en = "..."}: so
+-- dev/l10n.lua puts them in that script's locales/template.pot, and
+-- its locales/<lang>.po translates them -- the translation comes with
+-- the registration.
 --   pie_menu_refresh([pid])       rebuild and re-send where it changed;
 --        for after editing pie_menu or pie_menu_mode live, or after
 --        something a slice depends on (a command, a cap) came or went
@@ -36,7 +55,9 @@
 --
 -- A PIE, as pie_menu_add takes it and as the settings file writes it:
 --
---   {theme = "Social",                -- the centre caption, may be ""
+--   {id = "social",                   -- optional: what slices register
+--                                     --   into (pie_menu_slice, cmd.pie)
+--    theme = "Social",                -- the centre caption, may be ""
 --    when = "block sky",              -- the contexts, see CONTEXT_NAMES
 --    slices = {                       -- up to six, slice 1 at the top,
 --      "/ratio %p",                   --   then clockwise; missing = blank
@@ -48,7 +69,9 @@
 -- `when` is a string of names ("block sky", "teammate,enemy") or a list
 -- of them, or a bitmask number from Lua. Theme, label, tooltip and text
 -- are each a string or a map of locale -> string, {en = "Thanks", fr =
--- "Merci"}, picked per player (see LANGUAGE). From Lua a slice may also
+-- "Merci"}, each player reading their own (see LANGUAGE): a theme,
+-- label or tooltip written as English is also translated by the .po
+-- files. From Lua a slice may also
 -- carry show = function(pid) -> bool, which blanks it for whoever it
 -- answers false for; a pie left with nothing on it is not sent.
 --
@@ -86,11 +109,13 @@
 --
 -- LANGUAGE. The spec wants Themes, Labels and Tooltips in the player's
 -- locale, which is the User locale of the Version Response (Extended).
--- LSd asks for it in every demand_fingerprint (main.c's "\x21\0\1\2"),
--- hands it to on_version_ext and keeps it for get_client_ext_language.
--- That reply can land on either side of the extension negotiation, so
+-- Which language that is, and the text in it, are lib_l10n's, as for
+-- everything else the server says: /lang overrides the client's locale,
+-- and the default layout's labels are translated in locales/<lang>.po.
+-- The locale can arrive on either side of the extension negotiation, so
 -- a Menu that went out before it is sent again once it arrives, as the
--- spec asks -- see mod.after.on_version_ext.
+-- spec asks, and again when the player picks another language with /lang
+-- -- see mod.after.on_version_ext and mod.after.l10n_lang_changed.
 --
 -- WHAT THIS DOES NOT DO: anything for clients that don't speak it. A
 -- client that does not name ext 0x31 never gets a packet 0x71 and keeps
@@ -357,7 +382,8 @@ end
 -- naming it rather than a field silently left blank.
 local SLICE_KEYS = {text = true, label = true, tooltip = true,
 	global = true, show = true};
-local PIE_KEYS = {theme = true, when = true, contexts = true, slices = true};
+local PIE_KEYS = {id = true, theme = true, when = true, contexts = true,
+	slices = true};
 
 local function norm_slice(v, where)
 	if (v == nil or v == false or v == "") then
@@ -441,8 +467,8 @@ function P.normalize_pie(v, where)
 	end
 	for k in pairs(v) do
 		if (not PIE_KEYS[k]) then
-			error(string.format("%s: unknown field %q (fields: theme, when, "
-				.. "slices)", where, tostring(k)), 0);
+			error(string.format("%s: unknown field %q (fields: id, theme, "
+				.. "when, slices)", where, tostring(k)), 0);
 		end
 	end
 
@@ -463,7 +489,12 @@ function P.normalize_pie(v, where)
 		end
 	end
 
+	if (v.id ~= nil and (type(v.id) ~= "string" or v.id == "")) then
+		error(where .. ": id must be a name", 0);
+	end
+
 	local out = {
+		id = v.id,
 		contexts = norm_contexts(v.when or v.contexts, where),
 		theme = norm_text(v.theme, false, where .. " theme"),
 		slices = {},
@@ -507,8 +538,14 @@ local BLANK = {text = "", label = "", tooltip = "", global = false};
 -- blanks those it answers false for. A pie with nothing left on it is
 -- dropped: it would open as an empty ring, which is a menu that offers
 -- nothing in a context where the next pie might have offered something.
-function P.resolve(pies, lang, fallback, keep)
+--
+-- pick(v, lang, fallback, field) chooses each string; P.pick unless
+-- given. The server passes lib_l10n's, which also translates.
+function P.resolve(pies, lang, fallback, keep, pick)
 	local out = {};
+	local function get(v, field)
+		return (pick or P.pick)(v, lang, fallback, field);
+	end
 
 	for _, pie in ipairs(pies) do
 		local slices, any = {}, false;
@@ -516,9 +553,9 @@ function P.resolve(pies, lang, fallback, keep)
 		for i = 1, SLICES do
 			local src = pie.slices[i];
 			local s = {
-				text = P.pick(src.text, lang, fallback),
-				label = P.pick(src.label, lang, fallback),
-				tooltip = P.pick(src.tooltip, lang, fallback),
+				text = get(src.text, "text"),
+				label = get(src.label, "label"),
+				tooltip = get(src.tooltip, "tooltip"),
 				global = src.global,
 			};
 
@@ -535,7 +572,7 @@ function P.resolve(pies, lang, fallback, keep)
 
 		if (any) then
 			out[#out+1] = {contexts = pie.contexts,
-				theme = P.pick(pie.theme, lang, fallback), slices = slices};
+				theme = get(pie.theme, "theme"), slices = slices};
 		end
 	end
 
@@ -543,71 +580,58 @@ function P.resolve(pies, lang, fallback, keep)
 end
 
 --=========================== THE BUILT-IN ===========================--
--- The menu a server gets when its operator writes none. Built only out
--- of what any LSd has -- plain chat lines, and the stock commands of
--- group_commands -- plus /votekick and /pingmark, which the per-player
--- check below blanks wherever they are missing. So installing this
--- alone gives a menu that works, and installing votekick or Teamplay
--- later fills the gaps in by itself.
+-- The default layout: the menu a server gets when its operator writes
+-- none. Each pie has an id, which is what scripts register their
+-- actions into (see pie_menu_slice and cmd.pie): Teamplay fills `mark`
+-- with its pings, votekick takes the first wedge of `player`, /lang the
+-- last of `watching`. What is here otherwise is only what any LSd has --
+-- plain chat lines and the stock commands of group_commands -- so the
+-- layout works on its own, and the scripts installed fill it in.
 --
--- The labels are in the player's language; the texts stay English,
--- because a text is chat that the REST of the server reads, in theirs.
+-- The labels are messages: each player reads them in their language,
+-- from this script's locales/<lang>.po. The texts stay English, because
+-- a text is chat that the REST of the server reads, in theirs.
 --
 -- Slice 1 is the top, then clockwise, so 4 is the bottom: the commonest
 -- choice of each pie is a flick straight up.
-local function L(en, fr) return {en = en, fr = fr}; end
-
 P.BUILTIN = {
 	-- First on a block or an enemy, because a ping is what a player
-	-- aiming at something most often wants. Not SKY: %h is empty there
-	-- and /pingmark would only answer that it got no position.
-	{theme = L("Mark", "Marquer"), when = "block enemy",
+	-- aiming at something most often wants. Not SKY: %h is empty there.
+	-- Empty here; Teamplay registers its pings into it.
+	{id = "mark", theme = {en = "Mark"}, when = "block enemy", slices = {}},
+	{id = "chat", theme = {en = "Quick chat"}, when = "alive",
 	 slices = {
-		{text = "/pingmark %h Enemy", label = L("Enemy", "Ennemi"),
-			tooltip = L("Ping this spot for your team",
-				"Signaler cet endroit à l'équipe")},
-		{text = "/pingmark %h Attack", label = L("Attack", "Attaquer")},
-		{text = "/pingmark %h Defend", label = L("Defend", "Défendre")},
-		{text = "/pingmark %h Help", label = L("Need help", "À l'aide")},
-		{text = "/pingmark %h Danger", label = L("Danger", "Danger")},
-		{text = "/pingmark %h Go", label = L("Go here", "Aller ici")},
+		{text = "Follow me!", label = {en = "Follow me"}},
+		{text = "On my way!", label = {en = "On my way"}},
+		{text = "Need backup!", label = {en = "Backup"}},
+		{text = "Thanks!", label = {en = "Thanks"}},
+		{text = "Sorry!", label = {en = "Sorry"}},
+		{text = "gg", label = {en = "Good game"}, global = true,
+			tooltip = {en = "To everyone"}},
 	}},
-	{theme = L("Quick chat", "Messages"), when = "alive",
+	-- slice 1 is left for /votekick, which registers itself there
+	{id = "player", theme = {en = "Player"}, when = "teammate enemy",
 	 slices = {
-		{text = "Follow me!", label = L("Follow me", "Suivez-moi")},
-		{text = "On my way!", label = L("On my way", "J'arrive")},
-		{text = "Need backup!", label = L("Backup", "Renfort")},
-		{text = "Thanks!", label = L("Thanks", "Merci")},
-		{text = "Sorry!", label = L("Sorry", "Désolé")},
-		{text = "gg", label = L("Good game", "Bien joué"), global = true,
-			tooltip = L("To everyone", "À tout le monde")},
-	}},
-	{theme = L("Player", "Joueur"), when = "teammate enemy",
-	 slices = {
-		{text = "/votekick %p", label = L("Vote kick", "Voter l'exclusion"),
-			tooltip = L("Start a vote to kick this player",
-				"Lancer un vote pour exclure ce joueur")},
-		{text = "/ratio %p", label = L("Ratio", "Ratio"),
-			tooltip = L("Their kills per death", "Ses éliminations par mort")},
-		{text = "/ping %p", label = L("Latency", "Latence")},
-		{text = "/ignore %p", label = L("Ignore", "Ignorer"),
-			tooltip = L("Hide their chat, or show it again",
-				"Masquer ou réafficher ses messages")},
-		{text = "/client %p", label = L("Client", "Client"),
-			tooltip = L("The game client they play with",
-				"Le client de jeu qu'il utilise")},
+		"",
+		{text = "/ratio %p", label = {en = "Ratio"},
+			tooltip = {en = "Their kills per death"}},
+		{text = "/ping %p", label = {en = "Latency"}},
+		{text = "/ignore %p", label = {en = "Ignore"},
+			tooltip = {en = "Hide their chat, or show it again"}},
+		{text = "/client %p", label = {en = "Client"},
+			tooltip = {en = "The game client they play with"}},
 		"",
 	}},
 	-- Dead or spectating, everything is offered on this one pie and no
 	-- other (spec: those contexts are offered their own pies alone).
-	{theme = L("Watching", "Spectateur"), when = "spectator dead",
+	-- Slice 6 is left for /lang.
+	{id = "watching", theme = {en = "Watching"}, when = "spectator dead",
 	 slices = {
-		{text = "gg", label = L("Good game", "Bien joué"), global = true},
-		{text = "/ratio %p", label = L("Their ratio", "Son ratio")},
-		{text = "Nice shot!", label = L("Nice shot", "Beau tir"),
-			global = true},
-		{text = "/who", label = L("Who's on", "Qui joue")},
-		{text = "/ratio", label = L("My ratio", "Mon ratio")},
+		{text = "gg", label = {en = "Good game"}, global = true},
+		{text = "/ratio %p", label = {en = "Their ratio"}},
+		{text = "Nice shot!", label = {en = "Nice shot"}, global = true},
+		{text = "/who", label = {en = "Who's on"}},
+		{text = "/ratio", label = {en = "My ratio"}},
 		"",
 	}},
 };
@@ -627,8 +651,6 @@ getcfg("pie_menu_mode", "server",
 getcfg("pie_menu_hide_unavailable", true,
 	"Blank a slice whose /command this server lacks or the player may "
 		.."not run.");
-getcfg("pie_menu_fallback_lang", "en",
-	"The locale used for a player whose own has no translation.");
 getcfg("pie_menu_debug", false,
 	"Log every menu sent and every pie that could not be.");
 
@@ -695,8 +717,178 @@ local function base()
 	return base_pies;
 end
 
+--=========================== REGISTERED SLICES ======================--
+-- One action at a time, into a pie named by its id: what a script or a
+-- command adds (pie_menu_slice, cmd.pie). It takes the slot it asks for
+-- if that is free, else the first free one; a full pie continues in
+-- another of the same theme and contexts; a pie that is not there is
+-- created -- from the definition the registration gives, else from the
+-- default layout's.
+
+-- name -> {order=, seq=, items={{pie=<id>, def=, slot=, slice=}}}
+local registered = {};
+
+-- id -> the default layout's pie of that id, normalised
+local function builtin_def(id)
+	if (builtin_pies == nil) then
+		builtin_pies = normalize_list(P.BUILTIN, "built-in");
+	end
+	for _, pie in ipairs(builtin_pies) do
+		if (pie.id == id) then return pie; end
+	end
+end
+
+local REG_KEYS = {pie = true, slot = true, args = true, order = true};
+
+-- One registration as written into an item, raising (level 0) on what
+-- could not be sent. `text` is given for a command's own slice.
+local function norm_item(spec, where, text)
+	if (type(spec) ~= "table") then
+		error(where .. " must be a map", 0);
+	end
+
+	local fields = {};
+	for k, v in pairs(spec) do
+		if (not REG_KEYS[k]) then fields[k] = v; end
+	end
+	if (text ~= nil) then
+		if (fields.text ~= nil) then
+			error(where .. ": a command's slice sends the command; give args, "
+				.. "not text", 0);
+		end
+		fields.text = text;
+	end
+
+	local item = {slice = norm_slice(fields, where)};
+
+	local pie = spec.pie;
+	if (type(pie) == "string") then
+		item.pie = pie;
+	elseif (type(pie) == "table") then
+		if (type(pie.id) ~= "string") then
+			error(where .. ": pie needs an id", 0);
+		end
+		local def = {};
+		for k, v in pairs(pie) do def[k] = v; end
+		def.slices = {};
+		item.pie, item.def = pie.id, P.normalize_pie(def, where .. " pie");
+	else
+		error(where .. ": pie must be a pie id, or {id=, theme=, when=}", 0);
+	end
+
+	if (spec.slot ~= nil and (type(spec.slot) ~= "number" or spec.slot % 1 ~= 0
+	    or spec.slot < 1 or spec.slot > SLICES)) then
+		error(where .. ": slot must be 1-6", 0);
+	end
+	item.slot = spec.slot;
+	return item;
+end
+
+-- Commands that put themselves in the menu, from commands.lua's table:
+--   cmd.pie = {pie = "player", label = {en = "Vote kick"}, args = "%p"}
+-- or a list of those. The slice sends "/<name> <args>". Read every time
+-- a menu is built, so a command is in it whenever it is registered,
+-- loaded before this module or after. A bad cmd.pie is logged once.
+local bad_cmd_pie = setmetatable({}, {__mode = "k"});
+
+local function command_items()
+	local out = {};
+	if (type(commands) ~= "table") then
+		return out;
+	end
+
+	local seen, names = {}, {};
+	for _, cmd in pairs(commands) do
+		if (type(cmd) == "table" and cmd.pie ~= nil and not seen[cmd]) then
+			seen[cmd] = true;
+			local name = type(cmd.name) == "table" and cmd.name[1] or cmd.name;
+			names[#names+1] = {name = tostring(name), cmd = cmd};
+		end
+	end
+	table.sort(names, function(a, b) return a.name < b.name; end);
+
+	for _, n in ipairs(names) do
+		local specs = n.cmd.pie;
+		if (specs.pie ~= nil or specs.label ~= nil) then specs = {specs}; end
+		for i, spec in ipairs(specs) do
+			local text = "/" .. n.name .. (spec.args and (" " .. spec.args) or "");
+			local ok, item = pcall(norm_item, spec, "/" .. n.name .. " pie " .. i, text);
+			if (ok) then
+				out[#out+1] = {order = spec.order or DEFAULT_ADD_ORDER, item = item};
+			elseif (not bad_cmd_pie[n.cmd]) then
+				bad_cmd_pie[n.cmd] = true;
+				log("lib_pie_menu: %s; left out", tostring(item));
+			end
+		end
+	end
+	return out;
+end
+
+local function blank(sl)
+	return sl.text == "" and sl.label == "";
+end
+
+local function empty_pie(def)
+	local slices = {};
+	for i = 1, SLICES do slices[i] = {text = "", label = "", tooltip = ""}; end
+	return {id = def.id, contexts = def.contexts, theme = def.theme,
+		slices = slices};
+end
+
+-- The pies with every registered slice placed in them.
+local function place(pies, items)
+	local out = {};
+	for i, pie in ipairs(pies) do
+		local slices = {};
+		for k = 1, SLICES do slices[k] = pie.slices[k]; end
+		out[i] = {id = pie.id, contexts = pie.contexts, theme = pie.theme,
+			slices = slices};
+	end
+
+	for _, it in ipairs(items) do
+		local item = it.item;
+		local where = {};
+		for i, pie in ipairs(out) do
+			if (pie.id == item.pie) then where[#where+1] = i; end
+		end
+
+		if (#where == 0) then
+			local def = item.def or builtin_def(item.pie);
+			if (def == nil) then
+				dbg("no pie %q for a slice; left out", item.pie);
+			else
+				out[#out+1] = empty_pie({id = item.pie, contexts = def.contexts,
+					theme = def.theme});
+				where[1] = #out;
+			end
+		end
+
+		if (#where > 0) then
+			local at, slot;
+			local first = out[where[1]];
+			if (item.slot ~= nil and blank(first.slices[item.slot])) then
+				at, slot = where[1], item.slot;
+			end
+			for _, i in ipairs(where) do
+				if (at ~= nil) then break; end
+				for k = 1, SLICES do
+					if (blank(out[i].slices[k])) then at, slot = i, k; break; end
+				end
+			end
+			if (at == nil) then
+				-- full: the pie goes on in another just after it
+				at, slot = where[#where] + 1, 1;
+				table.insert(out, at, empty_pie(first));
+			end
+			out[at].slices[slot] = item.slice;
+		end
+	end
+	return out;
+end
+
 -- Every pie on offer, in order: by `order`, then in the order added,
--- with the base pies at PIE_MENU_BASE_ORDER.
+-- with the base pies at PIE_MENU_BASE_ORDER; then every registered
+-- slice placed, by `order`, then as registered.
 local function all_pies()
 	local groups = {{order = PIE_MENU_BASE_ORDER, seq = -1, pies = base()}};
 	for _, c in pairs(contributions) do
@@ -711,7 +903,27 @@ local function all_pies()
 	for _, g in ipairs(groups) do
 		for _, pie in ipairs(g.pies) do out[#out+1] = pie; end
 	end
-	return out;
+
+	local items = {};
+	for _, r in pairs(registered) do
+		for _, item in ipairs(r.items) do
+			items[#items+1] = {order = r.order, seq = r.seq, item = item};
+		end
+	end
+	for i, c in ipairs(command_items()) do
+		items[#items+1] = {order = c.order, seq = -1000000 + i, item = c.item};
+	end
+	if (#items == 0) then
+		return out;
+	end
+	-- stable: by order, then as registered (commands by name, first)
+	for i, it in ipairs(items) do it.n = i; end
+	table.sort(items, function(a, b)
+		if (a.order ~= b.order) then return a.order < b.order; end
+		if (a.seq ~= b.seq) then return a.seq < b.seq; end
+		return a.n < b.n;
+	end);
+	return place(out, items);
 end
 
 -- Can this player run what this text sends? Plain chat always; a
@@ -753,6 +965,17 @@ local function command_ok(pid, text)
 	return true;
 end
 
+--============================= LANGUAGE ===============================--
+-- lib_l10n's, as everything else the server says: the language the
+-- player chose with /lang, else their client's, else the server's
+-- default. A label, tooltip or theme is a message -- a language map, or
+-- English that a script's locales/<lang>.po translates. A text is
+-- picked from its map only, never translated: it is chat that the rest
+-- of the server reads.
+--
+-- Without lib_l10n (the codec's tests), the client's own locale and
+-- P.pick, as before.
+
 -- The locale each client reported, as on_version_ext handed it over.
 -- Kept here as well as asked of get_client_ext_language because this
 -- module's after-hook may run before or after LSd stored it, and the
@@ -760,12 +983,29 @@ end
 local locale = pid_connected_table();
 
 local function locale_of(pid)
+	if (l10n_get_lang ~= nil) then
+		return l10n_get_lang(pid);
+	end
 	local l = locale[pid];
 	if (l == nil and get_client_ext_language ~= nil) then
 		local ok, got = pcall(get_client_ext_language, pid);
 		if (ok) then l = P.norm_lang(got); end
 	end
 	return l;
+end
+
+local function fallback_lang()
+	return P.norm_lang(l10n_default_lang) or "en";
+end
+
+local function pick(v, lang, fallback, field)
+	if (l10n_get_str_lang == nil or v == nil or v == "") then
+		return P.pick(v, lang, fallback);
+	end
+	if (type(v) == "table" or field ~= "text") then
+		return l10n_get_str_lang(lang, v);
+	end
+	return v;
 end
 
 -- The Menu bytes for one player, or nil when nothing should be sent.
@@ -800,8 +1040,8 @@ local function build(pid, had)
 		return not pie_menu_hide_unavailable or command_ok(pid, s.text);
 	end
 
-	local pies = P.resolve(all_pies(), locale_of(pid),
-		P.norm_lang(pie_menu_fallback_lang), keep);
+	local pies = P.resolve(all_pies(), locale_of(pid), fallback_lang(),
+		keep, pick);
 
 	-- Nothing to offer. A client that has never had a Menu of ours keeps
 	-- its own, which beats replacing it with nothing; one that has had
@@ -867,7 +1107,15 @@ function mod.after.on_version_ext(pid, major, minor, patch, flags, cli, lang)
 	locale[pid] = l;
 
 	local last = sent[pid];
-	if (last ~= nil and last.lang ~= l) then
+	if (last ~= nil and last.lang ~= locale_of(pid)) then
+		send_menu(pid, true);
+	end
+end
+
+-- The player chose another language with /lang: their menu follows.
+function mod.after.l10n_lang_changed(pid)
+	local last = sent[pid];
+	if (last ~= nil and last.lang ~= locale_of(pid)) then
 		send_menu(pid, true);
 	end
 end
@@ -925,11 +1173,80 @@ function pie_menu_add(name, pies, order)
 	return true;
 end
 
+-- Whether anything defines a pie of this id: the default layout, the
+-- operator's, a whole pie added, or a registration that creates it.
+local function pie_known(id)
+	if (builtin_def(id) ~= nil) then return true; end
+	for _, pie in ipairs(base()) do
+		if (pie.id == id) then return true; end
+	end
+	for _, c in pairs(contributions) do
+		for _, pie in ipairs(c.pies) do
+			if (pie.id == id) then return true; end
+		end
+	end
+	for _, r in pairs(registered) do
+		for _, item in ipairs(r.items) do
+			if (item.def ~= nil and item.pie == id) then return true; end
+		end
+	end
+	return false;
+end
+
+-- One action, or a list of them, into the pies named by id:
+--   pie_menu_slice("hostage", {pie = "player", text = "/hostage",
+--       label = {en = "Hostages"}, tooltip = {en = "Where they are"}})
+-- `pie` is an id ("mark", "chat", "player", "watching" in the default
+-- layout), or {id=, theme=, when=} to create it where it is not there.
+-- `slot` asks for a wedge (1-6), `order` sorts registrations (default
+-- 100). Written {en = "..."}, a label is in the registering script's
+-- locales/template.pot, and is translated by its locales/<lang>.po.
+-- A later call under the same name replaces it. Raises on a slice that
+-- could not be sent, or a pie id nothing defines.
+function pie_menu_slice(name, specs, order)
+	if (type(name) ~= "string") then
+		error("pie_menu_slice: name must be a string", 2);
+	end
+	if (type(specs) ~= "table") then
+		error("pie_menu_slice: a slice, or a list of them", 2);
+	end
+	if (order ~= nil and type(order) ~= "number") then
+		error("pie_menu_slice: order must be a number", 2);
+	end
+	if (specs.pie ~= nil) then
+		specs = {specs};
+	end
+
+	local items = {};
+	for i, spec in ipairs(specs) do
+		local ok, item = pcall(norm_item, spec, name .. " slice " .. i);
+		if (not ok) then
+			error("pie_menu_slice: " .. tostring(item), 2);
+		end
+		if (item.def == nil and not pie_known(item.pie)) then
+			do
+				error(string.format("pie_menu_slice: %s slice %d: no pie %q; "
+					.. "give pie = {id=, theme=, when=} to create it",
+					name, i, item.pie), 2);
+			end
+		end
+		items[i] = item;
+	end
+
+	next_seq = next_seq + 1;
+	registered[name] = {order = order or DEFAULT_ADD_ORDER, seq = next_seq,
+		items = items};
+	refresh_all();
+	return true;
+end
+
+-- Take back what was added under `name`: pies or slices.
 function pie_menu_remove(name)
-	if (contributions[name] == nil) then
+	if (contributions[name] == nil and registered[name] == nil) then
 		return false;
 	end
 	contributions[name] = nil;
+	registered[name] = nil;
 	refresh_all();
 	return true;
 end
@@ -948,6 +1265,8 @@ end
 
 --============================ LIFECYCLE =============================--
 
+local our_hook, prev_hook;
+
 -- Registering is also what re-announces, so a hot load reaches every
 -- connected client: their replies run on_ready, and each gets the menu
 -- of the new copy.
@@ -963,6 +1282,18 @@ function mod.on_load()
 	base();
 
 	ext_register("lib_pie_menu", EXT_ID, EXT_VERSION, on_ready, "Pie Menu");
+
+	-- a command registered later with a cmd.pie reaches the menus sent
+	-- already. commands.lua has one hook; whoever had it keeps it.
+	local prev = commands_register_hook;
+	our_hook = function(cmd)
+		if (prev ~= nil) then prev(cmd); end
+		if (type(cmd) == "table" and cmd.pie ~= nil) then
+			refresh_all();
+		end
+	end;
+	prev_hook = prev;
+	commands_register_hook = our_hook;
 end
 
 -- Everything this module put in the global table, taken back out again:
@@ -975,7 +1306,7 @@ end
 -- either, it would leave them with none, and the slices they have still
 -- send commands the server still has.
 local EXPORTS = {
-	"pie_menu_supported", "pie_menu_add", "pie_menu_remove",
+	"pie_menu_supported", "pie_menu_add", "pie_menu_slice", "pie_menu_remove",
 	"pie_menu_refresh", "pie_menu_build", "PIE_MENU_BASE_ORDER",
 };
 
@@ -984,7 +1315,12 @@ function mod.on_unload()
 		ext_unregister(EXT_ID);
 	end
 
+	if (commands_register_hook == our_hook) then
+		commands_register_hook = prev_hook;
+	end
+
 	contributions = {};
+	registered = {};
 
 	for _,name in ipairs(EXPORTS) do
 		_G[name] = nil;

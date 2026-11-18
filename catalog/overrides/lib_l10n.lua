@@ -313,9 +313,15 @@ function mod.l10n_get_lang(pid)
 	return l;
 end
 
--- Set or clear (nil) the language `pid` reads.
+-- Set or clear (nil) the language `pid` reads; l10n_lang_changed(pid)
+-- tells whoever shows them text that outlives a message (a pie menu).
 function l10n_set_lang(pid, lang)
 	chosen[pid] = lang and P.norm_lang(lang) or nil;
+	l10n_lang_changed(pid);
+end
+
+-- Hook it (mod.after.l10n_lang_changed) to re-send what a player holds.
+function mod.impl.l10n_lang_changed(pid)
 end
 
 --======================= THE UPSTREAM API ===========================--
@@ -383,7 +389,10 @@ local lang_none = {en = "No translations for %(lang) here; some messages stay in
 local lang_bad = {en = "%(lang) is not a language code (en, fr, pt_br, ...)."};
 
 local cmd = {name = "lang", usage = "[<code>|auto]",
-	desc = "Show or choose the language the server speaks to you."};
+	desc = "Show or choose the language the server speaks to you.",
+	-- in the pie menu's last wedge for spectators and the dead
+	pie = {pie = "watching", slot = 6, label = {en = "Language"},
+		tooltip = {en = "Show or change the language you read"}}};
 
 function cmd.func(pid, argv)
 	cmd_assert(pid, cmd, #argv <= 1);

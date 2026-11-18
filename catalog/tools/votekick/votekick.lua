@@ -91,7 +91,11 @@ local function cast(pid)
 end
 
 local cmd = {name={"votekick", "vk"}, usage="player",
-             desc="Start (or add your voice to) a vote to kick a player."};
+             desc="Start (or add your voice to) a vote to kick a player.",
+             -- the first wedge of the pie menu's `player` pie, aimed at
+             -- whoever the player looks at (%p)
+             pie={pie="player", slot=1, args="%p", label={en="Vote kick"},
+                  tooltip={en="Start a vote to kick this player"}}};
 function cmd.func(pid, argv)
 	-- a vote already runs? this is just another yes voice
 	if (vote ~= nil) then

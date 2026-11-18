@@ -1,0 +1,64 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
+msgid "Pinging is turned off on this server."
+msgstr ""
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
+msgid "You cannot ping while dead."
+msgstr ""
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
+msgid "Too soon: wait a moment before pinging again."
+msgstr ""
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
+msgid "That position is off the map."
+msgstr ""
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
+msgid "You can only ping what you are looking at."
+msgstr ""
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
+msgid "Unknown command"
+msgstr ""
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
+msgid "Nothing to ping: /pingmark needs a position, three numbers, before the reason."
+msgstr ""
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
+msgid "Enemy"
+msgstr "Ennemi"
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
+msgid "Ping this spot for your team"
+msgstr "Signaler cet endroit à l'équipe"
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
+msgid "Attack"
+msgstr "Attaquer"
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
+msgid "Defend"
+msgstr "Défendre"
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
+msgid "Need help"
+msgstr "À l'aide"
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
+msgid "Danger"
+msgstr "Danger"
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
+msgid "Go here"
+msgstr "Aller ici"

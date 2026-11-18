@@ -27,6 +27,14 @@ msgstr "Pas de traduction en %(lang) ici ; certains messages restent en anglais.
 msgid "%(lang) is not a language code (en, fr, pt_br, ...)."
 msgstr "%(lang) n'est pas un code de langue (en, fr, pt_br, ...)."
 
+#: catalog/overrides/lib_l10n.lua
+msgid "Language"
+msgstr "Langue"
+
+#: catalog/overrides/lib_l10n.lua
+msgid "Show or change the language you read"
+msgstr "Voir ou changer la langue du serveur"
+
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "Beginning selection."

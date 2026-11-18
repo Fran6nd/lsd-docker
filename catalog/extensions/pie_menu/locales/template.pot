@@ -1,0 +1,94 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Mark"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Quick chat"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Follow me"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "On my way"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Backup"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Thanks"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Sorry"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Good game"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "To everyone"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Player"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Ratio"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Their kills per death"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Latency"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Ignore"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Hide their chat, or show it again"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Client"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "The game client they play with"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Watching"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Their ratio"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Nice shot"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Who's on"
+msgstr ""
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "My ratio"
+msgstr ""

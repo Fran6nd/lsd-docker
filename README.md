@@ -262,6 +262,24 @@ Edit a `.po` with any gettext editor (Poedit, ...); `msgfmt -c` checks
 it, and the tests check that each translation keeps its placeholders.
 Upstream LSd's own messages are translated in `catalog/overrides/locales/`.
 
+The pie menu speaks the same way. Its default layout has pies with ids
+(`mark`, `chat`, `player`, `watching`), and a command puts itself in one
+by carrying a `pie` field -- its label goes in that script's template
+like any other message:
+
+```lua
+local cmd = {name = "votekick", ...,
+	pie = {pie = "player", slot = 1, args = "%p",
+		label = {en = "Vote kick"}, tooltip = {en = "Start a vote"}}}
+register_command(cmd, mod)        -- the wedge sends "/votekick %p"
+```
+
+`pie_menu_slice(name, {pie = ..., text = ..., label = ...})` does the
+same from any script. A slice takes the slot it asks for if free, else
+the first free one; a full pie continues in another just after it; a
+pie that is not there is created, from `pie = {id=, theme=, when=}` or
+the default layout's.
+
 Text an operator writes in the settings -- `motd` lines, `tips`,
 `kick_reason_texts`, `ext_policy_alert_text` -- may be plain text or a
 language map, and every player reads their own:

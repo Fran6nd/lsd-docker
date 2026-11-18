@@ -82,6 +82,15 @@ echo "$fr" | grep -q "L10N2|Tape /kill pour mourir.|Bienvenue sur S, propulsé p
 	|| fail "French settings text: $fr"
 echo "ok: settings text translated"
 
+# the pie menu: commands put themselves in it (votekick, /lang), in the
+# player's language, through the scripts' own translations
+docker exec "$NAME" lsdctl install pie_menu --yes --now >/dev/null || fail "install pie_menu"
+sleep 3
+wait_up "after pie_menu"
+pie=$(docker exec "$NAME" lsdctl exec 'exec l10n_set_lang(0, "fr"); local b = pie_menu_build(0) or ""; log("PIE|%s|%s|%s|", tostring(b:find("/votekick %p", 1, true) ~= nil), tostring(b:find("Voter l\x27exclusion", 1, true) ~= nil), tostring(b:find("/lang", 1, true) ~= nil)); l10n_set_lang(0, nil)')
+echo "$pie" | grep -q "PIE|true|true|true|" || fail "pie menu registrations: $pie"
+echo "ok: commands register into the pie menu, translated"
+
 docker exec "$NAME" lsdctl gamemode hostage --yes --now || fail "gamemode"
 sleep 3
 wait_up "after gamemode"

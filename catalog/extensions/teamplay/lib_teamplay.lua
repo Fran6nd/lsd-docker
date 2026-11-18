@@ -895,6 +895,19 @@ local BAD_POSITION = {en = "Nothing to ping: /pingmark needs a position,"
 local pingmark = {name = "pingmark", usage = "<x> <y> <z> [reason...]",
 	desc = "Ping a position for your team."};
 
+-- Its wedges in the pie menu's `mark` pie: %h is where the player aims,
+-- the word after it the reason the mark carries. The labels are
+-- translated by this script's locales/<lang>.po.
+pingmark.pie = {
+	{pie = "mark", args = "%h Enemy", label = {en = "Enemy"},
+		tooltip = {en = "Ping this spot for your team"}},
+	{pie = "mark", args = "%h Attack", label = {en = "Attack"}},
+	{pie = "mark", args = "%h Defend", label = {en = "Defend"}},
+	{pie = "mark", args = "%h Help", label = {en = "Need help"}},
+	{pie = "mark", args = "%h Danger", label = {en = "Danger"}},
+	{pie = "mark", args = "%h Go", label = {en = "Go here"}},
+};
+
 function pingmark.func(pid, argv)
 	if (not negotiated(pid)) then
 		l10n_send_chat(pid, UNKNOWN_CMD);

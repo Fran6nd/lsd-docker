@@ -1,0 +1,96 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Mark"
+msgstr "Marquer"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Quick chat"
+msgstr "Messages"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Follow me"
+msgstr "Suivez-moi"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "On my way"
+msgstr "J'arrive"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Backup"
+msgstr "Renfort"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Thanks"
+msgstr "Merci"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Sorry"
+msgstr "Désolé"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Good game"
+msgstr "Bien joué"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "To everyone"
+msgstr "À tout le monde"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Player"
+msgstr "Joueur"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Ratio"
+msgstr "Ratio"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Their kills per death"
+msgstr "Ses éliminations par mort"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Latency"
+msgstr "Latence"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Ignore"
+msgstr "Ignorer"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Hide their chat, or show it again"
+msgstr "Masquer ou réafficher ses messages"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Client"
+msgstr "Client"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "The game client they play with"
+msgstr "Le client de jeu qu'il utilise"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Watching"
+msgstr "Spectateur"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Their ratio"
+msgstr "Son ratio"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Nice shot"
+msgstr "Beau tir"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "Who's on"
+msgstr "Qui joue"
+
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+msgid "My ratio"
+msgstr "Mon ratio"

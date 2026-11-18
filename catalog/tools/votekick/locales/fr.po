@@ -1,0 +1,56 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/tools/votekick/votekick.lua
+msgid "%(starter) started a votekick against %(target)! Type /y to vote (%(have)/%(need))."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua
+msgid "%(voter) voted to kick %(target) (%(have)/%(need))."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua
+msgid "%(target) was votekicked."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua
+msgid "The votekick against %(target) failed."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua
+msgid "You already voted."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua
+msgid "No votekick is in progress -- start one with /votekick <player>."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua
+msgid "Not enough players for a votekick."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua
+msgid "You can't votekick yourself."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua
+msgid "%(target) can't be votekicked."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua
+msgid "Vote kicked"
+msgstr "Expulsé par vote"
+
+#: catalog/tools/votekick/votekick.lua
+msgid "Vote kick"
+msgstr "Voter l'exclusion"
+
+#: catalog/tools/votekick/votekick.lua
+msgid "Start a vote to kick this player"
+msgstr "Lancer un vote pour exclure ce joueur"
