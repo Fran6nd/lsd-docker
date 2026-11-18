@@ -373,11 +373,12 @@ function C.Extension:on_remove(doc)
 end
 
 -- Every gamemode runs the map's layout -- its doors, elevators and edit
--- permissions -- so the library comes with the category.
+-- permissions -- and has its team callouts in the pie menu, so both
+-- libraries come with the category.
 C.Gamemode = Script:extend({
 	category = "gamemode",
 	phase = "gamemode",
-	class_requires = {"map_layout"},
+	class_requires = {"map_layout", "callouts"},
 });
 
 -- A gamemode is a base module loaded where the mode belongs -- before

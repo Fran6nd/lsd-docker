@@ -192,6 +192,10 @@ wait_up "after pie_menu"
 pie=$(docker exec "$NAME" lsdctl exec 'exec local g = l10n_client_ok; l10n_client_ok = function() return true end; l10n_set_lang(0, "fr"); local b = pie_menu_build(0) or ""; log("PIE|%s|%s|%s|", tostring(b:find("/votekick %p", 1, true) ~= nil), tostring(b:find("Voter l\x27exclusion", 1, true) ~= nil), tostring(b:find("/lang", 1, true) ~= nil)); l10n_set_lang(0, nil); l10n_client_ok = g')
 echo "$pie" | grep -q "PIE|true|true|true|" || fail "pie menu registrations: $pie"
 echo "ok: commands register into the pie menu, translated"
+# the gamemode's callouts: their pie first, its wedges /callout
+co=$(docker exec "$NAME" lsdctl exec 'exec local h = pie_menu_hide_unavailable; pie_menu_hide_unavailable = false; local b = pie_menu_build(MAX_PLAYERS - 1) or ""; pie_menu_hide_unavailable = h; log("CO|" .. tostring(commands.callout ~= nil) .. "|" .. tostring(b:find("/callout enemy %h", 1, true) ~= nil) .. "|" .. tostring((b:find("/callout", 1, true) or 1e9) < (b:find("Thanks!", 1, true) or 0)) .. "|")')
+echo "$co" | grep -q "CO|true|true|true|" || fail "ctf callouts: $co"
+echo "ok: ctf has its callouts pie, first"
 
 docker exec "$NAME" lsdctl gamemode hostage --yes --now || fail "gamemode"
 sleep 3

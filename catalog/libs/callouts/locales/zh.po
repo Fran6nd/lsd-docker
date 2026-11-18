@@ -1,0 +1,301 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Orders"
+msgstr "命令"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Enemy here"
+msgstr "敌人在这"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Enemy here!"
+msgstr "这里有敌人！"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Last one"
+msgstr "最后一个"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Only one of them left!"
+msgstr "他们只剩一个了！"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Regroup"
+msgstr "集合"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Regroup here!"
+msgstr "在这里集合！"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Behind you"
+msgstr "你身后"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Watch behind you!"
+msgstr "注意你身后！"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Sniper"
+msgstr "狙击手"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Sniper there!"
+msgstr "那里有狙击手！"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Cover me"
+msgstr "掩护我"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Cover me!"
+msgstr "掩护我！"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Babel"
+msgstr "塔"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Digger!"
+msgstr "挖墙的人！"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "We have a digger at our tower -- stop them!"
+msgstr "我们的塔下有挖墙的人，快阻止他们！"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Help build"
+msgstr "帮忙建造"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Help me build here!"
+msgstr "在这里帮我建造！"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Rush intel"
+msgstr "冲抢情报"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Rush their intel!"
+msgstr "去抢他们的情报！"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Defend tower"
+msgstr "守塔"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Defend our tower!"
+msgstr "守住我们的塔！"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Break theirs"
+msgstr "拆他们的"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Break their tower here!"
+msgstr "在这里拆他们的塔！"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "I have intel"
+msgstr "我有情报"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+msgid "I have their intel -- cover me!"
+msgstr "我拿到他们的情报了，掩护我！"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+msgid "Intel stolen"
+msgstr "情报被偷"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+msgid "They took our intel -- get it back!"
+msgstr "他们偷了我们的情报，抢回来！"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Defend base"
+msgstr "守基地"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Defend our base!"
+msgstr "守住我们的基地！"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Push"
+msgstr "推进"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+msgid "Push forward, go for their intel!"
+msgstr "向前推进，去拿他们的情报！"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Say"
+msgstr "喊话"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Good game"
+msgstr "打得好"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "gg"
+msgstr "gg"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Nice shot"
+msgstr "好枪法"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Nice shot!"
+msgstr "好枪法！"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Truce?"
+msgstr "停战？"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Come on"
+msgstr "来吧"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Come at me!"
+msgstr "来打我啊！"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Ouch"
+msgstr "哎哟"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Ouch!"
+msgstr "好痛！"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Camper"
+msgstr "蹲点的"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Camper over there!"
+msgstr "那边有蹲点的！"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Escort"
+msgstr "护送"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "I have our hostage -- escort us home!"
+msgstr "我们的人质在我这，护送我们回家！"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Hostage loose"
+msgstr "人质跑了"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Their hostage is loose here -- catch it!"
+msgstr "他们的人质跑到这了，快抓住！"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Guard prisoner"
+msgstr "看守人质"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Guard the prisoner at our tent!"
+msgstr "看好帐篷里的人质！"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Rescue"
+msgstr "救援"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Go free our hostage!"
+msgstr "去救出我们的人质！"
+
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Grab intel"
+msgstr "拿情报"
+
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Grab the intel!"
+msgstr "去拿情报！"
+
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Stop carrier"
+msgstr "拦下持情报者"
+
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "They have the intel -- stop the carrier!"
+msgstr "他们拿着情报，拦下持情报的人！"
+
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "I have the intel -- cover me!"
+msgstr "我拿到情报了，掩护我！"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Push, all together!"
+msgstr "一起推进！"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Hold here"
+msgstr "在这守住"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Hold this spot!"
+msgstr "守住这个位置！"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Flank"
+msgstr "侧翼包抄"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Flank them this way!"
+msgstr "从这边包抄他们！"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Need backup"
+msgstr "需要支援"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "I need backup!"
+msgstr "我需要支援！"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Fall back"
+msgstr "撤退"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Fall back!"
+msgstr "撤退！"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgctxt "command"
+msgid "Say a gamemode callout to your team (the pie menu sends these)."
+msgstr "向队友喊出模式呼叫"

@@ -73,6 +73,15 @@ arrives when 32 ids are already taken is told it is player 1 and sent
 nothing about anybody. Older settings move to these defaults by
 themselves; a policy you chose is kept.
 
+## Callouts
+
+Every gamemode has its own pie of team callouts, ahead of the usual
+pies: in babel "Digger!", "Help build", "Rush intel"; in ctf "Intel
+stolen", "I have intel"; and so on. Each says its line to the team as
+the player's chat, in each teammate's language, and the ones about a
+place drop a Teamplay ping where the player aims. They live in
+`catalog/libs/callouts/callouts/<gamemode>.lua`, one small file each.
+
 The flashlight's presets:
 
 | preset | |

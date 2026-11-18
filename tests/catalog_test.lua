@@ -99,6 +99,40 @@ for _, e in ipairs(cat:of_class(C.Extension)) do
 	check(e:default_policy({}) ~= "required", e.id .. ": no client turned away on a default server");
 end
 
+print("\n3a'. each gamemode's callouts make a pie a client accepts");
+do
+	function init_mod() return {impl={before={},after={},next={}}, late={before={},after={},next={}},
+		before={}, after={}, next={on_any_packet=function() end}, early={before={},after={},next={}},
+		xearly={before={},after={},next={}}}; end
+	function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
+	function log() end
+	function pid_connected_table() return {}; end
+	local pm = dofile("catalog/extensions/pie_menu/lib_pie_menu.lua").codec;
+	for _, g in ipairs(cat:of_class(C.Gamemode)) do
+		local f = io.open("catalog/libs/callouts/callouts/" .. g.id .. ".lua");
+		if (f ~= nil) then
+			f:close();
+			local set = dofile("catalog/libs/callouts/callouts/" .. g.id .. ".lua");
+			local slices, keys, ok_keys = {}, {}, true;
+			for i, c in ipairs(set.callouts) do
+				slices[i] = {text = "/callout " .. c.key .. (c.ping and " %h" or ""),
+					label = c.label, tooltip = c.say};
+				if (keys[c.key] or type(c.say) ~= "table" or type(c.say.en) ~= "string") then
+					ok_keys = false;
+				end
+				keys[c.key] = true;
+			end
+			check(#set.callouts >= 1 and #set.callouts <= 6, g.id .. ": one to six callouts");
+			check(ok_keys, g.id .. ": each callout has its own key and an English line");
+			local ok, err = pcall(pm.normalize_pie,
+				{theme = set.theme, when = "alive", slices = slices}, g.id);
+			check(ok, g.id .. ": its pie is one a client accepts", err);
+		elseif (g.id ~= "editor") then
+			check(false, g.id .. " has no callouts (catalog/libs/callouts/callouts/" .. g.id .. ".lua)");
+		end
+	end
+end
+
 print("\n3b. effects come in two kinds, and player effects share one class");
 for _, id in ipairs({"railgun", "grenade_shotgun", "pinning_smg"}) do
 	check(cat:get(id) and cat:get(id):is_a(C.PlayerEffect), id .. " is a PlayerEffect");

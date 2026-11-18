@@ -1,0 +1,301 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Orders"
+msgstr "Ordres"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Enemy here"
+msgstr "Ennemi ici"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Enemy here!"
+msgstr "Ennemi ici !"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Last one"
+msgstr "Dernier"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Only one of them left!"
+msgstr "Il n'en reste plus qu'un !"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Regroup"
+msgstr "Regroupez-vous"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Regroup here!"
+msgstr "Regroupez-vous ici !"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Behind you"
+msgstr "Derrière toi"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Watch behind you!"
+msgstr "Surveille tes arrières !"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Sniper"
+msgstr "Sniper"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Sniper there!"
+msgstr "Sniper là-bas !"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Cover me"
+msgstr "Couvre-moi"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Cover me!"
+msgstr "Couvrez-moi !"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Babel"
+msgstr "Tour"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Digger!"
+msgstr "Creuseur !"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "We have a digger at our tower -- stop them!"
+msgstr "Un creuseur à notre tour -- arrêtez-le !"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Help build"
+msgstr "Aidez à construire"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Help me build here!"
+msgstr "Aidez-moi à construire ici !"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Rush intel"
+msgstr "Foncer sur les renseignements"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Rush their intel!"
+msgstr "Foncez sur leurs renseignements !"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Defend tower"
+msgstr "Défendre la tour"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Defend our tower!"
+msgstr "Défendez notre tour !"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Break theirs"
+msgstr "Détruire la leur"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Break their tower here!"
+msgstr "Détruisez leur tour ici !"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "I have intel"
+msgstr "J'ai les renseignements"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+msgid "I have their intel -- cover me!"
+msgstr "J'ai leurs renseignements -- couvrez-moi !"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+msgid "Intel stolen"
+msgstr "Renseignements volés"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+msgid "They took our intel -- get it back!"
+msgstr "Ils ont volé nos renseignements -- récupérez-les !"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Defend base"
+msgstr "Défendre la base"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Defend our base!"
+msgstr "Défendez notre base !"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Push"
+msgstr "Poussez"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+msgid "Push forward, go for their intel!"
+msgstr "Avancez, visez leurs renseignements !"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Say"
+msgstr "Dire"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Good game"
+msgstr "Bien joué"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "gg"
+msgstr "gg"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Nice shot"
+msgstr "Beau tir"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Nice shot!"
+msgstr "Beau tir !"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Truce?"
+msgstr "Trêve ?"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Come on"
+msgstr "Allez"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Come at me!"
+msgstr "Venez à moi !"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Ouch"
+msgstr "Aïe"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Ouch!"
+msgstr "Aïe !"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Camper"
+msgstr "Campeur"
+
+#: catalog/libs/callouts/callouts/ffa.lua
+msgid "Camper over there!"
+msgstr "Campeur là-bas !"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Escort"
+msgstr "Escorte"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "I have our hostage -- escort us home!"
+msgstr "J'ai notre otage -- escortez-nous jusqu'à la base !"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Hostage loose"
+msgstr "Otage libre"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Their hostage is loose here -- catch it!"
+msgstr "Leur otage est ici -- rattrapez-le !"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Guard prisoner"
+msgstr "Garder le prisonnier"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Guard the prisoner at our tent!"
+msgstr "Gardez le prisonnier près de notre tente !"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Rescue"
+msgstr "Sauver"
+
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Go free our hostage!"
+msgstr "Libérez notre otage !"
+
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Grab intel"
+msgstr "Prendre les renseignements"
+
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Grab the intel!"
+msgstr "Prenez les renseignements !"
+
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Stop carrier"
+msgstr "Stoppez le porteur"
+
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "They have the intel -- stop the carrier!"
+msgstr "Ils ont les renseignements -- arrêtez le porteur !"
+
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "I have the intel -- cover me!"
+msgstr "J'ai les renseignements -- couvrez-moi !"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Push, all together!"
+msgstr "Poussez, tous ensemble !"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Hold here"
+msgstr "Tenez ici"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Hold this spot!"
+msgstr "Tenez cette position !"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Flank"
+msgstr "Contourner"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Flank them this way!"
+msgstr "Contournez-les par ici !"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Need backup"
+msgstr "Besoin de renfort"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "I need backup!"
+msgstr "J'ai besoin de renfort !"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Fall back"
+msgstr "Repli"
+
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Fall back!"
+msgstr "Repliez-vous !"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgctxt "command"
+msgid "Say a gamemode callout to your team (the pie menu sends these)."
+msgstr "Annoncer un message de mode de jeu à son équipe (le menu radial envoie ces messages)."
