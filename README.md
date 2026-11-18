@@ -9,27 +9,56 @@ You do not need this repository to run it.
 
 ## Install
 
-One line, which pulls the image, runs the setup wizard and starts the
-server:
+You need Docker: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+on Windows and macOS, [Docker Engine](https://docs.docker.com/engine/install/)
+on Linux. Then one line pulls the image, runs the setup wizard, starts
+the server and prints the `aos://` addresses players connect with.
+
+**Linux and macOS**, in a terminal:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/install.sh | sh
 ```
 
-Or the same thing, by hand:
+**Windows**, in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/install.ps1 | iex
+```
+
+(Inside WSL, the Linux line works too, and finds the Windows LAN
+address.) If Windows Firewall asks about Docker, allow it, or players on
+your network cannot connect.
+
+| | Linux | macOS | Windows |
+|---|---|---|---|
+| installer | `install.sh` | `install.sh` | `install.ps1` (or `install.sh` in WSL) |
+| image | amd64, arm64 | arm64 (Apple silicon), amd64 (Intel) | amd64, arm64 |
+| afterwards | `lsd <command>` shorthand, if `/usr/local/bin` or `~/.local/bin` is writable | same | `docker exec -it lsd lsdctl <command>` |
+
+Docker picks the image for your machine. On arm64 the server runs
+without upstream's seccomp filter, which does not support that
+architecture; see [Developing](#developing).
+
+### By hand
+
+The installers only run these, which work the same in every shell (in
+PowerShell, end continued lines with `` ` `` instead of `\`):
 
 ```sh
+docker volume create lsd-data
 docker run --rm -it -v lsd-data:/data ghcr.io/fran6nd/lsd-docker setup
 docker run -d --name lsd --restart unless-stopped \
     -p 32887:32887/udp -e LSD_HOST_ADDRESSES=192.168.1.20 \
     -v lsd-data:/data ghcr.io/fran6nd/lsd-docker
 ```
 
+Use the port you chose in setup on both sides of `-p`.
 `LSD_HOST_ADDRESSES` is optional: it is the host's LAN address(es),
 which a container cannot see, so that `lsdctl address` can print the
-`aos://` URL players on your network connect with. The installer fills
-it in. Setup ends by printing those addresses, and the public one for a
-listed server.
+`aos://` URL players on your network connect with (the installers fill
+it in). Setup ends by printing those addresses, and the public one for
+a listed server.
 
 Skipping `setup` is fine: a server started on an empty volume writes
 default settings, generates a flat map so it can boot, and runs ctf.
@@ -52,8 +81,8 @@ Everything is `lsdctl`, inside the container:
 docker exec -it lsd lsdctl help
 ```
 
-(The installer also puts an `lsd` shorthand on your PATH: `lsd status`
-is `docker exec -it lsd lsdctl status`.)
+(On Linux and macOS the installer also puts an `lsd` shorthand on your
+PATH: `lsd status` is `docker exec -it lsd lsdctl status`.)
 
 ```sh
 lsdctl status                        # version, state, gamemode, scripts, maps, addresses

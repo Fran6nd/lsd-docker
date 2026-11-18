@@ -30,6 +30,12 @@ jobs:
       - run: |
           docker run --rm -v "$PWD:/mnt" -w /mnt koalaman/shellcheck:v0.10.0 -s sh image/entrypoint.sh image/ctl/lsdctl.sh \
             image/ctl/selfupdate.sh install.sh dev/*.sh githooks/commit-msg
+      - name: install.ps1 parses
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$PWD/install.ps1", [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { $errors; exit 1 }
 
   image:
     name: Image (${{ matrix.arch }})

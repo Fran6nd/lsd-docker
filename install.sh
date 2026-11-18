@@ -35,7 +35,12 @@ fi
 # container cannot see them itself. Docker's own bridges and VPN
 # interfaces are left out.
 host_addresses() {
-	if command -v ip >/dev/null 2>&1; then
+	# Under WSL the Linux side sees only the WSL VM's own network; the
+	# LAN address belongs to Windows, so ask Windows.
+	if grep -qi microsoft /proc/version 2>/dev/null && command -v powershell.exe >/dev/null 2>&1; then
+		powershell.exe -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { \$_.IPAddress -ne '127.0.0.1' -and \$_.IPAddress -notlike '169.254.*' -and \$_.InterfaceAlias -notmatch 'vEthernet|WSL|Docker|Hyper-V|Loopback|VirtualBox|VMware|Tailscale|WireGuard' }).IPAddress" \
+			| tr -d '\r'
+	elif command -v ip >/dev/null 2>&1; then
 		ip -4 -o addr show scope global \
 			| awk '$2 !~ /^(docker|br-|veth|virbr|cni|flannel|tailscale|wg|tun)/ {split($4, a, "/"); print a[1]}'
 	elif command -v ifconfig >/dev/null 2>&1; then
