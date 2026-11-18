@@ -4,8 +4,8 @@
 # Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 #
 # Runs dev/l10n.lua, which rewrites every script's locales/template.pot
-# and brings each locales/<lang>.po in line with it, and stages what it
-# changed -- so a commit that adds, changes or drops a message carries
+# and brings each locales/<lang>.po in line with it, and stages what
+# that run changed -- nothing else -- so a commit that adds, changes or drops a message carries
 # the translation files that go with it, and translators always work
 # from the current English.
 #
@@ -24,16 +24,23 @@ if ! command -v luajit >/dev/null 2>&1; then
 	exit 0
 fi
 
+# Only what this run changes is staged: a translation file that was
+# already different -- a .po being worked on, drafts not yet meant for
+# this commit -- is left as it is, staged or not.
+snapshot() {
+	find catalog -path '*/locales/*' -type f -exec cksum {} + 2>/dev/null | sort -k3
+}
+before=$(snapshot)
+
 luajit dev/l10n.lua >/dev/null 2>&1 || {
 	echo "pre-commit: dev/l10n.lua failed:" >&2
 	luajit dev/l10n.lua >&2 || true
 	exit 1
 }
 
-# what the tool changed: new, changed or removed in the working tree
-# against what is staged (second status column, or untracked)
-changed=$(git status --porcelain -- ':(glob)catalog/**/locales/*' \
-	| grep -E '^(.[MADR]|\?\?)' | sed 's/^...//' || true)
+after=$(snapshot)
+changed=$( { printf '%s\n' "$before"; printf '%s\n' "$after"; } \
+	| sort | uniq -u | awk '{print $3}' | sort -u)
 if [ -n "$changed" ]; then
 	printf '%s\n' "$changed" | while IFS= read -r f; do
 		git add -A -- "$f"
