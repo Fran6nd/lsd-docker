@@ -76,6 +76,12 @@ echo "$fr" | grep -q "L10N|attention : ici, les fusils sont des railguns.|Langue
 	|| fail "French from the scripts' catalogs: $fr"
 echo "ok: translations from per-script catalogs"
 
+# settings text: the stock tips and motd are language maps, translated
+fr=$(docker exec "$NAME" lsdctl exec 'exec log("L10N2|" .. l10n_get_str_lang("fr", tips[1]) .. "|" .. l10n_get_str_lang("fr", motd[1], {server = "S"}) .. "|")')
+echo "$fr" | grep -q "L10N2|Tape /kill pour mourir.|Bienvenue sur S, propulsé par \[LSd\].|" \
+	|| fail "French settings text: $fr"
+echo "ok: settings text translated"
+
 docker exec "$NAME" lsdctl gamemode hostage --yes --now || fail "gamemode"
 sleep 3
 wait_up "after gamemode"

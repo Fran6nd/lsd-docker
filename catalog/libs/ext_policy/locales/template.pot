@@ -1,0 +1,26 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+msgid "Your client is outdated, please update"
+msgstr ""
+
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+msgid "Your client never answered the extension handshake, so it cannot leave spectator. Update it, or use ZeroSpades."
+msgstr ""
+
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+msgid "Missing: %(list). You cannot leave spectator without it -- update your client, then reconnect."
+msgstr ""
+
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+msgid "Missing: %(list). You cannot leave spectator without them -- update your client, then reconnect."
+msgstr ""
+
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+msgid "Missing: %(list). You can play, but you will not see everything other players do."
+msgstr ""

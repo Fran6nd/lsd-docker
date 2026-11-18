@@ -9,6 +9,8 @@ Upstream LSd modules, patched. Copied over upstream's at every start.
                gettext catalogs (locales/<lang>.po), messages translated
                per recipient by server_msg and send_chat, /lang. Keeps
                upstream's API. Ours; not meant for upstream as is.
+  motd.lua     Each motd line in the player's language: a line may be
+               a language map, and %(server) is the server's name.
 
 Each one is a whole file, so after `dev/bump-lsd.sh` re-apply the patch
 onto upstream's new copy (git -C lsd diff OLD..NEW -- scripts/<file>).

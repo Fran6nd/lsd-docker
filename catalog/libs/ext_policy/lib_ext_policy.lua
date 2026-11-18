@@ -230,8 +230,9 @@ getcfg("ext_policy_warn_interval", 60,
 getcfg("ext_policy_alert", true,
 	"Raise a one-off alert when a client is held out. Only a "
 		.."lockout raises it.");
-getcfg("ext_policy_alert_text", "Your client is outdated, please update",
-	"The one sentence that alert carries.");
+getcfg("ext_policy_alert_text", {en = "Your client is outdated, please update"},
+	"The one sentence that alert carries: text, or a language map "
+		.."{en: ..., fr: ...}.");
 getcfg("ext_policy_alert_type", 3,
 	"Message Types value for the alert: 3 big and centre-screen, 5 "
 		.."a warning, 6 an error. "); -- MSG_BIG, centre-screen
@@ -473,8 +474,9 @@ end
 -- player might want to look at twice goes here as well. It does not
 -- compete with the toast -- different channel, different slot -- which
 -- is why the detail can be as long as it needs to be.
-local function say_chat(pid, fmt, ...)
-	local text = string.format(fmt, ...);
+local function say_chat(pid, msgtab, interptab)
+	-- in the player's own language (lib_l10n)
+	local text = l10n_msg(msgtab, interptab);
 
 	-- Type 2 goes through server_msg rather than through msg_send, even
 	-- when lib_message_types is loaded and would carry it perfectly
@@ -525,15 +527,20 @@ local function tell_required(pid, missing, answered)
 		-- client looks like from here: it is not that it declined the
 		-- extension, it is that it never heard the question. Naming the
 		-- extensions would be beside the point.
-		say_chat(pid, "Your client never answered the extension handshake,"
+		say_chat(pid, {en = "Your client never answered the extension handshake,"
 			.. " so it cannot leave spectator. Update it, or use"
-			.. " ZeroSpades.");
+			.. " ZeroSpades."});
 		return;
 	end
 
-	say_chat(pid, "Missing: %s. You cannot leave spectator without %s --"
-		.. " update your client, then reconnect.", list(missing),
-		#missing == 1 and "it" or "them");
+	-- one sentence per count, not "it"/"them" spliced in: other
+	-- languages agree more than a pronoun with it
+	say_chat(pid, #missing == 1
+		and {en = "Missing: %(list). You cannot leave spectator without it --"
+			.. " update your client, then reconnect."}
+		or {en = "Missing: %(list). You cannot leave spectator without them --"
+			.. " update your client, then reconnect."},
+		{list = list(missing)});
 end
 
 -- No alert here, on purpose. A recommended extension costs a player
@@ -542,8 +549,8 @@ end
 -- cosmetics are reduced is out of all proportion. The chat line says it
 -- and keeps saying it, which is enough for something they can ignore.
 local function tell_recommended(pid, missing)
-	say_chat(pid, "Missing: %s. You can play, but you will not see"
-		.. " everything other players do.", list(missing));
+	say_chat(pid, {en = "Missing: %(list). You can play, but you will not see"
+		.. " everything other players do."}, {list = list(missing)});
 end
 
 --============================== GATE ================================--

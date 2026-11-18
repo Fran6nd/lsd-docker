@@ -32,6 +32,11 @@
 --   server_msg(PID_BROADCAST, m)   -- each player reads their language
 --   l10n_msgn({en="%(n) bot", en_plural="%(n) bots"}, count)
 --   l10n_str(pid, m)               -- the text for one player
+--   l10n_text(setting, {name=x})   -- a setting's text, string or map
+--
+-- SETTINGS. Any text an operator writes -- motd lines, tips, kick
+-- reasons -- may be a string or a language map, {en: "Hi", fr: "Salut"};
+-- server_msg and send_chat take a map as they take a message.
 --
 -- A message is not a string: it is turned into one per recipient, when
 -- it is sent. server_msg and send_chat take one anywhere a string goes,
@@ -128,12 +133,30 @@ function l10n_is_msg(x)
 	return getmetatable(x) == Msg;
 end
 
+-- Keys a message table may have besides its languages
+local META = {ctx = true, en_plural = true};
+
+-- A language map as a settings file writes one, {en: "Hi", fr: "Salut"}:
+-- a table of locale -> text, and nothing else. It need not have English
+-- -- an operator writing for a French server may give only fr.
+function l10n_is_map(v)
+	if (type(v) ~= "table" or getmetatable(v) ~= nil or next(v) == nil) then
+		return false;
+	end
+	for k, x in pairs(v) do
+		if (not META[k] and (P.norm_lang(k) ~= k or type(x) ~= "string")) then
+			return false;
+		end
+	end
+	return true;
+end
+
 local function as_tab(msg)
 	if (type(msg) == "string") then
 		return {en = msg};
 	end
-	if (type(msg) ~= "table" or type(msg.en) ~= "string") then
-		error("a message is an English string or a table with en=", 3);
+	if (not l10n_is_map(msg)) then
+		error("a message is an English string or a table of locale = text", 3);
 	end
 	return msg;
 end
@@ -196,7 +219,7 @@ end
 -- The text of `m` in `lang`, best candidate first.
 function resolve(m, lang)
 	local tab = m.tab;
-	local key = P.key(tab.ctx, tab.en);
+	local key = tab.en and P.key(tab.ctx, tab.en);
 	local plural = m.count ~= nil;
 	m = {tab = tab, count = m.count, args = args_in(m, lang)};
 
@@ -208,7 +231,17 @@ function resolve(m, lang)
 			if (plural and tab.en_plural ~= nil and en_plural(m.count) ~= 0) then
 				return P.interp(tab.en_plural, m.args);
 			end
-			return P.interp(tab.en, m.args);
+			if (tab.en ~= nil) then
+				return P.interp(tab.en, m.args);
+			end
+			-- no English and nothing better: whatever there is, the
+			-- same one every time
+			local keys = {};
+			for k in pairs(tab) do
+				if (not META[k]) then keys[#keys+1] = k; end
+			end
+			table.sort(keys);
+			return P.interp(tab[keys[1]], m.args);
 		end
 
 		local inline = tab[l];
@@ -219,7 +252,7 @@ function resolve(m, lang)
 			if (s ~= nil) then return P.interp(s, m.args); end
 		end
 
-		local e = cat and cat.entries[key];
+		local e = cat and key and cat.entries[key];
 		if (type(e) == "string") then
 			return P.interp(e, m.args);
 		elseif (type(e) == "table") then
@@ -231,6 +264,19 @@ end
 
 function Msg:__tostring()
 	return resolve(self, l10n_log_lang);
+end
+
+-- A setting's text as a message: a language map, or a string taken as
+-- English and translated where a catalog has it. %(name) placeholders
+-- are filled from interptab. nil stays nil; a message is kept.
+function l10n_text(v, interptab)
+	if (v == nil or l10n_is_msg(v)) then
+		return v;
+	end
+	if (type(v) == "string" or l10n_is_map(v)) then
+		return l10n_msg(v, interptab);
+	end
+	return tostring(v);
 end
 
 -- The text of `msg` for one player. A plain string is returned as is.
@@ -306,7 +352,12 @@ local function each(pid, msg, send)
 	end
 end
 
+-- A language map is taken too, which is what lets a settings value --
+-- a tip, a motd line -- be handed to them as it was read.
 function mod.xearly.server_msg(pid, msg)
+	if (l10n_is_map(msg)) then
+		msg = l10n_msg(msg);
+	end
 	if (not l10n_is_msg(msg)) then
 		return mod.xearly.next.server_msg(pid, msg);
 	end
@@ -314,6 +365,9 @@ function mod.xearly.server_msg(pid, msg)
 end
 
 function mod.xearly.send_chat(pid, msg, type, from)
+	if (l10n_is_map(msg)) then
+		msg = l10n_msg(msg);
+	end
 	if (not l10n_is_msg(msg)) then
 		return mod.xearly.next.send_chat(pid, msg, type, from);
 	end

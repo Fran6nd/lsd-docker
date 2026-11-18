@@ -262,6 +262,15 @@ Edit a `.po` with any gettext editor (Poedit, ...); `msgfmt -c` checks
 it, and the tests check that each translation keeps its placeholders.
 Upstream LSd's own messages are translated in `catalog/overrides/locales/`.
 
+Text an operator writes in the settings -- `motd` lines, `tips`,
+`kick_reason_texts`, `ext_policy_alert_text` -- may be plain text or a
+language map, and every player reads their own:
+
+```
+motd = [{en: 'Welcome to %(server)!', fr: 'Bienvenue sur %(server) !'}]
+tips = [{en: 'Type /lang to change language', fr: 'Tape /lang pour changer de langue'}]
+```
+
 ## Developing
 
 ```sh

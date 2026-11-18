@@ -89,6 +89,30 @@ msgstr ""
 msgid "Couldn't find any block in that cast. You're certain you're not looking at the sky?"
 msgstr ""
 
+#: image/config.lua
+msgid "Use /kill to die."
+msgstr ""
+
+#: image/config.lua
+msgid "Press the %(key) key to change team/gun."
+msgstr ""
+
+#: image/config.lua
+msgid "Block color won't change? Try the arrow keys and E."
+msgstr ""
+
+#: image/config.lua
+msgid "This is not Build and Shoot. This is ACE OF SPADES."
+msgstr ""
+
+#: image/config.lua
+msgid "Type /lang to read the server in another language."
+msgstr ""
+
+#: image/config.lua
+msgid "Welcome to %(server), running [LSd]."
+msgstr ""
+
 #: lsd/scripts/afkick.lua
 msgid "%(name) was kicked: AFK"
 msgstr ""

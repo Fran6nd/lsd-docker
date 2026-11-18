@@ -159,6 +159,27 @@ logged = {};
 l10n_log({en = "Bye"});
 eq(logged[1], "Bye", "logs stay in the log language");
 
+print("\n6b. settings: text or a language map");
+check(l10n_is_map({en = "Hi", fr = "Salut"}), "a language map is one");
+check(l10n_is_map({fr = "Salut"}), "even without English");
+check(not l10n_is_map({"a", "b"}), "a list is not");
+check(not l10n_is_map({en = "Hi", color = 3}), "nor a table with other keys");
+check(not l10n_is_map(kicked), "nor a message");
+eq(l10n_str(0, l10n_text({en = "Hi", fr = "Salut"})), "Salut", "a map, in the player's language");
+eq(l10n_str(2, l10n_text({fr = "Salut", de = "Hallo"})), "Hallo",
+	"no English: the same one every time");
+eq(l10n_str(0, l10n_text("Bye")), "Au revoir", "a string is English, translated where a catalog has it");
+eq(l10n_str(0, l10n_text("Welcome to %(server)", {server = "S"})), "Welcome to S", "with placeholders");
+eq(l10n_text(nil), nil, "nil stays nil");
+check(l10n_text(kicked) == kicked, "a message is kept");
+sent = {};
+server_msg(PID_BROADCAST, {en = "Hi", fr = "Salut"});
+eq(sent[1][2], "Salut", "server_msg takes a map: French for player 0");
+eq(sent[3][2], "Hi", "English for player 2");
+sent = {};
+send_chat(0, {en = "Hi", fr = "Salut"}, 2, 255);
+eq(sent[1][2], "Salut", "send_chat too");
+
 print("\n7. /lang");
 local lang = commands.lang;
 check(lang ~= nil, "/lang is registered");

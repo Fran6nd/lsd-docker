@@ -1,0 +1,28 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+msgid "Your client is outdated, please update"
+msgstr "Ton client est obsolète, mets-le à jour"
+
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+msgid "Your client never answered the extension handshake, so it cannot leave spectator. Update it, or use ZeroSpades."
+msgstr "Ton client n'a jamais répondu à la négociation des extensions, il ne peut donc pas quitter le mode spectateur. Mets-le à jour, ou utilise ZeroSpades."
+
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+msgid "Missing: %(list). You cannot leave spectator without it -- update your client, then reconnect."
+msgstr "Manquant : %(list). Impossible de quitter le mode spectateur sans -- mets ton client à jour, puis reconnecte-toi."
+
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+msgid "Missing: %(list). You cannot leave spectator without them -- update your client, then reconnect."
+msgstr "Manquants : %(list). Impossible de quitter le mode spectateur sans eux -- mets ton client à jour, puis reconnecte-toi."
+
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+msgid "Missing: %(list). You can play, but you will not see everything other players do."
+msgstr "Manquant : %(list). Tu peux jouer, mais tu ne verras pas tout ce que voient les autres joueurs."

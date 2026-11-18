@@ -1,0 +1,26 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/extensions/kick_reason/lib_kick_reason.lua
+msgid "Banned"
+msgstr ""
+
+#: catalog/extensions/kick_reason/lib_kick_reason.lua
+msgid "Kicked"
+msgstr ""
+
+#: catalog/extensions/kick_reason/lib_kick_reason.lua
+msgid "Wrong version"
+msgstr ""
+
+#: catalog/extensions/kick_reason/lib_kick_reason.lua
+msgid "Server full"
+msgstr ""
+
+#: catalog/extensions/kick_reason/lib_kick_reason.lua
+msgid "Server shutdown"
+msgstr ""

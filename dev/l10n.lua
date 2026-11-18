@@ -18,7 +18,8 @@
 --                                  gone ones kept commented out (#~)
 --
 -- An entry is a catalog/<category>/<id>/ directory; upstream LSd's own
--- scripts are one more, catalog/overrides, whose translations the
+-- scripts and image/config.lua (the stock tips and motd) are one more,
+-- catalog/overrides, whose translations the
 -- entrypoint installs as scripts/locales/<lang>/lsd.po.
 --
 -- xgettext cannot read en= tables, which is why this exists; the files
@@ -198,7 +199,7 @@ local function entries()
 			files = sh_lines("find " .. q(dir) .. " -name '*.lua' ! -name script.lua | sort")};
 	end
 	out[#out+1] = {dir = "catalog/overrides", upstream = true,
-		files = sh_lines("ls lsd/scripts/*.lua catalog/overrides/*.lua | sort")};
+		files = sh_lines("ls lsd/scripts/*.lua catalog/overrides/*.lua image/config.lua | sort")};
 	return out;
 end
 

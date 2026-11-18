@@ -55,16 +55,19 @@ local SERVER_FROM = 255;
 
 -- Kept short on purpose: BetterSpades limits the reason it displays to
 -- 16 octets (apidoc/src/send, send_chat). The spec sets no limit, so a
--- longer text set by a script is sent whole.
+-- longer text set by a script is sent whole. Each is read in the kicked
+-- player's language (lib_l10n): these are translated in locales/, and
+-- an operator's may be a language map, {en: "Kicked", fr: "Expulsé"}.
 getcfg("kick_reason_texts", {
-	[1] = "Banned",
-	[2] = "Kicked",
-	[3] = "Wrong version",
-	[4] = "Server full",
-	[5] = "Server shutdown",
-	[10] = "Kicked",
-}, "The reason sent for each disconnect code. A code not named here "
-	.."sends nothing unless a script set a text.");
+	[1] = {en = "Banned"},
+	[2] = {en = "Kicked"},
+	[3] = {en = "Wrong version"},
+	[4] = {en = "Server full"},
+	[5] = {en = "Server shutdown"},
+	[10] = {en = "Kicked"},
+}, "The reason sent for each disconnect code: text, or a language map "
+	.."{en: ..., fr: ...}. A code not named here sends nothing unless a "
+	.."script set a text.");
 getcfg("kick_reason_delay", 0.3,
 	"Seconds between sending the reason and disconnecting, so the "
 		.."message reaches the client first (ENet drops what is still "
@@ -93,16 +96,29 @@ function kick_reason_supported(pid)
 	return negotiated(pid);
 end
 
+-- A reason as it will be sent: a lib_l10n message, translated for the
+-- kicked player by send_chat; or, where lib_l10n is not loaded, plain
+-- text -- a language map's English.
+local function as_text(text)
+	if (text == nil) then
+		return nil;
+	end
+	if (l10n_text ~= nil) then
+		return l10n_text(text);
+	end
+	if (type(text) == "table" and text.en ~= nil) then
+		return text.en;
+	end
+	return tostring(text);
+end
+
 function kick_reason_set(pid, text)
 	if (type(pid) ~= "number" or pid < 0 or pid >= MAX_PLAYERS) then
 		return;
 	end
-	-- a lib_l10n message is kept as one: send_chat translates it for
-	-- the player being kicked
-	if (text ~= nil and not (l10n_is_msg ~= nil and l10n_is_msg(text))) then
-		text = tostring(text);
-	end
-	explicit[pid] = text;
+	-- a lib_l10n message or language map is kept as one: send_chat
+	-- translates it for the player being kicked
+	explicit[pid] = as_text(text);
 end
 
 function kick_reason_kick(pid, text, code)
@@ -119,10 +135,7 @@ local function reason_text(pid, code)
 	if (text == nil or text == "") then
 		return nil;
 	end
-	if (l10n_is_msg ~= nil and l10n_is_msg(text)) then
-		return text;
-	end
-	return tostring(text);
+	return as_text(text);
 end
 
 --============================ THE HOOKS =============================--

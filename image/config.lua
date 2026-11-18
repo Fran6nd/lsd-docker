@@ -136,33 +136,36 @@ set_max_score(max_score);
 set_fog(fog);
 
 getcfg("motd", nil,
-	"Message of the day, shown on join. A list of lines.")
+	"Message of the day, shown on join. A list of lines; a line may be "
+		.. "a language map, {en: 'Hi', fr: 'Salut'}. %(server) is the "
+		.. "server's name.")
 getcfg("tip_frequency", 5*60,
 	"Seconds between tips. 0 stops them.")
 getcfg("tips", nil,
-	"Tips shown in rotation, as a list of lines. Empty uses the stock set.")
+	"Tips shown in rotation, as a list of lines. Empty uses the stock "
+		.. "set. A line may be a language map, {en: 'Hi', fr: 'Salut'}.")
 
--- The stock tips. The last one is a function because the key to press
--- depends on the client, which a settings file cannot say.
+-- The stock tips, as language maps: each player reads them in their
+-- own language (lib_l10n; translated in catalog/overrides/locales). The
+-- second is a function because the key to press depends on the client,
+-- which a settings file cannot say.
 if (tips == nil) then
 	tips = {
-		"Use /kill to die.",
+		{en = "Use /kill to die."},
 		function() for i in piditer(PID_BROADCAST) do
-			server_msg(i, string.format(
-				"Press the %s key to change team/gun.",
-				get_client_char(i) == string.byte('o') and "L" or "comma/dot"
-			));
+			server_msg(i, l10n_msg({en = "Press the %(key) key to change team/gun."},
+				{key = get_client_char(i) == string.byte('o') and "L"
+					or "comma/dot"}));
 		end end,
-		"Block color won't change? Try the arrow keys and E.",
-		"This is not Build and Shoot. This is ACE OF SPADES.",
+		{en = "Block color won't change? Try the arrow keys and E."},
+		{en = "This is not Build and Shoot. This is ACE OF SPADES."},
+		{en = "Type /lang to read the server in another language."},
 	}
 end
 
-if (type(motd) == "table") then
-	motd = table.concat(motd, "\n") .. "\n";
-elseif (motd == nil) then
-	motd = "Welcome to " .. tostring(masterlist_name)
-		.. ", running [LSd].\n";
+-- motd stays a list: its lines may be language maps (see motd.lua)
+if (motd == nil) then
+	motd = {{en = "Welcome to %(server), running [LSd]."}};
 end
 
 load "group_deps"
