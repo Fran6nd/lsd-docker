@@ -659,39 +659,39 @@ msgstr "Bannir une adresse IPv4 ou une plage CIDR pénible pour très longtemps.
 
 #: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) attempted to connect but server was full"
-msgstr ""
+msgstr "%(addr):%(port) a tenté de se connecter mais le serveur était plein"
 
 #: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) (#%(pid)) connected"
-msgstr ""
+msgstr "%(addr):%(port) (#%(pid)) connecté"
 
 #: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) (#%(pid)) (%(name)) disconnected"
-msgstr ""
+msgstr "%(addr):%(port) (#%(pid)) (%(name)) déconnecté"
 
 #: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) (#%(pid)) disconnected"
-msgstr ""
+msgstr "%(addr):%(port) (#%(pid)) déconnecté"
 
 #: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) (#%(pid)) joined as \"%(name)\""
-msgstr ""
+msgstr "%(addr):%(port) (#%(pid)) a rejoint sous le nom \"%(name)\""
 
 #: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) (#%(pid)) got version: '%(char)' (%(charval)) v%(major).%(minor).%(patch): %(msg)"
-msgstr ""
+msgstr "%(addr):%(port) (#%(pid)) version reçue : '%(char)' (%(charval)) v%(major).%(minor).%(patch) : %(msg)"
 
 #: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) (#%(pid)) got version-ext: \"%(cli)\" v%(major).%(minor).%(patch), %(flags), %(lang)"
-msgstr ""
+msgstr "%(addr):%(port) (#%(pid)) version-ext reçue : \"%(cli)\" v%(major).%(minor).%(patch), %(flags), %(lang)"
 
 #: lsd/scripts/base_logging.lua
 msgid "(Global) %(name) (#%(pid)): %(msg)"
-msgstr ""
+msgstr "(Global) %(name) (#%(pid)) : %(msg)"
 
 #: lsd/scripts/base_logging.lua
 msgid "(Team) %(name) (#%(pid)): %(msg)"
-msgstr ""
+msgstr "(Équipe) %(name) (#%(pid)) : %(msg)"
 
 #: lsd/scripts/caps.lua
 msgid "You need the %(cap) capability to run that command."
@@ -1033,31 +1033,31 @@ msgstr "Cette commande ne peut être lancée qu'en jeu."
 
 #: lsd/scripts/dd.lua
 msgid "dd: prevented fast block placement from %(name) (#%(pid))"
-msgstr ""
+msgstr "dd: pose de blocs trop rapide bloquée pour %(name) (#%(pid))"
 
 #: lsd/scripts/dd.lua
 msgid "dd: prevented fast 1x dig from %(name) (#%(pid))"
-msgstr ""
+msgstr "dd: creusage 1x trop rapide bloqué pour %(name) (#%(pid))"
 
 #: lsd/scripts/dd.lua
 msgid "dd: prevented fast block shot from %(name) (#%(pid))"
-msgstr ""
+msgstr "dd: tir sur bloc trop rapide bloqué pour %(name) (#%(pid))"
 
 #: lsd/scripts/dd.lua
 msgid "dd: prevented fast 3x dig from %(name) (#%(pid))"
-msgstr ""
+msgstr "dd: creusage 3x trop rapide bloqué pour %(name) (#%(pid))"
 
 #: lsd/scripts/dd.lua
 msgid "dd: prevented fast block line placement from %(name) (#%(pid))"
-msgstr ""
+msgstr "dd: pose de ligne de blocs trop rapide bloquée pour %(name) (#%(pid))"
 
 #: lsd/scripts/dd.lua
 msgid "dd: prevented fast spadehit from %(name) (#%(pid))"
-msgstr ""
+msgstr "dd: coup de pelle trop rapide bloqué pour %(name) (#%(pid))"
 
 #: lsd/scripts/dd.lua
 msgid "dd: prevented fast player shot from %(name) (#%(pid))"
-msgstr ""
+msgstr "dd: tir sur joueur trop rapide bloqué pour %(name) (#%(pid))"
 
 #: lsd/scripts/disco.lua
 msgctxt "command"
@@ -1093,19 +1093,19 @@ msgstr "T'empêcher de subir des dégâts."
 
 #: lsd/scripts/if_websocket.lua
 msgid "ifwsock: got tcp connection %(addr) (#%(pid))"
-msgstr ""
+msgstr "ifwsock: connexion tcp reçue %(addr) (#%(pid))"
 
 #: lsd/scripts/if_websocket.lua
 msgid "ifwsock: tcp connection %(addr) (#%(pid)) closed"
-msgstr ""
+msgstr "ifwsock: connexion tcp %(addr) (#%(pid)) fermée"
 
 #: lsd/scripts/if_websocket.lua
 msgid "ifwsock: connected: (#%(pid))"
-msgstr ""
+msgstr "ifwsock: connecté : (#%(pid))"
 
 #: lsd/scripts/if_websocket.lua
 msgid "ifwsock: disconnected: %(addr) (#%(pid))"
-msgstr ""
+msgstr "ifwsock: déconnecté : %(addr) (#%(pid))"
 
 #: lsd/scripts/irc_console.lua
 msgid "Unable to set nick. Make sure the user exists and the nick isn't already in use."
@@ -1170,15 +1170,15 @@ msgstr "Charger immédiatement la carte au chemin indiqué."
 
 #: lsd/scripts/masterlist.lua
 msgid "Connected to masterlist %(addr)"
-msgstr ""
+msgstr "Connecté à la masterlist %(addr)"
 
 #: lsd/scripts/masterlist.lua
 msgid "Disconnected from masterlist %(addr)"
-msgstr ""
+msgstr "Déconnecté de la masterlist %(addr)"
 
 #: lsd/scripts/masterlist.lua
 msgid "Reconnecting to masterlist %(addr)"
-msgstr ""
+msgstr "Reconnexion à la masterlist %(addr)"
 
 #: lsd/scripts/medkit.lua
 msgid "The medkit cannot bring you back from the dead."
@@ -1285,20 +1285,20 @@ msgstr "Faire taire quelqu'un qui abuse de /admin."
 
 #: lsd/scripts/websock_console.lua
 msgid "wscon: got tcp connection (#%(pid))"
-msgstr ""
+msgstr "wscon: connexion tcp reçue (#%(pid))"
 
 #: lsd/scripts/websock_console.lua
 msgid "wscon: tcp connection #%(pid) closed"
-msgstr ""
+msgstr "wscon: connexion tcp #%(pid) fermée"
 
 #: lsd/scripts/websock_console.lua
 msgid "wscon: connected: %(name) (#%(pid))"
-msgstr ""
+msgstr "wscon: connecté : %(name) (#%(pid))"
 
 #: lsd/scripts/websock_console.lua
 msgid "wscon: disconnected: %(name) (#%(pid))"
-msgstr ""
+msgstr "wscon: déconnecté : %(name) (#%(pid))"
 
 #: lsd/scripts/websock_console.lua
 msgid "wscon: %(name) (#%(pid)): /%(cmd)"
-msgstr ""
+msgstr "wscon: %(name) (#%(pid)) : /%(cmd)"

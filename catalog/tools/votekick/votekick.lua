@@ -22,36 +22,30 @@ local vote = nil; -- {target, tname, voters={pid=true}, count, need, deadline}
 
 local started_msg = {
 	en="%(starter) started a votekick against %(target)! Type /y to vote (%(have)/%(need)).",
-	fr="%(starter) lance un votekick contre %(target) ! Tapez /y pour voter (%(have)/%(need)).",
 };
 local voted_msg = {
 	en="%(voter) voted to kick %(target) (%(have)/%(need)).",
-	fr="%(voter) a vote pour exclure %(target) (%(have)/%(need)).",
 };
 local kicked_msg = {
 	en="%(target) was votekicked.",
-	fr="%(target) a ete exclu par vote.",
 };
 local failed_msg = {
 	en="The votekick against %(target) failed.",
-	fr="Le votekick contre %(target) a echoue.",
 };
 local already_voted_msg = {
-	en="You already voted.", fr="Vous avez deja vote.",
+	en="You already voted.",
 };
 local no_vote_msg = {
 	en="No votekick is in progress -- start one with /votekick <player>.",
-	fr="Aucun votekick en cours -- lancez-en un avec /votekick <joueur>.",
 };
 local not_enough_msg = {
 	en="Not enough players for a votekick.",
-	fr="Pas assez de joueurs pour un votekick.",
 };
 local self_msg = {
-	en="You can't votekick yourself.", fr="Vous ne pouvez pas vous auto-exclure.",
+	en="You can't votekick yourself.",
 };
 local protected_msg = {
-	en="%(target) can't be votekicked.", fr="%(target) ne peut pas etre exclu par vote.",
+	en="%(target) can't be votekicked.",
 };
 
 -- humans who can vote: joined, real (a peerless slot is a bot/console)

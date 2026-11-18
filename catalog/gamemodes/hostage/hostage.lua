@@ -92,78 +92,63 @@ local byteam = {}; -- team -> hostage pid
 local welcome_msg = {
 	en="This is HOSTAGE mode: free the hostage held at the enemy tent. "
 		.."Get close and it follows; walk it home to score.",
-	fr="Mode OTAGE : libere l'otage retenu au camp ennemi. Approche-toi "
-		.."et il te suit ; ramene-le chez toi pour marquer.",
 };
 local thanks_msg = {
 	en="Thanks for picking me up!",
-	fr="Merci de me sauver !",
 };
 local saved_msg = {
 	en="%(hero) brought the %(team) hostage home! +1 %(team)",
-	fr="%(hero) a ramene l'otage %(team) ! +1 %(team)",
 };
 local executed_msg = {
 	en="%(killer) executed the %(team) hostage! +1 %(team)",
-	fr="%(killer) a execute l'otage %(team) ! +1 %(team)",
 };
 -- told to the hostage's own team when a rescue begins
 local freeing_msg = {
 	en="%(escort) is freeing your hostage -- go support!",
-	fr="%(escort) libere votre otage -- allez l'aider !",
 };
 -- told to the captor team when a hostage slips loose in the field
 local missing_msg = {
 	en="A %(team) hostage is loose -- hunt it down and drag it back!",
-	fr="Un otage %(team) s'est echappe -- retrouvez-le et ramenez-le !",
 };
 -- told to everyone when a captor returns a loose hostage to its prison
 local recaptured_msg = {
 	en="The %(team) hostage was dragged back to captivity.",
-	fr="L'otage %(team) a ete ramene en captivite.",
 };
 -- held at the enemy tent, waiting to be sprung
 local captive_msgs = {
-	{en="Get me out of here!", fr="Sortez-moi de la !"},
-	{en="I'm a prisoner -- someone free me!",
-	 fr="Je suis prisonnier -- que quelqu'un me libere !"},
-	{en="Psst! Come spring me from their tent!",
-	 fr="Psst ! Venez me delivrer de leur camp !"},
+	{en="Get me out of here!"},
+	{en="I'm a prisoner -- someone free me!"},
+	{en="Psst! Come spring me from their tent!"},
 };
 -- stranded in the open, no idea which way is home
 local lost_msgs = {
-	{en="I'm lost! Somebody come get me!",
-	 fr="Je suis perdu ! Que quelqu'un vienne me chercher !"},
-	{en="Hello? Anyone? I'm stranded out here!",
-	 fr="Ohe ? Il y a quelqu'un ? Je suis coince ici !"},
-	{en="Help, I don't know the way home!",
-	 fr="A l'aide, je ne trouve pas le chemin du retour !"},
+	{en="I'm lost! Somebody come get me!"},
+	{en="Hello? Anyone? I'm stranded out here!"},
+	{en="Help, I don't know the way home!"},
 };
 -- the hostage's own reactions: a cheer at home, a cry when executed,
 -- and while-escorted chatter (nervous if a foe is near, else urging)
 local saved_cheer_msg = {
 	en="Home at last -- thank you!",
-	fr="Enfin rentre -- merci !",
 };
 local executed_cry_msg = {
 	en="Argh -- they got me!",
-	fr="Argh -- ils m'ont eu !",
 };
 local nervous_msgs = {
-	{en="They're right behind us!", fr="Ils sont juste derriere nous !"},
-	{en="Hurry, enemies close!", fr="Vite, des ennemis tout pres !"},
-	{en="Watch out -- keepers!", fr="Attention -- des gardiens !"},
+	{en="They're right behind us!"},
+	{en="Hurry, enemies close!"},
+	{en="Watch out -- keepers!"},
 };
 local urge_msgs = {
-	{en="This way, we're almost there!", fr="Par ici, on y est presque !"},
-	{en="Keep going, take me home!", fr="Continue, ramene-moi a la base !"},
-	{en="Don't leave me behind!", fr="Ne me laisse pas derriere !"},
+	{en="This way, we're almost there!"},
+	{en="Keep going, take me home!"},
+	{en="Don't leave me behind!"},
 };
 -- crying to its team while a captor drags it back to prison
 local surrender_msgs = {
-	{en="They've caught me -- help!", fr="Ils m'ont repris -- a l'aide !"},
-	{en="I'm being dragged back!", fr="On me ramene de force !"},
-	{en="No -- not back to the cage!", fr="Non -- pas encore la cage !"},
+	{en="They've caught me -- help!"},
+	{en="I'm being dragged back!"},
+	{en="No -- not back to the cage!"},
 };
 
 -- the hostage speaks, attributed to it (from = its pid), only to its

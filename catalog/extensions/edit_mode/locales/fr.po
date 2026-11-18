@@ -1,0 +1,41 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/extensions/edit_mode/lib_edit_mode.lua
+msgctxt "command"
+msgid "Switch a player's Edit Mode: no block limits, Block Batch."
+msgstr "Activer ou couper le mode Édition d'un joueur : blocs illimités, Block Batch."
+
+#: catalog/extensions/edit_mode/lib_edit_mode.lua
+msgid "Edit mode on for %(name)."
+msgstr "Mode Édition activé pour %(name)."
+
+#: catalog/extensions/edit_mode/lib_edit_mode.lua
+msgid "Edit mode off for %(name)."
+msgstr "Mode Édition désactivé pour %(name)."
+
+#: catalog/extensions/edit_mode/lib_edit_mode.lua
+msgid "Edit mode on."
+msgstr "Mode Édition activé."
+
+#: catalog/extensions/edit_mode/lib_edit_mode.lua
+msgid "Edit mode off."
+msgstr "Mode Édition désactivé."
+
+#: catalog/extensions/edit_mode/lib_edit_mode.lua
+msgid "%(name) is still connecting; edit mode goes on once their client has negotiated."
+msgstr "%(name) se connecte encore ; le mode Édition s'activera dès que son client aura négocié."
+
+#: catalog/extensions/edit_mode/lib_edit_mode.lua
+msgid "%(name)'s client does not support the Edit Mode extension."
+msgstr "Le client de %(name) ne gère pas l'extension Edit Mode."
+
+#: catalog/extensions/edit_mode/lib_edit_mode.lua
+msgid "Edit mode: %(why)."
+msgstr "Mode Édition : %(why)."

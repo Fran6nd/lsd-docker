@@ -1,0 +1,145 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "This is HOSTAGE mode: free the hostage held at the enemy tent. Get close and it follows; walk it home to score."
+msgstr "Mode OTAGE : libère l'otage retenu à la tente ennemie. Approche-toi et il te suit ; ramène-le chez toi pour marquer."
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "Thanks for picking me up!"
+msgstr "Merci de me sauver !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "%(hero) brought the %(team) hostage home! +1 %(team)"
+msgstr "%(hero) a ramené l'otage %(team) ! +1 %(team)"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "%(killer) executed the %(team) hostage! +1 %(team)"
+msgstr "%(killer) a exécuté l'otage %(team) ! +1 %(team)"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "%(escort) is freeing your hostage -- go support!"
+msgstr "%(escort) libère votre otage -- allez l'aider !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "A %(team) hostage is loose -- hunt it down and drag it back!"
+msgstr "Un otage %(team) s'est échappé -- retrouvez-le et ramenez-le !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "The %(team) hostage was dragged back to captivity."
+msgstr "L'otage %(team) a été ramené en captivité."
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "Get me out of here!"
+msgstr "Sortez-moi de là !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "I'm a prisoner -- someone free me!"
+msgstr "Je suis prisonnier -- que quelqu'un me libère !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "Psst! Come spring me from their tent!"
+msgstr "Psst ! Venez me délivrer de leur tente !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "I'm lost! Somebody come get me!"
+msgstr "Je suis perdu ! Que quelqu'un vienne me chercher !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "Hello? Anyone? I'm stranded out here!"
+msgstr "Ohé ? Il y a quelqu'un ? Je suis coincé ici !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "Help, I don't know the way home!"
+msgstr "À l'aide, je ne trouve pas le chemin du retour !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "Home at last -- thank you!"
+msgstr "Enfin rentré -- merci !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "Argh -- they got me!"
+msgstr "Argh -- ils m'ont eu !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "They're right behind us!"
+msgstr "Ils sont juste derrière nous !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "Hurry, enemies close!"
+msgstr "Vite, des ennemis tout près !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "Watch out -- keepers!"
+msgstr "Attention -- des gardiens !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "This way, we're almost there!"
+msgstr "Par ici, on y est presque !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "Keep going, take me home!"
+msgstr "Continue, ramène-moi à la base !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "Don't leave me behind!"
+msgstr "Ne me laisse pas derrière !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "They've caught me -- help!"
+msgstr "Ils m'ont repris -- à l'aide !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "I'm being dragged back!"
+msgstr "On me ramène de force !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "No -- not back to the cage!"
+msgstr "Non -- pas encore la cage !"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "%(team) hostage: not spawned (no tents?)"
+msgstr "Otage %(team) : pas apparu (pas de tentes ?)"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "%(team) hostage: down, respawning"
+msgstr "Otage %(team) : à terre, réapparition en cours"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "following %(name)"
+msgstr "suit %(name)"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "being recaptured by %(name)"
+msgstr "en train d'être repris par %(name)"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "waiting at a tent"
+msgstr "attend à une tente"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "stranded"
+msgstr "perdu"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "%(team) hostage: %(state) (%(dist) blocks from home)"
+msgstr "Otage %(team) : %(state) (à %(dist) blocs de la base)"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgctxt "command"
+msgid "Show hostage status, or 'reset' them (needs the hostage cap)."
+msgstr "Afficher l'état des otages, ou les réinitialiser avec 'reset' (droit hostage requis)."
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "You lack the 'hostage' cap."
+msgstr "Il te manque le droit 'hostage'."
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "Hostages reset."
+msgstr "Otages réinitialisés."
