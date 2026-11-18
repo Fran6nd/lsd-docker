@@ -2,7 +2,9 @@
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- A player effect changes what one player's own actions do: what a gun
--- does when it fires, what a hit does to whoever it lands on. Each one
+-- does when it fires, what a hit does to whoever it lands on -- or what
+-- happens around them when it is triggered: a heal for the teammates
+-- near them, a medkit. Each one
 -- is an instance of PlayerEffect, and the class does everything they
 -- have in common so that an effect's own file is only about its weapon:
 --
@@ -83,7 +85,8 @@ PlayerEffect.HIT_SPADE = 4;
 -- name -> the loaded effect of that name
 local loaded = {};
 
-local SPEC = {name = "string", gun = "number", warning = "table",
+local SPEC = {name = "string", gun = "number", trigger = "function",
+	every = "number", warning = "table",
 	tip = "table", on_shot = "function", load = "function",
 	unload = "function"};
 
@@ -114,8 +117,11 @@ function PlayerEffect.new(spec)
 				k, type(v), SPEC[k]), 3);
 		end
 	end
-	if (spec.name == nil or spec.gun == nil or spec.warning == nil) then
-		error("a PlayerEffect needs a name, a gun and a warning", 3);
+	if (spec.name == nil or spec.warning == nil) then
+		error("a PlayerEffect needs a name and a warning", 3);
+	end
+	if (spec.gun == nil and spec.trigger == nil) then
+		error("a PlayerEffect is about a gun, or has a trigger", 3);
 	end
 	for _, k in ipairs({"warning", "tip"}) do
 		if (spec[k] ~= nil and type(spec[k].en) ~= "string") then
@@ -124,6 +130,8 @@ function PlayerEffect.new(spec)
 	end
 
 	local fx = setmetatable(spec, PlayerEffect);
+	-- the spec's trigger is the effect's own; fx:trigger is the class's
+	fx.trigger_fn, fx.trigger = spec.trigger, nil;
 	local mod = init_mod();
 	fx.mod = mod;
 	-- pid -> {n = <live grants>, ends = <when the first runs out>,
@@ -131,6 +139,11 @@ function PlayerEffect.new(spec)
 	fx.grants = pid_connected_table();
 
 	getcfg(fx.name .. "_everyone", true);
+	-- an effect with a trigger fires by itself every this many seconds
+	-- for each live player who has it; 0 leaves it to a gamemode
+	if (fx.trigger_fn ~= nil) then
+		getcfg(fx.name .. "_every", fx.every or 0);
+	end
 	fx.everyone = _G[fx.name .. "_everyone"] ~= false;
 
 	function mod.on_load() fx:_load(); end
@@ -250,7 +263,7 @@ end
 
 -- Has the effect, alive, gun in hand, and it is this effect's gun.
 function PlayerEffect:holding(pid)
-	return is_alive(pid) and get_tool(pid) == PlayerEffect.TOOL_GUN
+	return self.gun ~= nil and is_alive(pid) and get_tool(pid) == PlayerEffect.TOOL_GUN
 		and get_gun(pid) == self.gun and self:has(pid);
 end
 
@@ -341,7 +354,63 @@ _G.PlayerEffect = PlayerEffect;
 -- Death and a new map end the grants given until them, for every
 -- loaded effect at once. Leaving needs nothing: the grants are a
 -- pid_connected_table.
+--============================= TRIGGERS =============================--
+--
+-- An effect with a trigger does something when it is set off, around or
+-- for the player it is set off for: heal the teammates near them, hurt
+-- the enemies near them, use a medkit. Who sets it off is a gamemode's
+-- business:
+--
+--   PlayerEffect.get("area_heal"):trigger(pid, {radius = 10, amount = 30})
+--
+-- opts are the effect's own (each says which it takes); what is left out
+-- comes from its settings. A trigger does nothing for a dead player, and
+-- answers what it did (the effect says: how many were healed, ...).
+--
+-- On its own -- installed, forced on, no gamemode driving it -- an effect
+-- fires by itself: every <name>_every seconds, for each live player who
+-- has it (everybody, while <name>_everyone). The dumb version, and the
+-- one setting an operator needs; a gamemode that triggers it itself
+-- sets <name>_every = 0.
+function PlayerEffect:trigger(pid, opts)
+	if (self.trigger_fn == nil or not is_alive(pid)) then
+		return nil;
+	end
+	return self.trigger_fn(pid, opts or {});
+end
+
+-- The 3D distance between two players, for effects with a radius.
+function PlayerEffect.distance(a, b)
+	local p, q = get_position(a), get_position(b);
+	local dx, dy, dz = p.x - q.x, p.y - q.y, p.z - q.z;
+	return math.sqrt(dx*dx + dy*dy + dz*dz);
+end
+
 local mod = init_mod();
+
+-- The timer behind <name>_every, for every loaded effect with a trigger:
+-- here rather than in each effect, so an effect's own tick hook is its
+-- own. Each effect keeps its own clock.
+local next_at = {};
+
+function mod.after.tick()
+	local now = get_time();
+	for name, fx in pairs(loaded) do
+		local every = fx.trigger_fn and tonumber(_G[name .. "_every"]) or 0;
+		if (every > 0) then
+			if (next_at[name] == nil or next_at[name] > now + every) then
+				next_at[name] = now + every;
+			elseif (now >= next_at[name]) then
+				next_at[name] = now + every;
+				for pid in piditer(PID_BROADCAST) do
+					if (is_alive(pid) and fx:has(pid)) then
+						fx:trigger(pid);
+					end
+				end
+			end
+		end
+	end
+end
 
 local function drop_everywhere(pid, field)
 	local gone = function(x) return x[field]; end;
