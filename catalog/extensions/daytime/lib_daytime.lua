@@ -73,13 +73,12 @@ local PKT = 64 + EXT_ID;
 local SUB_SKY = 0;
 
 -- The two values of Time. 0 is night and "anything else" is day, so the
--- day value is a choice; 1 is the smallest thing that is not 0, which
--- keeps the packet honest about carrying no hour. A later version reads
--- this field as minutes since midnight, where 1 is 00:01 -- near enough
--- to the midnight 0 used to mean that an old server talking to a new
--- client would be wrong by a minute rather than by half a day.
+-- day value is a choice -- and it is noon, 720 minutes after midnight.
+-- A client that already reads this field as minutes since midnight, as
+-- the later version will (ZeroSpades 0.0.9 does), took the 1 sent here
+-- before as 00:01 and drew the night by day; noon is day either way.
 local TIME_NIGHT = 0;
-local TIME_DAY = 1;
+local TIME_DAY = 720;
 
 -- Reserved, and Weather, both of which must be zero in version 1.
 -- Spelled out rather than left as a run of "\0" because version 2 is

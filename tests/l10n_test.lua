@@ -186,6 +186,8 @@ sent = {};
 l10n_send_chat(PID_BROADCAST, {en = "%(name) was kicked"}, {name = "Al"});
 eq(sent[1][2], "Al a été expulsé", "upstream's l10n_send_chat is translated");
 eq(l10n_get_str_pid(0, {en = "Bye"}), "Au revoir", "and l10n_get_str_pid");
+eq(l10n_str(0, {en = "Bye"}), "Au revoir", "l10n_str takes a script's {en = ...} too");
+eq(l10n_str(0, "plain"), "plain", "and a plain string as it is");
 logged = {};
 l10n_log({en = "Bye"});
 eq(logged[1], "Bye", "logs stay in the log language");

@@ -67,12 +67,30 @@ local dying = {};   -- {x, y, z, at}: trail blocks waiting to come down
 
 local function anon() return get_anon_pid(); end
 
+-- The trail blocks up right now, by "x,y,z". No two share a face: a
+-- client lets go of blocks that hang from nothing when one next to them
+-- is broken, so a streak of touching blocks would not vanish block by
+-- block but drop from the sky in a piece. Blocks meeting at an edge or
+-- a corner do not hold each other up, so the streak still reads as one.
+local lit = {};
+
+local function key(x, y, z) return x .. "," .. y .. "," .. z; end
+
+local function touches_lit(p)
+	local x, y, z = p.x, p.y, p.z;
+	return lit[key(x+1, y, z)] or lit[key(x-1, y, z)] or lit[key(x, y+1, z)]
+		or lit[key(x, y-1, z)] or lit[key(x, y, z+1)] or lit[key(x, y, z-1)]
+		or lit[key(x, y, z)];
+end
+
 local function show(p, color)
+	lit[key(p.x, p.y, p.z)] = true;
 	send_set_block_color(PID_BROADCAST, color, anon());
 	send_block_action(PID_BROADCAST, p, 0, anon());
 end
 
 local function hide(p)
+	lit[key(p.x, p.y, p.z)] = nil;
 	-- only while the server still says air: otherwise the cell is a
 	-- player's now, and not ours to send away
 	if (not is_solid(p)) then
@@ -102,9 +120,13 @@ local function crater(pos, radius)
 			for dz = -r, r, 2 do
 				local x, y, z = math.floor(pos.x) + dx, math.floor(pos.y) + dy,
 					math.floor(pos.z) + dz;
+				-- a centre deeper than FLOOR moves up to it, so an
+				-- impact on the ground (z 61 or so on most maps)
+				-- digs into it rather than leaving it untouched
+				z = math.min(z, FLOOR);
 				if (dx*dx + dy*dy + dz*dz <= radius*radius
 				    and x >= 0 and x <= MAP and y >= 0 and y <= MAP
-				    and z >= 0 and z <= FLOOR) then
+				    and z >= 0) then
 					bdestroy_block_action({x = x, y = y, z = z}, 3);
 				end
 			end
@@ -241,7 +263,7 @@ local function advance(b)
 	end
 
 	-- drawn into air only, and not on the shooter's own nose
-	if (b.steps > b.skip and v.z >= 0) then
+	if (b.steps > b.skip and v.z >= 0 and not touches_lit(cell)) then
 		cell.at = tick_no;
 		show(cell, COLORS[b.steps % #COLORS + 1]);
 		b.shown[#b.shown+1] = cell;
@@ -254,7 +276,7 @@ function mod.impl.blast_clear()
 		for _, s in ipairs(b.shown) do hide(s); end
 	end
 	for _, s in ipairs(dying) do hide(s); end
-	flying, dying = {}, {};
+	flying, dying, lit = {}, {}, {};
 end
 
 function mod.after.tick()
@@ -289,7 +311,7 @@ end
 
 -- the clients reload the map, trail and all
 function mod.after.load_map()
-	flying, dying = {}, {};
+	flying, dying, lit = {}, {}, {};
 end
 
 function mod.on_unload()

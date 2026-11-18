@@ -293,8 +293,13 @@ function l10n_text(v, interptab)
 	return tostring(v);
 end
 
--- The text of `msg` for one player. A plain string is returned as is.
+-- The text of `msg` for one player: a message, or a language map as
+-- scripts write them ({en = "..."}), which would otherwise come out as
+-- "table: 0x...". A plain string is returned as is.
 function l10n_str(pid, msg)
+	if (type(msg) == "table" and not l10n_is_msg(msg) and l10n_is_map(msg)) then
+		msg = l10n_msg(msg);
+	end
 	if (not l10n_is_msg(msg)) then
 		return msg;
 	end

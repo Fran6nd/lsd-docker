@@ -29,10 +29,10 @@ function get_time() return NOW; end
 function get_anon_pid() return 254; end
 
 -- the map: ground from z 50 down, and whatever the test adds
-local solid, WALL_X = {}, nil;
+local solid, WALL_X, GROUND = {}, nil, 50;
 local function key(p) return math.floor(p.x) .. "," .. math.floor(p.y) .. "," .. math.floor(p.z); end
 function is_solid(p)
-	return solid[key(p)] == true or p.z >= 50 or (WALL_X ~= nil and p.x >= WALL_X);
+	return solid[key(p)] == true or p.z >= GROUND or (WALL_X ~= nil and p.x >= WALL_X);
 end
 function raycast(a, b, last)
 	for i = 0, 400 do
@@ -96,7 +96,7 @@ for k, v in pairs(blast.impl) do _G[k] = v; end
 local function ticks(n) for _ = 1, n do blast.after.tick(); end end
 local function reset()
 	placed, removed, dmg, chat, pings, craters = {}, {}, {}, {}, {}, 0;
-	on_screen, solid, WALL_X = {}, {}, nil;
+	on_screen, solid, WALL_X, GROUND = {}, {}, nil, 50;
 	POS = {[0] = {x = 50.5, y = 50.5, z = 30.5}, [1] = {x = 300, y = 300, z = 30},
 		[2] = {x = 300, y = 310, z = 30}, [3] = {x = 300, y = 320, z = 30}};
 	blast_clear();
@@ -133,6 +133,39 @@ local fine = true;
 local was = {}; for _, p in ipairs(placed) do was[key(p)] = true; end
 for _, r in ipairs(removed) do if (not was[key(r)]) then fine = false; end end
 check(fine, "only blocks the rocket placed were removed");
+
+print("\n1b. no two trail blocks on screen share a face, whatever the path");
+local function faces_shared()
+	for k in pairs(on_screen) do
+		local x, y, z = k:match("(-?%d+),(-?%d+),(-?%d+)");
+		x, y, z = tonumber(x), tonumber(y), tonumber(z);
+		for _, d in ipairs({{1,0,0},{0,1,0},{0,0,1}}) do
+			if (on_screen[(x+d[1]) .. "," .. (y+d[2]) .. "," .. (z+d[3])]) then return k; end
+		end
+	end
+end
+for _, dir in ipairs({{x = 1, y = 0, z = 0}, {x = 0.6, y = 0.5, z = 0.2}, {x = 0, y = 0, z = 1}}) do
+	reset();
+	WALL_X = 400;
+	blast_fire(0, {x = 100.5, y = 50.5, z = 5.5}, dir, {speed = 2});
+	local bad;
+	for _ = 1, 25 do ticks(1); bad = bad or faces_shared(); end
+	check(bad == nil and #placed > 0, string.format("path %.1f,%.1f,%.1f: never two blocks face to face",
+		dir.x, dir.y, dir.z), bad);
+end
+reset();
+WALL_X = 400;
+blast_fire(0, {x = 100.5, y = 50.5, z = 30.5}, {x = 1, y = 0, z = 0}, {speed = 2});
+ticks(6);
+local n = 0; for _ in pairs(on_screen) do n = n + 1; end
+check(n >= 2, "a straight rocket still shows a streak, every other block", n);
+
+print("\n1c. an impact on the ground (z 62) still digs a crater");
+reset();
+GROUND = 62;
+blast_fire(0, {x = 100.5, y = 50.5, z = 55.5}, {x = 0, y = 0, z = 1}, {speed = 2});
+ticks(10);
+check(craters > 0, "craters dug at ground level", craters);
 
 print("\n2. it stops at a block in the way, and never draws on it");
 reset();
