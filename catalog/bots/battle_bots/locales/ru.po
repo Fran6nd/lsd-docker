@@ -7,21 +7,15 @@ msgstr ""
 "Language: ru\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/battle_bots/advanced_battle_bot.lua
-#, fuzzy
 msgctxt "command"
 msgid "List advanced battle bots."
-msgstr "Список продвинутых боевых ботов."
+msgstr "Показать продвинутых боевых ботов."
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/battle_bots/advanced_battle_bot.lua
-#, fuzzy
 msgid "%(name): %(hp) HP, skill %(skill) (%(state))"
-msgstr "%(name): %(hp) HP, мастерство %(skill) (%(state))"
+msgstr "%(name): %(hp) HP, навык %(skill) (%(state))"
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/battle_bots/advanced_battle_bot.lua
-#, fuzzy
 msgid "No advanced battle bots active."
-msgstr "Никаких продвинутых боевых ботов."
+msgstr "Продвинутых боевых ботов нет."

@@ -7,21 +7,15 @@ msgstr ""
 "Language: zh\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/guards/bot_standard.lua
-#, fuzzy
 msgctxt "command"
 msgid "List guard bots, their HP and state."
-msgstr "列出守卫,他们的HP和状态."
+msgstr "列出守卫机器人及其 HP 和状态。"
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/guards/bot_standard.lua
-#, fuzzy
 msgid "%(name): %(hp) HP (%(state))"
-msgstr "%(name): %(hp) HP(%(state)) (英语)"
+msgstr "%(name)：%(hp) HP（%(state)）"
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/guards/bot_standard.lua
-#, fuzzy
 msgid "No guard bots active."
-msgstr "没有卫兵的动作."
+msgstr "当前没有守卫机器人。"

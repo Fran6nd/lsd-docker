@@ -7,14 +7,10 @@ msgstr ""
 "Language: ru\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/grenade_shotgun/shotgun_are_grenade_launchers.lua
-#, fuzzy
 msgid "warning: here shotguns are grenade launchers."
-msgstr "предупреждение: здесь дробовики - гранатометы."
+msgstr "внимание: здесь дробовики стреляют гранатами."
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/grenade_shotgun/shotgun_are_grenade_launchers.lua
-#, fuzzy
 msgid "Spicy: every shotgun blast drops a grenade pellet -- mind the splash."
-msgstr "Острый: каждый выстрел из дробовика бросает гранату - не обращайте внимания на брызги."
+msgstr "Остренько: каждый выстрел из дробовика роняет гранату -- берегись взрыва."

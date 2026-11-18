@@ -7,14 +7,10 @@ msgstr ""
 "Language: zh\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/railgun/rifle_is_a_rail_gun.lua
-#, fuzzy
 msgid "warning: here rifles are railguns."
-msgstr "警告:这里有步枪."
+msgstr "警告：本服务器的步枪是轨道炮。"
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/railgun/rifle_is_a_rail_gun.lua
-#, fuzzy
 msgid "Spicy: rifles are railguns -- they pierce the whole map and leave a tracer."
-msgstr "辣:步枪是铁道枪——它们穿透了整个地图并留下了追踪器."
+msgstr "辣味：步枪是轨道炮——能贯穿整张地图并留下弹道轨迹。"

@@ -7,14 +7,10 @@ msgstr ""
 "Language: ru\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/railgun/rifle_is_a_rail_gun.lua
-#, fuzzy
 msgid "warning: here rifles are railguns."
-msgstr "предупреждение: здесь винтовки - рельсотроны."
+msgstr "внимание: здесь винтовки -- рельсотроны."
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/railgun/rifle_is_a_rail_gun.lua
-#, fuzzy
 msgid "Spicy: rifles are railguns -- they pierce the whole map and leave a tracer."
-msgstr "Винтовки - это рельсотроны - они пронзают всю карту и оставляют след."
+msgstr "Остренько: винтовки -- рельсотроны: они прошивают всю карту и оставляют след."

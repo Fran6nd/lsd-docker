@@ -7,14 +7,10 @@ msgstr ""
 "Language: ru\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/pinning_smg/smg_is_incapacitating.lua
-#, fuzzy
 msgid "warning: here the smg pins what it hits and never reloads."
-msgstr "предупреждение: здесь ПП пинает то, что попадает, и никогда не перезагружается."
+msgstr "внимание: здесь ПП пригвождает тех, в кого попадает, и не перезаряжается."
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/pinning_smg/smg_is_incapacitating.lua
-#, fuzzy
 msgid "Spicy: the SMG pins whoever it hits where they stand, and never reloads."
-msgstr "Spicy: ПП пинает любого, кто попадает туда, где он стоит, и никогда не перезагружается."
+msgstr "Остренько: ПП пригвождает к месту любого, в кого попадёт, и никогда не перезаряжается."

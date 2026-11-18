@@ -7,32 +7,22 @@ msgstr ""
 "Language: ru\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Banned"
-msgstr "Запрещенный"
+msgstr "Забанен"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Kicked"
-msgstr "Избитый"
+msgstr "Кикнут"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Wrong version"
-msgstr "Неправильная версия"
+msgstr "Неверная версия"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Server full"
-msgstr "Сервер полный"
+msgstr "Сервер заполнен"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Server shutdown"
-msgstr "Выключение сервера"
+msgstr "Сервер выключен"

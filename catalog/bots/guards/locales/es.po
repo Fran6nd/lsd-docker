@@ -7,21 +7,15 @@ msgstr ""
 "Language: es\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/guards/bot_standard.lua
-#, fuzzy
 msgctxt "command"
 msgid "List guard bots, their HP and state."
-msgstr "Bots de guardia, su HP y estado."
+msgstr "Listar los bots guardianes, su HP y su estado."
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/guards/bot_standard.lua
-#, fuzzy
 msgid "%(name): %(hp) HP (%(state))"
 msgstr "%(name): %(hp) HP (%(state))"
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/guards/bot_standard.lua
-#, fuzzy
 msgid "No guard bots active."
-msgstr "No hay bots de guardia activa."
+msgstr "No hay bots guardianes activos."

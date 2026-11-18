@@ -7,205 +7,139 @@ msgstr ""
 "Language: ru\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "This is HOSTAGE mode: free the hostage held at the enemy tent. Get close and it follows; walk it home to score."
-msgstr "Это режим HOSTAGE: освободить заложника, удерживаемого у противника палатка. Подойдите ближе, и он следует; пройдите его домой, чтобы забить."
+msgstr "Это режим HOSTAGE: освободи заложника из вражеской палатки. Подойди ближе -- он пойдёт за тобой; доведи его домой, чтобы заработать очко."
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Thanks for picking me up!"
 msgstr "Спасибо, что забрал меня!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "%(hero) brought the %(team) hostage home! +1 %(team)"
-msgstr "%(hero) привез домой заложника %(team)! +1 %(team)"
+msgstr "%(hero) привёл заложника команды %(team) домой! +1 %(team)"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "%(killer) executed the %(team) hostage! +1 %(team)"
-msgstr "%(killer) казнил заложника %(team)! +1 %(team)"
+msgstr "%(killer) казнил заложника команды %(team)! +1 %(team)"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "%(escort) is freeing your hostage -- go support!"
-msgstr "%(escort) освобождает заложников - иди поддержи!"
+msgstr "%(escort) освобождает твоего заложника -- иди на помощь!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "A %(team) hostage is loose -- hunt it down and drag it back!"
-msgstr "Заложник %(team) свободен - выследите его и оттащите назад!"
+msgstr "Заложник команды %(team) на свободе -- найди его и притащи обратно!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "The %(team) hostage was dragged back to captivity."
-msgstr "Заложник %(team) был возвращен в плен."
+msgstr "Заложника команды %(team) вернули в плен."
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Get me out of here!"
-msgstr "Вытащи меня отсюда!"
+msgstr "Вытащите меня отсюда!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "I'm a prisoner -- someone free me!"
-msgstr "Я заключенный, кто-то освободит меня!"
+msgstr "Я в плену -- освободите меня!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Psst! Come spring me from their tent!"
-msgstr "Псс! Приезжайте ко мне из палатка!"
+msgstr "Псст! Вытащи меня из их палатки!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "I'm lost! Somebody come get me!"
-msgstr "Я заблудился! Кто-нибудь, возьмите меня!"
+msgstr "Я потерялся! Кто-нибудь, заберите меня!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Hello? Anyone? I'm stranded out here!"
-msgstr "Алло? Кто-нибудь? Я застрял здесь!"
+msgstr "Эй? Есть кто? Я тут застрял!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Help, I don't know the way home!"
 msgstr "Помогите, я не знаю дорогу домой!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Home at last -- thank you!"
-msgstr "Наконец-то домой - спасибо!"
+msgstr "Наконец-то дома -- спасибо!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Argh -- they got me!"
-msgstr "Арг - они поймали меня!"
+msgstr "Ааа -- меня схватили!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "They're right behind us!"
 msgstr "Они прямо за нами!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Hurry, enemies close!"
-msgstr "Быстрее, враги близко!"
+msgstr "Скорее, враги рядом!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Watch out -- keepers!"
-msgstr "Осторожно, хранители!"
+msgstr "Осторожно -- охрана!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "This way, we're almost there!"
-msgstr "Вот так, мы почти на месте!"
+msgstr "Сюда, мы почти пришли!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Keep going, take me home!"
-msgstr "Продолжай, отвези меня домой!"
+msgstr "Не останавливайся, веди меня домой!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Don't leave me behind!"
-msgstr "Не оставляй меня!"
+msgstr "Не бросай меня!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "They've caught me -- help!"
-msgstr "Они поймали меня - помогите!"
+msgstr "Меня поймали -- помогите!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "I'm being dragged back!"
-msgstr "Меня тянет назад!"
+msgstr "Меня тащат обратно!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "No -- not back to the cage!"
-msgstr "Нет, не в клетку!"
+msgstr "Нет -- только не обратно в клетку!"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "%(team) hostage: not spawned (no tents?)"
-msgstr "Заложник %(team): не нерест (нет палаток?)"
+msgstr "Заложник команды %(team): не появился (нет палаток?)"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "%(team) hostage: down, respawning"
-msgstr "Заложник %(team): вниз, расселение"
+msgstr "Заложник команды %(team): убит, возрождается"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "following %(name)"
-msgstr "следы %(name)"
+msgstr "идёт за %(name)"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "being recaptured by %(name)"
-msgstr "пойманный %(name)"
+msgstr "его отбивает %(name)"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "waiting at a tent"
-msgstr "в ожидании палатка"
+msgstr "ждёт у палатки"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "stranded"
-msgstr "застрял"
+msgstr "потерялся"
 
 #: catalog/gamemodes/hostage/hostage.lua
 msgid "%(team) hostage: %(state) (%(dist) blocks from home)"
-msgstr ""
+msgstr "Заложник команды %(team): %(state) (%(dist) блоков до дома)"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgctxt "command"
 msgid "Show hostage status, or 'reset' them (needs the hostage cap)."
-msgstr "Покажите статус заложника или «перезагрузите» его (нужна кепка заложника)."
+msgstr "Показать состояние заложников или сбросить их ('reset'; нужно право hostage)."
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "You lack the 'hostage' cap."
-msgstr "Вам не хватает кепки \"заложник\"."
+msgstr "У тебя нет права 'hostage'."
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Hostages reset."
-msgstr "Сброс заложников."
+msgstr "Заложники сброшены."

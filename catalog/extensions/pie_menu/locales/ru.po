@@ -7,134 +7,90 @@ msgstr ""
 "Language: ru\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Mark"
-msgstr "Марк"
+msgstr "Отметить"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Quick chat"
 msgstr "Быстрый чат"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Follow me"
-msgstr "Иди за мной"
+msgstr "За мной"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "On my way"
-msgstr "По дороге"
+msgstr "Иду"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Backup"
-msgstr "Резервное копирование"
+msgstr "Подмога"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Thanks"
 msgstr "Спасибо"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Sorry"
-msgstr "Извините"
+msgstr "Извини"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Good game"
 msgstr "Хорошая игра"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "To everyone"
-msgstr "Для всех"
+msgstr "Всем"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Player"
 msgstr "Игрок"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Ratio"
-msgstr "Соотношение"
+msgstr "Рейтинг"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Their kills per death"
-msgstr "Их убийства на смерть"
+msgstr "Его убийства на смерть"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Latency"
 msgstr "Задержка"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Ignore"
 msgstr "Игнорировать"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Hide their chat, or show it again"
-msgstr "Спрячь свой чат или покажи его снова"
+msgstr "Скрыть его чат или снова показать"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Client"
 msgstr "Клиент"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "The game client they play with"
-msgstr "Игровой клиент, с которым играют"
+msgstr "Игровой клиент этого игрока"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Watching"
-msgstr "Смотреть"
+msgstr "Наблюдение"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Their ratio"
-msgstr "Их соотношение"
+msgstr "Его рейтинг"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Nice shot"
 msgstr "Отличный выстрел"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Who's on"
-msgstr "Кто там"
+msgstr "Кто в игре"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "My ratio"
-msgstr "Мой коэффициент"
+msgstr "Мой рейтинг"

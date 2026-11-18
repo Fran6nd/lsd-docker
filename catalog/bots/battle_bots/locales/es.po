@@ -7,21 +7,15 @@ msgstr ""
 "Language: es\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/battle_bots/advanced_battle_bot.lua
-#, fuzzy
 msgctxt "command"
 msgid "List advanced battle bots."
-msgstr "Lista de bots de batalla avanzados."
+msgstr "Listar los bots de batalla avanzados."
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/battle_bots/advanced_battle_bot.lua
-#, fuzzy
 msgid "%(name): %(hp) HP, skill %(skill) (%(state))"
 msgstr "%(name): %(hp) HP, habilidad %(skill) (%(state))"
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/battle_bots/advanced_battle_bot.lua
-#, fuzzy
 msgid "No advanced battle bots active."
-msgstr "No hay bots de batalla avanzado activo."
+msgstr "No hay bots de batalla avanzados activos."

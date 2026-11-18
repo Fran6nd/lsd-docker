@@ -7,32 +7,22 @@ msgstr ""
 "Language: es\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/libs/ext_policy/lib_ext_policy.lua
-#, fuzzy
 msgid "Your client is outdated, please update"
-msgstr "Su cliente está obsoleto, por favor, actualice"
+msgstr "Tu cliente está desactualizado, actualízalo"
 
-# machine-translated (LibreTranslate)
 #: catalog/libs/ext_policy/lib_ext_policy.lua
-#, fuzzy
 msgid "Your client never answered the extension handshake, so it cannot leave spectator. Update it, or use ZeroSpades."
-msgstr "Su cliente nunca respondió al apretón de manos de extensión, por lo que no puede dejar espectador. Actualizarlo, o utilizar ZeroSpades."
+msgstr "Tu cliente nunca respondió al protocolo de extensiones, así que no puede salir de espectador. Actualízalo o usa ZeroSpades."
 
-# machine-translated (LibreTranslate)
 #: catalog/libs/ext_policy/lib_ext_policy.lua
-#, fuzzy
 msgid "Missing: %(list). You cannot leave spectator without it -- update your client, then reconnect."
-msgstr "Desaparecido: %(list). No puedes dejar al espectador sin él... actualizar a tu cliente, luego volver a conectarte."
+msgstr "Falta: %(list). No puedes salir de espectador sin ella -- actualiza tu cliente y vuelve a conectarte."
 
-# machine-translated (LibreTranslate)
 #: catalog/libs/ext_policy/lib_ext_policy.lua
-#, fuzzy
 msgid "Missing: %(list). You cannot leave spectator without them -- update your client, then reconnect."
-msgstr "Desaparecido: %(list). No puedes dejar al espectador sin ellos... actualizar a tu cliente, luego volver a conectarte."
+msgstr "Faltan: %(list). No puedes salir de espectador sin ellas -- actualiza tu cliente y vuelve a conectarte."
 
-# machine-translated (LibreTranslate)
 #: catalog/libs/ext_policy/lib_ext_policy.lua
-#, fuzzy
 msgid "Missing: %(list). You can play, but you will not see everything other players do."
-msgstr "Desaparecido: %(list). Puedes jugar, pero no verás todo lo que hacen otros jugadores."
+msgstr "Faltan: %(list). Puedes jugar, pero no verás todo lo que hacen los demás jugadores."

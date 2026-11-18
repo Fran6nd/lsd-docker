@@ -7,51 +7,35 @@ msgstr ""
 "Language: zh\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgctxt "command"
 msgid "Switch a player's Edit Mode: no block limits, Block Batch."
-msgstr "切换玩家的编辑模式:没有块限制,块批."
+msgstr "切换玩家的编辑模式：无方块限制，批量方块。"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode on for %(name)."
-msgstr "为 %(name) 编辑模式 ."
+msgstr "已为 %(name) 开启编辑模式。"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode off for %(name)."
-msgstr "编辑 %(name) 模式关闭 ."
+msgstr "已为 %(name) 关闭编辑模式。"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode on."
-msgstr "编辑模式开始 ."
+msgstr "编辑模式已开启。"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode off."
-msgstr "编辑模式关闭 ."
+msgstr "编辑模式已关闭。"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "%(name) is still connecting; edit mode goes on once their client has negotiated."
-msgstr "%(name)仍在连接中;一旦他们的客户端谈判完毕,编辑模式即继续进行."
+msgstr "%(name) 仍在连接中；其客户端完成协商后将开启编辑模式。"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "%(name)'s client does not support the Edit Mode extension."
-msgstr "%(name)的客户端不支持编辑模式扩展."
+msgstr "%(name) 的客户端不支持编辑模式扩展。"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode: %(why)."
-msgstr "编辑模式:%(why)."
+msgstr "编辑模式：%(why)。"

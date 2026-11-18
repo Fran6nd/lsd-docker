@@ -7,51 +7,35 @@ msgstr ""
 "Language: es\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgctxt "command"
 msgid "Switch a player's Edit Mode: no block limits, Block Batch."
-msgstr "Cambiar el modo Editar de un jugador: sin límites de bloque, Block Batch."
+msgstr "Activar o desactivar el Modo Edición de un jugador: sin límite de bloques, Block Batch."
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode on for %(name)."
-msgstr "Modo de edición en %(name)."
+msgstr "Modo edición activado para %(name)."
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode off for %(name)."
-msgstr "Modo de edición para %(name)."
+msgstr "Modo edición desactivado para %(name)."
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode on."
-msgstr "Modifica el modo."
+msgstr "Modo edición activado."
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode off."
-msgstr "Modifica el modo."
+msgstr "Modo edición desactivado."
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "%(name) is still connecting; edit mode goes on once their client has negotiated."
-msgstr "%(name) sigue conectándose; el modo de edición continúa una vez que su cliente ha negociado."
+msgstr "%(name) aún se está conectando; el modo edición se activará cuando su cliente termine la negociación."
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "%(name)'s client does not support the Edit Mode extension."
-msgstr "El cliente de %(name) no admite la extensión Mod Mode."
+msgstr "El cliente de %(name) no admite la extensión Modo Edición."
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode: %(why)."
-msgstr "Modo de edición: %(why)."
+msgstr "Modo edición: %(why)."

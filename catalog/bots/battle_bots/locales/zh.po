@@ -7,21 +7,15 @@ msgstr ""
 "Language: zh\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/battle_bots/advanced_battle_bot.lua
-#, fuzzy
 msgctxt "command"
 msgid "List advanced battle bots."
-msgstr "列出高级战车."
+msgstr "列出高级战斗机器人。"
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/battle_bots/advanced_battle_bot.lua
-#, fuzzy
 msgid "%(name): %(hp) HP, skill %(skill) (%(state))"
-msgstr "%(name): %(hp) HP,技能 %(skill)(%(state))"
+msgstr "%(name)：%(hp) HP，技能 %(skill)（%(state)）"
 
-# machine-translated (LibreTranslate)
 #: catalog/bots/battle_bots/advanced_battle_bot.lua
-#, fuzzy
 msgid "No advanced battle bots active."
-msgstr "没有高级的战斗机器人活动."
+msgstr "当前没有高级战斗机器人。"

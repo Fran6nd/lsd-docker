@@ -9,1860 +9,1296 @@ msgstr ""
 
 #: catalog/core/lib_update_notice.lua
 msgid "lsd-docker %(latest) is available; this server runs %(running). Update from the host: lsd update"
-msgstr ""
+msgstr "Доступен lsd-docker %(latest); на сервере работает %(running). Обнови на хосте: lsd update"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
-#, fuzzy
 msgid "Command not found."
-msgstr "Командование не найдено."
+msgstr "Команда не найдена."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
-#, fuzzy
 msgid "Were you looking for /commands?"
-msgstr "Вы искали /commands?"
+msgstr "Может, ты искал /commands?"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print an alphabetically ordered list of all commands."
-msgstr "Распечатайте алфавитно упорядоченный список всех команд."
+msgstr "Вывести список всех команд по алфавиту."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
-#, fuzzy
 msgctxt "command"
 msgid "Filter through the list of commands. Does not parse arguments."
-msgstr "Фильтруйте список команд. Не анализирует аргументы."
+msgstr "Отфильтровать список команд. Аргументы не разбираются."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
-#, fuzzy
 msgctxt "command"
 msgid "Display the invocation and description of a command."
-msgstr "Отображение вызова и описание команды."
+msgstr "Показать синтаксис и описание команды."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "usage: %(cmd)"
 msgstr "использование: %(cmd)"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "usage: %(cmd) %(args)"
 msgstr "использование: %(cmd) %(args)"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "Your language: %(lang). Available: %(list). Use /lang <code>, or /lang auto for your client's."
-msgstr "Язык: %(lang). Доступно: %(list). Используйте /lang <code> или /lang для вашего клиента."
+msgstr "Твой язык: %(lang). Доступны: %(list). Введи /lang <код> или /lang auto для языка клиента."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "Language set to %(lang)."
-msgstr "Язык установлен на %(lang)."
+msgstr "Язык изменён: %(lang)."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "Language follows your client again: %(lang)."
-msgstr "Язык снова следует за клиентом: %(lang)."
+msgstr "Язык снова как в клиенте: %(lang)."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "No translations for %(lang) here; some messages stay in English."
-msgstr "Здесь нет переводов для %(lang); некоторые сообщения остаются на английском языке."
+msgstr "Переводов на %(lang) здесь нет; часть сообщений останется на английском."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "%(lang) is not a language code (en, fr, pt_br, ...)."
-msgstr "%(lang) не является кодом языка (en, fr, pt br, ...)."
+msgstr "%(lang) -- не код языка (en, fr, pt_br, ...)."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "Translations need %(clients); this server speaks %(lang) to your client."
-msgstr "Для перевода нужен %(clients); этот сервер передает %(lang) вашему клиенту."
+msgstr "Для переводов нужен %(clients); этот сервер говорит с твоим клиентом на %(lang)."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgctxt "command"
 msgid "Show or choose the language the server speaks to you."
-msgstr "Выберите язык, на котором сервер говорит с вами."
+msgstr "Показать или выбрать язык, на котором сервер с тобой говорит."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "Language"
-msgstr "Язык языка"
+msgstr "Язык"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "Show or change the language you read"
-msgstr "Показать или изменить язык, который вы читаете"
+msgstr "Показать или сменить язык сообщений"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Beginning selection."
-msgstr "Начинаем отбор."
+msgstr "Начало выделения."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Beginning selection start."
-msgstr "Начинается отбор."
+msgstr "Начало выделения: старт."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Beginning selection end."
-msgstr "Начало отбора заканчивается."
+msgstr "Начало выделения: конец."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Selection started at {x=%(x), y=%(y), z=%(z)}."
-msgstr "Выбор начался с {x=%(x), y=%(y), z=%(z)}."
+msgstr "Выделение начато в {x=%(x), y=%(y), z=%(z)}."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Selection ended at {x=%(x), y=%(y), z=%(z)}."
-msgstr "Выбор закончился на {x=%(x), y=%(y), z=%(z)}."
+msgstr "Выделение закончено в {x=%(x), y=%(y), z=%(z)}."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Begin a selection first."
-msgstr "Сначала начинайте отбор."
+msgstr "Сначала начни выделение."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Start the selection first."
-msgstr "Сначала начните отбор."
+msgstr "Сначала задай начало выделения."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "End the selection first."
-msgstr "Сначала завершите отбор."
+msgstr "Сначала задай конец выделения."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "shape should be one of the following: cube, box, sphere, cylinderx, cylindery, cylinderz, fn"
-msgstr "форма должна быть одной из следующих: куб, коробка, сфера, цилиндрик, цилиндрик, цилиндрик, фн"
+msgstr "форма должна быть одной из: cube, box, sphere, cylinderx, cylindery, cylinderz, fn"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "%(arg) should be one of the following: x, -x, +x, y, -y, +y, z, -z, +z"
-msgstr "%(arg) должен быть одним из следующих: x, -x, +x, y, -y, +y, z, -z, +z"
+msgstr "%(arg) должен быть одним из: x, -x, +x, y, -y, +y, z, -z, +z"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Swizzle must map all of x, y and z"
-msgstr "Swizzle должен отображать все x, y и z"
+msgstr "Перестановка должна задействовать все оси x, y и z"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
-#, fuzzy
 msgid "Nothing that way to pick. Aim at a block."
-msgstr "Ничего такого, чтобы выбрать. Целься в блок."
+msgstr "В том направлении нечего выбрать. Наведись на блок."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Couldn't find any block in that cast. You're certain you're not looking at the sky?"
-msgstr "Не смог найти никакого блока в этом гипсе. Ты уверен, что не смотришь на небо?"
+msgstr "Луч не нашёл ни одного блока. Ты точно не смотришь в небо?"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Select a box, by aiming at its corners or by naming them."
-msgstr "Выберите коробку, нацеливаясь на ее углы или называя их."
+msgstr "Выделить область, наведясь на её углы или задав их."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Set the start of a selection."
-msgstr "Установите начало выбора."
+msgstr "Задать начало выделения."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Raycast the start of a selection."
-msgstr "Рэйкаст начало отбора."
+msgstr "Задать начало выделения лучом."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Set the start of a selection to your head's position."
-msgstr "Установите начало выбора позиции вашей головы."
+msgstr "Задать начало выделения по положению твоей головы."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Set the end of a selection."
-msgstr "Установите конец выбора."
+msgstr "Задать конец выделения."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Raycast the end of a selection."
-msgstr "Рэйкаст конец отбора."
+msgstr "Задать конец выделения лучом."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Set the end of a selection to your head's position."
-msgstr "Установите конец выбора положения головы."
+msgstr "Задать конец выделения по положению твоей головы."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Stop a selection."
-msgstr "Остановите отбор."
+msgstr "Остановить выделение."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Change selection shape."
-msgstr "Измените форму выбора."
+msgstr "Сменить форму выделения."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Change \"fn\" selection shape. Does not parse args."
-msgstr "Изменение формы выбора «fn». Не разбирает арг."
+msgstr "Сменить форму выделения \"fn\". Аргументы не разбираются."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Change selection noise."
-msgstr "Измените шум выбора."
+msgstr "Сменить шум выделения."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Fill and replace a box."
-msgstr "Заполните и замените коробку."
+msgstr "Заполнить область с заменой."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Clobber over everything in your selection to match the current shape."
-msgstr "Клоббер над всем в вашем выборе, чтобы соответствовать текущей форме."
+msgstr "Перезаписать всё в выделении по текущей форме."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Fill and do not replace a box."
-msgstr "Заполните и не заменяйте коробку."
+msgstr "Заполнить область без замены."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Destroy a box."
-msgstr "Уничтожить коробку."
+msgstr "Разрушить область."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Set color of all blocks in a box."
-msgstr "Цвет всех блоков в коробке."
+msgstr "Задать цвет всех блоков в области."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Duplicate the selection in a direction a certain number of times."
-msgstr "Повторите выбор в определенном направлении несколько раз."
+msgstr "Скопировать выделение в заданном направлении несколько раз."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Duplicate the selection in a direction a certain number of times, then select the duplicated area."
-msgstr "Дублируйте выбор в направлении определенное количество раз, затем выберите дублированную область."
+msgstr "Скопировать выделение в заданном направлении несколько раз, затем выделить копию."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Move the selection, then select the moved area."
-msgstr "Переместите выбор, затем выберите перемещаемую область."
+msgstr "Сдвинуть выделение, затем выделить сдвинутую область."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Move the selection dist blocks in the direction you're facing, then select the moved area."
-msgstr "Переместите дисковые блоки выбора в направлении, которое вы видите, а затем выберите перемещаемую область."
+msgstr "Сдвинуть выделение на dist блоков туда, куда ты смотришь, затем выделить сдвинутую область."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Swizzle the dimensions of the selection around to flip and rotate."
-msgstr "Прокрутите размеры выбора вокруг, чтобы перевернуть и повернуть."
+msgstr "Переставить оси выделения, чтобы отразить и повернуть его."
 
-# machine-translated (LibreTranslate)
 #: image/config.lua
-#, fuzzy
 msgid "Use /kill to die."
-msgstr "Используйте /kill, чтобы умереть."
+msgstr "Введи /kill, чтобы умереть."
 
-# machine-translated (LibreTranslate)
 #: image/config.lua
-#, fuzzy
 msgid "Press the %(key) key to change team/gun."
-msgstr "Нажмите клавишу %(key), чтобы изменить команду /gun."
+msgstr "Нажми %(key), чтобы сменить команду/оружие."
 
-# machine-translated (LibreTranslate)
 #: image/config.lua
-#, fuzzy
 msgid "Block color won't change? Try the arrow keys and E."
-msgstr "Цвет блока не изменится? Попробуйте клавиши со стрелками и E."
+msgstr "Цвет блока не меняется? Попробуй стрелки и E."
 
-# machine-translated (LibreTranslate)
 #: image/config.lua
-#, fuzzy
 msgid "This is not Build and Shoot. This is ACE OF SPADES."
-msgstr "Это не строительство и стрельба. Это ACE OF SPADES."
+msgstr "Это не Build and Shoot. Это ACE OF SPADES."
 
-# machine-translated (LibreTranslate)
 #: image/config.lua
-#, fuzzy
 msgid "Type /lang to read the server in another language."
-msgstr "Введите /lang для чтения сервера на другом языке."
+msgstr "Введи /lang, чтобы читать сервер на другом языке."
 
-# machine-translated (LibreTranslate)
 #: image/config.lua
-#, fuzzy
 msgid "Welcome to %(server), running [LSd]."
-msgstr "Добро пожаловать в %(server) под управлением [LSd]."
+msgstr "Добро пожаловать на %(server), работает на [LSd]."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/afkick.lua
-#, fuzzy
 msgid "%(name) was kicked: AFK"
-msgstr "%(name) был кикнут: AFK"
+msgstr "Игрок %(name) кикнут: AFK"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/afkick.lua
-#, fuzzy
 msgid "You will be automatically AFK-kicked in %(time) s"
-msgstr "Вы будете автоматически AFK-кикнут в %(time)s"
+msgstr "Ты будешь автоматически кикнут за AFK через %(time) с"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/apoc.lua
-#, fuzzy
 msgid "%(originname)'s apocs have been given to %(destname)"
-msgstr "Апок %(originname) был передан %(destname)"
+msgstr "Апоки игрока %(originname) переданы игроку %(destname)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/apoc.lua
-#, fuzzy
 msgid "%(name) can now use /apoc. . ."
-msgstr "%(name) теперь может использовать /apoc."
+msgstr "%(name) теперь может использовать /apoc. . ."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/apoc.lua
-#, fuzzy
 msgid "You need a %(needstreak) killstreak to use apoc! Current streak: %(curstreak)"
-msgstr "Вам нужен %(needstreak) серия убийств, чтобы использовать Apoc! Текущий серия: %(curstreak)"
+msgstr "Для апока нужна серия убийств %(needstreak)! Текущая серия: %(curstreak)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/apoc.lua
-#, fuzzy
 msgid "Don't be so hasty!"
 msgstr "Не торопись!"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/apoc.lua
-#, fuzzy
 msgctxt "command"
 msgid "Attempt to summon an apoc."
-msgstr "Попытка вызвать апок."
+msgstr "Попытаться вызвать апок."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/apoc.lua
-#, fuzzy
 msgctxt "command"
 msgid "Bombs away!"
-msgstr "Бомбы прочь!"
+msgstr "Бомбы пошли!"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/arena.lua
-#, fuzzy
 msgid "Starting round in %(time) s."
-msgstr "Начало цикла в %(time)."
+msgstr "Раунд начнётся через %(time) с."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "You need to login to run that command."
-msgstr "Вам нужно войти, чтобы запустить эту команду."
+msgstr "Чтобы выполнить эту команду, нужно войти в аккаунт."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Don't make the password that long or you might not be able to change it! Try <= %(max) chars."
-msgstr "Не делайте пароль таким длинным, иначе вы не сможете его изменить! Попробуйте <= %(max)."
+msgstr "Не делай пароль таким длинным, а то не сможешь его сменить! Попробуй <= %(max) символов."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Can't register; are you sure that name isn't taken?"
-msgstr "Не можете зарегистрироваться, вы уверены, что имя не занято?"
+msgstr "Не удалось зарегистрироваться; ты уверен, что это имя не занято?"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "User not found."
 msgstr "Пользователь не найден."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Try logging in again in %(timeleft) s."
-msgstr "Попробуйте снова войти в %(timeleft)."
+msgstr "Попробуй войти снова через %(timeleft) с."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Bad password or TOTP."
-msgstr "Плохой пароль или TOTP."
+msgstr "Неверный пароль или TOTP."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "algorithm should be one of the following: SHA1, SHA256, SHA512"
-msgstr "алгоритм должен быть одним из следующих: SHA1, SHA256, SHA512"
+msgstr "алгоритм должен быть одним из: SHA1, SHA256, SHA512"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Your password is too short and hard to remember. Try using a couple of actual, *random* words instead."
-msgstr "Ваш пароль слишком короткий и его трудно запомнить. Попробуйте вместо этого использовать несколько реальных, случайных слов."
+msgstr "Пароль слишком короткий и плохо запоминается. Лучше возьми пару настоящих, *случайных* слов."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Pass your code to /totpverify to set up TOTP."
-msgstr "Передайте свой код /totpverify для настройки TOTP."
+msgstr "Передай свой код в /totpverify, чтобы настроить TOTP."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Your account's TOTP configuration has been set."
-msgstr "Настройка TOTP вашей учетной записи была установлена."
+msgstr "Настройка TOTP для твоего аккаунта сохранена."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Bad TOTP."
-msgstr "Плохой TOTP."
+msgstr "Неверный TOTP."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Create an account."
-msgstr "Создайте аккаунт."
+msgstr "Создать аккаунт."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Setup TOTP for your account."
-msgstr "Настройте TOTP для своей учетной записи."
+msgstr "Настроить TOTP для своего аккаунта."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Remove TOTP from your account."
-msgstr "Удалите TOTP со своего аккаунта."
+msgstr "Убрать TOTP из своего аккаунта."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Finish setting up TOTP for your account."
-msgstr "Завершите настройку TOTP для вашей учетной записи."
+msgstr "Завершить настройку TOTP для своего аккаунта."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Set an account's capabilities."
-msgstr "Установите возможности учетной записи."
+msgstr "Задать права аккаунта."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Change your account's password."
-msgstr "Измените пароль своей учетной записи."
+msgstr "Сменить пароль своего аккаунта."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Login to an account."
 msgstr "Войти в аккаунт."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Barge into an account."
-msgstr "Залезай на счет."
+msgstr "Ворваться в чужой аккаунт."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Log out of your account."
-msgstr "Выйдите из своего аккаунта."
+msgstr "Выйти из аккаунта."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print your account name and groups."
-msgstr "Распечатайте имя своей учетной записи и группы."
+msgstr "Вывести имя своего аккаунта и группы."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel.lua
-#, fuzzy
 msgid ">:("
-msgstr ">:"
+msgstr ">:("
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel.lua
 #: lsd/scripts/babel_protect.lua
-#, fuzzy
 msgid "Can't do that there!"
-msgstr "Не могу этого сделать!"
+msgstr "Тут так нельзя!"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel.lua
 #: lsd/scripts/ctf.lua
 #: lsd/scripts/onectf.lua
-#, fuzzy
 msgid "You're not holding the intel!"
-msgstr "Вы не держите развединфо!"
+msgstr "У тебя нет разведданных!"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel.lua
 #: lsd/scripts/ctf.lua
 #: lsd/scripts/onectf.lua
-#, fuzzy
 msgctxt "command"
 msgid "Drop the intel if you're holding it."
-msgstr "Бросьте развединфо, если вы его держите."
+msgstr "Сбросить разведданные, если они у тебя."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_heaven.lua
-#, fuzzy
 msgid "Cannot find image; try /heavenlist."
-msgstr "Не могу найти изображение, попробуйте /heavenlist."
+msgstr "Изображение не найдено; попробуй /heavenlist."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_heaven.lua
-#, fuzzy
 msgid "You can list images with /heavenlist."
-msgstr "Вы можете использовать /heavenlist."
+msgstr "Список изображений -- /heavenlist."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_heaven.lua
-#, fuzzy
 msgid "You must wait %(timeuntil) s to paint over the platform again."
-msgstr "Вы должны подождать, пока %(timeuntil)s снова покрасит платформу."
+msgstr "Подожди %(timeuntil) с, прежде чем снова рисовать на платформе."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_heaven.lua
-#, fuzzy
 msgctxt "command"
 msgid "Paint an image on the babel platform."
-msgstr "Нарисуйте изображение на платформе Бэйбл."
+msgstr "Нарисовать изображение на платформе Вавилона."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_heaven.lua
-#, fuzzy
 msgctxt "command"
 msgid "Paint an image on the babel platform regardless of the timer's opinion."
-msgstr "Нарисуйте изображение на платформе babel независимо от мнения таймера."
+msgstr "Нарисовать изображение на платформе Вавилона, не считаясь с таймером."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_heaven.lua
-#, fuzzy
 msgctxt "command"
 msgid "List images available to paint on the babel platform."
-msgstr "Перечислите изображения, доступные для рисования на платформе babel."
+msgstr "Показать изображения, которые можно нарисовать на платформе Вавилона."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_unlocks.lua
-#, fuzzy
 msgid "%(name) has placed %(blocks) blocks, /heaven unlocked!"
-msgstr "%(name) разместил блоки %(blocks), /heaven разблокирован!"
+msgstr "%(name) поставил блоков: %(blocks), /heaven открыт!"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_unlocks.lua
-#, fuzzy
 msgid "%(name) has placed %(blocks) tower blocks."
-msgstr "%(name) разместил башенные блоки %(blocks)."
+msgstr "%(name) поставил блоков башни: %(blocks)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_unlocks.lua
-#, fuzzy
 msgid "Congratulations on placing 0 blocks today!"
-msgstr "Поздравляем с размещением 0 блоков!"
+msgstr "Поздравляем: сегодня поставлено 0 блоков!"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_unlocks.lua
-#, fuzzy
 msgid "You need a %(needstreak) killstreak and 1 capture to use apoc! Current streak: %(curstreak)"
-msgstr "Вам нужен захват %(needstreak) серия убийств и 1 для использования Apoc! Текущий серия: %(curstreak)"
+msgstr "Для апока нужна серия убийств %(needstreak) и 1 захват! Текущая серия: %(curstreak)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_unlocks.lua
-#, fuzzy
 msgid "You have a %(streak) streak! Capture an intel for /apoc."
-msgstr "У вас есть %(streak) серия! Выберите развединфо для /apoc."
+msgstr "У тебя серия %(streak)! Захвати разведданные ради /apoc."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_unlocks.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print the number of blocks placed by another player or yourself."
-msgstr "Распечатайте количество блоков, размещенных другим игроком или вами."
+msgstr "Вывести число блоков, поставленных другим игроком или тобой."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgid "%(name) was banned"
-msgstr "%(name) был запрещен"
+msgstr "Игрок %(name) забанен"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgid "#%(id): <%(name)>, %(addr), %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
-msgstr "#%(id): <%(name)>, %(addr), %(start_date) -> %(end_date) by %(banner): %(comment) (капсулы: %(caps))"
+msgstr "#%(id): <%(name)>, %(addr), %(start_date) -> %(end_date), выдал %(banner): %(comment) (права: %(caps))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgid "#%(id): <%(name)>, %(addr), expired, %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
-msgstr "#%(id): <%(name)>, %(addr), истек, %(start_date) -> %(end_date) по %(banner): %(comment) (капсулы: %(caps))"
+msgstr "#%(id): <%(name)>, %(addr), истёк, %(start_date) -> %(end_date), выдал %(banner): %(comment) (права: %(caps))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgid "#%(id): <%(name)>, %(addr), revoked, %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
-msgstr "#%(id): <%(name)>, %(addr), отменен, %(start_date) -> %(end_date) по %(banner): %(comment) (капсулы: %(caps))"
+msgstr "#%(id): <%(name)>, %(addr), отозван, %(start_date) -> %(end_date), выдал %(banner): %(comment) (права: %(caps))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgid "Ban ID: #%(id)"
-msgstr "Идентификатор: #%(id)"
+msgstr "ID бана: #%(id)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgid "Invalid ban ID."
-msgstr "Недействительное удостоверение личности."
+msgstr "Неверный ID бана."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player."
-msgstr "Запретить непослушного игрока."
+msgstr "Забанить нехорошего игрока."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player with custom badcaps."
-msgstr "Запретить непослушного игрока с настраиваемыми неудачниками."
+msgstr "Забанить нехорошего игрока с особыми запретами (badcaps)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty (nice?) player with custom caps."
-msgstr "Запретить непослушного (хорошего?) игрока с пользовательскими шапками."
+msgstr "Забанить нехорошего (хорошего?) игрока с особыми правами."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range."
-msgstr "Запретить непослушный адрес IPv4 или диапазон CIDR."
+msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range with custom badcaps."
-msgstr "Запретить непослушный IPv4-адрес или диапазон CIDR с пользовательскими Badcaps."
+msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR с особыми запретами (badcaps)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty (nice?) IPv4 address or CIDR range with custom caps."
-msgstr "Запретить непослушный (хороший?) адрес IPv4 или диапазон CIDR с пользовательскими колпачками."
+msgstr "Забанить нехороший (хороший?) адрес IPv4 или диапазон CIDR с особыми правами."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Revoke a given ban ID."
-msgstr "Отменить регистрационный номер."
+msgstr "Отозвать бан с указанным ID."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Unrevoke a given ban ID."
-msgstr "Отменить данный идентификатор запрета."
+msgstr "Отменить отзыв бана с указанным ID."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Query all unexpired, unrevoked bans matching a given IPv4 address or CIDR range."
-msgstr "Запросите все неснятые запреты, соответствующие данному IPv4-адресу или диапазону CIDR."
+msgstr "Найти все действующие, неотозванные баны по адресу IPv4 или диапазону CIDR."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Query all unexpired, unrevoked bans matching a given player name (case-insensitive glob)."
-msgstr "Запрашивайте все неистекающие, неотзывные запреты, соответствующие данному имени игрока (случайно-чувствительный шар)."
+msgstr "Найти все действующие, неотозванные баны по имени игрока (glob, без учёта регистра)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Query all unexpired, unrevoked bans matching a given comment (case-insensitive glob)."
-msgstr "Запросить все неснятые, неотозванные запреты, соответствующие заданному комментарию (случайно-чувствительный шар)."
+msgstr "Найти все действующие, неотозванные баны по комментарию (glob, без учёта регистра)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Query all bans matching a given IPv4 address or CIDR range."
-msgstr "Запросите все запреты, соответствующие данному IPv4-адресу или диапазону CIDR."
+msgstr "Найти все баны по адресу IPv4 или диапазону CIDR."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Query all bans matching a given player name (case-insensitive glob)."
-msgstr "Запросить все запреты, соответствующие данному имени игрока (случай-нечувствительный шар)."
+msgstr "Найти все баны по имени игрока (glob, без учёта регистра)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Query all bans matching a given comment (case-insensitive glob)."
-msgstr "Запросить все запреты, соответствующие заданному комментарию (case-insensitive glob)."
+msgstr "Найти все баны по комментарию (glob, без учёта регистра)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player for an hour."
-msgstr "Запретить непослушного игрока на час."
+msgstr "Забанить нехорошего игрока на час."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player for a day."
-msgstr "Запретить непослушного игрока на один день."
+msgstr "Забанить нехорошего игрока на день."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player for 7 days."
-msgstr "Запретить непослушного игрока на 7 дней."
+msgstr "Забанить нехорошего игрока на 7 дней."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player for 30 days."
-msgstr "Запретить непослушного игрока на 30 дней."
+msgstr "Забанить нехорошего игрока на 30 дней."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player for 365 days."
-msgstr "Запретить непослушного игрока на 365 дней."
+msgstr "Забанить нехорошего игрока на 365 дней."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player for a really long time."
-msgstr "Запретить непослушного игрока очень долго."
+msgstr "Забанить нехорошего игрока очень надолго."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for an hour."
-msgstr "Запретить непослушный IPv4-адрес или диапазон CIDR на час."
+msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на час."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for a day."
-msgstr "Запретить непослушный IPv4-адрес или диапазон CIDR на день."
+msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на день."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for 7 days."
-msgstr "Запретить непослушный IPv4-адрес или диапазон CIDR на 7 дней."
+msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на 7 дней."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for 30 days."
-msgstr "Запретить непослушный IPv4-адрес или диапазон CIDR на 30 дней."
+msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на 30 дней."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for 365 days."
-msgstr "Запретить непослушный IPv4-адрес или диапазон CIDR на 365 дней."
+msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на 365 дней."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for a really long time."
-msgstr "Запретить непослушный адрес IPv4 или диапазон CIDR в течение очень долгого времени."
+msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR очень надолго."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "%(addr):%(port) attempted to connect but server was full"
-msgstr "%(addr):%(port) пытался подключиться, но сервер был полон"
+msgstr "%(addr):%(port) пытался подключиться, но сервер заполнен"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "%(addr):%(port) (#%(pid)) connected"
-msgstr "%(addr): %(port) (#%(pid)) подключен"
+msgstr "%(addr):%(port) (#%(pid)) подключился"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "%(addr):%(port) (#%(pid)) (%(name)) disconnected"
-msgstr "%(addr):%(port) (#%(pid)) (%(name)) отключен"
+msgstr "%(addr):%(port) (#%(pid)) (%(name)) отключился"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "%(addr):%(port) (#%(pid)) disconnected"
-msgstr "%(addr):%(port) (#%(pid)) отключен"
+msgstr "%(addr):%(port) (#%(pid)) отключился"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "%(addr):%(port) (#%(pid)) joined as \"%(name)\""
-msgstr "%(addr):%(port) (#%(pid)) присоединился как «%(name)»"
+msgstr "%(addr):%(port) (#%(pid)) вошёл как \"%(name)\""
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "%(addr):%(port) (#%(pid)) got version: '%(char)' (%(charval)) v%(major).%(minor).%(patch): %(msg)"
-msgstr "%(addr):%(port) (#%(pid)) получил версию: %(char) (%(charval)) v%(major).%(minor).%(patch): %(msg)"
+msgstr "%(addr):%(port) (#%(pid)) получена версия: '%(char)' (%(charval)) v%(major).%(minor).%(patch): %(msg)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "%(addr):%(port) (#%(pid)) got version-ext: \"%(cli)\" v%(major).%(minor).%(patch), %(flags), %(lang)"
-msgstr "%(addr):%(port) (#%(pid)) получил версию: «%(cli)» v%(major).%(minor).%(patch), %(flags), %(lang)"
+msgstr "%(addr):%(port) (#%(pid)) получен version-ext: \"%(cli)\" v%(major).%(minor).%(patch), %(flags), %(lang)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "(Global) %(name) (#%(pid)): %(msg)"
-msgstr "(Global) %(name) (#%(pid)): %(msg)"
+msgstr "(Всем) %(name) (#%(pid)): %(msg)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "(Team) %(name) (#%(pid)): %(msg)"
-msgstr "(Команда) %(name) (#%(pid)): %(msg)"
+msgstr "(Команде) %(name) (#%(pid)): %(msg)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/caps.lua
-#, fuzzy
 msgid "You need the %(cap) capability to run that command."
-msgstr "Для запуска этой команды вам нужен %(cap) право."
+msgstr "Для этой команды нужно право %(cap)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_admin.lua
-#, fuzzy
 msgctxt "command"
 msgid "Send a message to staff. Does not parse arguments."
-msgstr "Отправьте сообщение сотрудникам. Не анализирует аргументы."
+msgstr "Отправить сообщение персоналу. Аргументы не разбираются."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_admin.lua
-#, fuzzy
 msgctxt "command"
 msgid "Send a message to staff, but only staff can use it. Does not parse arguments."
-msgstr "Отправьте сообщение сотрудникам, но использовать его может только персонал. Не анализирует аргументы."
+msgstr "Отправить сообщение персоналу; доступно только персоналу. Аргументы не разбираются."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid ", crap"
-msgstr "дерьмо"
+msgstr ", мусор"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) hit %(hitplayer) (torso, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr "%(player) попал в %(hitplayer) (торс, блоки %(dist), %(delta) ms%(iscrap))"
+msgstr "%(player) попал в %(hitplayer) (торс, %(dist) блоков, %(delta) ms%(iscrap))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) hit %(hitplayer)  (head, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr "%(player) попал в %(hitplayer) (голова, блоки %(dist), %(delta) ms%(iscrap))"
+msgstr "%(player) попал в %(hitplayer)  (голова, %(dist) блоков, %(delta) ms%(iscrap))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) hit %(hitplayer)  (arms, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr "%(player) попал в %(hitplayer) (оружие, блоки %(dist), %(delta) ms%(iscrap))"
+msgstr "%(player) попал в %(hitplayer)  (руки, %(dist) блоков, %(delta) ms%(iscrap))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) hit %(hitplayer)  (legs, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr "%(player) попал в %(hitplayer) (ноги, блоки %(dist), %(delta) ms%(iscrap))"
+msgstr "%(player) попал в %(hitplayer)  (ноги, %(dist) блоков, %(delta) ms%(iscrap))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) hit %(hitplayer) (spade, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr "%(player) попал в %(hitplayer) (блоки лопата, %(dist), %(delta) ms%(iscrap))"
+msgstr "%(player) попал в %(hitplayer) (лопата, %(dist) блоков, %(delta) ms%(iscrap))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) sent a hit packet with a crap length"
-msgstr "%(player) отправил хитовый пакет с дерьмовой длиной"
+msgstr "%(player) прислал пакет попадания с мусорной длиной"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) sent a hit packet with a crap type"
-msgstr "%(player) отправил хитовый пакет с дерьмовым типом"
+msgstr "%(player) прислал пакет попадания с мусорным типом"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) sent a hit packet with a crap target"
-msgstr "%(player) отправил пакет с дерьмовой целью"
+msgstr "%(player) прислал пакет попадания с мусорной целью"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "Stopped analyzing."
-msgstr "Перестала анализировать."
+msgstr "Анализ остановлен."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "Now analyzing %(player)."
-msgstr "Теперь анализируем %(player)."
+msgstr "Анализирую игрока %(player)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgctxt "command"
 msgid "Dump out whatever hit packets a player sends."
-msgstr "Выбросьте все ударные пакеты, которые посылает игрок."
+msgstr "Выводить все пакеты попаданий, которые шлёт игрок."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_caps.lua
-#, fuzzy
 msgctxt "command"
 msgid "Give a player arbitrary caps."
-msgstr "Дайте игроку произвольные шапки."
+msgstr "Выдать игроку произвольные права."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_caps.lua
-#, fuzzy
 msgctxt "command"
 msgid "Remove arbitrary caps from a player."
-msgstr "Удалите произвольные шапки у игрока."
+msgstr "Отнять у игрока произвольные права."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_cli.lua
-#, fuzzy
 msgid "%(name): not reported"
-msgstr "%(name): не сообщается"
+msgstr "%(name): не сообщил"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_cli.lua
-#, fuzzy
 msgid "%(name): handshaked"
-msgstr "%(name): рукопожатие"
+msgstr "%(name): согласование пройдено"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_cli.lua
-#, fuzzy
 msgid "%(name): '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
-msgstr "%(name): %(char) (%(client)) v%(major).%(minor).%(patch): %(msg)"
+msgstr "%(name): '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_cli.lua
-#, fuzzy
 msgid "%(name): (no handshake) '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
-msgstr "%(name): (без рукопожатия) %(char) (%(client)) v%(major).%(minor).%(patch): %(msg)"
+msgstr "%(name): (без согласования) '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_cli.lua
-#, fuzzy
 msgid "%(name): fakepid"
-msgstr "%(name): поддельный"
+msgstr "%(name): поддельный pid"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_cli.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print whatever a player's client claims to be."
-msgstr "Распечатайте все, что клиент игрока утверждает."
+msgstr "Вывести, за какой клиент выдаёт себя клиент игрока."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_exec.lua
-#, fuzzy
 msgctxt "command"
 msgid "Execute arbitrary lua. Does not parse arguments."
-msgstr "Исполняйте произвол Луа. Не анализирует аргументы."
+msgstr "Выполнить произвольный код Lua. Аргументы не разбираются."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_fog.lua
-#, fuzzy
 msgid "You need the %(cap) capability to set the fog color."
-msgstr "Вам нужен %(cap) право, чтобы установить цвет тумана."
+msgstr "Чтобы задать цвет тумана, нужно право %(cap)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_fog.lua
-#, fuzzy
 msgid "The current fog color is {r=%(r), g=%(g), b=%(b)} (%(hex))."
-msgstr "Текущий цвет тумана {r=%(r), g=%(g), b=%(b)} (%(hex))."
+msgstr "Текущий цвет тумана: {r=%(r), g=%(g), b=%(b)} (%(hex))."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_fog.lua
-#, fuzzy
 msgctxt "command"
 msgid "Get or set the fog color."
-msgstr "Получить или установить цвет тумана."
+msgstr "Узнать или задать цвет тумана."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ignore.lua
-#, fuzzy
 msgctxt "command"
 msgid "Silence a player."
-msgstr "Тишина игрока."
+msgstr "Заглушить игрока."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ip.lua
-#, fuzzy
 msgid "%(name): %(addr)"
 msgstr "%(name): %(addr)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ip.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print a player's IP address."
-msgstr "Распечатайте IP-адрес игрока."
+msgstr "Вывести IP-адрес игрока."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_kick.lua
-#, fuzzy
 msgid "%(name) was kicked"
-msgstr "%(name) был кикнут"
+msgstr "Игрок %(name) кикнут"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_kick.lua
-#, fuzzy
 msgctxt "command"
 msgid "Remove a silly player."
-msgstr "Уберите глупого игрока."
+msgstr "Выгнать дурного игрока."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_kill.lua
-#, fuzzy
 msgid "You can't kill yourself unless you're in-game."
-msgstr "Ты не можешь убить себя, если ты не в игре."
+msgstr "Убить себя можно только в игре."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_kill.lua
-#, fuzzy
 msgid "You need the %(cap) capability to kill others."
-msgstr "Вам нужен %(cap) право, чтобы убить других."
+msgstr "Чтобы убивать других, нужно право %(cap)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_kill.lua
-#, fuzzy
 msgctxt "command"
 msgid "Kill another player or yourself."
 msgstr "Убить другого игрока или себя."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_modutils.lua
-#, fuzzy
 msgctxt "command"
 msgid "Unregister all the modules."
-msgstr "Отменить регистрацию всех модулей."
+msgstr "Выгрузить все модули."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_modutils.lua
-#, fuzzy
 msgctxt "command"
 msgid "Reload all registered modules."
-msgstr "Перезагрузка всех зарегистрированных модулей."
+msgstr "Перезагрузить все зарегистрированные модули."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_modutils.lua
-#, fuzzy
 msgctxt "command"
 msgid "Crusty listing of all loaded modules."
-msgstr "Хрустящий список всех загруженных модулей."
+msgstr "Грубый список всех загруженных модулей."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_modutils.lua
-#, fuzzy
 msgctxt "command"
 msgid "Dynamically load a module."
-msgstr "Динамическая загрузка модуля."
+msgstr "Динамически загрузить модуль."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_modutils.lua
-#, fuzzy
 msgctxt "command"
 msgid "Dynamically unload a module."
-msgstr "Динамическая разгрузка модуля."
+msgstr "Динамически выгрузить модуль."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ping.lua
-#, fuzzy
 msgid "%(name)'s round-trip time is %(rtt) ms."
-msgstr "Время в пути %(name) составляет %(rtt) мс."
+msgstr "Время отклика игрока %(name): %(rtt) ms."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ping.lua
-#, fuzzy
 msgid "You can only check your own round-trip time while in-game."
-msgstr "Вы можете проверить только свое время в оба конца игры."
+msgstr "Своё время отклика можно проверить только в игре."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ping.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print a player's (or your) round-trip time."
-msgstr "Распечатайте время прохождения (или время прохождения) игрока."
+msgstr "Вывести время отклика игрока (или своё)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_pm.lua
-#, fuzzy
 msgid "PM from %(name): %(msg)"
-msgstr "PM от %(name): %(msg)"
+msgstr "ЛС от %(name): %(msg)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_pm.lua
-#, fuzzy
 msgctxt "command"
 msgid "Send a pseudoprivate message to someone."
-msgstr "Отправьте кому-нибудь псевдоличное сообщение."
+msgstr "Отправить кому-то псевдоличное сообщение."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ratio.lua
-#, fuzzy
 msgid "You haven't even made one kill. No deaths though."
-msgstr "Ты даже не совершил ни одного убийства. Никаких смертей."
+msgstr "Ты ещё никого не убил. Зато и не умер."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ratio.lua
-#, fuzzy
 msgid "%(name): %(kills) kills, %(deaths) deaths, %(ratio) kills per life"
-msgstr "%(name): %(kills) убивает, %(deaths) убивает, %(ratio) убивает за жизнь"
+msgstr "%(name): убийств %(kills), смертей %(deaths), %(ratio) убийств за жизнь"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ratio.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print the kill-life ratio of another player or yourself."
-msgstr "Распечатайте соотношение «убийство-жизнь» другого игрока или себя."
+msgstr "Вывести соотношение убийств к жизням другого игрока или своё."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_savemap.lua
-#, fuzzy
 msgid "name must not contain '/' or '\\', or start with a '.'"
-msgstr "имя не должно содержать '/' или '', или начинаться с ''"
+msgstr "имя не должно содержать '/' или '\\' или начинаться с '.'"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_savemap.lua
-#, fuzzy
 msgctxt "command"
 msgid "Write a VXL file with the current map's state."
-msgstr "Напишите файл VXL с состоянием текущей карты."
+msgstr "Записать файл VXL с текущим состоянием карты."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_say.lua
-#, fuzzy
 msgctxt "command"
 msgid "Send a message to all players, displayed as if the server sent it. Does not parse arguments."
-msgstr "Отправьте сообщение всем игрокам, отображаемое так, как если бы его отправил сервер. Не анализирует аргументы."
+msgstr "Отправить сообщение всем игрокам от имени сервера. Аргументы не разбираются."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_say.lua
-#, fuzzy
 msgctxt "command"
 msgid "Send a message to all players, as if you sent it. Does not parse arguments."
-msgstr "Отправьте сообщение всем игрокам, как будто вы его отправили. Не анализирует аргументы."
+msgstr "Отправить сообщение всем игрокам, будто его написал ты. Аргументы не разбираются."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_secspec.lua
-#, fuzzy
 msgctxt "command"
 msgid "Stick yourself into spectator without anybody else knowing."
-msgstr "Привлекай себя к зрителю, чтобы никто не узнал."
+msgstr "Незаметно для всех перейти в наблюдатели."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_server.lua
-#, fuzzy
 msgid "Unknown address"
 msgstr "Неизвестный адрес"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_server.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print the server's address."
-msgstr "Распечатайте адрес сервера."
+msgstr "Вывести адрес сервера."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_switch.lua
-#, fuzzy
 msgid "team should be one of 1, 2, 256, -1, spec, spectator, %(firstteam), %(secondteam)."
-msgstr "команда должна быть из 1, 2, 256, -1, спектр, зритель, %(firstteam), %(secondteam)."
+msgstr "команда должна быть одной из: 1, 2, 256, -1, spec, spectator, %(firstteam), %(secondteam)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_switch.lua
-#, fuzzy
 msgctxt "command"
 msgid "Move a player (or you) to a different team."
-msgstr "Переведите игрока (или вас) в другую команду."
+msgstr "Перевести игрока (или себя) в другую команду."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_tp.lua
-#, fuzzy
 msgid "You have gone nowhere successfully."
-msgstr "Вы никуда не ушли успешно."
+msgstr "Ты успешно никуда не переместился."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_tp.lua
-#, fuzzy
 msgctxt "command"
 msgid "Teleport one player (or you) to a different player."
-msgstr "Телепортируйте одного игрока (или вас) к другому игроку."
+msgstr "Телепортировать игрока (или себя) к другому игроку."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ups.lua
-#, fuzzy
 msgid "%(arg) should be one of {%(freqs)} (Hz)"
-msgstr "%(arg) должен быть одним из {%(freqs)} (Гц)"
+msgstr "%(arg) должен быть одним из {%(freqs)} (Hz)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ups.lua
-#, fuzzy
 msgid "Current update rate: %(freq) Hz"
-msgstr "Текущая скорость обновления: %(freq) Гц"
+msgstr "Текущая частота обновления: %(freq) Hz"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ups.lua
-#, fuzzy
 msgctxt "command"
 msgid "Get/set the rate your client receives player position/orientation."
-msgstr "Get/set - ставка, которую ваш клиент получает на позицию игрока /orientation."
+msgstr "Узнать/задать частоту, с которой клиент получает позиции/направления игроков."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_version.lua
-#, fuzzy
 msgid "Running %(server_name) commit %(commit)"
-msgstr "Бегущий %(server_name) совершает %(commit)"
+msgstr "Работает %(server_name), коммит %(commit)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_version.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print the server's version."
-msgstr "Распечатайте версию сервера."
+msgstr "Вывести версию сервера."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_who.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print all joined players."
-msgstr "Печать объединила всех игроков."
+msgstr "Вывести всех подключённых игроков."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg) should be a IPv4 address, optionally given in CIDR notation."
-msgstr "%(arg) должен быть адресом IPv4, необязательно указанным в записи CIDR."
+msgstr "%(arg) должен быть адресом IPv4, можно в нотации CIDR."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg) should be a time delta."
-msgstr "%(arg) должен быть дельтой времени."
+msgstr "%(arg) должен быть промежутком времени."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg) should be finite."
 msgstr "%(arg) должен быть конечным."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg) should use at most one of the following units: s, min, h, d, w, month, y."
-msgstr "%(arg) должен использовать не более одной из следующих единиц: s, min, h, d, w, month, y."
+msgstr "%(arg) должен использовать не больше одной из единиц: s, min, h, d, w, month, y."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg) should be between %(min) and %(max)"
 msgstr "%(arg) должен быть между %(min) и %(max)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg): Player not found."
-msgstr "%(arg): Игрок не найден."
+msgstr "%(arg): игрок не найден."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg): Player not connected."
-msgstr "%(arg): Игрок не подключен."
+msgstr "%(arg): игрок не подключён."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg): Ambiguous player."
-msgstr "%(arg) — двусмысленный игрок."
+msgstr "%(arg): неоднозначный игрок."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg): Invalid player ID."
-msgstr "%(arg): Недействительный идентификатор игрока."
+msgstr "%(arg): неверный ID игрока."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "Unknown command"
 msgstr "Неизвестная команда"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "Some error occurred with that command :("
-msgstr "Некоторая ошибка произошла с этой командой:"
+msgstr "С этой командой что-то пошло не так :("
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "This command can only be run while in-game."
-msgstr "Эта команда может быть запущена только во время игры."
+msgstr "Эту команду можно выполнить только в игре."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/dd.lua
-#, fuzzy
 msgid "dd: prevented fast block placement from %(name) (#%(pid))"
-msgstr "dd: предотвращает быстрое блокирование %(name) (#%(pid))"
+msgstr "dd: предотвращена быстрая установка блоков от %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/dd.lua
-#, fuzzy
 msgid "dd: prevented fast 1x dig from %(name) (#%(pid))"
-msgstr "dd: предотвращено быстрое извлечение 1x из %(name) (#%(pid))"
+msgstr "dd: предотвращено быстрое копание 1x от %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/dd.lua
-#, fuzzy
 msgid "dd: prevented fast block shot from %(name) (#%(pid))"
-msgstr "dd: предотвращена быстрая блокировка %(name) (#%(pid))"
+msgstr "dd: предотвращена быстрая стрельба по блокам от %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/dd.lua
-#, fuzzy
 msgid "dd: prevented fast 3x dig from %(name) (#%(pid))"
-msgstr "dd: предотвращено быстрое 3-кратное извлечение из %(name) (#%(pid))"
+msgstr "dd: предотвращено быстрое копание 3x от %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/dd.lua
-#, fuzzy
 msgid "dd: prevented fast block line placement from %(name) (#%(pid))"
-msgstr "dd: предотвращено быстрое размещение линии блоков в %(name) (#%(pid))"
+msgstr "dd: предотвращена быстрая установка линии блоков от %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/dd.lua
-#, fuzzy
 msgid "dd: prevented fast spadehit from %(name) (#%(pid))"
-msgstr "dd: предотвращает быстрый спадехит от %(name) (#%(pid))"
+msgstr "dd: предотвращены быстрые удары лопатой от %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/dd.lua
-#, fuzzy
 msgid "dd: prevented fast player shot from %(name) (#%(pid))"
-msgstr "dd: предотвращает быстрый выстрел игрока из %(name) (#%(pid))"
+msgstr "dd: предотвращена быстрая стрельба по игрокам от %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/disco.lua
-#, fuzzy
 msgctxt "command"
 msgid "Toggle the disco party."
-msgstr "Переключи диско-вечеринку."
+msgstr "Включить/выключить дискотеку."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/emote.lua
-#, fuzzy
 msgid "Cannot find image; try /emotelist."
-msgstr "Не могу найти изображение, попробуйте /emotelist."
+msgstr "Изображение не найдено; попробуй /emotelist."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/emote.lua
-#, fuzzy
 msgid "You can list images with /emotelist."
-msgstr "Вы можете использовать /emotelist."
+msgstr "Список изображений -- /emotelist."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/emote.lua
-#, fuzzy
 msgid "You must wait %(timeuntil) s to paint an emote again."
-msgstr "Вы должны подождать %(timeuntil), чтобы снова нарисовать эмот."
+msgstr "Подожди %(timeuntil) с, прежде чем снова рисовать эмоцию."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/emote.lua
-#, fuzzy
 msgctxt "command"
 msgid "Paint an image centered at your location."
-msgstr "Нарисуйте изображение, сосредоточенное в вашем месте."
+msgstr "Нарисовать изображение с центром там, где ты стоишь."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/emote.lua
-#, fuzzy
 msgctxt "command"
 msgid "List images available to paint on the ground."
-msgstr "Перечислите изображения, доступные для рисования на земле."
+msgstr "Показать изображения, которые можно нарисовать на земле."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/god.lua
-#, fuzzy
 msgctxt "command"
 msgid "Prevent yourself from being damaged."
-msgstr "Не позволяйте себе быть поврежденным."
+msgstr "Защитить себя от урона."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/if_websocket.lua
-#, fuzzy
 msgid "ifwsock: got tcp connection %(addr) (#%(pid))"
-msgstr "ifwsock: получил tcp-соединение %(addr) (#%(pid))"
+msgstr "ifwsock: получено tcp-соединение %(addr) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/if_websocket.lua
-#, fuzzy
 msgid "ifwsock: tcp connection %(addr) (#%(pid)) closed"
 msgstr "ifwsock: tcp-соединение %(addr) (#%(pid)) закрыто"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/if_websocket.lua
-#, fuzzy
 msgid "ifwsock: connected: (#%(pid))"
-msgstr "ifwsock: подключено: (#%(pid))"
+msgstr "ifwsock: подключён: (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/if_websocket.lua
-#, fuzzy
 msgid "ifwsock: disconnected: %(addr) (#%(pid))"
-msgstr "ifwsock: отключен: %(addr) (#%(pid))"
+msgstr "ifwsock: отключён: %(addr) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/irc_console.lua
-#, fuzzy
 msgid "Unable to set nick. Make sure the user exists and the nick isn't already in use."
-msgstr "Невозможно установить Ника. Убедитесь, что пользователь существует, а ник еще не используется."
+msgstr "Не удалось задать ник. Проверь, что пользователь существует и ник не занят."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/irc_console.lua
-#, fuzzy
 msgid "Unable to remove nick. Make sure the user exists and has a linked nickname."
-msgstr "Невозможно удалить Ника. Убедитесь, что пользователь существует и имеет связанное прозвище."
+msgstr "Не удалось убрать ник. Проверь, что пользователь существует и к нему привязан ник."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/irc_console.lua
-#, fuzzy
 msgctxt "command"
 msgid "Link an auth account to an IRC nick."
-msgstr "Свяжите учетную запись auth с ником IRC."
+msgstr "Привязать аккаунт к нику IRC."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/irc_console.lua
-#, fuzzy
 msgctxt "command"
 msgid "Unlink an auth account from IRC."
-msgstr "Отключите учетную запись auth от IRC."
+msgstr "Отвязать аккаунт от IRC."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/jp.lua
-#, fuzzy
 msgctxt "command"
 msgid "Press sneak (V) to fly upwards."
-msgstr "Нажмите sneak (V), чтобы взлететь вверх."
+msgstr "Нажми красться (V), чтобы взлететь вверх."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_meta.lua
-#, fuzzy
 msgid "Next up: %(name)"
-msgstr "Следующая статья: %(name)"
+msgstr "Далее: %(name)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_meta.lua
-#, fuzzy
 msgid "Next up: %(name) by %(author)"
-msgstr "Оригинальное название: %(name) by %(author)"
+msgstr "Далее: %(name), автор %(author)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_meta.lua
-#, fuzzy
 msgctxt "command"
 msgid "Dump the current map's metadata."
-msgstr "Сбросьте метаданные текущей карты."
+msgstr "Вывести метаданные текущей карты."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_queue.lua
-#, fuzzy
 msgctxt "command"
 msgid "List the default map queue."
-msgstr "Перечислите очередь карт по умолчанию."
+msgstr "Показать очередь карт по умолчанию."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_queue.lua
-#, fuzzy
 msgctxt "command"
 msgid "Append a map to the temporary map queue."
-msgstr "Добавить карту во временную очередь карты."
+msgstr "Добавить карту во временную очередь."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_queue.lua
-#, fuzzy
 msgctxt "command"
 msgid "Override the temporary map queue. Later maps get played first."
-msgstr "Преодолейте временную очередь карты. Позже карты будут сыграны первыми."
+msgstr "Заменить временную очередь карт. Последние карты играются первыми."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_queue.lua
-#, fuzzy
 msgctxt "command"
 msgid "Load the next queued map."
-msgstr "Загрузите следующую карту в очереди."
+msgstr "Загрузить следующую карту из очереди."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_queue.lua
-#, fuzzy
 msgctxt "command"
 msgid "Immediately load the map at the specified path."
-msgstr "Немедленно загрузите карту на указанном пути."
+msgstr "Немедленно загрузить карту по указанному пути."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/masterlist.lua
-#, fuzzy
 msgid "Connected to masterlist %(addr)"
-msgstr "Подключен к мастерлисту %(addr)"
+msgstr "Подключено к мастер-списку %(addr)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/masterlist.lua
-#, fuzzy
 msgid "Disconnected from masterlist %(addr)"
-msgstr "Отключен от мастерлиста %(addr)"
+msgstr "Отключено от мастер-списка %(addr)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/masterlist.lua
-#, fuzzy
 msgid "Reconnecting to masterlist %(addr)"
-msgstr "Воссоединение с мастерлистом %(addr)"
+msgstr "Переподключение к мастер-списку %(addr)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/medkit.lua
-#, fuzzy
 msgid "The medkit cannot bring you back from the dead."
-msgstr "Медкит не может вернуть тебя из мертвых."
+msgstr "Аптечка не вернёт тебя с того света."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/medkit.lua
-#, fuzzy
 msgid "You've already used all your medkits! Restock at the tent."
-msgstr "Ты уже использовал все свои медкиты! Перезагрузка палатка."
+msgstr "Ты уже израсходовал все аптечки! Пополни их у палатки."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/medkit.lua
-#, fuzzy
 msgid "The medkit only heals physical wounds."
-msgstr "Медкит лечит только физические раны."
+msgstr "Аптечка лечит только физические раны."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/noclip.lua
-#, fuzzy
 msgctxt "command"
 msgid "Fly around."
-msgstr "Лети вокруг."
+msgstr "Летать."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/profiler.lua
-#, fuzzy
 msgctxt "command"
 msgid "Start profiling."
-msgstr "Начните профилирование."
+msgstr "Начать профилирование."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/profiler.lua
-#, fuzzy
 msgctxt "command"
 msgid "Stop profiling."
-msgstr "Хватит профилировать."
+msgstr "Остановить профилирование."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/profiler.lua
-#, fuzzy
 msgctxt "command"
 msgid "Dump profiler data to the console."
-msgstr "Откажитесь от данных профиля на консоли."
+msgstr "Вывести данные профилировщика в консоль."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Select a box."
-msgstr "Выберите коробку."
+msgstr "Выделить область."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/setspawn.lua
-#, fuzzy
 msgid "You'll now spawn at the default position."
-msgstr "Теперь вы будете появляться в положении по умолчанию."
+msgstr "Теперь ты будешь появляться в стандартной точке."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/setspawn.lua
-#, fuzzy
 msgid "You'll now spawn at {x=%(x), y=%(y), z=%(z)}."
-msgstr "Теперь вы будете размножаться при {x=%(x), y=%(y), z=%(z)}."
+msgstr "Теперь ты будешь появляться в {x=%(x), y=%(y), z=%(z)}."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/setspawn.lua
-#, fuzzy
 msgctxt "command"
 msgid "Toggle respawning at your current position."
-msgstr "Переключитесь на текущую позицию."
+msgstr "Включить/выключить возрождение на текущей позиции."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/team_balance.lua
-#, fuzzy
 msgid "%(team) is unbalanced; switched to other team"
-msgstr "%(team) несбалансирован, перешел в другую команду"
+msgstr "Команда %(team) несбалансирована; ты переведён в другую команду"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/team_balance.lua
-#, fuzzy
 msgid "%(team) is unbalanced; cannot switch"
-msgstr "%(team) несбалансирован, не может переключаться"
+msgstr "Команда %(team) несбалансирована; перейти нельзя"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/time_limit.lua
-#, fuzzy
 msgid "Remaining time extended to %(time)."
 msgstr "Оставшееся время продлено до %(time)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/time_limit.lua
-#, fuzzy
 msgid "%(time) remaining."
-msgstr "%(time) остался."
+msgstr "Осталось: %(time)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/time_limit.lua
-#, fuzzy
 msgid "You need the %(cap) capability to set the time limit."
-msgstr "%(cap) право должен быть установлен лимит времени."
+msgstr "Чтобы задать лимит времени, нужно право %(cap)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/time_limit.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print or set the time remaining until the game ends."
-msgstr "Распечатайте или установите время, оставшееся до окончания игры."
+msgstr "Показать или задать время до конца игры."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/toggles.lua
-#, fuzzy
 msgid "Added %(cap) to %(name)"
-msgstr "Добавлен %(cap) в %(name)"
+msgstr "Право %(cap) выдано игроку %(name)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/toggles.lua
-#, fuzzy
 msgid "Removed %(cap) from %(name)"
-msgstr "Удаленный %(cap) из %(name)"
+msgstr "Право %(cap) отнято у игрока %(name)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/toggles.lua
-#, fuzzy
 msgctxt "command"
 msgid "Prevent a player from directly altering the map."
-msgstr "Не позволяйте игроку напрямую изменять карту."
+msgstr "Запретить игроку напрямую изменять карту."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/toggles.lua
-#, fuzzy
 msgctxt "command"
 msgid "Prevent a player from directly damaging others."
-msgstr "Не позволяйте игроку наносить вред другим."
+msgstr "Запретить игроку напрямую наносить урон другим."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/toggles.lua
-#, fuzzy
 msgctxt "command"
 msgid "Shut a noisy player up."
-msgstr "Закрой шумного игрока."
+msgstr "Заткнуть шумного игрока."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/toggles.lua
-#, fuzzy
 msgctxt "command"
 msgid "Shut a noisy /admin'er up."
-msgstr "Закрой шумный /admin."
+msgstr "Заткнуть шумного любителя /admin."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/websock_console.lua
-#, fuzzy
 msgid "wscon: got tcp connection (#%(pid))"
-msgstr "wscon: получил tcp-соединение (#%(pid))"
+msgstr "wscon: получено tcp-соединение (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/websock_console.lua
-#, fuzzy
 msgid "wscon: tcp connection #%(pid) closed"
-msgstr "wscon: соединение tcp #%(pid) закрыто"
+msgstr "wscon: tcp-соединение #%(pid) закрыто"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/websock_console.lua
-#, fuzzy
 msgid "wscon: connected: %(name) (#%(pid))"
-msgstr "wscon: Connected: %(name) (#%(pid))"
+msgstr "wscon: подключён: %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/websock_console.lua
-#, fuzzy
 msgid "wscon: disconnected: %(name) (#%(pid))"
-msgstr "wscon: отключен: %(name) (#%(pid))"
+msgstr "wscon: отключён: %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/websock_console.lua
-#, fuzzy
 msgid "wscon: %(name) (#%(pid)): /%(cmd)"
 msgstr "wscon: %(name) (#%(pid)): /%(cmd)"

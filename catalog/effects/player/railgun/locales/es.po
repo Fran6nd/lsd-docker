@@ -7,14 +7,10 @@ msgstr ""
 "Language: es\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/railgun/rifle_is_a_rail_gun.lua
-#, fuzzy
 msgid "warning: here rifles are railguns."
-msgstr "advertencia: aquí los rifles son pistolas."
+msgstr "aviso: aquí los rifles son cañones de riel."
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/railgun/rifle_is_a_rail_gun.lua
-#, fuzzy
 msgid "Spicy: rifles are railguns -- they pierce the whole map and leave a tracer."
-msgstr "Spicy: los rifles son pistolas... perforan todo el mapa y dejan un rastreador."
+msgstr "Picante: los rifles son cañones de riel -- atraviesan todo el mapa y dejan una estela."

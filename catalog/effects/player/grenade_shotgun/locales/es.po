@@ -7,14 +7,10 @@ msgstr ""
 "Language: es\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/grenade_shotgun/shotgun_are_grenade_launchers.lua
-#, fuzzy
 msgid "warning: here shotguns are grenade launchers."
-msgstr "advertencia: aquí las escopetas son lanzagranadas."
+msgstr "aviso: aquí las escopetas son lanzagranadas."
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/grenade_shotgun/shotgun_are_grenade_launchers.lua
-#, fuzzy
 msgid "Spicy: every shotgun blast drops a grenade pellet -- mind the splash."
-msgstr "Especiado: cada explosión de escopeta deja caer una granada de pellets..."
+msgstr "Picante: cada disparo de escopeta suelta una granada -- cuidado con la onda expansiva."

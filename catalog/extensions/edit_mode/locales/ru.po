@@ -7,51 +7,35 @@ msgstr ""
 "Language: ru\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgctxt "command"
 msgid "Switch a player's Edit Mode: no block limits, Block Batch."
-msgstr "Переключите режим редактирования игрока: никаких ограничений блоков, пакет блоков."
+msgstr "Переключить режим редактирования игрока: без лимита блоков, Block Batch."
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode on for %(name)."
-msgstr "Редактировать режим для %(name)."
+msgstr "Режим редактирования включён для %(name)."
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode off for %(name)."
-msgstr "Редактировать режим для %(name)."
+msgstr "Режим редактирования выключен для %(name)."
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode on."
-msgstr "Редактировать режим."
+msgstr "Режим редактирования включён."
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode off."
-msgstr "Редактируйте режим."
+msgstr "Режим редактирования выключен."
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "%(name) is still connecting; edit mode goes on once their client has negotiated."
-msgstr "%(name) все еще подключается; режим редактирования продолжается после того, как их клиент договорился."
+msgstr "%(name) ещё подключается; режим редактирования включится, когда клиент завершит согласование."
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "%(name)'s client does not support the Edit Mode extension."
-msgstr "Клиент %(name) не поддерживает расширение Edit Mode."
+msgstr "Клиент игрока %(name) не поддерживает расширение Edit Mode."
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
-#, fuzzy
 msgid "Edit mode: %(why)."
 msgstr "Режим редактирования: %(why)."

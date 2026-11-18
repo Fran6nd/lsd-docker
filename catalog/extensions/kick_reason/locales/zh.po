@@ -7,32 +7,22 @@ msgstr ""
 "Language: zh\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Banned"
-msgstr "被禁绝"
+msgstr "已封禁"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Kicked"
-msgstr "脚踢"
+msgstr "已踢出"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Wrong version"
-msgstr "错误的版本"
+msgstr "版本不符"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Server full"
 msgstr "服务器已满"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Server shutdown"
 msgstr "服务器关闭"

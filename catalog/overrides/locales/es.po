@@ -9,1860 +9,1296 @@ msgstr ""
 
 #: catalog/core/lib_update_notice.lua
 msgid "lsd-docker %(latest) is available; this server runs %(running). Update from the host: lsd update"
-msgstr ""
+msgstr "lsd-docker %(latest) está disponible; este servidor ejecuta %(running). Actualiza desde el host: lsd update"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
-#, fuzzy
 msgid "Command not found."
 msgstr "Comando no encontrado."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
-#, fuzzy
 msgid "Were you looking for /commands?"
-msgstr "¿Estabas buscando a /commands?"
+msgstr "¿Buscabas /commands?"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print an alphabetically ordered list of all commands."
-msgstr "Imprima una lista ordenada alfabéticamente de todos los comandos."
+msgstr "Mostrar una lista alfabética de todos los comandos."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
-#, fuzzy
 msgctxt "command"
 msgid "Filter through the list of commands. Does not parse arguments."
-msgstr "Filtrar por la lista de comandos. No analiza argumentos."
+msgstr "Filtrar la lista de comandos. No analiza argumentos."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
-#, fuzzy
 msgctxt "command"
 msgid "Display the invocation and description of a command."
-msgstr "Mostrar la invocación y descripción de un comando."
+msgstr "Mostrar la sintaxis y la descripción de un comando."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "usage: %(cmd)"
 msgstr "uso: %(cmd)"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "usage: %(cmd) %(args)"
 msgstr "uso: %(cmd) %(args)"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "Your language: %(lang). Available: %(list). Use /lang <code>, or /lang auto for your client's."
-msgstr "Tu idioma: %(lang). Disponible: %(list). Utilice /lang <code>, o /lang auto para su cliente."
+msgstr "Tu idioma: %(lang). Disponibles: %(list). Usa /lang <código>, o /lang auto para el de tu cliente."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "Language set to %(lang)."
-msgstr "Idioma fijado a %(lang)."
+msgstr "Idioma cambiado a %(lang)."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "Language follows your client again: %(lang)."
-msgstr "El idioma sigue a su cliente de nuevo: %(lang)."
+msgstr "El idioma vuelve a seguir a tu cliente: %(lang)."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "No translations for %(lang) here; some messages stay in English."
-msgstr "No hay traducciones para %(lang) aquí; algunos mensajes permanecen en inglés."
+msgstr "No hay traducciones a %(lang) aquí; algunos mensajes quedan en inglés."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "%(lang) is not a language code (en, fr, pt_br, ...)."
-msgstr "%(lang) no es un código de idioma (en, fr, pt br, ...)."
+msgstr "%(lang) no es un código de idioma (en, fr, pt_br, ...)."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "Translations need %(clients); this server speaks %(lang) to your client."
-msgstr "Las traducciones necesitan %(clients); este servidor habla %(lang) a su cliente."
+msgstr "Las traducciones requieren %(clients); este servidor le habla a tu cliente en %(lang)."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgctxt "command"
 msgid "Show or choose the language the server speaks to you."
-msgstr "Mostrar o elegir el idioma que el servidor le habla."
+msgstr "Mostrar o elegir el idioma en que te habla el servidor."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "Language"
 msgstr "Idioma"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/lib_l10n.lua
-#, fuzzy
 msgid "Show or change the language you read"
-msgstr "Mostrar o cambiar el idioma que lees"
+msgstr "Ver o cambiar el idioma en que lees"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Beginning selection."
-msgstr "Empieza la selección."
+msgstr "Iniciando selección."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Beginning selection start."
-msgstr "Empieza la selección."
+msgstr "Fijando el inicio de la selección."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Beginning selection end."
-msgstr "Inicio final de selección."
+msgstr "Fijando el final de la selección."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Selection started at {x=%(x), y=%(y), z=%(z)}."
-msgstr "La selección comenzó en {x=%(x), y=%(y), z=%(z)}."
+msgstr "Selección iniciada en {x=%(x), y=%(y), z=%(z)}."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Selection ended at {x=%(x), y=%(y), z=%(z)}."
 msgstr "Selección terminada en {x=%(x), y=%(y), z=%(z)}."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Begin a selection first."
-msgstr "Empieza una selección primero."
+msgstr "Primero inicia una selección."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Start the selection first."
-msgstr "Iniciar la selección primero."
+msgstr "Primero fija el inicio de la selección."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "End the selection first."
-msgstr "Termina la selección primero."
+msgstr "Primero fija el final de la selección."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "shape should be one of the following: cube, box, sphere, cylinderx, cylindery, cylinderz, fn"
-msgstr "forma debe ser uno de los siguientes: cubo, caja, esfera, cilindro, cilindro, cilindro, cilindro"
+msgstr "la forma debe ser una de las siguientes: cube, box, sphere, cylinderx, cylindery, cylinderz, fn"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "%(arg) should be one of the following: x, -x, +x, y, -y, +y, z, -z, +z"
 msgstr "%(arg) debe ser uno de los siguientes: x, -x, +x, y, -y, +y, z, -z, +z"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Swizzle must map all of x, y and z"
-msgstr "Swizzle debe mapear todo x, y y z"
+msgstr "El swizzle debe asignar x, y y z"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
-#, fuzzy
 msgid "Nothing that way to pick. Aim at a block."
-msgstr "Nada de esa manera de elegir. Apunta a una cuadra."
+msgstr "No hay nada que elegir en esa dirección. Apunta a un bloque."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgid "Couldn't find any block in that cast. You're certain you're not looking at the sky?"
-msgstr "No pude encontrar ningún bloque en ese yeso. ¿Estás seguro de que no estás mirando el cielo?"
+msgstr "No se encontró ningún bloque en esa trayectoria. ¿Seguro que no estás mirando al cielo?"
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Select a box, by aiming at its corners or by naming them."
-msgstr "Seleccione una caja, apuntando a sus esquinas o nombrandolos."
+msgstr "Seleccionar una caja, apuntando a sus esquinas o indicándolas."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Set the start of a selection."
-msgstr "Establecer el comienzo de una selección."
+msgstr "Fijar el inicio de una selección."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Raycast the start of a selection."
-msgstr "Raycast el comienzo de una selección."
+msgstr "Fijar el inicio de una selección apuntando (raycast)."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Set the start of a selection to your head's position."
-msgstr "Establece el inicio de una selección a la posición de tu cabeza."
+msgstr "Fijar el inicio de una selección en la posición de tu cabeza."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Set the end of a selection."
-msgstr "Establecer el final de una selección."
+msgstr "Fijar el final de una selección."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Raycast the end of a selection."
-msgstr "Raycast el final de una selección."
+msgstr "Fijar el final de una selección apuntando (raycast)."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Set the end of a selection to your head's position."
-msgstr "Ponga el final de una selección a la posición de su cabeza."
+msgstr "Fijar el final de una selección en la posición de tu cabeza."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Stop a selection."
-msgstr "Para una selección."
+msgstr "Detener una selección."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Change selection shape."
-msgstr "Cambiar la forma de selección."
+msgstr "Cambiar la forma de la selección."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Change \"fn\" selection shape. Does not parse args."
-msgstr "Cambiar la forma de selección \"fn\". No pare args."
+msgstr "Cambiar la forma de selección \"fn\". No analiza argumentos."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Change selection noise."
-msgstr "Cambiar el ruido de selección."
+msgstr "Cambiar el ruido de la selección."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Fill and replace a box."
-msgstr "Rellene y reemplace una caja."
+msgstr "Rellenar una caja, reemplazando lo que haya."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Clobber over everything in your selection to match the current shape."
-msgstr "Clobber sobre todo en su selección para que coincida con la forma actual."
+msgstr "Sobrescribir todo lo que haya en tu selección para que coincida con la forma actual."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Fill and do not replace a box."
-msgstr "Rellene y no reemplace una caja."
+msgstr "Rellenar una caja sin reemplazar lo que haya."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Destroy a box."
-msgstr "Destruye una caja."
+msgstr "Destruir una caja."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Set color of all blocks in a box."
-msgstr "Establecer el color de todos los bloques en una caja."
+msgstr "Cambiar el color de todos los bloques de una caja."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Duplicate the selection in a direction a certain number of times."
-msgstr "Duplicar la selección en una dirección un cierto número de veces."
+msgstr "Duplicar la selección en una dirección un número dado de veces."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Duplicate the selection in a direction a certain number of times, then select the duplicated area."
-msgstr "Duplicar la selección en una dirección un cierto número de veces, y luego seleccionar el área duplicada."
+msgstr "Duplicar la selección en una dirección un número dado de veces, y luego seleccionar el área duplicada."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Move the selection, then select the moved area."
-msgstr "Mueva la selección, luego seleccione el área movida."
+msgstr "Mover la selección, y luego seleccionar el área movida."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Move the selection dist blocks in the direction you're facing, then select the moved area."
-msgstr "Mueve los bloques de dist de selección en la dirección que estás enfrentando, y luego seleccione el área movida."
+msgstr "Mover la selección dist bloques en la dirección a la que miras, y luego seleccionar el área movida."
 
-# machine-translated (LibreTranslate)
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Swizzle the dimensions of the selection around to flip and rotate."
-msgstr "Deslice las dimensiones de la selección alrededor para girar y girar."
+msgstr "Intercambiar las dimensiones de la selección para voltearla y rotarla."
 
-# machine-translated (LibreTranslate)
 #: image/config.lua
-#, fuzzy
 msgid "Use /kill to die."
 msgstr "Usa /kill para morir."
 
-# machine-translated (LibreTranslate)
 #: image/config.lua
-#, fuzzy
 msgid "Press the %(key) key to change team/gun."
-msgstr "Presione la tecla %(key) para cambiar el equipo/gun."
+msgstr "Pulsa la tecla %(key) para cambiar de equipo/arma."
 
-# machine-translated (LibreTranslate)
 #: image/config.lua
-#, fuzzy
 msgid "Block color won't change? Try the arrow keys and E."
-msgstr "¿El color del bloque no cambiará? Prueba las teclas de flecha y E."
+msgstr "¿El color del bloque no cambia? Prueba las flechas y E."
 
-# machine-translated (LibreTranslate)
 #: image/config.lua
-#, fuzzy
 msgid "This is not Build and Shoot. This is ACE OF SPADES."
-msgstr "Esto no es Construir y disparar. Este es ACE OF SPADES."
+msgstr "Esto no es Build and Shoot. Esto es ACE OF SPADES."
 
-# machine-translated (LibreTranslate)
 #: image/config.lua
-#, fuzzy
 msgid "Type /lang to read the server in another language."
 msgstr "Escribe /lang para leer el servidor en otro idioma."
 
-# machine-translated (LibreTranslate)
 #: image/config.lua
-#, fuzzy
 msgid "Welcome to %(server), running [LSd]."
-msgstr "Bienvenido a %(server), [LSd]."
+msgstr "Bienvenido a %(server), que funciona con [LSd]."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/afkick.lua
-#, fuzzy
 msgid "%(name) was kicked: AFK"
-msgstr "%(name) era expulsado: AFK"
+msgstr "%(name) fue expulsado: AFK"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/afkick.lua
-#, fuzzy
 msgid "You will be automatically AFK-kicked in %(time) s"
-msgstr "Usted será automáticamente AFK-expulsado en %(time) s"
+msgstr "Serás expulsado automáticamente por AFK en %(time) s"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/apoc.lua
-#, fuzzy
 msgid "%(originname)'s apocs have been given to %(destname)"
-msgstr "%(originname)'s apocs have been given to %(destname)"
+msgstr "Los apocs de %(originname) se han dado a %(destname)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/apoc.lua
-#, fuzzy
 msgid "%(name) can now use /apoc. . ."
-msgstr "%(name) ahora puede utilizar /apoc. . ."
+msgstr "%(name) ya puede usar /apoc. . ."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/apoc.lua
-#, fuzzy
 msgid "You need a %(needstreak) killstreak to use apoc! Current streak: %(curstreak)"
-msgstr "¡Necesitas un %(needstreak) racha de bajas para usar apoc! racha actual: %(curstreak)"
+msgstr "¡Necesitas una racha de bajas de %(needstreak) para usar apoc! Racha actual: %(curstreak)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/apoc.lua
-#, fuzzy
 msgid "Don't be so hasty!"
-msgstr "¡No seas tan precipitado!"
+msgstr "¡No tengas tanta prisa!"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/apoc.lua
-#, fuzzy
 msgctxt "command"
 msgid "Attempt to summon an apoc."
-msgstr "Intento convocar a un apoc."
+msgstr "Intentar invocar un apoc."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/apoc.lua
-#, fuzzy
 msgctxt "command"
 msgid "Bombs away!"
-msgstr "¡Bombas!"
+msgstr "¡Bombas fuera!"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/arena.lua
-#, fuzzy
 msgid "Starting round in %(time) s."
-msgstr "Comenzando en %(time) s."
+msgstr "La ronda empieza en %(time) s."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "You need to login to run that command."
-msgstr "Tienes que iniciar sesión para ejecutar ese comando."
+msgstr "Necesitas iniciar sesión para ejecutar ese comando."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Don't make the password that long or you might not be able to change it! Try <= %(max) chars."
-msgstr "¡No hagas la contraseña tanto tiempo o quizás no puedas cambiarla! Prueba con %(max) chars."
+msgstr "¡No pongas una contraseña tan larga o puede que no puedas cambiarla! Prueba con <= %(max) caracteres."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Can't register; are you sure that name isn't taken?"
-msgstr "No se puede registrar; ¿estás seguro de que ese nombre no se toma?"
+msgstr "No se pudo registrar; ¿seguro que ese nombre no está ocupado?"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "User not found."
 msgstr "Usuario no encontrado."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Try logging in again in %(timeleft) s."
-msgstr "Intente iniciar sesión de nuevo en %(timeleft) s."
+msgstr "Vuelve a intentar iniciar sesión en %(timeleft) s."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Bad password or TOTP."
-msgstr "Mala contraseña o TOTP."
+msgstr "Contraseña o TOTP incorrectos."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "algorithm should be one of the following: SHA1, SHA256, SHA512"
-msgstr "algoritmo debe ser uno de los siguientes: SHA1, SHA256, SHA512"
+msgstr "el algoritmo debe ser uno de los siguientes: SHA1, SHA256, SHA512"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Your password is too short and hard to remember. Try using a couple of actual, *random* words instead."
-msgstr "Su contraseña es demasiado corta y difícil de recordar. Trate de usar un par de palabras reales, * rara vez*."
+msgstr "Tu contraseña es demasiado corta y difícil de recordar. Prueba con un par de palabras reales, *aleatorias*."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Pass your code to /totpverify to set up TOTP."
-msgstr "Pase su código a /totpverify para configurar TOTP."
+msgstr "Pasa tu código a /totpverify para configurar TOTP."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Your account's TOTP configuration has been set."
-msgstr "Se ha establecido la configuración TOTP de su cuenta."
+msgstr "Se ha establecido la configuración TOTP de tu cuenta."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgid "Bad TOTP."
-msgstr "Mala idea."
+msgstr "TOTP incorrecto."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Create an account."
-msgstr "Cree una cuenta."
+msgstr "Crear una cuenta."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Setup TOTP for your account."
 msgstr "Configurar TOTP para tu cuenta."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Remove TOTP from your account."
-msgstr "Retire TOTP de su cuenta."
+msgstr "Quitar TOTP de tu cuenta."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Finish setting up TOTP for your account."
-msgstr "Termina de configurar TOTP para tu cuenta."
+msgstr "Terminar de configurar TOTP para tu cuenta."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Set an account's capabilities."
-msgstr "Establecer las capacidades de una cuenta."
+msgstr "Establecer los permisos de una cuenta."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Change your account's password."
-msgstr "Cambia la contraseña de tu cuenta."
+msgstr "Cambiar la contraseña de tu cuenta."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Login to an account."
-msgstr "Inicie sesión en una cuenta."
+msgstr "Iniciar sesión en una cuenta."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Barge into an account."
-msgstr "Entra en una cuenta."
+msgstr "Entrar a la fuerza en una cuenta."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Log out of your account."
-msgstr "Salga de su cuenta."
+msgstr "Cerrar la sesión de tu cuenta."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/auth.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print your account name and groups."
-msgstr "Imprima su nombre de cuenta y grupos."
+msgstr "Mostrar el nombre de tu cuenta y tus grupos."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel.lua
-#, fuzzy
 msgid ">:("
-msgstr "⇩"
+msgstr ">:("
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel.lua
 #: lsd/scripts/babel_protect.lua
-#, fuzzy
 msgid "Can't do that there!"
-msgstr "¡No puedo hacer eso!"
+msgstr "¡Eso no se puede hacer ahí!"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel.lua
 #: lsd/scripts/ctf.lua
 #: lsd/scripts/onectf.lua
-#, fuzzy
 msgid "You're not holding the intel!"
-msgstr "¡No tienes el intel!"
+msgstr "¡No llevas la inteligencia!"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel.lua
 #: lsd/scripts/ctf.lua
 #: lsd/scripts/onectf.lua
-#, fuzzy
 msgctxt "command"
 msgid "Drop the intel if you're holding it."
-msgstr "Deja el intel si lo sostienes."
+msgstr "Soltar la inteligencia si la llevas."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_heaven.lua
-#, fuzzy
 msgid "Cannot find image; try /heavenlist."
-msgstr "No se puede encontrar la imagen; probar /heavenlist."
+msgstr "No se encuentra la imagen; prueba /heavenlist."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_heaven.lua
-#, fuzzy
 msgid "You can list images with /heavenlist."
-msgstr "Puedes listar imágenes con /heavenlist."
+msgstr "Puedes listar las imágenes con /heavenlist."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_heaven.lua
-#, fuzzy
 msgid "You must wait %(timeuntil) s to paint over the platform again."
-msgstr "Usted debe esperar %(timeuntil) s para pintar sobre la plataforma de nuevo."
+msgstr "Debes esperar %(timeuntil) s para volver a pintar sobre la plataforma."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_heaven.lua
-#, fuzzy
 msgctxt "command"
 msgid "Paint an image on the babel platform."
-msgstr "Pintar una imagen en la plataforma de babel."
+msgstr "Pintar una imagen en la plataforma de Babel."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_heaven.lua
-#, fuzzy
 msgctxt "command"
 msgid "Paint an image on the babel platform regardless of the timer's opinion."
-msgstr "Pintar una imagen en la plataforma de babel independientemente de la opinión del temporizador."
+msgstr "Pintar una imagen en la plataforma de Babel sin importar lo que diga el temporizador."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_heaven.lua
-#, fuzzy
 msgctxt "command"
 msgid "List images available to paint on the babel platform."
-msgstr "Lista de imágenes disponibles para pintar en la plataforma de babel."
+msgstr "Listar las imágenes disponibles para pintar en la plataforma de Babel."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_unlocks.lua
-#, fuzzy
 msgid "%(name) has placed %(blocks) blocks, /heaven unlocked!"
-msgstr "%(name) ha colocado bloques %(blocks), /heaven desbloqueado!"
+msgstr "¡%(name) ha colocado %(blocks) bloques, /heaven desbloqueado!"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_unlocks.lua
-#, fuzzy
 msgid "%(name) has placed %(blocks) tower blocks."
-msgstr "%(name) ha colocado bloques de torre %(blocks)."
+msgstr "%(name) ha colocado %(blocks) bloques de la torre."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_unlocks.lua
-#, fuzzy
 msgid "Congratulations on placing 0 blocks today!"
-msgstr "¡Felicitaciones por colocar 0 bloques hoy!"
+msgstr "¡Enhorabuena por colocar 0 bloques hoy!"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_unlocks.lua
-#, fuzzy
 msgid "You need a %(needstreak) killstreak and 1 capture to use apoc! Current streak: %(curstreak)"
-msgstr "¡Necesitas una captura %(needstreak) racha de bajas y 1 para usar apoc! racha actual: %(curstreak)"
+msgstr "¡Necesitas una racha de bajas de %(needstreak) y 1 captura para usar apoc! Racha actual: %(curstreak)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_unlocks.lua
-#, fuzzy
 msgid "You have a %(streak) streak! Capture an intel for /apoc."
-msgstr "¡Tienes un %(streak) racha! Capturar un intel para /apoc."
+msgstr "¡Tienes una racha de %(streak)! Captura una inteligencia para /apoc."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/babel_unlocks.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print the number of blocks placed by another player or yourself."
-msgstr "Imprima el número de bloques colocados por otro jugador o usted mismo."
+msgstr "Mostrar el número de bloques colocados por otro jugador o por ti."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgid "%(name) was banned"
-msgstr "%(name) fue prohibido"
+msgstr "%(name) fue baneado"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgid "#%(id): <%(name)>, %(addr), %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
-msgstr "#%(id): ■%(name) confianza, %(addr), %(start_date) - confianza %(end_date) por %(banner): %(comment) (caps.: %(caps))"
+msgstr "#%(id): <%(name)>, %(addr), %(start_date) -> %(end_date) por %(banner): %(comment) (permisos: %(caps))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgid "#%(id): <%(name)>, %(addr), expired, %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
-msgstr "#%(id): ■%(name) confianza, %(addr), expired, %(start_date) - Propiedad %(end_date) by %(banner): %(comment) (caps: %(caps))"
+msgstr "#%(id): <%(name)>, %(addr), expirado, %(start_date) -> %(end_date) por %(banner): %(comment) (permisos: %(caps))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgid "#%(id): <%(name)>, %(addr), revoked, %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
-msgstr "#%(id): ■%(name) confianza, %(addr), revoked, %(start_date) - titulada %(end_date) by %(banner): %(comment) (caps: %(caps))"
+msgstr "#%(id): <%(name)>, %(addr), revocado, %(start_date) -> %(end_date) por %(banner): %(comment) (permisos: %(caps))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgid "Ban ID: #%(id)"
-msgstr "ID de prohibición: #%(id)"
+msgstr "ID de baneo: #%(id)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgid "Invalid ban ID."
-msgstr "Identificación de prohibición inválida."
+msgstr "ID de baneo no válido."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player."
-msgstr "Prohibir un jugador travieso."
+msgstr "Banear a un jugador travieso."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player with custom badcaps."
-msgstr "Prohibir un jugador travieso con badcaps personalizados."
+msgstr "Banear a un jugador travieso con badcaps personalizados."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty (nice?) player with custom caps."
-msgstr "Prohibir un jugador travieso (¿no?) con gorros personalizados."
+msgstr "Banear a un jugador travieso (¿bueno?) con permisos personalizados."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range."
-msgstr "Prohibir una dirección IPv4 traviesa o rango CIDR."
+msgstr "Banear una dirección IPv4 o rango CIDR travieso."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range with custom badcaps."
-msgstr "Prohibir una dirección IPv4 traviesa o rango CIDR con badcaps personalizados."
+msgstr "Banear una dirección IPv4 o rango CIDR travieso con badcaps personalizados."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty (nice?) IPv4 address or CIDR range with custom caps."
-msgstr "Prohibir una traviesa dirección IPv4 o rango CIDR con tapas personalizadas."
+msgstr "Banear una dirección IPv4 o rango CIDR travieso (¿bueno?) con permisos personalizados."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Revoke a given ban ID."
-msgstr "Revoque un identificador de prohibición dado."
+msgstr "Revocar un ID de baneo dado."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Unrevoke a given ban ID."
-msgstr "Rechazar un documento de prohibición dado."
+msgstr "Anular la revocación de un ID de baneo dado."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Query all unexpired, unrevoked bans matching a given IPv4 address or CIDR range."
-msgstr "Query all unexpired, unrevoked bans matching a given IPv4 address or CIDR range."
+msgstr "Buscar todos los baneos vigentes y no revocados que coincidan con una dirección IPv4 o rango CIDR."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Query all unexpired, unrevoked bans matching a given player name (case-insensitive glob)."
-msgstr "Query all unexpired, unrevoked bans matching a given player name (case-insensitive glob)."
+msgstr "Buscar todos los baneos vigentes y no revocados que coincidan con un nombre de jugador (patrón glob, sin distinguir mayúsculas)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Query all unexpired, unrevoked bans matching a given comment (case-insensitive glob)."
-msgstr "Query all unexpired, unrevoked bans matching a given comment (case-insensitive glob)."
+msgstr "Buscar todos los baneos vigentes y no revocados que coincidan con un comentario (patrón glob, sin distinguir mayúsculas)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Query all bans matching a given IPv4 address or CIDR range."
-msgstr "Query all bans matching a given IPv4 address or CIDR range."
+msgstr "Buscar todos los baneos que coincidan con una dirección IPv4 o rango CIDR."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Query all bans matching a given player name (case-insensitive glob)."
-msgstr "Query all bans matching a given player name (case-insensen glob)."
+msgstr "Buscar todos los baneos que coincidan con un nombre de jugador (patrón glob, sin distinguir mayúsculas)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans.lua
-#, fuzzy
 msgctxt "command"
 msgid "Query all bans matching a given comment (case-insensitive glob)."
-msgstr "Query all bans matching a given comment (case-in sensitive glob)."
+msgstr "Buscar todos los baneos que coincidan con un comentario (patrón glob, sin distinguir mayúsculas)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player for an hour."
-msgstr "Prohibir un jugador travieso por una hora."
+msgstr "Banear a un jugador travieso durante una hora."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player for a day."
-msgstr "Prohibir un jugador travieso por un día."
+msgstr "Banear a un jugador travieso durante un día."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player for 7 days."
-msgstr "Prohibir un jugador travieso durante 7 días."
+msgstr "Banear a un jugador travieso durante 7 días."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player for 30 days."
-msgstr "Prohibir un jugador travieso durante 30 días."
+msgstr "Banear a un jugador travieso durante 30 días."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player for 365 days."
-msgstr "Prohibir un jugador travieso durante 365 días."
+msgstr "Banear a un jugador travieso durante 365 días."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty player for a really long time."
-msgstr "Prohibir un jugador travieso durante mucho tiempo."
+msgstr "Banear a un jugador travieso durante muchísimo tiempo."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for an hour."
-msgstr "Prohibir una dirección IPv4 traviesa o rango CIDR por una hora."
+msgstr "Banear una dirección IPv4 o rango CIDR travieso durante una hora."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for a day."
-msgstr "Prohibir una dirección IPv4 traviesa o rango CIDR por un día."
+msgstr "Banear una dirección IPv4 o rango CIDR travieso durante un día."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for 7 days."
-msgstr "Prohibir una dirección IPv4 traviesa o rango CIDR durante 7 días."
+msgstr "Banear una dirección IPv4 o rango CIDR travieso durante 7 días."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for 30 days."
-msgstr "Prohibir una dirección IPv4 traviesa o rango CIDR durante 30 días."
+msgstr "Banear una dirección IPv4 o rango CIDR travieso durante 30 días."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for 365 days."
-msgstr "Prohibir una dirección IPv4 traviesa o rango CIDR durante 365 días."
+msgstr "Banear una dirección IPv4 o rango CIDR travieso durante 365 días."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/bans_aliases.lua
-#, fuzzy
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for a really long time."
-msgstr "Prohibir una dirección IPv4 traviesa o rango CIDR durante mucho tiempo."
+msgstr "Banear una dirección IPv4 o rango CIDR travieso durante muchísimo tiempo."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "%(addr):%(port) attempted to connect but server was full"
 msgstr "%(addr):%(port) intentó conectarse pero el servidor estaba lleno"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "%(addr):%(port) (#%(pid)) connected"
 msgstr "%(addr):%(port) (#%(pid)) conectado"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "%(addr):%(port) (#%(pid)) (%(name)) disconnected"
 msgstr "%(addr):%(port) (#%(pid)) (%(name)) desconectado"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "%(addr):%(port) (#%(pid)) disconnected"
 msgstr "%(addr):%(port) (#%(pid)) desconectado"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "%(addr):%(port) (#%(pid)) joined as \"%(name)\""
-msgstr "%(addr):%(port) (#%(pid)) se unió como \"%(name)\""
+msgstr "%(addr):%(port) (#%(pid)) entró como \"%(name)\""
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "%(addr):%(port) (#%(pid)) got version: '%(char)' (%(charval)) v%(major).%(minor).%(patch): %(msg)"
-msgstr "%(addr):%(port) (#%(pid)) tiene versión: '%(char)' (%(charval)) v%(major).%(minor).%(patch): %(msg)"
+msgstr "%(addr):%(port) (#%(pid)) versión recibida: '%(char)' (%(charval)) v%(major).%(minor).%(patch): %(msg)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "%(addr):%(port) (#%(pid)) got version-ext: \"%(cli)\" v%(major).%(minor).%(patch), %(flags), %(lang)"
-msgstr "%(addr):%(port) (#%(pid)) tiene versión-ext: \"%(cli)\" v%(major).%(minor).%(patch), %(flags), %(lang)"
+msgstr "%(addr):%(port) (#%(pid)) version-ext recibida: \"%(cli)\" v%(major).%(minor).%(patch), %(flags), %(lang)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "(Global) %(name) (#%(pid)): %(msg)"
 msgstr "(Global) %(name) (#%(pid)): %(msg)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/base_logging.lua
-#, fuzzy
 msgid "(Team) %(name) (#%(pid)): %(msg)"
-msgstr "(Team) %(name) (#%(pid)): %(msg)"
+msgstr "(Equipo) %(name) (#%(pid)): %(msg)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/caps.lua
-#, fuzzy
 msgid "You need the %(cap) capability to run that command."
-msgstr "Necesitas el %(cap) permiso para ejecutar ese comando."
+msgstr "Necesitas el permiso %(cap) para ejecutar ese comando."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_admin.lua
-#, fuzzy
 msgctxt "command"
 msgid "Send a message to staff. Does not parse arguments."
-msgstr "Envía un mensaje al personal. No analiza argumentos."
+msgstr "Enviar un mensaje al staff. No analiza argumentos."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_admin.lua
-#, fuzzy
 msgctxt "command"
 msgid "Send a message to staff, but only staff can use it. Does not parse arguments."
-msgstr "Enviar un mensaje al personal, pero sólo el personal puede utilizarlo. No analiza argumentos."
+msgstr "Enviar un mensaje al staff, pero solo el staff puede usarlo. No analiza argumentos."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid ", crap"
-msgstr ", mierda"
+msgstr ", inválido"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) hit %(hitplayer) (torso, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr "%(player) golpe %(hitplayer) (toreso, %(dist) bloques, %(delta) ms%(iscrap))"
+msgstr "%(player) impactó a %(hitplayer) (torso, %(dist) bloques, %(delta) ms%(iscrap))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) hit %(hitplayer)  (head, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr "%(player) golpe %(hitplayer) (head, %(dist) bloques, %(delta) ms%(iscrap))"
+msgstr "%(player) impactó a %(hitplayer) (cabeza, %(dist) bloques, %(delta) ms%(iscrap))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) hit %(hitplayer)  (arms, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr "%(player) golpe %(hitplayer) (armas, %(dist) bloques, %(delta) ms%(iscrap))"
+msgstr "%(player) impactó a %(hitplayer) (brazos, %(dist) bloques, %(delta) ms%(iscrap))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) hit %(hitplayer)  (legs, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr "%(player) golpe %(hitplayer) (legs, %(dist) bloques, %(delta) ms%(iscrap))"
+msgstr "%(player) impactó a %(hitplayer) (piernas, %(dist) bloques, %(delta) ms%(iscrap))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) hit %(hitplayer) (spade, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr "%(player) golpe %(hitplayer) (pala, %(dist) bloques, %(delta) ms%(iscrap))"
+msgstr "%(player) impactó a %(hitplayer) (pala, %(dist) bloques, %(delta) ms%(iscrap))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) sent a hit packet with a crap length"
-msgstr "%(player) envió un paquete con una longitud de mierda"
+msgstr "%(player) envió un paquete de impacto con una longitud inválida"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) sent a hit packet with a crap type"
-msgstr "%(player) envió un paquete con un tipo de mierda"
+msgstr "%(player) envió un paquete de impacto con un tipo inválido"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "%(player) sent a hit packet with a crap target"
-msgstr "%(player) envió un paquete con un objetivo de mierda"
+msgstr "%(player) envió un paquete de impacto con un objetivo inválido"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "Stopped analyzing."
-msgstr "Dejé de analizar."
+msgstr "Análisis detenido."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgid "Now analyzing %(player)."
-msgstr "Ahora analizando %(player)."
+msgstr "Analizando ahora a %(player)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_an.lua
-#, fuzzy
 msgctxt "command"
 msgid "Dump out whatever hit packets a player sends."
-msgstr "Saca los paquetes de éxito que envía un jugador."
+msgstr "Volcar todos los paquetes de impacto que envíe un jugador."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_caps.lua
-#, fuzzy
 msgctxt "command"
 msgid "Give a player arbitrary caps."
-msgstr "Dale a un jugador gorros arbitrarios."
+msgstr "Dar permisos arbitrarios a un jugador."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_caps.lua
-#, fuzzy
 msgctxt "command"
 msgid "Remove arbitrary caps from a player."
-msgstr "Quitar tapas arbitrarias de un jugador."
+msgstr "Quitar permisos arbitrarios a un jugador."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_cli.lua
-#, fuzzy
 msgid "%(name): not reported"
-msgstr "%(name): not reported"
+msgstr "%(name): sin informar"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_cli.lua
-#, fuzzy
 msgid "%(name): handshaked"
-msgstr "%(name): apretado de manos"
+msgstr "%(name): handshake hecho"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_cli.lua
-#, fuzzy
 msgid "%(name): '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
 msgstr "%(name): '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_cli.lua
-#, fuzzy
 msgid "%(name): (no handshake) '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
-msgstr "%(name): (sin apretón de manos) '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
+msgstr "%(name): (sin handshake) '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_cli.lua
-#, fuzzy
 msgid "%(name): fakepid"
-msgstr "%(name): fakepid"
+msgstr "%(name): pid falso"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_cli.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print whatever a player's client claims to be."
-msgstr "Imprima lo que el cliente de un jugador afirma ser."
+msgstr "Mostrar lo que el cliente de un jugador dice ser."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_exec.lua
-#, fuzzy
 msgctxt "command"
 msgid "Execute arbitrary lua. Does not parse arguments."
-msgstr "Ejecutar lua arbitraria. No analiza argumentos."
+msgstr "Ejecutar Lua arbitrario. No analiza argumentos."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_fog.lua
-#, fuzzy
 msgid "You need the %(cap) capability to set the fog color."
-msgstr "Necesitas el %(cap) permiso para establecer el color de la niebla."
+msgstr "Necesitas el permiso %(cap) para cambiar el color de la niebla."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_fog.lua
-#, fuzzy
 msgid "The current fog color is {r=%(r), g=%(g), b=%(b)} (%(hex))."
 msgstr "El color actual de la niebla es {r=%(r), g=%(g), b=%(b)} (%(hex))."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_fog.lua
-#, fuzzy
 msgctxt "command"
 msgid "Get or set the fog color."
-msgstr "Consigue o establece el color de la niebla."
+msgstr "Ver o cambiar el color de la niebla."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ignore.lua
-#, fuzzy
 msgctxt "command"
 msgid "Silence a player."
-msgstr "Silencio un jugador."
+msgstr "Silenciar a un jugador."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ip.lua
-#, fuzzy
 msgid "%(name): %(addr)"
 msgstr "%(name): %(addr)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ip.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print a player's IP address."
-msgstr "Imprima la dirección IP de un jugador."
+msgstr "Mostrar la dirección IP de un jugador."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_kick.lua
-#, fuzzy
 msgid "%(name) was kicked"
-msgstr "%(name) era expulsado"
+msgstr "%(name) fue expulsado"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_kick.lua
-#, fuzzy
 msgctxt "command"
 msgid "Remove a silly player."
-msgstr "Quita un jugador tonto."
+msgstr "Expulsar a un jugador molesto."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_kill.lua
-#, fuzzy
 msgid "You can't kill yourself unless you're in-game."
-msgstr "No puedes suicidarte a menos que estés en el juego."
+msgstr "No puedes suicidarte si no estás en partida."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_kill.lua
-#, fuzzy
 msgid "You need the %(cap) capability to kill others."
-msgstr "Necesitas la %(cap) permiso para matar a otros."
+msgstr "Necesitas el permiso %(cap) para matar a otros."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_kill.lua
-#, fuzzy
 msgctxt "command"
 msgid "Kill another player or yourself."
-msgstr "Mata a otro jugador o a ti mismo."
+msgstr "Matar a otro jugador o a ti mismo."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_modutils.lua
-#, fuzzy
 msgctxt "command"
 msgid "Unregister all the modules."
-msgstr "Desinscribir todos los módulos."
+msgstr "Desregistrar todos los módulos."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_modutils.lua
-#, fuzzy
 msgctxt "command"
 msgid "Reload all registered modules."
-msgstr "Cargue todos los módulos registrados."
+msgstr "Recargar todos los módulos registrados."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_modutils.lua
-#, fuzzy
 msgctxt "command"
 msgid "Crusty listing of all loaded modules."
-msgstr "Listado de todos los módulos cargados."
+msgstr "Listado rudimentario de todos los módulos cargados."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_modutils.lua
-#, fuzzy
 msgctxt "command"
 msgid "Dynamically load a module."
-msgstr "Cargue dinámicamente un módulo."
+msgstr "Cargar un módulo dinámicamente."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_modutils.lua
-#, fuzzy
 msgctxt "command"
 msgid "Dynamically unload a module."
-msgstr "Descarga dinámicamente un módulo."
+msgstr "Descargar un módulo dinámicamente."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ping.lua
-#, fuzzy
 msgid "%(name)'s round-trip time is %(rtt) ms."
-msgstr "El tiempo de ida y vuelta de %(name) es %(rtt) ms."
+msgstr "El tiempo de ida y vuelta de %(name) es de %(rtt) ms."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ping.lua
-#, fuzzy
 msgid "You can only check your own round-trip time while in-game."
-msgstr "Sólo puedes comprobar tu propio tiempo de ida y vuelta mientras estás en el juego."
+msgstr "Solo puedes ver tu propio tiempo de ida y vuelta estando en partida."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ping.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print a player's (or your) round-trip time."
-msgstr "Imprima el tiempo de ida y vuelta de un jugador (o su)."
+msgstr "Mostrar el tiempo de ida y vuelta de un jugador (o el tuyo)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_pm.lua
-#, fuzzy
 msgid "PM from %(name): %(msg)"
-msgstr "PM de %(name): %(msg)"
+msgstr "MP de %(name): %(msg)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_pm.lua
-#, fuzzy
 msgctxt "command"
 msgid "Send a pseudoprivate message to someone."
 msgstr "Enviar un mensaje pseudoprivado a alguien."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ratio.lua
-#, fuzzy
 msgid "You haven't even made one kill. No deaths though."
-msgstr "Ni siquiera has hecho un asesinato. Sin muertes."
+msgstr "Aún no has hecho ni una baja. Pero tampoco has muerto."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ratio.lua
-#, fuzzy
 msgid "%(name): %(kills) kills, %(deaths) deaths, %(ratio) kills per life"
-msgstr "%(name): %(kills) mata, %(deaths) muertes, %(ratio) mata por vida"
+msgstr "%(name): %(kills) bajas, %(deaths) muertes, %(ratio) bajas por vida"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ratio.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print the kill-life ratio of another player or yourself."
-msgstr "Imprima la relación muerte-vida de otro jugador o usted mismo."
+msgstr "Mostrar la proporción de bajas por vida de otro jugador o la tuya."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_savemap.lua
-#, fuzzy
 msgid "name must not contain '/' or '\\', or start with a '.'"
-msgstr "el nombre no debe contener '/' o '\\', o empezar con un '"
+msgstr "el nombre no debe contener '/' ni '\\', ni empezar por '.'"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_savemap.lua
-#, fuzzy
 msgctxt "command"
 msgid "Write a VXL file with the current map's state."
-msgstr "Escriba un archivo VXL con el estado del mapa actual."
+msgstr "Escribir un archivo VXL con el estado actual del mapa."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_say.lua
-#, fuzzy
 msgctxt "command"
 msgid "Send a message to all players, displayed as if the server sent it. Does not parse arguments."
-msgstr "Enviar un mensaje a todos los jugadores, mostrado como si el servidor lo enviara. No analiza argumentos."
+msgstr "Enviar un mensaje a todos los jugadores, mostrado como si lo enviara el servidor. No analiza argumentos."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_say.lua
-#, fuzzy
 msgctxt "command"
 msgid "Send a message to all players, as if you sent it. Does not parse arguments."
-msgstr "Envía un mensaje a todos los jugadores, como si lo enviaras. No analiza argumentos."
+msgstr "Enviar un mensaje a todos los jugadores, como si lo enviaras tú. No analiza argumentos."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_secspec.lua
-#, fuzzy
 msgctxt "command"
 msgid "Stick yourself into spectator without anybody else knowing."
-msgstr "Ponte en el espectador sin que nadie lo sepa."
+msgstr "Pasar a espectador sin que nadie más lo sepa."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_server.lua
-#, fuzzy
 msgid "Unknown address"
 msgstr "Dirección desconocida"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_server.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print the server's address."
-msgstr "Imprima la dirección del servidor."
+msgstr "Mostrar la dirección del servidor."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_switch.lua
-#, fuzzy
 msgid "team should be one of 1, 2, 256, -1, spec, spectator, %(firstteam), %(secondteam)."
-msgstr "el equipo debe ser uno de 1, 2, 256, -1, espectro, espectador, %(firstteam), %(secondteam)."
+msgstr "el equipo debe ser uno de 1, 2, 256, -1, spec, spectator, %(firstteam), %(secondteam)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_switch.lua
-#, fuzzy
 msgctxt "command"
 msgid "Move a player (or you) to a different team."
-msgstr "Mueva un jugador (o usted) a un equipo diferente."
+msgstr "Mover a un jugador (o a ti) a otro equipo."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_tp.lua
-#, fuzzy
 msgid "You have gone nowhere successfully."
 msgstr "Has ido a ninguna parte con éxito."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_tp.lua
-#, fuzzy
 msgctxt "command"
 msgid "Teleport one player (or you) to a different player."
-msgstr "Teleportar un jugador (o tú) a otro jugador."
+msgstr "Teletransportar a un jugador (o a ti) hasta otro jugador."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ups.lua
-#, fuzzy
 msgid "%(arg) should be one of {%(freqs)} (Hz)"
 msgstr "%(arg) debe ser uno de {%(freqs)} (Hz)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ups.lua
-#, fuzzy
 msgid "Current update rate: %(freq) Hz"
-msgstr "Tasa de actualización actual: %(freq) Hz"
+msgstr "Frecuencia de actualización actual: %(freq) Hz"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_ups.lua
-#, fuzzy
 msgctxt "command"
 msgid "Get/set the rate your client receives player position/orientation."
-msgstr "Get/set la tarifa que su cliente recibe la posición del jugador/orientation."
+msgstr "Ver/cambiar la frecuencia con que tu cliente recibe la posición/orientación de los jugadores."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_version.lua
-#, fuzzy
 msgid "Running %(server_name) commit %(commit)"
-msgstr "Running %(server_name) commit %(commit)"
+msgstr "Ejecutando %(server_name) commit %(commit)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_version.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print the server's version."
-msgstr "Imprima la versión del servidor."
+msgstr "Mostrar la versión del servidor."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/command_who.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print all joined players."
-msgstr "Imprima a todos los jugadores unidos."
+msgstr "Mostrar todos los jugadores conectados."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg) should be a IPv4 address, optionally given in CIDR notation."
-msgstr "%(arg) debe ser una dirección IPv4, opcionalmente dada en notación CIDR."
+msgstr "%(arg) debe ser una dirección IPv4, opcionalmente en notación CIDR."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg) should be a time delta."
-msgstr "%(arg) debe ser un delta de tiempo."
+msgstr "%(arg) debe ser una duración."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg) should be finite."
 msgstr "%(arg) debe ser finito."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg) should use at most one of the following units: s, min, h, d, w, month, y."
-msgstr "%(arg) debe utilizar en la mayoría de las siguientes unidades: s, min, h, d, w, mes, y."
+msgstr "%(arg) debe usar como mucho una de las siguientes unidades: s, min, h, d, w, month, y."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg) should be between %(min) and %(max)"
 msgstr "%(arg) debe estar entre %(min) y %(max)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg): Player not found."
 msgstr "%(arg): Jugador no encontrado."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg): Player not connected."
 msgstr "%(arg): Jugador no conectado."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg): Ambiguous player."
-msgstr "%(arg): Ambiguo jugador."
+msgstr "%(arg): Jugador ambiguo."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "%(arg): Invalid player ID."
-msgstr "%(arg): ID de reproductor inválido."
+msgstr "%(arg): ID de jugador no válido."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "Unknown command"
 msgstr "Comando desconocido"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "Some error occurred with that command :("
-msgstr "Algún error ocurrió con ese comando :("
+msgstr "Ocurrió algún error con ese comando :("
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/commands.lua
-#, fuzzy
 msgid "This command can only be run while in-game."
-msgstr "Este comando sólo puede ejecutarse mientras está en juego."
+msgstr "Este comando solo se puede ejecutar en partida."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/dd.lua
-#, fuzzy
 msgid "dd: prevented fast block placement from %(name) (#%(pid))"
-msgstr "dd: prevención de la colocación de bloques rápidos desde %(name) (#%(pid))"
+msgstr "dd: se impidió colocación rápida de bloques de %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/dd.lua
-#, fuzzy
 msgid "dd: prevented fast 1x dig from %(name) (#%(pid))"
-msgstr "dd: prevenido rápido 1x de excavación de %(name) (#%(pid))"
+msgstr "dd: se impidió excavación 1x rápida de %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/dd.lua
-#, fuzzy
 msgid "dd: prevented fast block shot from %(name) (#%(pid))"
-msgstr "dd: prevenido bloqueo rápido de %(name) (#%(pid))"
+msgstr "dd: se impidió disparo rápido a bloques de %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/dd.lua
-#, fuzzy
 msgid "dd: prevented fast 3x dig from %(name) (#%(pid))"
-msgstr "dd: prevenida rápida 3x excavación de %(name) (#%(pid))"
+msgstr "dd: se impidió excavación 3x rápida de %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/dd.lua
-#, fuzzy
 msgid "dd: prevented fast block line placement from %(name) (#%(pid))"
-msgstr "dd: prevenida la colocación de la línea de bloqueo rápido de %(name) (#%(pid))"
+msgstr "dd: se impidió colocación rápida de línea de bloques de %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/dd.lua
-#, fuzzy
 msgid "dd: prevented fast spadehit from %(name) (#%(pid))"
-msgstr "dd: prevenido spadehit rápido de %(name) (#%(pid))"
+msgstr "dd: se impidió golpe de pala rápido de %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/dd.lua
-#, fuzzy
 msgid "dd: prevented fast player shot from %(name) (#%(pid))"
-msgstr "dd: evitado jugador rápido disparado desde %(name) (#%(pid))"
+msgstr "dd: se impidió disparo rápido a jugadores de %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/disco.lua
-#, fuzzy
 msgctxt "command"
 msgid "Toggle the disco party."
-msgstr "Toggle the disco party."
+msgstr "Activar o desactivar la fiesta disco."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/emote.lua
-#, fuzzy
 msgid "Cannot find image; try /emotelist."
-msgstr "No se puede encontrar la imagen; probar /emotelist."
+msgstr "No se encuentra la imagen; prueba /emotelist."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/emote.lua
-#, fuzzy
 msgid "You can list images with /emotelist."
-msgstr "Puedes listar imágenes con /emotelist."
+msgstr "Puedes listar las imágenes con /emotelist."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/emote.lua
-#, fuzzy
 msgid "You must wait %(timeuntil) s to paint an emote again."
-msgstr "Debes esperar a %(timeuntil) s para pintar un emote de nuevo."
+msgstr "Debes esperar %(timeuntil) s para volver a pintar un emote."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/emote.lua
-#, fuzzy
 msgctxt "command"
 msgid "Paint an image centered at your location."
-msgstr "Pintar una imagen centrada en su ubicación."
+msgstr "Pintar una imagen centrada en tu posición."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/emote.lua
-#, fuzzy
 msgctxt "command"
 msgid "List images available to paint on the ground."
-msgstr "Listar imágenes disponibles para pintar en el suelo."
+msgstr "Listar las imágenes disponibles para pintar en el suelo."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/god.lua
-#, fuzzy
 msgctxt "command"
 msgid "Prevent yourself from being damaged."
-msgstr "Evita que te dañes."
+msgstr "Evitar recibir daño."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/if_websocket.lua
-#, fuzzy
 msgid "ifwsock: got tcp connection %(addr) (#%(pid))"
-msgstr "ifwsock: tiene conexión tcp %(addr) (#%(pid))"
+msgstr "ifwsock: conexión tcp recibida %(addr) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/if_websocket.lua
-#, fuzzy
 msgid "ifwsock: tcp connection %(addr) (#%(pid)) closed"
-msgstr "ifwsock: tcp conexión %(addr) (#%(pid)) cerrado"
+msgstr "ifwsock: conexión tcp %(addr) (#%(pid)) cerrada"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/if_websocket.lua
-#, fuzzy
 msgid "ifwsock: connected: (#%(pid))"
 msgstr "ifwsock: conectado: (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/if_websocket.lua
-#, fuzzy
 msgid "ifwsock: disconnected: %(addr) (#%(pid))"
 msgstr "ifwsock: desconectado: %(addr) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/irc_console.lua
-#, fuzzy
 msgid "Unable to set nick. Make sure the user exists and the nick isn't already in use."
-msgstr "Incapaz de poner nick. Asegúrese de que el usuario existe y el nick ya no está en uso."
+msgstr "No se pudo asignar el nick. Asegúrate de que el usuario existe y de que el nick no está en uso."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/irc_console.lua
-#, fuzzy
 msgid "Unable to remove nick. Make sure the user exists and has a linked nickname."
-msgstr "Incapaz de quitar nick. Asegúrese de que el usuario existe y tiene un apodo conectado."
+msgstr "No se pudo quitar el nick. Asegúrate de que el usuario existe y tiene un nick vinculado."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/irc_console.lua
-#, fuzzy
 msgctxt "command"
 msgid "Link an auth account to an IRC nick."
-msgstr "Vincular una cuenta de auth a un nick IRC."
+msgstr "Vincular una cuenta a un nick de IRC."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/irc_console.lua
-#, fuzzy
 msgctxt "command"
 msgid "Unlink an auth account from IRC."
-msgstr "Desvincular una cuenta de auth de IRC."
+msgstr "Desvincular una cuenta de IRC."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/jp.lua
-#, fuzzy
 msgctxt "command"
 msgid "Press sneak (V) to fly upwards."
-msgstr "Presiona a escondidas (V) para volar hacia arriba."
+msgstr "Volar: pulsa sigilo (V) para subir."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_meta.lua
-#, fuzzy
 msgid "Next up: %(name)"
 msgstr "Siguiente: %(name)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_meta.lua
-#, fuzzy
 msgid "Next up: %(name) by %(author)"
-msgstr "Siguiente: %(name) por %(author)"
+msgstr "Siguiente: %(name) de %(author)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_meta.lua
-#, fuzzy
 msgctxt "command"
 msgid "Dump the current map's metadata."
-msgstr "Bombear los metadatos del mapa actual."
+msgstr "Volcar los metadatos del mapa actual."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_queue.lua
-#, fuzzy
 msgctxt "command"
 msgid "List the default map queue."
-msgstr "Lista la cola de mapa predeterminada."
+msgstr "Listar la cola de mapas predeterminada."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_queue.lua
-#, fuzzy
 msgctxt "command"
 msgid "Append a map to the temporary map queue."
-msgstr "Apéndice un mapa a la cola del mapa temporal."
+msgstr "Añadir un mapa a la cola temporal de mapas."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_queue.lua
-#, fuzzy
 msgctxt "command"
 msgid "Override the temporary map queue. Later maps get played first."
-msgstr "Anula la cola del mapa temporal. Mapas posteriores se juegan primero."
+msgstr "Sustituir la cola temporal de mapas. Los últimos mapas se juegan primero."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_queue.lua
-#, fuzzy
 msgctxt "command"
 msgid "Load the next queued map."
-msgstr "Carga el siguiente mapa."
+msgstr "Cargar el siguiente mapa de la cola."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/map_queue.lua
-#, fuzzy
 msgctxt "command"
 msgid "Immediately load the map at the specified path."
-msgstr "Cargue inmediatamente el mapa en el camino especificado."
+msgstr "Cargar de inmediato el mapa de la ruta indicada."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/masterlist.lua
-#, fuzzy
 msgid "Connected to masterlist %(addr)"
-msgstr "Conectado al masterlist %(addr)"
+msgstr "Conectado a la lista maestra %(addr)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/masterlist.lua
-#, fuzzy
 msgid "Disconnected from masterlist %(addr)"
-msgstr "Desconectado del masterlist %(addr)"
+msgstr "Desconectado de la lista maestra %(addr)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/masterlist.lua
-#, fuzzy
 msgid "Reconnecting to masterlist %(addr)"
-msgstr "Reconnecting to masterlist %(addr)"
+msgstr "Reconectando a la lista maestra %(addr)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/medkit.lua
-#, fuzzy
 msgid "The medkit cannot bring you back from the dead."
-msgstr "El medkit no puede traerte de vuelta de los muertos."
+msgstr "El botiquín no puede devolverte de entre los muertos."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/medkit.lua
-#, fuzzy
 msgid "You've already used all your medkits! Restock at the tent."
-msgstr "¡Ya has usado todos tus medkits! Restock en el tienda."
+msgstr "¡Ya has usado todos tus botiquines! Reabastécete en la tienda."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/medkit.lua
-#, fuzzy
 msgid "The medkit only heals physical wounds."
-msgstr "El medkit sólo cura las heridas físicas."
+msgstr "El botiquín solo cura heridas físicas."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/noclip.lua
-#, fuzzy
 msgctxt "command"
 msgid "Fly around."
-msgstr "Volar."
+msgstr "Volar por el mapa."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/profiler.lua
-#, fuzzy
 msgctxt "command"
 msgid "Start profiling."
-msgstr "Empieza a perfilar."
+msgstr "Iniciar el perfilado."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/profiler.lua
-#, fuzzy
 msgctxt "command"
 msgid "Stop profiling."
-msgstr "Deja de perfilar."
+msgstr "Detener el perfilado."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/profiler.lua
-#, fuzzy
 msgctxt "command"
 msgid "Dump profiler data to the console."
-msgstr "Dump profiler datos a la consola."
+msgstr "Volcar los datos del perfilador en la consola."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/sel.lua
-#, fuzzy
 msgctxt "command"
 msgid "Select a box."
-msgstr "Seleccione una caja."
+msgstr "Seleccionar una caja."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/setspawn.lua
-#, fuzzy
 msgid "You'll now spawn at the default position."
-msgstr "Ahora despacharás en la posición predeterminada."
+msgstr "Ahora reaparecerás en la posición predeterminada."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/setspawn.lua
-#, fuzzy
 msgid "You'll now spawn at {x=%(x), y=%(y), z=%(z)}."
-msgstr "Ahora desperdiciarás en {x=%(x), y=%(y), z=%(z)}."
+msgstr "Ahora reaparecerás en {x=%(x), y=%(y), z=%(z)}."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/setspawn.lua
-#, fuzzy
 msgctxt "command"
 msgid "Toggle respawning at your current position."
-msgstr "Toggle repawning en su posición actual."
+msgstr "Activar o desactivar reaparecer en tu posición actual."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/team_balance.lua
-#, fuzzy
 msgid "%(team) is unbalanced; switched to other team"
-msgstr "%(team) es desequilibrado; se cambia a otro equipo"
+msgstr "%(team) está desequilibrado; cambiado al otro equipo"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/team_balance.lua
-#, fuzzy
 msgid "%(team) is unbalanced; cannot switch"
-msgstr "%(team) es desequilibrado; no puede cambiar"
+msgstr "%(team) está desequilibrado; no se puede cambiar"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/time_limit.lua
-#, fuzzy
 msgid "Remaining time extended to %(time)."
-msgstr "El tiempo restante se extendió a %(time)."
+msgstr "Tiempo restante ampliado a %(time)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/time_limit.lua
-#, fuzzy
 msgid "%(time) remaining."
-msgstr "%(time) restante."
+msgstr "Quedan %(time)."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/time_limit.lua
-#, fuzzy
 msgid "You need the %(cap) capability to set the time limit."
-msgstr "Necesitas el %(cap) permiso para establecer el límite de tiempo."
+msgstr "Necesitas el permiso %(cap) para fijar el límite de tiempo."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/time_limit.lua
-#, fuzzy
 msgctxt "command"
 msgid "Print or set the time remaining until the game ends."
-msgstr "Imprimir o fijar el tiempo restante hasta que el juego termine."
+msgstr "Ver o fijar el tiempo que queda hasta el final de la partida."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/toggles.lua
-#, fuzzy
 msgid "Added %(cap) to %(name)"
-msgstr "Añadido %(cap) a %(name)"
+msgstr "%(cap) añadido a %(name)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/toggles.lua
-#, fuzzy
 msgid "Removed %(cap) from %(name)"
-msgstr "%(cap) eliminado de %(name)"
+msgstr "%(cap) quitado a %(name)"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/toggles.lua
-#, fuzzy
 msgctxt "command"
 msgid "Prevent a player from directly altering the map."
-msgstr "Evitar que un jugador altere directamente el mapa."
+msgstr "Impedir que un jugador modifique el mapa directamente."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/toggles.lua
-#, fuzzy
 msgctxt "command"
 msgid "Prevent a player from directly damaging others."
-msgstr "Evitar que un jugador dañe directamente a otros."
+msgstr "Impedir que un jugador dañe directamente a otros."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/toggles.lua
-#, fuzzy
 msgctxt "command"
 msgid "Shut a noisy player up."
-msgstr "Cierra a un jugador ruidoso."
+msgstr "Callar a un jugador ruidoso."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/toggles.lua
-#, fuzzy
 msgctxt "command"
 msgid "Shut a noisy /admin'er up."
-msgstr "Cierra un ruidoso /admin'er."
+msgstr "Callar a un usuario ruidoso de /admin."
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/websock_console.lua
-#, fuzzy
 msgid "wscon: got tcp connection (#%(pid))"
-msgstr "wscon: tiene conexión tcp (#%(pid))"
+msgstr "wscon: conexión tcp recibida (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/websock_console.lua
-#, fuzzy
 msgid "wscon: tcp connection #%(pid) closed"
 msgstr "wscon: conexión tcp #%(pid) cerrada"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/websock_console.lua
-#, fuzzy
 msgid "wscon: connected: %(name) (#%(pid))"
 msgstr "wscon: conectado: %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/websock_console.lua
-#, fuzzy
 msgid "wscon: disconnected: %(name) (#%(pid))"
 msgstr "wscon: desconectado: %(name) (#%(pid))"
 
-# machine-translated (LibreTranslate)
 #: lsd/scripts/websock_console.lua
-#, fuzzy
 msgid "wscon: %(name) (#%(pid)): /%(cmd)"
 msgstr "wscon: %(name) (#%(pid)): /%(cmd)"

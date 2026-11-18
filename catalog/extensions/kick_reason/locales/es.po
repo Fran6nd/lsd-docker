@@ -7,32 +7,22 @@ msgstr ""
 "Language: es\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Banned"
-msgstr "Banned"
+msgstr "Baneado"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Kicked"
-msgstr "Kicked"
+msgstr "Expulsado"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Wrong version"
 msgstr "Versión incorrecta"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Server full"
-msgstr "Servidor completo"
+msgstr "Servidor lleno"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/kick_reason/lib_kick_reason.lua
-#, fuzzy
 msgid "Server shutdown"
 msgstr "Cierre del servidor"

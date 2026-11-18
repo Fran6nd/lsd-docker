@@ -7,88 +7,60 @@ msgstr ""
 "Language: es\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/votekick/votekick.lua
-#, fuzzy
 msgid "%(starter) started a votekick against %(target)! Type /y to vote (%(have)/%(need))."
-msgstr "%(starter) comenzó un votación de expulsión contra %(target)! Escribe /y para votar (%(have)/%(need))."
+msgstr "¡%(starter) inició una votación de expulsión contra %(target)! Escribe /y para votar (%(have)/%(need))."
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/votekick/votekick.lua
-#, fuzzy
 msgid "%(voter) voted to kick %(target) (%(have)/%(need))."
-msgstr "%(voter) votó para patear %(target) (%(have)/%(need))."
+msgstr "%(voter) votó por expulsar a %(target) (%(have)/%(need))."
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/votekick/votekick.lua
-#, fuzzy
 msgid "%(target) was votekicked."
-msgstr "%(target) era expulsado por votación."
+msgstr "%(target) fue expulsado por votación."
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/votekick/votekick.lua
-#, fuzzy
 msgid "The votekick against %(target) failed."
-msgstr "El votación de expulsión contra %(target) falló."
+msgstr "La votación de expulsión contra %(target) fracasó."
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/votekick/votekick.lua
-#, fuzzy
 msgid "You already voted."
-msgstr "Ya votaste."
+msgstr "Ya has votado."
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/votekick/votekick.lua
-#, fuzzy
 msgid "No votekick is in progress -- start one with /votekick <player>."
-msgstr "No votación de expulsión está en progreso - empezar uno con /votekick <player>."
+msgstr "No hay ninguna votación de expulsión en curso -- inicia una con /votekick <jugador>."
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/votekick/votekick.lua
-#, fuzzy
 msgid "Not enough players for a votekick."
-msgstr "No hay suficientes jugadores para un votación de expulsión."
+msgstr "No hay suficientes jugadores para una votación de expulsión."
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/votekick/votekick.lua
-#, fuzzy
 msgid "You can't votekick yourself."
-msgstr "No puedes votación de expulsión tú mismo."
+msgstr "No puedes iniciar una votación de expulsión contra ti mismo."
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/votekick/votekick.lua
-#, fuzzy
 msgid "%(target) can't be votekicked."
 msgstr "%(target) no puede ser expulsado por votación."
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/votekick/votekick.lua
-#, fuzzy
 msgid "Vote kicked"
-msgstr "Voto expulsado"
+msgstr "Expulsado por votación"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/votekick/votekick.lua
-#, fuzzy
 msgctxt "command"
 msgid "Start (or add your voice to) a vote to kick a player."
-msgstr "Iniciar (o agregar su voz a) un voto para patear a un jugador."
+msgstr "Iniciar (o apoyar) una votación para expulsar a un jugador."
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/votekick/votekick.lua
-#, fuzzy
 msgid "Vote kick"
-msgstr "Votar"
+msgstr "Votar expulsión"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/votekick/votekick.lua
-#, fuzzy
 msgid "Start a vote to kick this player"
-msgstr "Iniciar un voto para patear a este jugador"
+msgstr "Iniciar una votación para expulsar a este jugador"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/votekick/votekick.lua
-#, fuzzy
 msgctxt "command"
 msgid "Vote yes on the current votekick."
-msgstr "Votar sí en el votación de expulsión."
+msgstr "Votar sí en la votación de expulsión actual."

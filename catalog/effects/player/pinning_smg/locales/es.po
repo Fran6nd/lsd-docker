@@ -7,14 +7,10 @@ msgstr ""
 "Language: es\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/pinning_smg/smg_is_incapacitating.lua
-#, fuzzy
 msgid "warning: here the smg pins what it hits and never reloads."
-msgstr "advertencia: aquí el SMG marca lo que golpea y nunca vuelve a cargar."
+msgstr "aviso: aquí el subfusil inmoviliza lo que alcanza y nunca recarga."
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/pinning_smg/smg_is_incapacitating.lua
-#, fuzzy
 msgid "Spicy: the SMG pins whoever it hits where they stand, and never reloads."
-msgstr "Spicy: los pins SMG que golpea donde están, y nunca vuelve a cargar."
+msgstr "Picante: el subfusil clava en el sitio a quien alcanza, y nunca recarga."

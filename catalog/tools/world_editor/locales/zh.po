@@ -7,629 +7,425 @@ msgstr ""
 "Language: zh\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: cannot write %(path) (%(err)) -- drop the :ro on the maps mount to persist"
-msgstr "world editor: 无法写入 %(path) (%(err)) - 将 :ro 投放到地图上以持久"
+msgstr "world_editor: 无法写入 %(path)（%(err)）——去掉 maps 挂载上的 :ro 才能保存"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: %(path) is not valid json, ignoring"
-msgstr "world editor: %(path) 无效,忽略"
+msgstr "world_editor: %(path) 不是有效的 json，已忽略"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: loaded %(path)"
-msgstr "世界编辑器: 已装入的 %(path)"
+msgstr "world_editor: 已加载 %(path)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: could not load %(name) (%(err))"
-msgstr "世界编辑器: 无法装入 %(name) (%(err))"
+msgstr "world_editor: 无法加载 %(name)（%(err)）"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: could not delist (%(err))"
-msgstr "世界编辑器: 无法删除( %(err))"
+msgstr "world_editor: 无法从公开列表移除（%(err)）"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: could not relist (%(err))"
-msgstr "world editor: 无法重新列出(%(err))"
+msgstr "world_editor: 无法重新加入公开列表（%(err)）"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: relisted after a reload (edit mode did not survive it)"
-msgstr "world editor:在重新装入后重新列出(edit模式未幸存)"
+msgstr "world_editor: 重新加载后已重新加入公开列表（编辑模式未能保留）"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: component %(name) failed to load: %(err)"
-msgstr "世界编辑器: 组件 %(name) 无法装入: %(err)"
+msgstr "world_editor: 组件 %(name) 加载失败：%(err)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: edit mode %(state)"
-msgstr "世界编辑器: 编辑模式 %(state)"
+msgstr "world_editor: 编辑模式 %(state)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: cannot write %(path) (%(err))"
-msgstr "世界编辑器: 无法写入 %(path) (%(err))"
+msgstr "world_editor: 无法写入 %(path)（%(err)）"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: not in edit mode (enable it from the console)."
-msgstr "world editor: 不在编辑模式中(可以从控制台启用)."
+msgstr "world_editor: 不在编辑模式（请从控制台启用）。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: edit mode can only be toggled from the console."
-msgstr "world editor:编辑模式只能从控制台切换."
+msgstr "world_editor: 编辑模式只能从控制台切换。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: edit mode is %(state) (map %(map))%(extra)"
-msgstr "世界编辑器: 编辑模式为 %(state) (map %(map)) %(extra)"
+msgstr "world_editor: 编辑模式为 %(state)（地图 %(map)）%(extra)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid ", delisted by edit mode"
-msgstr ",通过编辑模式删除"
+msgstr "，已被编辑模式移出公开列表"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: created %(path)"
-msgstr "世界编辑器: 创建的 %(path)"
+msgstr "world_editor: 已创建 %(path)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: %(names) loaded -- terrain editing and flight for the session."
-msgstr "world editor: %(names) 已装入 -- -- 会话的地形编辑和飞行."
+msgstr "world_editor: 已加载 %(names)——本次会话可编辑地形和飞行。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: delisted from the public lists (ip:port still works, so you can invite builders in)"
-msgstr "world editor:从公共列表中除名(ip:port still work,所以可以邀请建筑商进来)"
+msgstr "world_editor: 已从公开列表移除（ip:port 仍可连接，因此你可以邀请建造者进来）"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: listed publicly again."
-msgstr "世界编辑器:再次公开上市."
+msgstr "world_editor: 已重新公开列出。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: edit mode ENABLED -- the map is being built on."
-msgstr "world editor: 编辑模式 ENABLED - 地图正在构建中."
+msgstr "world_editor: 编辑模式已启用——地图正在建造中。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: edit mode disabled."
-msgstr "world editor: 编辑模式已禁用."
+msgstr "world_editor: 编辑模式已禁用。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: placeable -- %(names)"
-msgstr "世界编辑器: 可定位 -- %(names)"
+msgstr "world_editor: 可放置——%(names)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "  /place <component> for its help, e.g. /place elevator"
-msgstr "为其提供帮助的/place <component>,如/place电梯"
+msgstr "  /place <component> 查看其帮助，例如 /place elevator"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: no such component. placeable: %(names)"
-msgstr "世界编辑器:没有这样的组件。 可定位: %(names)"
+msgstr "world_editor: 没有该组件。可放置：%(names)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: %(name) -- %(desc)"
-msgstr "世界编辑器: %(name) - %(desc)"
+msgstr "world_editor: %(name)——%(desc)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "  usage: /place %(name) %(usage)"
-msgstr "用途: /place %(name) %(usage)"
+msgstr "  用法：/place %(name) %(usage)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: %(text)"
-msgstr "世界编辑器: %(text)"
+msgstr "world_editor: %(text)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: nothing being placed -- start with /place or /chunk."
-msgstr "world editor:没有被放置 - 从/place或/chunk开始."
+msgstr "world_editor: 当前没有正在放置的组件——请先用 /place 或 /chunk。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: pick the two corners of the %(kind) -- aim and click each one."
-msgstr "world editor:选择%(kind)的两角——瞄准并点击每个角."
+msgstr "world_editor: 选取 %(kind) 的两个角——分别瞄准并点击。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: nothing being placed -- start with /place, /chunk or /delete."
-msgstr "world editor:没有被放置 - 从/place,/chunk或/delete开始."
+msgstr "world_editor: 当前没有正在放置的组件——请先用 /place、/chunk 或 /delete。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: spade or shoot a block of the component to delete."
-msgstr "world editor:铲子或拍摄要删除的组件块."
+msgstr "world_editor: 用铲子敲击或射击要删除组件的一个方块。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: spade two opposite corners."
-msgstr "world editor: 铲子两对角."
+msgstr "world_editor: 用铲子敲击两个对角。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: spade the centre, then the edge."
-msgstr "world editor:铲子是中心,然后是边缘."
+msgstr "world_editor: 先用铲子敲击中心，再敲击边缘。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: mark at %(x) %(y) %(z)"
-msgstr "世界编辑器: 标记在 %(x) %(y) %(z)"
+msgstr "world_editor: 标记于 %(x) %(y) %(z)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: that mark is outside the map."
-msgstr "world editor:那个标记在地图之外."
+msgstr "world_editor: 该标记在地图外。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: nothing to mark there -- aim at ground or water."
-msgstr "世界编辑:没有什么可以标注的 -- 瞄准地面或水."
+msgstr "world_editor: 那里无法标记——请瞄准地面或水面。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: placement finished on mark %(n) -- %(extra) extra ignored."
-msgstr "world editor:在标记%(n)上完成放置 - %(extra)额外忽略."
+msgstr "world_editor: 已在第 %(n) 个标记处完成放置——忽略多余的 %(extra) 个。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: %(kind) #%(id) placed."
-msgstr "world editor: %(kind) #%(id) 放置."
+msgstr "world_editor: 已放置 %(kind) #%(id)。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: no component on that block -- aim right at one."
-msgstr "world editor:该区块上没有组件——瞄准一个."
+msgstr "world_editor: 该方块上没有组件——请直接瞄准组件。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: no components on this map."
-msgstr "world editor: 本地图中没有组件 ."
+msgstr "world_editor: 此地图上没有组件。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: broke %(kind) #%(id)."
-msgstr "世界编辑器:破损的%(kind) #%(id)."
+msgstr "world_editor: 已破坏 %(kind) #%(id)。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: %(verb) %(kind) #%(id) -- its blocks stay, back at rest."
-msgstr "world editor: %(verb) %(kind) #%(id) - 其区块停留,休养."
+msgstr "world_editor: %(verb) %(kind) #%(id)——其方块保留，回到静止状态。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: nothing to undo."
-msgstr "world editor:没什么可弥补的."
+msgstr "world_editor: 没有可撤销的操作。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: %(kind) #%(id) is now %(perm)"
-msgstr "世界编辑器: %(kind) # %(id) 现在为 %(perm)"
+msgstr "world_editor: %(kind) #%(id) 现为 %(perm)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "  #%(id) %(kind) at %(x),%(y) %(perm) blocks %(blocks) %(status)"
-msgstr "#%(id) %(kind) 位于%(x),%(y) %(perm)区块 %(blocks) %(status)"
+msgstr "  #%(id) %(kind) 位于 %(x),%(y) %(perm) 方块 %(blocks) %(status)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: perm must be ro, rw, or rw:<team>."
-msgstr "world editor: perm必须是ro,rw,或rw:<team>."
+msgstr "world_editor: perm 必须是 ro、rw 或 rw:<team>。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: chunk %(name) (%(perm)) created."
-msgstr "world editor: 块 %(name) (%(perm)) 创建."
+msgstr "world_editor: 已创建区块 %(name)（%(perm)）。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: you are not in a chunk (use /defaultperm for the open map)."
-msgstr "world editor:您不是在块中(打开地图时使用/defaultperm)."
+msgstr "world_editor: 你不在任何区块内（开放地图请用 /defaultperm）。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: %(name) is now %(perm)"
-msgstr "世界编辑器: %(name) 现在为 %(perm)"
+msgstr "world_editor: %(name) 现为 %(perm)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: removed chunk %(name)"
-msgstr "世界编辑器: 删除块 %(name)"
+msgstr "world_editor: 已移除区块 %(name)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: default %(perm)%(readonly)"
-msgstr "世界编辑器: 默认 %(perm)%(readonly)"
+msgstr "world_editor: 默认 %(perm)%(readonly)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid ", map READONLY"
-msgstr ",地图读取"
+msgstr "，地图只读"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "  #%(id) %(name) %(shape) %(perm)"
-msgstr "#%(id),%(name),%(shape),%(perm) (英语)"
+msgstr "  #%(id) %(name) %(shape) %(perm)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: default is now %(perm)"
-msgstr "世界编辑器: 默认值为 %(perm)"
+msgstr "world_editor: 默认现为 %(perm)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: map readonly %(state)"
-msgstr "世界编辑器: 只读地图 %(state)"
+msgstr "world_editor: 地图只读 %(state)"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: no map name known -- pass one: /wesavemap <name>."
-msgstr "world editor:无地图名称可知-通过 1:/wesavemap <name>."
+msgstr "world_editor: 地图名未知——请指定：/wesavemap <name>。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: bad name (no / \\ or leading dot)."
-msgstr "world editor: bad name (没有 /\\ 或者领导点)."
+msgstr "world_editor: 名称无效（不能含 / \\ 或以点开头）。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: saved %(name).vxl + %(name).editor.json in %(dir)/"
-msgstr "世界编辑器:在%(dir)/json中保存了 %(name).vxl + %(name).editor"
+msgstr "world_editor: 已将 %(name).vxl 和 %(name).editor.json 保存到 %(dir)/"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgid "world_editor: save failed -- see server log (is maps/ writable?)."
-msgstr "world editor:保存失败 -- 见服务器日志( 是地图/ 可写吗 ) ."
+msgstr "world_editor: 保存失败——请查看服务器日志（maps/ 是否可写？）。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "Toggle world edit mode (console only)."
-msgstr "切换世界编辑模式( 只有主机) ."
+msgstr "切换世界编辑模式（仅限控制台）。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "Place a component; /place alone lists them, /place <c> shows help."
-msgstr "放置一个组件;单/place就列出它们,/place <c>显示帮助."
+msgstr "放置组件；单独输入 /place 列出组件，/place <c> 显示帮助。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "Drop a placement mark where you are (or at x y z)."
-msgstr "在您所在的地方( 或 xy z) 投放位置标记 ."
+msgstr "在你所在位置（或 x y z 处）放置一个放置标记。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "Place one or more placement marks by coordinate."
-msgstr "通过坐标放置一个或多个放置标记."
+msgstr "按坐标放置一个或多个放置标记。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "Set protection on the nearest component."
-msgstr "设置最近的组件的保护 ."
+msgstr "设置最近组件的保护。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "Un-place the most recent component (its blocks stay)."
-msgstr "取消最近组件的位置( 它的块停留) ."
+msgstr "撤销最近放置的组件（其方块保留）。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "Un-place the component whose block you mark (its blocks stay)."
-msgstr "取消设置您标记的块( 它的块停留) ."
+msgstr "撤销你所标记方块所属的组件（其方块保留）。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "Save the map (.vxl) and its components (.editor.json) to maps/."
-msgstr "将地图(.vxl)及其组件(.editor.json)保存到地图/."
+msgstr "将地图（.vxl）及其组件（.editor.json）保存到 maps/。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "Create an authorization chunk (spade two marks to set its extent)."
-msgstr "创建授权块( 铲子 2 标记以设定其范围) ."
+msgstr "创建授权区块（用铲子敲击两个标记来设定范围）。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "Set the authorization of the chunk you are standing in."
-msgstr "设定您所在块的授权 ."
+msgstr "设置你所在区块的授权。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "Delete the chunk you are standing in."
-msgstr "删除您所在的块 ."
+msgstr "删除你所在的区块。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "List placed components and their live state."
-msgstr "列出已放置组件及其运行状态 ."
+msgstr "列出已放置的组件及其实时状态。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "List authorization chunks."
-msgstr "列表授权块 ."
+msgstr "列出授权区块。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "Authorization for blocks outside every chunk (console only)."
-msgstr "授权每个块外的块( 仅控制台) ."
+msgstr "设置所有区块以外方块的授权（仅限控制台）。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor.lua
-#, fuzzy
 msgctxt "command"
 msgid "Master lock: refuse every player block edit (console only)."
-msgstr "主锁:拒绝每个玩家块编辑(仅控制台)."
+msgstr "总锁：拒绝所有玩家的方块编辑（仅限控制台）。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/door.lua
-#, fuzzy
 msgid "direction must be up, down, left or right."
-msgstr "方向必须是上,下,左或右."
+msgstr "direction 必须是 up、down、left 或 right。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/door.lua
-#, fuzzy
 msgid "mark one corner of the door."
-msgstr "标记门的一角."
+msgstr "标记门的一个角。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/door.lua
-#, fuzzy
 msgid "now mark the opposite corner."
-msgstr "现在标出相反的一角."
+msgstr "现在标记对角。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/door.lua
-#, fuzzy
 msgid "a vertical door needs height -- mark corners at different heights."
-msgstr "垂直门需要高度 -- 标记不同高度的角."
+msgstr "垂直门需要高度——请在不同高度标记角点。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/door.lua
-#, fuzzy
 msgid "a sliding door needs width -- mark corners apart horizontally."
-msgstr "a 滑动门需要宽度 -- -- 横向标记角."
+msgstr "滑动门需要宽度——请在水平方向上分开标记角点。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/door.lua
-#, fuzzy
 msgid "that box overlaps another component -- mark clear of it."
-msgstr "该框与另一个组件重叠 -- -- 标清它."
+msgstr "该区域与另一组件重叠——请避开它标记。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/door.lua
-#, fuzzy
 msgid "a door is a panel, not a block of wall -- one of its two horizontal sides has to be a single block thick."
-msgstr "门是一个面板,而不是一个墙的块——它的两面横向侧面之一必须是单块厚."
+msgstr "门是一块面板，不是一堵墙——它的两个水平方向中必须有一个只有一格厚。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/door.lua
-#, fuzzy
 msgid "world_editor: door -- a built surface that retracts when a player nears it."
-msgstr "world editor:门——玩家接近时会收回的已建表面."
+msgstr "world_editor: door（门）——玩家靠近时会自动收起的建造面。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/door.lua
-#, fuzzy
 msgid "  usage: /place door <up|down|left|right>"
-msgstr "使用: /place门 <up|down|left|right>"
+msgstr "  用法：/place door <up|down|left|right>"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/door.lua
-#, fuzzy
 msgid "  up/down retract into ceiling/floor; left/right retract aside."
-msgstr "上/down撤回到天花板/floor;左/right撤回到一边."
+msgstr "  up/down 收入天花板/地板；left/right 向侧面收起。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/door.lua
-#, fuzzy
 msgid "  build the shape first, then mark two opposite corners around it:"
-msgstr "首先将形状建起来,然后标出周围两个对角:"
+msgstr "  先建好形状，再在其周围标记两个对角："
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/door.lua
-#, fuzzy
 msgid "  its blocks, colours and gaps all become the door and move together."
-msgstr "它的块,颜色和缺口都成为大门,并一起移动."
+msgstr "  其方块、颜色和空隙都会成为门，并一起移动。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/door.lua
-#, fuzzy
 msgid "  the panel retracts into the marked box and needs no room behind it."
-msgstr "面板会退到标记的盒子里 后面不需要空间."
+msgstr "  面板收入所标记的区域内，背后无需留空间。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/door.lua
-#, fuzzy
 msgid "  an empty box gives a solid panel in your palette colour instead."
-msgstr "空框会以您的调色板颜色显示一个坚固的面板."
+msgstr "  若区域为空，则会生成一块使用你调色板颜色的实心面板。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "direction must be up or down."
-msgstr "方向必须是上下."
+msgstr "direction 必须是 up 或 down。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "mark one corner of the platform."
-msgstr "标记平台的一角."
+msgstr "标记平台的一个角。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "now mark the opposite corner of the platform."
-msgstr "现在标出平台的相反角."
+msgstr "现在标记平台的对角。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "now mark a block at the altitude to travel to."
-msgstr "现在在海拔高度上标记一个街区."
+msgstr "现在在要到达的高度标记一个方块。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "that altitude is the platform's own level -- mark a different height."
-msgstr "高度是平台本身的高度 标记不同的高度."
+msgstr "该高度就是平台自身所在高度——请标记其他高度。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "the shaft would run through another component -- pick another altitude."
-msgstr "轴会穿过另一个部件 选择另一个高度."
+msgstr "升降井会穿过另一组件——请选择其他高度。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "world_editor: elevator -- a built platform that carries riders up or down."
-msgstr "world editor: 电梯——一个搭载骑手上下行的已建成平台."
+msgstr "world_editor: elevator（电梯）——载着乘客上升或下降的建造平台。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "  usage: /place elevator <up|down>"
-msgstr "使用: /place电梯 <up|down>"
+msgstr "  用法：/place elevator <up|down>"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "  up rests at the bottom and rises when stood on; down is the reverse."
-msgstr "上卧于下,立于下;下卧则反."
+msgstr "  up 停在底部，有人站上时上升；down 则相反。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "  build the pad first, then mark two opposite corners around it,"
-msgstr "先把垫子盖好,然后在它周围两个对角上刻上标记,"
+msgstr "  先建好平台，再在其周围标记两个对角，"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "  then mark the altitude it should travel to -- the pad comes to"
-msgstr "然后标出它应该去的高度 -- -- 垫子来到"
+msgstr "  然后标记它要到达的高度——平台最终会停在"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "  rest level with that mark."
-msgstr "和那个标记保持平稳."
+msgstr "  与该标记齐平的位置。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "  its blocks, colours and gaps all become the platform."
-msgstr "它的块,颜色和缺口都变成了平台."
+msgstr "  其方块、颜色和空隙都会成为平台。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "  the piston column under it takes the colour of the pad's core."
-msgstr "它下面的活塞柱 取了垫芯的颜色."
+msgstr "  其下方的活塞柱会采用平台核心的颜色。"
 
-# machine-translated (LibreTranslate)
 #: catalog/tools/world_editor/world_editor/elevator.lua
-#, fuzzy
 msgid "  an empty box gives a plain slab in your palette colour instead."
-msgstr "空框在您的调色板颜色中给出一个平板."
+msgstr "  若区域为空，则会生成一块使用你调色板颜色的普通平板。"

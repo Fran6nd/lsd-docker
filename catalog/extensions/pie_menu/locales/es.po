@@ -7,134 +7,90 @@ msgstr ""
 "Language: es\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Mark"
-msgstr "Mark"
+msgstr "Marcar"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Quick chat"
 msgstr "Chat rápido"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Follow me"
 msgstr "Sígueme"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "On my way"
-msgstr "En mi camino"
+msgstr "Voy para allá"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Backup"
-msgstr "Copia de seguridad"
+msgstr "Refuerzos"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Thanks"
 msgstr "Gracias"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Sorry"
-msgstr "Lo siento"
+msgstr "Perdón"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Good game"
-msgstr "Buen juego"
+msgstr "Buena partida"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "To everyone"
 msgstr "A todos"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Player"
-msgstr "Player"
+msgstr "Jugador"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Ratio"
 msgstr "Ratio"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Their kills per death"
-msgstr "Sus muertes por muerte"
+msgstr "Sus bajas por muerte"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Latency"
-msgstr "Latency"
+msgstr "Latencia"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Ignore"
-msgstr "Ignoro"
+msgstr "Ignorar"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Hide their chat, or show it again"
-msgstr "Ocultar su charla, o mostrarlo de nuevo"
+msgstr "Ocultar su chat, o volver a mostrarlo"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Client"
 msgstr "Cliente"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "The game client they play with"
-msgstr "El cliente del juego que juegan con"
+msgstr "El cliente de juego que usa"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Watching"
-msgstr "Mirando"
+msgstr "Observando"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Their ratio"
-msgstr "Su relación"
+msgstr "Su ratio"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Nice shot"
 msgstr "Buen tiro"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "Who's on"
-msgstr "¿Quién es"
+msgstr "Quién está"
 
-# machine-translated (LibreTranslate)
 #: catalog/extensions/pie_menu/lib_pie_menu.lua
-#, fuzzy
 msgid "My ratio"
-msgstr "Mi relación"
+msgstr "Mi ratio"

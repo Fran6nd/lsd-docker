@@ -7,26 +7,18 @@ msgstr ""
 "Language: zh\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/world/the_fall/the_fall.lua
-#, fuzzy
 msgid "You can't build in the Fall."
-msgstr "你不能在坠落建造."
+msgstr "你不能在坠落中建造。"
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/world/the_fall/the_fall.lua
-#, fuzzy
 msgid "You killed your way out. Back in the game."
-msgstr "你杀了你的出路。 复於游戏中."
+msgstr "你靠击杀脱身了，重回游戏。"
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/world/the_fall/the_fall.lua
-#, fuzzy
 msgid "You're going into the Fall. Kill someone to get out."
-msgstr "你要进入坠落 杀了人出来."
+msgstr "你将进入坠落。击杀一人即可脱身。"
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/world/the_fall/the_fall.lua
-#, fuzzy
 msgid "warning: here your first death drops you into the Fall, and only a kill gets you out."
-msgstr "警告:这里,你第一次死亡 把你送进坠落, 只有一死才能让你出来."
+msgstr "警告：本服务器中，你第一次死亡会进入坠落，只有击杀才能脱身。"

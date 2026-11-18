@@ -7,207 +7,139 @@ msgstr ""
 "Language: zh\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "This is HOSTAGE mode: free the hostage held at the enemy tent. Get close and it follows; walk it home to score."
-msgstr "这是HOSTAGE模式:释放被扣在敌人帐篷的人质. 靠近点 跟着它走 回家得分."
+msgstr "这是人质模式：解救关在敌方帐篷的人质。靠近后人质会跟着你，护送回家即可得分。"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Thanks for picking me up!"
-msgstr "谢谢你接我!"
+msgstr "谢谢你来接我！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "%(hero) brought the %(team) hostage home! +1 %(team)"
-msgstr "%(hero)将%(team)人质带回家! +1 %(team) 键"
+msgstr "%(hero) 把 %(team) 的人质带回家了！+1 %(team)"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "%(killer) executed the %(team) hostage! +1 %(team)"
-msgstr "%(killer)处决了%(team)人质! +1 %(team) 键"
+msgstr "%(killer) 处决了 %(team) 的人质！+1 %(team)"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "%(escort) is freeing your hostage -- go support!"
-msgstr "%(escort)正在释放人质--去支援!"
+msgstr "%(escort) 正在解救你方人质——快去支援！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "A %(team) hostage is loose -- hunt it down and drag it back!"
-msgstr "一个%(team)人质松绑了——追杀并拖回!"
+msgstr "一名 %(team) 人质逃脱了——追上它并拖回去！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "The %(team) hostage was dragged back to captivity."
-msgstr "%(team)人质被拖回监狱."
+msgstr "%(team) 的人质被拖回关押处。"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Get me out of here!"
-msgstr "让我离开这里!"
+msgstr "快带我离开这里！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "I'm a prisoner -- someone free me!"
-msgstr "我是一个囚犯,有人释放我!"
+msgstr "我被关起来了——谁来救救我！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Psst! Come spring me from their tent!"
-msgstr "嘘! 快来,从他们的帐篷里来!"
+msgstr "嘘！快来他们的帐篷救我出去！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "I'm lost! Somebody come get me!"
-msgstr "我迷路了! 滚开! 有人来抓我!"
+msgstr "我迷路了！快来人接我！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Hello? Anyone? I'm stranded out here!"
-msgstr "有人吗? 有人吗? 我被困在这里了!"
+msgstr "喂？有人吗？我被困在这里了！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Help, I don't know the way home!"
-msgstr "救命啊,我不知道怎么回家的路啊!"
+msgstr "救命，我不认识回家的路！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Home at last -- thank you!"
-msgstr "终于回家了,谢谢!"
+msgstr "终于到家了——谢谢你！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Argh -- they got me!"
-msgstr "他们抓住我了!"
+msgstr "啊——我被抓住了！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "They're right behind us!"
-msgstr "他们就在我们后面!"
+msgstr "他们就在我们后面！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Hurry, enemies close!"
-msgstr "快点,敌人靠近!"
+msgstr "快，敌人靠近了！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Watch out -- keepers!"
-msgstr "当心 守护者!"
+msgstr "小心——看守来了！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "This way, we're almost there!"
-msgstr "这边,快到了!"
+msgstr "这边，我们快到了！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Keep going, take me home!"
-msgstr "继续,带我回家!"
+msgstr "继续走，带我回家！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Don't leave me behind!"
-msgstr "别丢下我!"
+msgstr "别丢下我！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "They've caught me -- help!"
-msgstr "他们抓住我了... 救命!"
+msgstr "他们抓住我了——救命！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "I'm being dragged back!"
-msgstr "我被拖回来!"
+msgstr "我被拖回去了！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "No -- not back to the cage!"
-msgstr "不,不要回到笼子里!"
+msgstr "不——别把我关回笼子！"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "%(team) hostage: not spawned (no tents?)"
-msgstr "%(team)人质:没有产卵(没有帐篷?)"
+msgstr "%(team) 人质：未生成（没有帐篷？）"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "%(team) hostage: down, respawning"
-msgstr "%(team)人质:下,重生"
+msgstr "%(team) 人质：倒下，重生中"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "following %(name)"
-msgstr "紧随 %(name)"
+msgstr "正在跟随 %(name)"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "being recaptured by %(name)"
-msgstr "被%(name)夺回"
+msgstr "正被 %(name) 抓回"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "waiting at a tent"
-msgstr "等待在 帐篷 时"
+msgstr "在帐篷处等待"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "stranded"
-msgstr "搁浅"
+msgstr "被困"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "%(team) hostage: %(state) (%(dist) blocks from home)"
-msgstr "%(team)人质:%(state)(离家的%(dist)街区)"
+msgstr "%(team) 人质：%(state)（距家 %(dist) 格）"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgctxt "command"
 msgid "Show hostage status, or 'reset' them (needs the hostage cap)."
-msgstr "显示人质状态, 或者“ 重置 ” (需要人质盖) ."
+msgstr "显示人质状态，或用 'reset' 重置人质（需要 hostage 权限）。"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "You lack the 'hostage' cap."
-msgstr "你没有\"人质\"的帽子."
+msgstr "你没有 'hostage' 权限。"
 
-# machine-translated (LibreTranslate)
 #: catalog/gamemodes/hostage/hostage.lua
-#, fuzzy
 msgid "Hostages reset."
-msgstr "人质重置."
+msgstr "人质已重置。"

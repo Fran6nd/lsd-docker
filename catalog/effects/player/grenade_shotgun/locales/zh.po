@@ -7,14 +7,10 @@ msgstr ""
 "Language: zh\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/grenade_shotgun/shotgun_are_grenade_launchers.lua
-#, fuzzy
 msgid "warning: here shotguns are grenade launchers."
-msgstr "警告:这里的猎枪是榴弹发射器."
+msgstr "警告：本服务器的霰弹枪是榴弹发射器。"
 
-# machine-translated (LibreTranslate)
 #: catalog/effects/player/grenade_shotgun/shotgun_are_grenade_launchers.lua
-#, fuzzy
 msgid "Spicy: every shotgun blast drops a grenade pellet -- mind the splash."
-msgstr "辣味:每一次散弹枪爆炸都会掉一粒榴弹丸--注意喷射."
+msgstr "辣味：每次霰弹枪射击都会掉落一枚榴弹——小心溅射。"
