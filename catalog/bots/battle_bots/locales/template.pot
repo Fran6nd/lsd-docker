@@ -6,6 +6,11 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 #: catalog/bots/battle_bots/advanced_battle_bot.lua
+msgctxt "command"
+msgid "List advanced battle bots."
+msgstr ""
+
+#: catalog/bots/battle_bots/advanced_battle_bot.lua
 msgid "%(name): %(hp) HP, skill %(skill) (%(state))"
 msgstr ""
 

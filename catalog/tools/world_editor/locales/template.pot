@@ -237,6 +237,81 @@ msgstr ""
 msgid "world_editor: save failed -- see server log (is maps/ writable?)."
 msgstr ""
 
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "Toggle world edit mode (console only)."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "Place a component; /place alone lists them, /place <c> shows help."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "Drop a placement mark where you are (or at x y z)."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "Place one or more placement marks by coordinate."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "Set protection on the nearest component."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "Un-place the most recent component (its blocks stay)."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "Un-place the component whose block you mark (its blocks stay)."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "Save the map (.vxl) and its components (.editor.json) to maps/."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "Create an authorization chunk (spade two marks to set its extent)."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "Set the authorization of the chunk you are standing in."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "Delete the chunk you are standing in."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "List placed components and their live state."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "List authorization chunks."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "Authorization for blocks outside every chunk (console only)."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua
+msgctxt "command"
+msgid "Master lock: refuse every player block edit (console only)."
+msgstr ""
+
 #: catalog/tools/world_editor/world_editor/door.lua
 msgid "direction must be up, down, left or right."
 msgstr ""

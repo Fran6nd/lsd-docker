@@ -6,6 +6,11 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 #: catalog/extensions/edit_mode/lib_edit_mode.lua
+msgctxt "command"
+msgid "Switch a player's Edit Mode: no block limits, Block Batch."
+msgstr ""
+
+#: catalog/extensions/edit_mode/lib_edit_mode.lua
 msgid "Edit mode on for %(name)."
 msgstr ""
 

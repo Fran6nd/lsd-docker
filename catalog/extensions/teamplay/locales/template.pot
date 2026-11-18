@@ -34,6 +34,11 @@ msgid "Nothing to ping: /pingmark needs a position, three numbers, before the re
 msgstr ""
 
 #: catalog/extensions/teamplay/lib_teamplay.lua
+msgctxt "command"
+msgid "Ping a position for your team."
+msgstr ""
+
+#: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "Enemy"
 msgstr ""
 

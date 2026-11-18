@@ -65,7 +65,7 @@ print("\n4. lib_l10n: who reads what");
 -- the stubbed server: 0 sent fr_FR, 1 sent pl, 2 sent nothing, 3 sent pt_br
 MAX_PLAYERS = 32; PID_BROADCAST = 0x20000001;
 local LANG = {[0] = "fr_FR", [1] = "pl", [2] = "", [3] = "pt_br"};
-local sent, logged, commands = {}, {}, {};
+local sent, logged = {}, {};
 function init_mod() return {impl={before={},after={},next={}}, late={before={},after={},next={}},
 	before={}, after={}, next={}, early={before={},after={},next={}}, xearly={before={},after={},next={}}}; end
 function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
@@ -81,7 +81,12 @@ function piditer(pid)
 	return function() i = i + 1; if (i <= 3) then return i; end end;
 end
 function log(fmt, ...) logged[#logged+1] = string.format(fmt, ...); end
-function register_command(cmd) commands[cmd.name] = cmd; end
+cmds_seen = {};
+function register_command(cmd)
+	local names = type(cmd.name) == "table" and cmd.name or {cmd.name};
+	for _, n in ipairs(names) do commands[n] = cmd; cmds_seen[n] = cmd; end
+end
+commands = {};
 function cmd_assert(_, _, ok) assert(ok); end
 -- lfs over the shell, as the image's lfs.so is not on the host
 package.loaded.lfs = {
@@ -183,7 +188,7 @@ send_chat(0, {en = "Hi", fr = "Salut"}, 2, 255);
 eq(sent[1][2], "Salut", "send_chat too");
 
 print("\n7. /lang");
-local lang = commands.lang;
+local lang = cmds_seen.lang;
 check(lang ~= nil, "/lang is registered");
 sent = {};
 lang.func(2, {"fr"});
@@ -237,6 +242,27 @@ for path in io.popen("find catalog -path '*/locales/*.po' | sort"):lines() do
 		end
 	end
 end
+
+print("\n9. command help");
+sent = {};
+send_usage(2, commands.lang);
+eq(sent[1] and sent[1][2], "usage: lang [<code>|auto]", "send_usage, through a message");
+local cmds_mod = dofile("catalog/overrides/command_cmds.lua");
+can_see_command = function() return true; end
+local all = {lang = commands.lang};
+commands = all;
+local help = cmds_seen.help;
+sent = {};
+help.func(0, {"lang"});
+check(sent[1] and sent[1][2]:find("Voir ou choisir la langue", 1, true),
+	"/help shows a description in the reader's language", sent[1] and sent[1][2]);
+sent = {};
+help.func(2, {"lang"});
+check(sent[1] and sent[1][2]:find("Show or choose the language", 1, true),
+	"and in English to whoever reads English", sent[1] and sent[1][2]);
+sent = {};
+cmds_seen.apropos.func(0, {}, "/apropos langue");
+check(sent[1] ~= nil, "/apropos searches what the player reads");
 
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures > 0 and 1 or 0);

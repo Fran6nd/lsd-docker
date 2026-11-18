@@ -6,6 +6,11 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 #: catalog/bots/guards/bot_standard.lua
+msgctxt "command"
+msgid "List guard bots, their HP and state."
+msgstr ""
+
+#: catalog/bots/guards/bot_standard.lua
 msgid "%(name): %(hp) HP (%(state))"
 msgstr ""
 

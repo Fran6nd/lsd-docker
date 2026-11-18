@@ -46,9 +46,19 @@ msgid "Vote kicked"
 msgstr ""
 
 #: catalog/tools/votekick/votekick.lua
+msgctxt "command"
+msgid "Start (or add your voice to) a vote to kick a player."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua
 msgid "Vote kick"
 msgstr ""
 
 #: catalog/tools/votekick/votekick.lua
 msgid "Start a vote to kick this player"
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua
+msgctxt "command"
+msgid "Vote yes on the current votekick."
 msgstr ""

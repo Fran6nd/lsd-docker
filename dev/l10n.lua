@@ -9,7 +9,8 @@
 --
 -- Every message a script can send is in its own Lua, written the way
 -- lib_l10n reads it: a table with en= (and maybe en_plural=, ctx=), or
--- l10n_msg("..."). This finds them -- with a small Lua lexer, not a
+-- l10n_msg("..."); and every command's desc = "...", in the "command"
+-- context. This finds them -- with a small Lua lexer, not a
 -- pattern, so comments and other strings are not mistaken for one --
 -- and writes them per script:
 --
@@ -161,6 +162,15 @@ local function messages(src)
 			elseif (t.v == "en") then
 				skipped[#skipped+1] = t.line;
 			end
+		elseif (t.k == "name" and t.v == "desc" and toks[i+1]
+		        and toks[i+1].k == "=" and #stack > 0 and toks[i-1]
+		        and (toks[i-1].k == "{" or toks[i-1].k == "," or toks[i-1].k == ";")) then
+			-- a command's description, shown by /cmds and /help in the
+			-- reader's language (command_cmds, overridden)
+			local v = literal(toks, i + 2);
+			if (v ~= nil) then
+				found[#found+1] = {ctx = "command", msgid = v, line = t.line};
+			end
 		elseif (t.k == "name" and t.v == "l10n_msg" and toks[i+1]
 		        and toks[i+1].k == "(") then
 			local v = literal(toks, i + 2);
@@ -289,6 +299,7 @@ local function merge(old, list, lang)
 			gone[#gone+1] = e;
 		end
 	end
+
 
 	return P.write(cat and cat.header or new_header(lang), out, gone);
 end

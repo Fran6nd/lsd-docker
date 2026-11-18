@@ -130,6 +130,11 @@ msgid "%(team) hostage: %(state) (%(dist) blocks from home)"
 msgstr ""
 
 #: catalog/gamemodes/hostage/hostage.lua
+msgctxt "command"
+msgid "Show hostage status, or 'reset' them (needs the hostage cap)."
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "You lack the 'hostage' cap."
 msgstr ""
 

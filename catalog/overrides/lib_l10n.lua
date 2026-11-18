@@ -380,6 +380,24 @@ function mod.xearly.send_chat(pid, msg, type, from)
 	each(pid, msg, function(i, s) mod.xearly.next.send_chat(i, s, type, from); end);
 end
 
+--=========================== COMMAND HELP ===========================--
+
+-- commands.lua's send_usage, whose "usage:" was the one word of command
+-- help not in a message. commands loads before this (group_deps), so
+-- this definition is the one in force; the descriptions themselves are
+-- translated by command_cmds (overridden) in the "command" context.
+local usage_msg = {en = "usage: %(cmd)"};
+local usage_args_msg = {en = "usage: %(cmd) %(args)"};
+
+function send_usage(pid, cmd)
+	local name = type(cmd.name) == "table" and cmd.name[1] or cmd.name;
+	if (cmd.usage) then
+		l10n_send_chat(pid, usage_args_msg, {cmd = name, args = cmd.usage});
+	else
+		l10n_send_chat(pid, usage_msg, {cmd = name});
+	end
+end
+
 --=============================== /lang ==============================--
 
 local lang_now = {en = "Your language: %(lang). Available: %(list). Use /lang <code>, or /lang auto for your client's."};

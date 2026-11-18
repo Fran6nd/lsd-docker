@@ -7,3 +7,7 @@ msgstr "a second script's translation, which loses"
 
 msgid "Bye"
 msgstr "Au revoir"
+
+msgctxt "command"
+msgid "Show or choose the language the server speaks to you."
+msgstr "Voir ou choisir la langue que le serveur te parle."
