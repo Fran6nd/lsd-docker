@@ -1,0 +1,37 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ru\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "Type /m to use a medkit."
+msgstr "Введи /m, чтобы использовать аптечку."
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "Hurt? Type /m to use a medkit; restock at your tent."
+msgstr "Ранен? Введи /m, чтобы использовать аптечку; пополнить можно у палатки."
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "The medkit cannot bring you back from the dead."
+msgstr "Аптечка не вернёт тебя с того света."
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "You've already used all your medkits! Restock at the tent."
+msgstr "Ты уже израсходовал все аптечки! Пополни их у палатки."
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "The medkit only heals physical wounds."
+msgstr "Аптечка лечит только физические раны."
+
+#: catalog/effects/player/medkit/medkit.lua
+msgctxt "command"
+msgid "Use a medkit."
+msgstr "Использовать аптечку."
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "You have no medkit here."
+msgstr "Здесь у тебя нет аптечки."

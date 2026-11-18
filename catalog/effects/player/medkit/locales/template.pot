@@ -1,0 +1,35 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "Type /m to use a medkit."
+msgstr ""
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "Hurt? Type /m to use a medkit; restock at your tent."
+msgstr ""
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "The medkit cannot bring you back from the dead."
+msgstr ""
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "You've already used all your medkits! Restock at the tent."
+msgstr ""
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "The medkit only heals physical wounds."
+msgstr ""
+
+#: catalog/effects/player/medkit/medkit.lua
+msgctxt "command"
+msgid "Use a medkit."
+msgstr ""
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "You have no medkit here."
+msgstr ""

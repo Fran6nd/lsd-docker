@@ -1,0 +1,37 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "Type /m to use a medkit."
+msgstr "Tape /m pour utiliser une trousse de soins."
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "Hurt? Type /m to use a medkit; restock at your tent."
+msgstr "Blessé ? Tape /m pour utiliser une trousse de soins ; ravitaille-toi à ta tente."
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "The medkit cannot bring you back from the dead."
+msgstr "La trousse de soins ne peut pas te ramener d'entre les morts."
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "You've already used all your medkits! Restock at the tent."
+msgstr "Tu as déjà utilisé toutes tes trousses de soins ! Ravitaille-toi à la tente."
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "The medkit only heals physical wounds."
+msgstr "La trousse de soins ne soigne que les blessures physiques."
+
+#: catalog/effects/player/medkit/medkit.lua
+msgctxt "command"
+msgid "Use a medkit."
+msgstr "Utiliser une trousse de soins."
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "You have no medkit here."
+msgstr "Tu n'as pas de trousse de soins ici."

@@ -1,0 +1,37 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "Type /m to use a medkit."
+msgstr "输入 /m 使用医疗包。"
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "Hurt? Type /m to use a medkit; restock at your tent."
+msgstr "受伤了？输入 /m 使用医疗包；回帐篷补给。"
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "The medkit cannot bring you back from the dead."
+msgstr "医疗包无法让你起死回生。"
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "You've already used all your medkits! Restock at the tent."
+msgstr "你的医疗包已用完！去帐篷补给。"
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "The medkit only heals physical wounds."
+msgstr "医疗包只能治疗身体创伤。"
+
+#: catalog/effects/player/medkit/medkit.lua
+msgctxt "command"
+msgid "Use a medkit."
+msgstr "使用医疗包。"
+
+#: catalog/effects/player/medkit/medkit.lua
+msgid "You have no medkit here."
+msgstr "你在这里没有医疗包。"
