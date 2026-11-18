@@ -269,8 +269,36 @@ local function template(entry)
 	return list, by_key, skipped;
 end
 
+-- How alike two texts are, 0..1: one minus their edit distance over the
+-- longer one's length.
+local function likeness(a, b)
+	if (a == b) then return 1; end
+	local la, lb = #a, #b;
+	if (la == 0 or lb == 0) then return 0; end
+	if (math.abs(la - lb) / math.max(la, lb) > 0.3) then return 0; end
+	local prev = {};
+	for j = 0, lb do prev[j] = j; end
+	for i = 1, la do
+		local cur = {[0] = i};
+		local ca = string.byte(a, i);
+		for j = 1, lb do
+			local cost = (ca == string.byte(b, j)) and 0 or 1;
+			cur[j] = math.min(prev[j] + 1, cur[j-1] + 1, prev[j-1] + cost);
+		end
+		prev = cur;
+	end
+	return 1 - prev[lb] / math.max(la, lb);
+end
+
+local function same_placeholders(a, b)
+	return table.concat(P.placeholders(a), ",") == table.concat(P.placeholders(b), ",");
+end
+
 -- The .po for `lang` brought in line with the template: translations
--- kept by key, new texts added empty, gone ones kept as #~.
+-- kept by key, new texts added empty, gone ones kept as #~. A new text
+-- close to a gone one -- an upstream rewording, a typo fixed -- takes
+-- its translation, marked fuzzy: not used until a translator checks it,
+-- as gettext's msgmerge does, but not lost either.
 local function merge(old, list, lang)
 	local cat = old and P.parse(old) or nil;
 	local have = {};
@@ -300,6 +328,33 @@ local function merge(old, list, lang)
 		end
 	end
 
+	-- the new texts nothing translates yet, from the closest gone one
+	local taken = {};
+	for _, e in ipairs(out) do
+		local empty = (e.str == nil or e.str == "") and #(e.forms or {}) == 0;
+		if (empty and #gone > 0) then
+			local best, score = nil, 0.7;
+			for gi, g in ipairs(gone) do
+				if (not taken[gi] and g.ctx == e.ctx
+				    and (g.plural ~= nil) == (e.plural ~= nil)
+				    and same_placeholders(g.msgid, e.msgid)) then
+					local l = likeness(g.msgid, e.msgid);
+					if (l >= score) then best, score = gi, l; end
+				end
+			end
+			if (best ~= nil) then
+				taken[best] = true;
+				local g = gone[best];
+				e.str, e.forms, e.fuzzy = g.str, g.forms, true;
+				e.comments = g.comments;
+			end
+		end
+	end
+	local still = {};
+	for gi, g in ipairs(gone) do
+		if (not taken[gi]) then still[#still+1] = g; end
+	end
+	gone = still;
 
 	return P.write(cat and cat.header or new_header(lang), out, gone);
 end
