@@ -147,7 +147,7 @@ never given the docker socket.
 |---|---|---|---|
 | gamemodes | `Gamemode` | exactly one runs | ctf, onectf, arena, babel, ffa, hostage |
 | extensions | `Extension` | protocol extensions; the setup also asks what a client lacking one costs | every extension in the [AoS protocol registry](https://github.com/zerospades/aosprotocol): player_properties, damage_markers, teamplay, pie_menu, flashlight, daytime, edit_mode, player_limit, message_types, kick_reason (UTF-8 chat is built into LSd); plus silent_player |
-| effects | `Effect` | change how the game plays | railgun, grenade_shotgun, pinning_smg, the_fall, grenade_pit |
+| effects | `Effect` | change how the game plays | railgun, grenade_shotgun, pinning_smg, the_fall |
 | bots | `Bot` | server-side players | guards, battle_bots |
 | tools | `Tool` | everything else | world_editor, votekick, esp_demo, headless, time_limit, ... |
 | libs | `Library` | what the others need; installed with them, not listed | ext, ext_policy, bot, shot_detect |
