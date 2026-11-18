@@ -1,0 +1,27 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: es\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# machine-translated (LibreTranslate)
+#: catalog/bots/guards/bot_standard.lua
+#, fuzzy
+msgctxt "command"
+msgid "List guard bots, their HP and state."
+msgstr "Bots de guardia, su HP y estado."
+
+# machine-translated (LibreTranslate)
+#: catalog/bots/guards/bot_standard.lua
+#, fuzzy
+msgid "%(name): %(hp) HP (%(state))"
+msgstr "%(name): %(hp) HP (%(state))"
+
+# machine-translated (LibreTranslate)
+#: catalog/bots/guards/bot_standard.lua
+#, fuzzy
+msgid "No guard bots active."
+msgstr "No hay bots de guardia activa."

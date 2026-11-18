@@ -1,0 +1,140 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Mark"
+msgstr "标记"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Quick chat"
+msgstr "快速聊天"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Follow me"
+msgstr "跟我来"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "On my way"
+msgstr "来了"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Backup"
+msgstr "备份"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Thanks"
+msgstr "谢谢"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Sorry"
+msgstr "对不起"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Good game"
+msgstr "好游戏"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "To everyone"
+msgstr "对大家"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Player"
+msgstr "玩家"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Ratio"
+msgstr "比率"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Their kills per death"
+msgstr "他们每死一次"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Latency"
+msgstr "延迟"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Ignore"
+msgstr "忽略"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Hide their chat, or show it again"
+msgstr "隐藏他们的聊天,或再次显示它"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Client"
+msgstr "客户端"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "The game client they play with"
+msgstr "他们玩的游戏客户端"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Watching"
+msgstr "观看"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Their ratio"
+msgstr "他们的比例"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Nice shot"
+msgstr "枪法不错"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "Who's on"
+msgstr "谁在"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/pie_menu/lib_pie_menu.lua
+#, fuzzy
+msgid "My ratio"
+msgstr "我的比例"

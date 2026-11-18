@@ -1,0 +1,32 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+# machine-translated (LibreTranslate)
+#: catalog/effects/world/the_fall/the_fall.lua
+#, fuzzy
+msgid "You can't build in the Fall."
+msgstr "你不能在坠落建造."
+
+# machine-translated (LibreTranslate)
+#: catalog/effects/world/the_fall/the_fall.lua
+#, fuzzy
+msgid "You killed your way out. Back in the game."
+msgstr "你杀了你的出路。 复於游戏中."
+
+# machine-translated (LibreTranslate)
+#: catalog/effects/world/the_fall/the_fall.lua
+#, fuzzy
+msgid "You're going into the Fall. Kill someone to get out."
+msgstr "你要进入坠落 杀了人出来."
+
+# machine-translated (LibreTranslate)
+#: catalog/effects/world/the_fall/the_fall.lua
+#, fuzzy
+msgid "warning: here your first death drops you into the Fall, and only a kill gets you out."
+msgstr "警告:这里,你第一次死亡 把你送进坠落, 只有一死才能让你出来."

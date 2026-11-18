@@ -1,0 +1,20 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: es\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# machine-translated (LibreTranslate)
+#: catalog/effects/player/pinning_smg/smg_is_incapacitating.lua
+#, fuzzy
+msgid "warning: here the smg pins what it hits and never reloads."
+msgstr "advertencia: aquí el SMG marca lo que golpea y nunca vuelve a cargar."
+
+# machine-translated (LibreTranslate)
+#: catalog/effects/player/pinning_smg/smg_is_incapacitating.lua
+#, fuzzy
+msgid "Spicy: the SMG pins whoever it hits where they stand, and never reloads."
+msgstr "Spicy: los pins SMG que golpea donde están, y nunca vuelve a cargar."

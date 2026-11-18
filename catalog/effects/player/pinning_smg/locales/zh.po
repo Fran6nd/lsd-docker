@@ -1,0 +1,20 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+# machine-translated (LibreTranslate)
+#: catalog/effects/player/pinning_smg/smg_is_incapacitating.lua
+#, fuzzy
+msgid "warning: here the smg pins what it hits and never reloads."
+msgstr "警告:这里的冲锋枪是它所击中的,并且永远不会重新加载."
+
+# machine-translated (LibreTranslate)
+#: catalog/effects/player/pinning_smg/smg_is_incapacitating.lua
+#, fuzzy
+msgid "Spicy: the SMG pins whoever it hits where they stand, and never reloads."
+msgstr "辣味:冲锋枪号针打到站点的任何人,从不重装."

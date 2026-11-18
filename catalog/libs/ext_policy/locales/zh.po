@@ -1,0 +1,38 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+# machine-translated (LibreTranslate)
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+#, fuzzy
+msgid "Your client is outdated, please update"
+msgstr "你的客户已经过时,请更新"
+
+# machine-translated (LibreTranslate)
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+#, fuzzy
+msgid "Your client never answered the extension handshake, so it cannot leave spectator. Update it, or use ZeroSpades."
+msgstr "你的委托人从来没有回答 扩展握手, 所以它不能离开观众。 更新它,或者使用 ZeroSpades."
+
+# machine-translated (LibreTranslate)
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+#, fuzzy
+msgid "Missing: %(list). You cannot leave spectator without it -- update your client, then reconnect."
+msgstr "失踪时间:%(list). 你不能离开旁观者 没有它 - 更新你的客户端,然后重新连接."
+
+# machine-translated (LibreTranslate)
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+#, fuzzy
+msgid "Missing: %(list). You cannot leave spectator without them -- update your client, then reconnect."
+msgstr "失踪时间:%(list). 你不能离开旁观者 没有他们 - 更新你的客户端,然后重新连接."
+
+# machine-translated (LibreTranslate)
+#: catalog/libs/ext_policy/lib_ext_policy.lua
+#, fuzzy
+msgid "Missing: %(list). You can play, but you will not see everything other players do."
+msgstr "失踪时间:%(list). 你可以玩,但你不会看到其他玩家所做的一切."

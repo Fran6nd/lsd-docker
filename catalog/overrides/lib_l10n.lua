@@ -121,13 +121,16 @@ local function catalog(lang)
 	return cat or nil;
 end
 
--- The languages with at least one translation file, plus English.
+-- The languages with at least one translation in use, plus English: a
+-- language whose files hold only drafts (fuzzy, unreviewed) is not
+-- offered, since a player choosing it would read English throughout.
 function l10n_languages()
 	if (installed_langs == nil) then
 		installed_langs = {"en"};
 		for _, name in ipairs(list_dir(l10n_dir)) do
 			local l = P.norm_lang(name);
-			if (l ~= nil and l ~= "en") then
+			local cat = l and l ~= "en" and catalog(l);
+			if (cat and next(cat.entries) ~= nil) then
 				installed_langs[#installed_langs+1] = l;
 			end
 		end

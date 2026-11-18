@@ -237,8 +237,10 @@ eq(l10n_get_lang(4), "en", "and changes nothing");
 eq(l10n_get_lang(2), "en", "and changes nothing");
 sent = {};
 lang.func(0, {});
-check(sent[1] and sent[1][2]:find("fr_fr") and sent[1][2]:find("en, fr, pl"),
-	"no argument: the current language and the installed ones", sent[1] and sent[1][2]);
+check(sent[1] and sent[1][2]:find("fr_fr") and sent[1][2]:find("en, fr, pl", 1, true)
+	and not sent[1][2]:find("es", 1, true),
+	"no argument: the current language and the installed ones, drafts-only es left out",
+	sent[1] and sent[1][2]);
 
 print("\n8. the catalog's translation files");
 local r = os.execute("luajit dev/l10n.lua --check >/dev/null");

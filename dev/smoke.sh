@@ -93,6 +93,11 @@ gate=$(docker exec "$NAME" lsdctl exec 'exec log("GATE|%s|%s|", tostring(l10n_cl
 echo "$gate" | grep -q "GATE|true|false|" || fail "the ZeroSpades gate: $gate"
 echo "ok: translations gated to the current ZeroSpades"
 
+# machine-translated drafts (fuzzy) are installed but never shown
+draft=$(docker exec "$NAME" lsdctl exec 'exec log("DRAFT|" .. l10n_get_str_lang("es", {en = "Vote kicked"}) .. "|" .. table.concat(l10n_languages(), ",") .. "|")')
+echo "$draft" | grep -q "DRAFT|Vote kicked|en,fr|" || fail "drafts must stay unused: $draft"
+echo "ok: unreviewed drafts are not shown"
+
 # the pie menu: commands put themselves in it (votekick, /lang), in the
 # player's language, through the scripts' own translations
 docker exec "$NAME" lsdctl install pie_menu --yes --now >/dev/null || fail "install pie_menu"

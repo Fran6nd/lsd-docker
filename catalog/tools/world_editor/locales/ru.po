@@ -1,0 +1,633 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ru\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: cannot write %(path) (%(err)) -- drop the :ro on the maps mount to persist"
+msgstr "world editor: не может писать %(path) (%(err)) — выбросить :ro на карту"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: %(path) is not valid json, ignoring"
+msgstr "world editor: %(path) не действителен, игнорируя"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: loaded %(path)"
+msgstr "world editor: загруженный %(path)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: could not load %(name) (%(err))"
+msgstr "world editor не смог загрузить %(name) (%(err))"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: could not delist (%(err))"
+msgstr "world editor: Не удалось удалить (%(err))"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: could not relist (%(err))"
+msgstr "world editor: не удалось перечислить (%(err))"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: relisted after a reload (edit mode did not survive it)"
+msgstr "world editor: редактировался после перезагрузки (режим редактирования не пережил его)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: component %(name) failed to load: %(err)"
+msgstr "world editor: компонент %(name) не удалось загрузить: %(err)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: edit mode %(state)"
+msgstr "world editor: режим редактирования %(state)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: cannot write %(path) (%(err))"
+msgstr "world editor не может писать %(path) (%(err))"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: not in edit mode (enable it from the console)."
+msgstr "world editor: не в режиме редактирования (включите его с консоли)."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: edit mode can only be toggled from the console."
+msgstr "world editor: режим редактирования можно переключать только с консоли."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: edit mode is %(state) (map %(map))%(extra)"
+msgstr "world editor: Режим редактирования %(state) (карта %(map))%(extra)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid ", delisted by edit mode"
+msgstr "отредактированный режим"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: created %(path)"
+msgstr "world editor: создан %(path)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: %(names) loaded -- terrain editing and flight for the session."
+msgstr "world editor: %(names) loaded — редактирование местности и полет для сессии."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: delisted from the public lists (ip:port still works, so you can invite builders in)"
+msgstr "world editor: вычеркнут из публичных списков (ip:port до сих пор работает, так что можно пригласить строителей)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: listed publicly again."
+msgstr "world editor: снова публично."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: edit mode ENABLED -- the map is being built on."
+msgstr "world editor: edit mode ENABLED — карта строится на ней."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: edit mode disabled."
+msgstr "world editor: режим редактирования отключен."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: placeable -- %(names)"
+msgstr "world editor: размещаемый - %(names)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "  /place <component> for its help, e.g. /place elevator"
+msgstr "/place <component>, например, лифт /place"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: no such component. placeable: %(names)"
+msgstr "world editor: нет такого компонента. Размещение: %(names)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: %(name) -- %(desc)"
+msgstr "world editor: %(name) — %(desc)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "  usage: /place %(name) %(usage)"
+msgstr "использование: /place %(name) %(usage)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: %(text)"
+msgstr "разработчик: %(text)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: nothing being placed -- start with /place or /chunk."
+msgstr "world editor: ничего не размещается — начните с /place или /chunk."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: pick the two corners of the %(kind) -- aim and click each one."
+msgstr "world editor: выберите два угла %(kind) — нажмите на каждый из них."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: nothing being placed -- start with /place, /chunk or /delete."
+msgstr "world editor: ничего не размещается — начните с /place, /chunk или /delete."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: spade or shoot a block of the component to delete."
+msgstr "world editor: лопата или снимать блок компонента для удаления."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: spade two opposite corners."
+msgstr "world editor: лопата два противоположных угла."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: spade the centre, then the edge."
+msgstr "world editor: лопата центр, затем край."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: mark at %(x) %(y) %(z)"
+msgstr "world editor: %(x) %(y) %(z)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: that mark is outside the map."
+msgstr "world editor: этот знак находится за пределами карты."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: nothing to mark there -- aim at ground or water."
+msgstr "world editor: нечего там маркировать — целься в землю или воду."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: placement finished on mark %(n) -- %(extra) extra ignored."
+msgstr "world editor: размещение завершено на отметке %(n) - %(extra) дополнительно проигнорировано."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: %(kind) #%(id) placed."
+msgstr "world editor: %(kind) #%(id) размещен."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: no component on that block -- aim right at one."
+msgstr "world editor: нет компонента в этом блоке — целитесь в него."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: no components on this map."
+msgstr "world editor: никаких компонентов на этой карте."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: broke %(kind) #%(id)."
+msgstr "world editor: сломал %(kind) #%(id)."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: %(verb) %(kind) #%(id) -- its blocks stay, back at rest."
+msgstr "world editor: %(verb) %(kind) #%(id) — его блоки остаются, обратно в покое."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: nothing to undo."
+msgstr "world editor: ничего не менять."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: %(kind) #%(id) is now %(perm)"
+msgstr "world editor: %(kind) #%(id) теперь %(perm)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "  #%(id) %(kind) at %(x),%(y) %(perm) blocks %(blocks) %(status)"
+msgstr "#%(id) %(kind) на %(x), %(y) %(perm) блоки %(blocks) %(status)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: perm must be ro, rw, or rw:<team>."
+msgstr "world editor: perm должен быть ro, rw или rw:<team>."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: chunk %(name) (%(perm)) created."
+msgstr "world editor: создан фрагмент %(name) (%(perm))."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: you are not in a chunk (use /defaultperm for the open map)."
+msgstr "world editor: вы не в куске (используйте /defaultperm для открытой карты)."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: %(name) is now %(perm)"
+msgstr "world editor: %(name) теперь %(perm)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: removed chunk %(name)"
+msgstr "world editor: удаленный кусочек %(name)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: default %(perm)%(readonly)"
+msgstr "world editor: по умолчанию %(perm)%(readonly)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid ", map READONLY"
+msgstr "Карта ЧИТАТЬ ТАКЖЕ"
+
+#: catalog/tools/world_editor/world_editor.lua
+msgid "  #%(id) %(name) %(shape) %(perm)"
+msgstr ""
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: default is now %(perm)"
+msgstr "world editor: по умолчанию теперь %(perm)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: map readonly %(state)"
+msgstr "world editor: карта %(state)"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: no map name known -- pass one: /wesavemap <name>."
+msgstr "world editor: no map name known - pass one: /wesavemap <name>."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: bad name (no / \\ or leading dot)."
+msgstr "world editor: плохое имя (no/\\ или ведущая точка)."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: saved %(name).vxl + %(name).editor.json in %(dir)/"
+msgstr "world editor: сохранен %(name).vxl + %(name).editor.json в %(dir)/"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgid "world_editor: save failed -- see server log (is maps/ writable?)."
+msgstr "world editor: save failed — см. журнал сервера (карты/записываемые?)."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "Toggle world edit mode (console only)."
+msgstr "Toggle world edit mode (только консоль)."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "Place a component; /place alone lists them, /place <c> shows help."
+msgstr "Разместите компонент; только /place перечисляет их, /place <c> показывает помощь."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "Drop a placement mark where you are (or at x y z)."
+msgstr "Бросьте знак размещения, где вы находитесь (или на x y z)."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "Place one or more placement marks by coordinate."
+msgstr "Поместите один или несколько знаков размещения по координатам."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "Set protection on the nearest component."
+msgstr "Настройка защиты на ближайший компонент."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "Un-place the most recent component (its blocks stay)."
+msgstr "Разместите последний компонент (блоки остаются)."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "Un-place the component whose block you mark (its blocks stay)."
+msgstr "Разместите компонент, блок которого вы отмечаете (блоки остаются)."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "Save the map (.vxl) and its components (.editor.json) to maps/."
+msgstr "Сохранить карту (.vxl) и ее компоненты (.editor.json) для карт."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "Create an authorization chunk (spade two marks to set its extent)."
+msgstr "Создайте авторизационный фрагмент (лопата два знака, чтобы установить его степень)."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "Set the authorization of the chunk you are standing in."
+msgstr "Установите авторизацию участка, в котором вы стоите."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "Delete the chunk you are standing in."
+msgstr "Удалите кусок, в котором вы стоите."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "List placed components and their live state."
+msgstr "Список размещенных компонентов и их живое состояние."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "List authorization chunks."
+msgstr "Список авторизационных кусков."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "Authorization for blocks outside every chunk (console only)."
+msgstr "Разрешение на блоки вне каждой куски (только для консоли)."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor.lua
+#, fuzzy
+msgctxt "command"
+msgid "Master lock: refuse every player block edit (console only)."
+msgstr "Мастер-блокировка: откажитесь от редактирования каждого блока игрока (только консоли)."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/door.lua
+#, fuzzy
+msgid "direction must be up, down, left or right."
+msgstr "направление должно быть вверх, вниз, влево или вправо."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/door.lua
+#, fuzzy
+msgid "mark one corner of the door."
+msgstr "отметьте один угол двери."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/door.lua
+#, fuzzy
+msgid "now mark the opposite corner."
+msgstr "теперь отметьте противоположный угол."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/door.lua
+#, fuzzy
+msgid "a vertical door needs height -- mark corners at different heights."
+msgstr "вертикальная дверь нуждается в высоте - отметьте углы на разных высотах."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/door.lua
+#, fuzzy
+msgid "a sliding door needs width -- mark corners apart horizontally."
+msgstr "раздвижная дверь нуждается в ширине - отметьте углы по горизонтали."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/door.lua
+#, fuzzy
+msgid "that box overlaps another component -- mark clear of it."
+msgstr "эта коробка перекрывает другой компонент - отметьте его."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/door.lua
+#, fuzzy
+msgid "a door is a panel, not a block of wall -- one of its two horizontal sides has to be a single block thick."
+msgstr "дверь - это панель, а не стена - одна из ее двух горизонтальных сторон должна быть толщиной в один блок."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/door.lua
+#, fuzzy
+msgid "world_editor: door -- a built surface that retracts when a player nears it."
+msgstr "world editor: дверь — встроенная поверхность, которая убирается, когда игрок приближается к ней."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/door.lua
+#, fuzzy
+msgid "  usage: /place door <up|down|left|right>"
+msgstr "использование: дверь /place <up|down|left|right>"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/door.lua
+#, fuzzy
+msgid "  up/down retract into ceiling/floor; left/right retract aside."
+msgstr "up/down убирается в потолок /floor; left/right убирается в сторону."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/door.lua
+#, fuzzy
+msgid "  build the shape first, then mark two opposite corners around it:"
+msgstr "сначала постройте форму, затем пометьте два противоположных угла вокруг нее:"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/door.lua
+#, fuzzy
+msgid "  its blocks, colours and gaps all become the door and move together."
+msgstr "его блоки, цвета и щели становятся дверью и движутся вместе."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/door.lua
+#, fuzzy
+msgid "  the panel retracts into the marked box and needs no room behind it."
+msgstr "панель втягивается в отмеченную коробку и не нуждается в комнате за ней."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/door.lua
+#, fuzzy
+msgid "  an empty box gives a solid panel in your palette colour instead."
+msgstr "пустая коробка дает твердую панель в цвете вашей палитры."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "direction must be up or down."
+msgstr "направление должно быть вверх или вниз."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "mark one corner of the platform."
+msgstr "отметьте один угол платформы."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "now mark the opposite corner of the platform."
+msgstr "теперь отметьте противоположный угол платформы."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "now mark a block at the altitude to travel to."
+msgstr "теперь отметьте блок на высоте, чтобы добраться до него."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "that altitude is the platform's own level -- mark a different height."
+msgstr "эта высота является собственным уровнем платформы - отметьте другую высоту."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "the shaft would run through another component -- pick another altitude."
+msgstr "вал будет проходить через другой компонент - выбрать другую высоту."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "world_editor: elevator -- a built platform that carries riders up or down."
+msgstr "world editor: лифт — построенная платформа, которая перевозит пассажиров вверх или вниз."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "  usage: /place elevator <up|down>"
+msgstr "использование: лифт /place <up|down>"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "  up rests at the bottom and rises when stood on; down is the reverse."
+msgstr "вверх покоится внизу и поднимается, когда стоит на; вниз — наоборот."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "  build the pad first, then mark two opposite corners around it,"
+msgstr "сначала постройте колодку, затем пометьте два противоположных угла вокруг нее,"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "  then mark the altitude it should travel to -- the pad comes to"
+msgstr "затем отметьте высоту, на которую он должен ехать, - площадка подходит к"
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "  rest level with that mark."
+msgstr "уровень отдыха с этой отметкой."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "  its blocks, colours and gaps all become the platform."
+msgstr "его блоки, цвета и пробелы становятся платформой."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "  the piston column under it takes the colour of the pad's core."
+msgstr "поршневая колонна под ним принимает цвет ядра колодки."
+
+# machine-translated (LibreTranslate)
+#: catalog/tools/world_editor/world_editor/elevator.lua
+#, fuzzy
+msgid "  an empty box gives a plain slab in your palette colour instead."
+msgstr "пустой ящик вместо этого дает простую плиту в цвете вашей палитры."

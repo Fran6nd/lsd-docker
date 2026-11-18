@@ -1,0 +1,99 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Pinging is turned off on this server."
+msgstr "平定在这个服务器上关闭."
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "You cannot ping while dead."
+msgstr "你死的时候不能打."
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Too soon: wait a moment before pinging again."
+msgstr "太快了:再等一会儿再打."
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "That position is off the map."
+msgstr "位置不在地图上."
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "You can only ping what you are looking at."
+msgstr "你只能打你正在看的东西."
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Unknown command"
+msgstr "未知的命令"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Nothing to ping: /pingmark needs a position, three numbers, before the reason."
+msgstr "没什么好打的:/pingmark需要一个位置,三个数字,在原因之前."
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ping a position for your team."
+msgstr "为你的团队打一个位置."
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Enemy"
+msgstr "敌人"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Ping this spot for your team"
+msgstr "给你的球队打这个位置"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Attack"
+msgstr "攻击"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Defend"
+msgstr "保卫"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Need help"
+msgstr "需要帮助"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Danger"
+msgstr "危险"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Go here"
+msgstr "过来"

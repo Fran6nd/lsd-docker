@@ -1,0 +1,99 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: es\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Pinging is turned off on this server."
+msgstr "Ping está apagado en este servidor."
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "You cannot ping while dead."
+msgstr "No puedes jugar mientras estás muerto."
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Too soon: wait a moment before pinging again."
+msgstr "Demasiado pronto: espera un momento antes de volver a empezar."
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "That position is off the map."
+msgstr "Esa posición está fuera del mapa."
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "You can only ping what you are looking at."
+msgstr "Sólo puedes pinchar lo que estás mirando."
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Unknown command"
+msgstr "Comando desconocido"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Nothing to ping: /pingmark needs a position, three numbers, before the reason."
+msgstr "Nada a ping: /pingmark necesita una posición, tres números, antes de la razón."
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ping a position for your team."
+msgstr "Ping a position for your team."
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Enemy"
+msgstr "Enemigo"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Ping this spot for your team"
+msgstr "Ping este lugar para tu equipo"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Attack"
+msgstr "Ataque"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Defend"
+msgstr "Defended"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Need help"
+msgstr "Necesito ayuda"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Danger"
+msgstr "Peligro"
+
+# machine-translated (LibreTranslate)
+#: catalog/extensions/teamplay/lib_teamplay.lua
+#, fuzzy
+msgid "Go here"
+msgstr "Ven aquí"

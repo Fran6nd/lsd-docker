@@ -1,0 +1,9 @@
+# drafts only: a language with nothing reviewed is not offered
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# machine-translated (LibreTranslate)
+#, fuzzy
+msgid "Bye"
+msgstr "Adiós"

@@ -1,0 +1,32 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ru\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+# machine-translated (LibreTranslate)
+#: catalog/effects/world/the_fall/the_fall.lua
+#, fuzzy
+msgid "You can't build in the Fall."
+msgstr "В Падение нельзя строить."
+
+# machine-translated (LibreTranslate)
+#: catalog/effects/world/the_fall/the_fall.lua
+#, fuzzy
+msgid "You killed your way out. Back in the game."
+msgstr "Ты убил свой выход. Вернемся в игру."
+
+# machine-translated (LibreTranslate)
+#: catalog/effects/world/the_fall/the_fall.lua
+#, fuzzy
+msgid "You're going into the Fall. Kill someone to get out."
+msgstr "Вы входите в Падение. Убей кого-нибудь, чтобы выбраться."
+
+# machine-translated (LibreTranslate)
+#: catalog/effects/world/the_fall/the_fall.lua
+#, fuzzy
+msgid "warning: here your first death drops you into the Fall, and only a kill gets you out."
+msgstr "здесь ваша первая смерть бросает вас в Падение, и только убийство вытаскивает вас."

@@ -1,0 +1,20 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+# machine-translated (LibreTranslate)
+#: catalog/effects/player/railgun/rifle_is_a_rail_gun.lua
+#, fuzzy
+msgid "warning: here rifles are railguns."
+msgstr "警告:这里有步枪."
+
+# machine-translated (LibreTranslate)
+#: catalog/effects/player/railgun/rifle_is_a_rail_gun.lua
+#, fuzzy
+msgid "Spicy: rifles are railguns -- they pierce the whole map and leave a tracer."
+msgstr "辣:步枪是铁道枪——它们穿透了整个地图并留下了追踪器."

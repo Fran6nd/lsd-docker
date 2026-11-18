@@ -1,0 +1,1862 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/command_cmds.lua
+#: lsd/scripts/command_cmds.lua
+#, fuzzy
+msgid "Command not found."
+msgstr "未找到命令 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/command_cmds.lua
+#: lsd/scripts/command_cmds.lua
+#, fuzzy
+msgid "Were you looking for /commands?"
+msgstr "你在找/commands吗?"
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/command_cmds.lua
+#: lsd/scripts/command_cmds.lua
+#, fuzzy
+msgctxt "command"
+msgid "Print an alphabetically ordered list of all commands."
+msgstr "按字母顺序打印所有命令的列表 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/command_cmds.lua
+#: lsd/scripts/command_cmds.lua
+#, fuzzy
+msgctxt "command"
+msgid "Filter through the list of commands. Does not parse arguments."
+msgstr "通过命令列表过滤 。 不分析参数."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/command_cmds.lua
+#: lsd/scripts/command_cmds.lua
+#, fuzzy
+msgctxt "command"
+msgid "Display the invocation and description of a command."
+msgstr "显示命令的引用和描述."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/lib_l10n.lua
+#, fuzzy
+msgid "usage: %(cmd)"
+msgstr "使用量:%(cmd)"
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/lib_l10n.lua
+#, fuzzy
+msgid "usage: %(cmd) %(args)"
+msgstr "用途: %(cmd) %(args)"
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/lib_l10n.lua
+#, fuzzy
+msgid "Your language: %(lang). Available: %(list). Use /lang <code>, or /lang auto for your client's."
+msgstr "您的语言:%(lang). 可用时间:%(list). 为您的客户端使用/lang <code>或/lang自动."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/lib_l10n.lua
+#, fuzzy
+msgid "Language set to %(lang)."
+msgstr "语言设置为%(lang)."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/lib_l10n.lua
+#, fuzzy
+msgid "Language follows your client again: %(lang)."
+msgstr "语言再次跟随客户端:%(lang)."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/lib_l10n.lua
+#, fuzzy
+msgid "No translations for %(lang) here; some messages stay in English."
+msgstr "这里没有 %(lang) 的翻译; 有些信件会保留英文文本 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/lib_l10n.lua
+#, fuzzy
+msgid "%(lang) is not a language code (en, fr, pt_br, ...)."
+msgstr "%(lang)不是语言代码(en, fr, pt br, ...)."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/lib_l10n.lua
+#, fuzzy
+msgid "Translations need %(clients); this server speaks %(lang) to your client."
+msgstr "翻译需要%(clients);此服务器向您的客户端讲%(lang)."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/lib_l10n.lua
+#, fuzzy
+msgctxt "command"
+msgid "Show or choose the language the server speaks to you."
+msgstr "显示或选择服务器对您的语言 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/lib_l10n.lua
+#, fuzzy
+msgid "Language"
+msgstr "语言"
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/lib_l10n.lua
+#, fuzzy
+msgid "Show or change the language you read"
+msgstr "显示或更改您所读语言"
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgid "Beginning selection."
+msgstr "开始选择 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgid "Beginning selection start."
+msgstr "开始选择 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgid "Beginning selection end."
+msgstr "开始选择结束 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgid "Selection started at {x=%(x), y=%(y), z=%(z)}."
+msgstr "选择开始于 {x=%(x),y=%(y),z=%(z)}."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgid "Selection ended at {x=%(x), y=%(y), z=%(z)}."
+msgstr "选择结束于{x=%(x),y=%(y),z=%(z)}."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgid "Begin a selection first."
+msgstr "先开始选吧."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgid "Start the selection first."
+msgstr "先开始选择."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgid "End the selection first."
+msgstr "先结束选择."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgid "shape should be one of the following: cube, box, sphere, cylinderx, cylindery, cylinderz, fn"
+msgstr "形状应是以下之一:立方体、盒子、球体、圆柱体、圆柱体、圆柱体、圆柱体、圆柱体、圆柱体、圆柱体、圆柱体"
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgid "%(arg) should be one of the following: x, -x, +x, y, -y, +y, z, -z, +z"
+msgstr "%(arg)应为以下之一: x, -x, +x, y, -y, +y, z, -z, +z"
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgid "Swizzle must map all of x, y and z"
+msgstr "Swizzle 必须映射所有 x, y 和 z"
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#, fuzzy
+msgid "Nothing that way to pick. Aim at a block."
+msgstr "没什么好挑的 瞄准一个街区."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgid "Couldn't find any block in that cast. You're certain you're not looking at the sky?"
+msgstr "铸件里找不到任何块 你确定你没有看天空?"
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Select a box, by aiming at its corners or by naming them."
+msgstr "通过瞄准其角或命名来选择一个框."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Set the start of a selection."
+msgstr "设定选择的开始 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Raycast the start of a selection."
+msgstr "开始挑选."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Set the start of a selection to your head's position."
+msgstr "设定首选位置的开始 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Set the end of a selection."
+msgstr "设定选择的结尾 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Raycast the end of a selection."
+msgstr "播完选集."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Set the end of a selection to your head's position."
+msgstr "设定您头部位置的选择结束 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Stop a selection."
+msgstr "停止选择."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Change selection shape."
+msgstr "更改选择形状 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Change \"fn\" selection shape. Does not parse args."
+msgstr "更改“ fn” 选择形状 。 不分析参数 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Change selection noise."
+msgstr "改变选择的噪音."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Fill and replace a box."
+msgstr "填充并替换一个盒子."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Clobber over everything in your selection to match the current shape."
+msgstr "在您所选择的每件事物上都涂鸦以匹配当前形状 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Fill and do not replace a box."
+msgstr "填充和不替换框."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Destroy a box."
+msgstr "摧毁一个盒子."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Set color of all blocks in a box."
+msgstr "在框中设置所有块的颜色."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Duplicate the selection in a direction a certain number of times."
+msgstr "将选择复制到一个方向 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Duplicate the selection in a direction a certain number of times, then select the duplicated area."
+msgstr "复制到一个方向的选定数次,然后选择重复的区域."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Move the selection, then select the moved area."
+msgstr "移动选择,然后选择移动的区域."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Move the selection dist blocks in the direction you're facing, then select the moved area."
+msgstr "将选择的 distr 块移动到您正面临的方向, 然后选择移动的区域 ."
+
+# machine-translated (LibreTranslate)
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Swizzle the dimensions of the selection around to flip and rotate."
+msgstr "将选择的维度绕圈翻转旋转."
+
+# machine-translated (LibreTranslate)
+#: image/config.lua
+#, fuzzy
+msgid "Use /kill to die."
+msgstr "使用/kill来死亡."
+
+# machine-translated (LibreTranslate)
+#: image/config.lua
+#, fuzzy
+msgid "Press the %(key) key to change team/gun."
+msgstr "按下%(key)键改变团队/gun."
+
+# machine-translated (LibreTranslate)
+#: image/config.lua
+#, fuzzy
+msgid "Block color won't change? Try the arrow keys and E."
+msgstr "块色不会改变? 试试箭键和E."
+
+# machine-translated (LibreTranslate)
+#: image/config.lua
+#, fuzzy
+msgid "This is not Build and Shoot. This is ACE OF SPADES."
+msgstr "这不是建筑和射击。 这是ACE的SPADES."
+
+# machine-translated (LibreTranslate)
+#: image/config.lua
+#, fuzzy
+msgid "Type /lang to read the server in another language."
+msgstr "输入 /lang以另一种语言读取服务器."
+
+# machine-translated (LibreTranslate)
+#: image/config.lua
+#, fuzzy
+msgid "Welcome to %(server), running [LSd]."
+msgstr "欢迎来到%(server),运行[LSd]."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/afkick.lua
+#, fuzzy
+msgid "%(name) was kicked: AFK"
+msgstr "%(name)为踢出:AFK"
+
+#: lsd/scripts/afkick.lua
+msgid "You will be automatically AFK-kicked in %(time) s"
+msgstr ""
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/apoc.lua
+#, fuzzy
+msgid "%(originname)'s apocs have been given to %(destname)"
+msgstr "%(originname)的阿波克已经送给%(destname)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/apoc.lua
+#, fuzzy
+msgid "%(name) can now use /apoc. . ."
+msgstr "%(name)现在可以使用/apoc. ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/apoc.lua
+#, fuzzy
+msgid "You need a %(needstreak) killstreak to use apoc! Current streak: %(curstreak)"
+msgstr "需要%(needstreak) 连杀来使用apoc!. 现 连杀: %(curstreak)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/apoc.lua
+#, fuzzy
+msgid "Don't be so hasty!"
+msgstr "别这么仓促!"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/apoc.lua
+#, fuzzy
+msgctxt "command"
+msgid "Attempt to summon an apoc."
+msgstr "试图召唤阿波克."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/apoc.lua
+#, fuzzy
+msgctxt "command"
+msgid "Bombs away!"
+msgstr "炸弹起飞!"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/arena.lua
+#, fuzzy
+msgid "Starting round in %(time) s."
+msgstr "开始回合为%(time) s."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgid "You need to login to run that command."
+msgstr "您需要登录运行此命令 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgid "Don't make the password that long or you might not be able to change it! Try <= %(max) chars."
+msgstr "别把密码弄那么长 否则你可能无法更改密码 尝试 QQ %(max) 字符 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgid "Can't register; are you sure that name isn't taken?"
+msgstr "不能注册,你确定没有这个名字吗?"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgid "User not found."
+msgstr "未找到用户 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgid "Try logging in again in %(timeleft) s."
+msgstr "尝试再次登录在 %(timeleft) 秒."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgid "Bad password or TOTP."
+msgstr "密码或者TOTP."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgid "algorithm should be one of the following: SHA1, SHA256, SHA512"
+msgstr "算法应该是以下之一: SHA1, SHA256, SHA512"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgid "Your password is too short and hard to remember. Try using a couple of actual, *random* words instead."
+msgstr "您的密码太短, 难以记住 。 试用几个实际的,*random*字代替."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgid "Pass your code to /totpverify to set up TOTP."
+msgstr "把你的代码传给/totpverify来设置TOTP."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgid "Your account's TOTP configuration has been set."
+msgstr "您的账户的 TOTP 配置已经设置 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgid "Bad TOTP."
+msgstr "不好的TOTP。 (笑声) (掌声)."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgctxt "command"
+msgid "Create an account."
+msgstr "创建账户 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgctxt "command"
+msgid "Setup TOTP for your account."
+msgstr "为您的账户设置 TOTP ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgctxt "command"
+msgid "Remove TOTP from your account."
+msgstr "从您的账户中删除 TOTP ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgctxt "command"
+msgid "Finish setting up TOTP for your account."
+msgstr "完成为您的账户设置 TOTP ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgctxt "command"
+msgid "Set an account's capabilities."
+msgstr "设置账户的能力 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgctxt "command"
+msgid "Change your account's password."
+msgstr "更改您的账户密码 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgctxt "command"
+msgid "Login to an account."
+msgstr "登录到一个账户 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgctxt "command"
+msgid "Barge into an account."
+msgstr "划入一个账户."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgctxt "command"
+msgid "Log out of your account."
+msgstr "从你的账户中登记."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/auth.lua
+#, fuzzy
+msgctxt "command"
+msgid "Print your account name and groups."
+msgstr "打印您的账户名称和组 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel.lua
+#, fuzzy
+msgid ">:("
+msgstr ">: (单位:千美元)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel.lua
+#: lsd/scripts/babel_protect.lua
+#, fuzzy
+msgid "Can't do that there!"
+msgstr "不能这样!"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel.lua
+#: lsd/scripts/ctf.lua
+#: lsd/scripts/onectf.lua
+#, fuzzy
+msgid "You're not holding the intel!"
+msgstr "你不能拿着情报!"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel.lua
+#: lsd/scripts/ctf.lua
+#: lsd/scripts/onectf.lua
+#, fuzzy
+msgctxt "command"
+msgid "Drop the intel if you're holding it."
+msgstr "若执持时放下情报."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel_heaven.lua
+#, fuzzy
+msgid "Cannot find image; try /heavenlist."
+msgstr "找不到图像; 尝试 /heavenlist."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel_heaven.lua
+#, fuzzy
+msgid "You can list images with /heavenlist."
+msgstr "您可以用 /heavenlist 列表图像 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel_heaven.lua
+#, fuzzy
+msgid "You must wait %(timeuntil) s to paint over the platform again."
+msgstr "你必须等待%(timeuntil) s 再次在平台上涂漆."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel_heaven.lua
+#, fuzzy
+msgctxt "command"
+msgid "Paint an image on the babel platform."
+msgstr "在Buel平台上画一幅图像."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel_heaven.lua
+#, fuzzy
+msgctxt "command"
+msgid "Paint an image on the babel platform regardless of the timer's opinion."
+msgstr "不管计时器的意见如何,在bail平台上画一幅图像."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel_heaven.lua
+#, fuzzy
+msgctxt "command"
+msgid "List images available to paint on the babel platform."
+msgstr "列出可用在 Bail 平台上的图像 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel_unlocks.lua
+#, fuzzy
+msgid "%(name) has placed %(blocks) blocks, /heaven unlocked!"
+msgstr "%(name)已设置%(blocks)区块,/heaven解锁!!"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel_unlocks.lua
+#, fuzzy
+msgid "%(name) has placed %(blocks) tower blocks."
+msgstr "%(name)已经设置了%(blocks)塔的挡板."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel_unlocks.lua
+#, fuzzy
+msgid "Congratulations on placing 0 blocks today!"
+msgstr "恭喜今天设置了0个街区!"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel_unlocks.lua
+#, fuzzy
+msgid "You need a %(needstreak) killstreak and 1 capture to use apoc! Current streak: %(curstreak)"
+msgstr "你需要%(needstreak) 连杀和1捕获才能使用apoc!. 现 连杀: %(curstreak)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel_unlocks.lua
+#, fuzzy
+msgid "You have a %(streak) streak! Capture an intel for /apoc."
+msgstr "你有一个%(streak)连杀! 抓一个情报换一个/apoc."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/babel_unlocks.lua
+#, fuzzy
+msgctxt "command"
+msgid "Print the number of blocks placed by another player or yourself."
+msgstr "打印另一个玩家或自己设置的块数 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgid "%(name) was banned"
+msgstr "%(name)被禁赛"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgid "#%(id): <%(name)>, %(addr), %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
+msgstr "#%(id): <%(name)>, %(addr), %(start_date) - > %(end_date) by %(banner): %(comment)(封顶:%(caps))"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgid "#%(id): <%(name)>, %(addr), expired, %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
+msgstr "#%(id): <%(name)>,%(addr),过期,%(start_date) - > %(end_date) by %(banner): %(comment)(封顶:%(caps))"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgid "#%(id): <%(name)>, %(addr), revoked, %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
+msgstr "#%(id): <%(name)>,%(addr),已撤销,%(start_date) - > %(end_date) by %(banner): %(comment)(封顶:%(caps))"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgid "Ban ID: #%(id)"
+msgstr "禁止编号 : # %(id)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgid "Invalid ban ID."
+msgstr "无效的禁止 ID ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty player."
+msgstr "禁止调皮的玩家."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty player with custom badcaps."
+msgstr "禁用自定义的坏蛋玩家."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty (nice?) player with custom caps."
+msgstr "禁用自定义盖子的调皮玩家(nice?)."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range."
+msgstr "禁止调皮的IPv4地址或CIDR范围."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range with custom badcaps."
+msgstr "禁止带有自定义badcap的淘气IPv4地址或CIDR范围."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty (nice?) IPv4 address or CIDR range with custom caps."
+msgstr "禁止调皮(nice?)IPv4地址或带有自定义盖的CIDR范围."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgctxt "command"
+msgid "Revoke a given ban ID."
+msgstr "取消给定的禁用标识 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgctxt "command"
+msgid "Unrevoke a given ban ID."
+msgstr "撤销给定的禁止ID ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgctxt "command"
+msgid "Query all unexpired, unrevoked bans matching a given IPv4 address or CIDR range."
+msgstr "查询所有未过期, 未撤销的禁令, 匹配指定的 IPv4 地址或 CIDR 范围 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgctxt "command"
+msgid "Query all unexpired, unrevoked bans matching a given player name (case-insensitive glob)."
+msgstr "查询所有未过期, 未重发的禁令, 匹配给定的玩家名( case- insense glob) ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgctxt "command"
+msgid "Query all unexpired, unrevoked bans matching a given comment (case-insensitive glob)."
+msgstr "查询所有匹配给定注释( 大小写不敏感 glob) 的未过期、 未撤销的禁止 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgctxt "command"
+msgid "Query all bans matching a given IPv4 address or CIDR range."
+msgstr "查询所有匹配指定 IPv4 地址或 CIDR 范围的禁止 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgctxt "command"
+msgid "Query all bans matching a given player name (case-insensitive glob)."
+msgstr "查询所有匹配给定玩家名称的禁用( case- notsense glob) ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans.lua
+#, fuzzy
+msgctxt "command"
+msgid "Query all bans matching a given comment (case-insensitive glob)."
+msgstr "查询所有匹配给定注释( 大小写不敏感 glob) 的禁止 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans_aliases.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty player for an hour."
+msgstr "禁足淘气球员1小时."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans_aliases.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty player for a day."
+msgstr "禁足淘气者一日."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans_aliases.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty player for 7 days."
+msgstr "禁用淘气球员7天."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans_aliases.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty player for 30 days."
+msgstr "禁放淘气球员30天."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans_aliases.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty player for 365 days."
+msgstr "禁用淘气球员365天."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans_aliases.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty player for a really long time."
+msgstr "禁止一个淘气的玩家玩了很久."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans_aliases.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for an hour."
+msgstr "禁止一个淘气的IPv4地址或CIDR范围1小时."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans_aliases.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for a day."
+msgstr "禁止调皮的 IPv4 地址或 CIDR 范围 一天 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans_aliases.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for 7 days."
+msgstr "禁止调皮的IPv4地址或CIDR范围7天."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans_aliases.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for 30 days."
+msgstr "禁止一个淘气的IPv4地址或CIDR范围30天."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans_aliases.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for 365 days."
+msgstr "禁用淘气IPv4地址或CIDR范围365天."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/bans_aliases.lua
+#, fuzzy
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for a really long time."
+msgstr "禁止一个淘气的IPv4地址 或 CIDR 范围非常长时间."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/base_logging.lua
+#, fuzzy
+msgid "%(addr):%(port) attempted to connect but server was full"
+msgstr "%(addr):%(port)试图连接,但服务器已满"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/base_logging.lua
+#, fuzzy
+msgid "%(addr):%(port) (#%(pid)) connected"
+msgstr "%(addr):%(port)(#%(pid))已连接"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/base_logging.lua
+#, fuzzy
+msgid "%(addr):%(port) (#%(pid)) (%(name)) disconnected"
+msgstr "%(addr):%(port)(#%(pid))(%(name))已断开"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/base_logging.lua
+#, fuzzy
+msgid "%(addr):%(port) (#%(pid)) disconnected"
+msgstr "%(addr):%(port)(#%(pid))已断开"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/base_logging.lua
+#, fuzzy
+msgid "%(addr):%(port) (#%(pid)) joined as \"%(name)\""
+msgstr "%(addr):%(port)(#%(pid))合并为\"%(name)\""
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/base_logging.lua
+#, fuzzy
+msgid "%(addr):%(port) (#%(pid)) got version: '%(char)' (%(charval)) v%(major).%(minor).%(patch): %(msg)"
+msgstr "%(addr):%(port)(#%(pid))获得版本:\"%(char)\"(%(charval))v%(major).%(minor).%(patch):%(msg)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/base_logging.lua
+#, fuzzy
+msgid "%(addr):%(port) (#%(pid)) got version-ext: \"%(cli)\" v%(major).%(minor).%(patch), %(flags), %(lang)"
+msgstr "%(addr):%(port)(#%(pid))获得版本-ext:\"%(cli)\"v%(major).%(minor).%(patch),%(flags),%(lang)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/base_logging.lua
+#, fuzzy
+msgid "(Global) %(name) (#%(pid)): %(msg)"
+msgstr "(全球)%(name) (# %(pid)): %(msg)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/base_logging.lua
+#, fuzzy
+msgid "(Team) %(name) (#%(pid)): %(msg)"
+msgstr "(团队) %(name) (#%(pid)): %(msg)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/caps.lua
+#, fuzzy
+msgid "You need the %(cap) capability to run that command."
+msgstr "你需要%(cap)权限来运行这个命令."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_admin.lua
+#, fuzzy
+msgctxt "command"
+msgid "Send a message to staff. Does not parse arguments."
+msgstr "向工作人员发送信息。 不分析参数."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_admin.lua
+#, fuzzy
+msgctxt "command"
+msgid "Send a message to staff, but only staff can use it. Does not parse arguments."
+msgstr "向工作人员发送信息,但只有工作人员才能使用。 不分析参数."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_an.lua
+#, fuzzy
+msgid ", crap"
+msgstr "废话"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_an.lua
+#, fuzzy
+msgid "%(player) hit %(hitplayer) (torso, %(dist) blocks, %(delta) ms%(iscrap))"
+msgstr "%(player)命中%(hitplayer)(torso,%(dist)区块,%(delta)ms%(iscrap))"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_an.lua
+#, fuzzy
+msgid "%(player) hit %(hitplayer)  (head, %(dist) blocks, %(delta) ms%(iscrap))"
+msgstr "%(player)命中%(hitplayer)(车头,%(dist)区块,%(delta)ms%(iscrap))"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_an.lua
+#, fuzzy
+msgid "%(player) hit %(hitplayer)  (arms, %(dist) blocks, %(delta) ms%(iscrap))"
+msgstr "%(player)命中%(hitplayer)(武器,%(dist)区块,%(delta)ms%(iscrap))"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_an.lua
+#, fuzzy
+msgid "%(player) hit %(hitplayer)  (legs, %(dist) blocks, %(delta) ms%(iscrap))"
+msgstr "%(player)命中%(hitplayer)(腿,%(dist)区块,%(delta)ms%(iscrap))"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_an.lua
+#, fuzzy
+msgid "%(player) hit %(hitplayer) (spade, %(dist) blocks, %(delta) ms%(iscrap))"
+msgstr "%(player)命中%(hitplayer)(铲子,%(dist)区块,%(delta)ms%(iscrap))"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_an.lua
+#, fuzzy
+msgid "%(player) sent a hit packet with a crap length"
+msgstr "%(player) 发送了带垃圾长度的命中包"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_an.lua
+#, fuzzy
+msgid "%(player) sent a hit packet with a crap type"
+msgstr "%(player) 发送了垃圾类型的命中包"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_an.lua
+#, fuzzy
+msgid "%(player) sent a hit packet with a crap target"
+msgstr "%(player)发送了带有垃圾目标的命中包"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_an.lua
+#, fuzzy
+msgid "Stopped analyzing."
+msgstr "停止分析."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_an.lua
+#, fuzzy
+msgid "Now analyzing %(player)."
+msgstr "现在分析一下%(player)."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_an.lua
+#, fuzzy
+msgctxt "command"
+msgid "Dump out whatever hit packets a player sends."
+msgstr "丢掉玩家寄出的命中包."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_caps.lua
+#, fuzzy
+msgctxt "command"
+msgid "Give a player arbitrary caps."
+msgstr "给玩家任意盖."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_caps.lua
+#, fuzzy
+msgctxt "command"
+msgid "Remove arbitrary caps from a player."
+msgstr "从玩家中删除任意的盖 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_cli.lua
+#, fuzzy
+msgid "%(name): not reported"
+msgstr "%(name):未报告"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_cli.lua
+#, fuzzy
+msgid "%(name): handshaked"
+msgstr "%(name):握手声"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_cli.lua
+#, fuzzy
+msgid "%(name): '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
+msgstr "%(name): '%(char)' (%(client)) v%(major).%(minor). %(patch): %(msg) (英语)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_cli.lua
+#, fuzzy
+msgid "%(name): (no handshake) '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
+msgstr "%(name): (无握手) '%(char)' (%(client)) v%(major). %(minor). %(patch): %(msg)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_cli.lua
+#, fuzzy
+msgid "%(name): fakepid"
+msgstr "%(name):假冒的"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_cli.lua
+#, fuzzy
+msgctxt "command"
+msgid "Print whatever a player's client claims to be."
+msgstr "打印玩家客户端声称的."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_exec.lua
+#, fuzzy
+msgctxt "command"
+msgid "Execute arbitrary lua. Does not parse arguments."
+msgstr "执行任意路亚。 不分析参数."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_fog.lua
+#, fuzzy
+msgid "You need the %(cap) capability to set the fog color."
+msgstr "您需要%(cap) 权限来设定雾色."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_fog.lua
+#, fuzzy
+msgid "The current fog color is {r=%(r), g=%(g), b=%(b)} (%(hex))."
+msgstr "目前雾色为{r=%(r),g=%(g),b=%(b)}(%(hex))."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_fog.lua
+#, fuzzy
+msgctxt "command"
+msgid "Get or set the fog color."
+msgstr "获得或设置雾色."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_ignore.lua
+#, fuzzy
+msgctxt "command"
+msgid "Silence a player."
+msgstr "安静一个玩家."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_ip.lua
+#, fuzzy
+msgid "%(name): %(addr)"
+msgstr "%(name): %(addr) (英语)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_ip.lua
+#, fuzzy
+msgctxt "command"
+msgid "Print a player's IP address."
+msgstr "打印玩家的IP地址 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_kick.lua
+#, fuzzy
+msgid "%(name) was kicked"
+msgstr "%(name)为踢出"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_kick.lua
+#, fuzzy
+msgctxt "command"
+msgid "Remove a silly player."
+msgstr "移除一个愚蠢的玩家."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_kill.lua
+#, fuzzy
+msgid "You can't kill yourself unless you're in-game."
+msgstr "除非在比赛中,否则不能自杀."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_kill.lua
+#, fuzzy
+msgid "You need the %(cap) capability to kill others."
+msgstr "你需要%(cap)权限去杀其他人."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_kill.lua
+#, fuzzy
+msgctxt "command"
+msgid "Kill another player or yourself."
+msgstr "杀死另一个玩家或你自己."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_modutils.lua
+#, fuzzy
+msgctxt "command"
+msgid "Unregister all the modules."
+msgstr "取消所有模块的注册 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_modutils.lua
+#, fuzzy
+msgctxt "command"
+msgid "Reload all registered modules."
+msgstr "重新装入所有注册模块 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_modutils.lua
+#, fuzzy
+msgctxt "command"
+msgid "Crusty listing of all loaded modules."
+msgstr "粗略列出所有已装入的模块 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_modutils.lua
+#, fuzzy
+msgctxt "command"
+msgid "Dynamically load a module."
+msgstr "动态加载一个模块 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_modutils.lua
+#, fuzzy
+msgctxt "command"
+msgid "Dynamically unload a module."
+msgstr "动态卸载一个模块."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_ping.lua
+#, fuzzy
+msgid "%(name)'s round-trip time is %(rtt) ms."
+msgstr "%(name)的往返时间为%(rtt)毫秒."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_ping.lua
+#, fuzzy
+msgid "You can only check your own round-trip time while in-game."
+msgstr "比赛时只能检查自己的往返时间."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_ping.lua
+#, fuzzy
+msgctxt "command"
+msgid "Print a player's (or your) round-trip time."
+msgstr "打印玩家(或您的)往返时间 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_pm.lua
+#, fuzzy
+msgid "PM from %(name): %(msg)"
+msgstr "来自%(name)的PM: %(msg)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_pm.lua
+#, fuzzy
+msgctxt "command"
+msgid "Send a pseudoprivate message to someone."
+msgstr "给别人发个假的私人信息."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_ratio.lua
+#, fuzzy
+msgid "You haven't even made one kill. No deaths though."
+msgstr "你甚至没有杀人 没有死亡."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_ratio.lua
+#, fuzzy
+msgid "%(name): %(kills) kills, %(deaths) deaths, %(ratio) kills per life"
+msgstr "%(name):%(kills)死亡,%(deaths)死亡,%(ratio)死亡,每条生命"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_ratio.lua
+#, fuzzy
+msgctxt "command"
+msgid "Print the kill-life ratio of another player or yourself."
+msgstr "打印另一个玩家或你自己的杀生比."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_savemap.lua
+#, fuzzy
+msgid "name must not contain '/' or '\\', or start with a '.'"
+msgstr "名称不得包含“ /” 或“\\” , 或以“ ” 开头"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_savemap.lua
+#, fuzzy
+msgctxt "command"
+msgid "Write a VXL file with the current map's state."
+msgstr "以当前地图的状态写入 VXL 文件 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_say.lua
+#, fuzzy
+msgctxt "command"
+msgid "Send a message to all players, displayed as if the server sent it. Does not parse arguments."
+msgstr "向所有玩家发送消息, 显示为服务器发送 。 不分析参数."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_say.lua
+#, fuzzy
+msgctxt "command"
+msgid "Send a message to all players, as if you sent it. Does not parse arguments."
+msgstr "向所有玩家发送信息, 好像您发送了信息 。 不分析参数."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_secspec.lua
+#, fuzzy
+msgctxt "command"
+msgid "Stick yourself into spectator without anybody else knowing."
+msgstr "在别人不知情的情况下加入旁观者."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_server.lua
+#, fuzzy
+msgid "Unknown address"
+msgstr "未知地址"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_server.lua
+#, fuzzy
+msgctxt "command"
+msgid "Print the server's address."
+msgstr "打印服务器的地址 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_switch.lua
+#, fuzzy
+msgid "team should be one of 1, 2, 256, -1, spec, spectator, %(firstteam), %(secondteam)."
+msgstr "团队应该是1,2,256, -1,Spec,旁观者之一,%(firstteam),%(secondteam)."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_switch.lua
+#, fuzzy
+msgctxt "command"
+msgid "Move a player (or you) to a different team."
+msgstr "将玩家(或您)移动到不同的团队."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_tp.lua
+#, fuzzy
+msgid "You have gone nowhere successfully."
+msgstr "你没有成功去任何地方."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_tp.lua
+#, fuzzy
+msgctxt "command"
+msgid "Teleport one player (or you) to a different player."
+msgstr "将一个玩家(或您)传送到另一个玩家."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_ups.lua
+#, fuzzy
+msgid "%(arg) should be one of {%(freqs)} (Hz)"
+msgstr "%(arg)应为{%(freqs)} (赫兹)之一"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_ups.lua
+#, fuzzy
+msgid "Current update rate: %(freq) Hz"
+msgstr "目前更新率: %(freq)赫兹"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_ups.lua
+#, fuzzy
+msgctxt "command"
+msgid "Get/set the rate your client receives player position/orientation."
+msgstr "得到/set 您的客户端接收玩家位置的速率/orientation."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_version.lua
+#, fuzzy
+msgid "Running %(server_name) commit %(commit)"
+msgstr "运行 %(server_name) 执行 %(commit)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_version.lua
+#, fuzzy
+msgctxt "command"
+msgid "Print the server's version."
+msgstr "打印服务器版本 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/command_who.lua
+#, fuzzy
+msgctxt "command"
+msgid "Print all joined players."
+msgstr "打印所有加入的玩家 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/commands.lua
+#, fuzzy
+msgid "%(arg) should be a IPv4 address, optionally given in CIDR notation."
+msgstr "%(arg)应为IPv4地址,可选在CIDR注解中给出."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/commands.lua
+#, fuzzy
+msgid "%(arg) should be a time delta."
+msgstr "%(arg)应该是时间三角洲."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/commands.lua
+#, fuzzy
+msgid "%(arg) should be finite."
+msgstr "%(arg)应限定."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/commands.lua
+#, fuzzy
+msgid "%(arg) should use at most one of the following units: s, min, h, d, w, month, y."
+msgstr "%(arg)最多应使用下列单位之一: s, min, h, d, w, month, y."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/commands.lua
+#, fuzzy
+msgid "%(arg) should be between %(min) and %(max)"
+msgstr "%(arg)应在%(min)至%(max)之间"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/commands.lua
+#, fuzzy
+msgid "%(arg): Player not found."
+msgstr "%(arg):玩家未找到."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/commands.lua
+#, fuzzy
+msgid "%(arg): Player not connected."
+msgstr "%(arg):玩家未连接."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/commands.lua
+#, fuzzy
+msgid "%(arg): Ambiguous player."
+msgstr "%(arg):无名玩家."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/commands.lua
+#, fuzzy
+msgid "%(arg): Invalid player ID."
+msgstr "%(arg):无效的玩家ID."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/commands.lua
+#, fuzzy
+msgid "Unknown command"
+msgstr "未知的命令"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/commands.lua
+#, fuzzy
+msgid "Some error occurred with that command :("
+msgstr "该命令发生了一些错误 : ()"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/commands.lua
+#, fuzzy
+msgid "This command can only be run while in-game."
+msgstr "此命令只能在游戏中运行 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/dd.lua
+#, fuzzy
+msgid "dd: prevented fast block placement from %(name) (#%(pid))"
+msgstr "dd: 从%(name)(#%(pid))上防止快速块放置"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/dd.lua
+#, fuzzy
+msgid "dd: prevented fast 1x dig from %(name) (#%(pid))"
+msgstr "dd: 从 %(name) (# %(pid)) 阻止快速 1x 挖掘"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/dd.lua
+#, fuzzy
+msgid "dd: prevented fast block shot from %(name) (#%(pid))"
+msgstr "dd: %(name)(#%(pid))防止快速挡板射击"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/dd.lua
+#, fuzzy
+msgid "dd: prevented fast 3x dig from %(name) (#%(pid))"
+msgstr "dd: 从%(name)(# %(pid)) 阻止快速 3x 挖掘"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/dd.lua
+#, fuzzy
+msgid "dd: prevented fast block line placement from %(name) (#%(pid))"
+msgstr "dd: 从%(name)(#%(pid))处阻止快速区块线布置"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/dd.lua
+#, fuzzy
+msgid "dd: prevented fast spadehit from %(name) (#%(pid))"
+msgstr "dd: 从%(name)(#%(pid))中防止快速垃圾"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/dd.lua
+#, fuzzy
+msgid "dd: prevented fast player shot from %(name) (#%(pid))"
+msgstr "dd: 从 %(name) (# %(pid)) 阻止快手射击"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/disco.lua
+#, fuzzy
+msgctxt "command"
+msgid "Toggle the disco party."
+msgstr "切除迪斯科派对."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/emote.lua
+#, fuzzy
+msgid "Cannot find image; try /emotelist."
+msgstr "找不到图像; 尝试 /emotelist."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/emote.lua
+#, fuzzy
+msgid "You can list images with /emotelist."
+msgstr "您可以用 /emotelist 列表图像 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/emote.lua
+#, fuzzy
+msgid "You must wait %(timeuntil) s to paint an emote again."
+msgstr "你必须等待%(timeuntil)s 重新画一个emote."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/emote.lua
+#, fuzzy
+msgctxt "command"
+msgid "Paint an image centered at your location."
+msgstr "绘制以您所在位置为中心的图像 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/emote.lua
+#, fuzzy
+msgctxt "command"
+msgid "List images available to paint on the ground."
+msgstr "列出可供地面绘画的图像 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/god.lua
+#, fuzzy
+msgctxt "command"
+msgid "Prevent yourself from being damaged."
+msgstr "防止自己受损."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/if_websocket.lua
+#, fuzzy
+msgid "ifwsock: got tcp connection %(addr) (#%(pid))"
+msgstr "ifwsock: 获得 tcp 连接 %(addr) (# %(pid))"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/if_websocket.lua
+#, fuzzy
+msgid "ifwsock: tcp connection %(addr) (#%(pid)) closed"
+msgstr "ifwsock: tcp 连接 %(addr) (# %(pid)) 关闭"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/if_websocket.lua
+#, fuzzy
+msgid "ifwsock: connected: (#%(pid))"
+msgstr "ifwsock: 已连接 :(# %(pid))"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/if_websocket.lua
+#, fuzzy
+msgid "ifwsock: disconnected: %(addr) (#%(pid))"
+msgstr "ifwsock: 已断开 : %(addr) (# %(pid))"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/irc_console.lua
+#, fuzzy
+msgid "Unable to set nick. Make sure the user exists and the nick isn't already in use."
+msgstr "无法设置昵称 。 确保用户存在且昵称尚未使用."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/irc_console.lua
+#, fuzzy
+msgid "Unable to remove nick. Make sure the user exists and has a linked nickname."
+msgstr "无法删除昵称 。 确保用户存在并有链接的昵称."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/irc_console.lua
+#, fuzzy
+msgctxt "command"
+msgid "Link an auth account to an IRC nick."
+msgstr "将一个认证账户链接到 IRC 昵称 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/irc_console.lua
+#, fuzzy
+msgctxt "command"
+msgid "Unlink an auth account from IRC."
+msgstr "从 IRC 中解开一个认证账户 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/jp.lua
+#, fuzzy
+msgctxt "command"
+msgid "Press sneak (V) to fly upwards."
+msgstr "按\"潜\"(V)向上飞行."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/map_meta.lua
+#, fuzzy
+msgid "Next up: %(name)"
+msgstr "下一个: %(name)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/map_meta.lua
+#, fuzzy
+msgid "Next up: %(name) by %(author)"
+msgstr "下一个:%(name) by %(author)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/map_meta.lua
+#, fuzzy
+msgctxt "command"
+msgid "Dump the current map's metadata."
+msgstr "丢弃当前地图的元数据 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/map_queue.lua
+#, fuzzy
+msgctxt "command"
+msgid "List the default map queue."
+msgstr "列出默认地图队列 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/map_queue.lua
+#, fuzzy
+msgctxt "command"
+msgid "Append a map to the temporary map queue."
+msgstr "在临时地图队列中添加地图."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/map_queue.lua
+#, fuzzy
+msgctxt "command"
+msgid "Override the temporary map queue. Later maps get played first."
+msgstr "覆盖临时地图队列 。 后来的地图先播放."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/map_queue.lua
+#, fuzzy
+msgctxt "command"
+msgid "Load the next queued map."
+msgstr "装入下一个队列地图 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/map_queue.lua
+#, fuzzy
+msgctxt "command"
+msgid "Immediately load the map at the specified path."
+msgstr "立即在指定的路径上加载地图 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/masterlist.lua
+#, fuzzy
+msgid "Connected to masterlist %(addr)"
+msgstr "已连接到主列表 %(addr)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/masterlist.lua
+#, fuzzy
+msgid "Disconnected from masterlist %(addr)"
+msgstr "从主列表%(addr)断开"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/masterlist.lua
+#, fuzzy
+msgid "Reconnecting to masterlist %(addr)"
+msgstr "重新连接到主列表 %(addr)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/medkit.lua
+#, fuzzy
+msgid "The medkit cannot bring you back from the dead."
+msgstr "医生不能把你从死里救回来."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/medkit.lua
+#, fuzzy
+msgid "You've already used all your medkits! Restock at the tent."
+msgstr "你已经用光了所有的药片! 重置在帐篷号机车."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/medkit.lua
+#, fuzzy
+msgid "The medkit only heals physical wounds."
+msgstr "医护人员只会治愈身体上的伤口."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/noclip.lua
+#, fuzzy
+msgctxt "command"
+msgid "Fly around."
+msgstr "飞来飞去."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/profiler.lua
+#, fuzzy
+msgctxt "command"
+msgid "Start profiling."
+msgstr "开始剖析."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/profiler.lua
+#, fuzzy
+msgctxt "command"
+msgid "Stop profiling."
+msgstr "停止剖析."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/profiler.lua
+#, fuzzy
+msgctxt "command"
+msgid "Dump profiler data to the console."
+msgstr "倾斜剖面仪数据到控制台."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/sel.lua
+#, fuzzy
+msgctxt "command"
+msgid "Select a box."
+msgstr "选择一个框."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/setspawn.lua
+#, fuzzy
+msgid "You'll now spawn at the default position."
+msgstr "你现在会在默认位置产卵."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/setspawn.lua
+#, fuzzy
+msgid "You'll now spawn at {x=%(x), y=%(y), z=%(z)}."
+msgstr "现在在{x=%(x),y=%(y),z=%(z)}产卵."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/setspawn.lua
+#, fuzzy
+msgctxt "command"
+msgid "Toggle respawning at your current position."
+msgstr "切换当前位置的重生 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/team_balance.lua
+#, fuzzy
+msgid "%(team) is unbalanced; switched to other team"
+msgstr "%(team)是不平衡的;切换到其他队伍"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/team_balance.lua
+#, fuzzy
+msgid "%(team) is unbalanced; cannot switch"
+msgstr "%(team) 是不平衡的; 不能切换"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/time_limit.lua
+#, fuzzy
+msgid "Remaining time extended to %(time)."
+msgstr "剩余时间延长至%(time)."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/time_limit.lua
+#, fuzzy
+msgid "%(time) remaining."
+msgstr "%(time)还剩."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/time_limit.lua
+#, fuzzy
+msgid "You need the %(cap) capability to set the time limit."
+msgstr "您需要 %(cap) 权限 来设定时限 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/time_limit.lua
+#, fuzzy
+msgctxt "command"
+msgid "Print or set the time remaining until the game ends."
+msgstr "打印或设定游戏结束前的剩余时间."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/toggles.lua
+#, fuzzy
+msgid "Added %(cap) to %(name)"
+msgstr "添加到 %(cap) 到 %(name)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/toggles.lua
+#, fuzzy
+msgid "Removed %(cap) from %(name)"
+msgstr "从 %(name) 中删除 %(cap)"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/toggles.lua
+#, fuzzy
+msgctxt "command"
+msgid "Prevent a player from directly altering the map."
+msgstr "防止玩家直接更改地图 ."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/toggles.lua
+#, fuzzy
+msgctxt "command"
+msgid "Prevent a player from directly damaging others."
+msgstr "防止玩家直接伤害他人."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/toggles.lua
+#, fuzzy
+msgctxt "command"
+msgid "Shut a noisy player up."
+msgstr "让一个吵闹的玩家闭嘴."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/toggles.lua
+#, fuzzy
+msgctxt "command"
+msgid "Shut a noisy /admin'er up."
+msgstr "闭上/admin的嘴."
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/websock_console.lua
+#, fuzzy
+msgid "wscon: got tcp connection (#%(pid))"
+msgstr "wscon: 获得 tcp 连接 (# %(pid))"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/websock_console.lua
+#, fuzzy
+msgid "wscon: tcp connection #%(pid) closed"
+msgstr "wscon: tcp 连接 #%(pid) 关闭"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/websock_console.lua
+#, fuzzy
+msgid "wscon: connected: %(name) (#%(pid))"
+msgstr "wscon: 连接: %(name) (# %(pid))"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/websock_console.lua
+#, fuzzy
+msgid "wscon: disconnected: %(name) (#%(pid))"
+msgstr "wscon: 断开: %(name) (# %(pid))"
+
+# machine-translated (LibreTranslate)
+#: lsd/scripts/websock_console.lua
+#, fuzzy
+msgid "wscon: %(name) (#%(pid)): /%(cmd)"
+msgstr "wscon: %(name) (# %(pid)): /%(cmd) (英语)"
