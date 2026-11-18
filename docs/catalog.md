@@ -2,13 +2,13 @@
 
 | category | class | what | examples |
 |---|---|---|---|
-| gamemodes | `Gamemode` | exactly one runs; every one runs the map's layout (map_layout) | tdm, ctf, onectf, arena, babel, ffa, hostage, editor |
+| gamemodes | `Gamemode` | exactly one runs; every one runs the map's layout (map_layout) | tdm, ctf, bots, onectf, arena, babel, ffa, hostage, editor |
 | extensions | `Extension` | protocol extensions; the setup also asks what a client lacking one costs | every extension in the [AoS protocol registry](https://github.com/zerospades/aosprotocol): player_properties, damage_markers, teamplay, pie_menu, flashlight, daytime, edit_mode, player_limit, message_types, kick_reason (UTF-8 chat is built into LSd); plus silent_player |
-| effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit, nightvision |
+| effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit, nightvision, rocket, airstrike |
 | effects/world | `WorldEffect` | change the map or the match for everybody; same | the_fall |
 | bots | `Bot` | server-side players | guards, battle_bots |
-| tools | `Tool` | everything else | votekick, esp_demo, headless, time_limit, ... |
-| libs | `Library` | what the others need; installed with them, not listed | ext, ext_policy, bot, shot_detect, player_effect, map_layout |
+| tools | `Tool` | everything else | votekick, rewards, esp_demo, headless, time_limit, ... |
+| libs | `Library` | what the others need; installed with them, not listed | ext, ext_policy, bot, shot_detect, player_effect, map_layout, callouts, blast, babel_protect, ask_player |
 
 A player effect forced on in setup is everybody's (`<id>_everyone = true`).
 A gamemode can hand one out instead, per player, for a time, until death
@@ -72,6 +72,62 @@ and is never sent a player id it cannot hold (32 or more) -- and one that
 arrives when 32 ids are already taken is told it is player 1 and sent
 nothing about anybody. Older settings move to these defaults by
 themselves; a policy you chose is kept.
+
+## Babel
+
+Upstream's tower game, made fair. You cannot build in the enemy's
+tower area or remove blocks from your own (upstream's `babel_protect`),
+and dashed lines in each team's colour are painted on the ground
+around each area. Every player spawns holding their team's colour. For
+Teamplay clients, an enemy who stands in your tower area or your spawn
+and hardly moves (less than `babel_camp_move` blocks) for
+`babel_camp_secs` (20 s) or `babel_spawn_secs` (15 s) is outlined for
+your team -- "Camping by your tower", "In your spawn" -- until they
+move, leave, die or disconnect. `babel_camp_marks = False` turns the
+marks off.
+
+## Bots: day and night
+
+`bots` is team deathmatch against and alongside guard bots (6 a side
+by default), through a day that turns to night and back:
+`bots_day_secs` (240) of day, `bots_night_secs` (180) of night. At
+nightfall everyone is told to light their flashlight, and the guards
+light theirs; at dawn they put them out. Scoring is tdm's
+(`tdm_kills`). `lsdctl play bots` plays it in one line.
+
+## Rewards
+
+On by default, in every gamemode. Every `rewards_kills` kills (10) and
+every intel capture earn a reward point, up to `rewards_max` (3). Points
+are spent from a Rewards pie in the pie menu -- a wedge shows only while
+it is affordable -- or with `/reward <name>`:
+
+| reward | cost | |
+|---|---|---|
+| Railgun | 1 | 30 s, or until death |
+| Rockets | 1 | three shots of any gun fire a rocket: a streak of blocks that blows a crater |
+| Airstrike | 2 | where you aim: everyone is warned, then five bombs fall in a line |
+| Medkit | 1 | |
+| Area heal | 1 | 20 s |
+| Night vision | 1 | at night only |
+
+The list is the `rewards_menu` setting, and only installed effects are
+offered (rewards installs the six with it). With `rewards_exclusive`
+(the default) an effect on the menu is held only by whoever bought it,
+even if it is otherwise on for everybody. Rocket and airstrike are
+ordinary effects too, built on the `blast` library: installed alone,
+they are everybody's.
+
+## Asking a player (ask_player)
+
+A library for scripts, not used by any yet:
+`ask_player(pid, question, choices, callback, opts)` with 2 to 6
+`{key, label}` choices. The player reads the question and numbered
+choices in chat, in their language, and answers with
+`/answer <number|key>`; while it is open their pie menu shows only the
+question's pie (`pie_menu_override`). One question at a time per
+player, later ones queue; the callback gets nil on timeout
+(`ask_player_secs`, 30), `ask_player_cancel` or disconnect.
 
 ## Callouts
 
