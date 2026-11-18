@@ -5,7 +5,8 @@
 -- the load order, and lsdctl uses it to install, remove and set scripts
 -- up. One description of a script, read by both.
 --
--- A CATALOG ENTRY is a directory, catalog/<category>/<id>/, holding
+-- A CATALOG ENTRY is a directory, catalog/<category>/<id>/ (effects
+-- one level deeper, catalog/effects/player/<id>/), holding
 --
 --   script.lua         the manifest: one call to its category's class
 --   <module>.lua       the LSd module(s) it ships, if any
@@ -29,7 +30,14 @@
 --   |                     it costs (its ext_policy entry)
 --   +- Gamemode           exactly one runs; a base module, optionally
 --   |                     a rider loaded after the bots
---   +- Effect             changes how the game plays (weapons, death)
+--   +- Effect             abstract: changes how the game plays. Meant
+--   |  |                  to be pulled in by the gamemodes that play
+--   |  |                  with it (their `requires`); setup can also
+--   |  |                  force one on for any mode
+--   |  +- PlayerEffect    changes what a player's own actions do -- a
+--   |  |                  weapon, a hit. Its module is a PlayerEffect
+--   |  |                  at runtime too (lib_player_effect)
+--   |  +- WorldEffect     changes the map or the match for everybody
 --   +- Bot                server-side players; needs the bot library
 --   +- Tool               everything else an operator adds
 --
@@ -105,8 +113,8 @@ local SPEC = {
 
 function Script:new(spec)
 	if (rawget(self, "category") == nil and self.category == nil) then
-		error("Script is abstract: use Library, Extension, Gamemode, "
-			.. "Effect, Bot or Tool", 2);
+		error("abstract class: use Library, Extension, Gamemode, "
+			.. "PlayerEffect, WorldEffect, Bot or Tool", 2);
 	end
 
 	for k, v in pairs(spec) do
@@ -370,9 +378,22 @@ function C.Gamemode:needs_from()
 	return self.rider and "rider" or self.phase;
 end
 
+-- Abstract, like Script: an effect is one of the two below. Both load
+-- in the effects phase, before the gamemode, so a gamemode can require
+-- one and a forced-on one plays under any mode.
 C.Effect = Script:extend({
-	category = "effect",
 	phase = "effects",
+});
+
+-- Every player effect's module is built on lib_player_effect, so the
+-- library comes with the category rather than with each manifest.
+C.PlayerEffect = C.Effect:extend({
+	category = "player_effect",
+	class_requires = {"player_effect"},
+});
+
+C.WorldEffect = C.Effect:extend({
+	category = "world_effect",
 });
 
 C.Bot = Script:extend({
@@ -391,7 +412,8 @@ C.Tool = Script:extend({
 C.CATEGORIES = {
 	{dir = "gamemodes", class = C.Gamemode, title = "Gamemodes"},
 	{dir = "extensions", class = C.Extension, title = "Extensions"},
-	{dir = "effects", class = C.Effect, title = "Effects"},
+	{dir = "effects/player", class = C.PlayerEffect, title = "Player effects"},
+	{dir = "effects/world", class = C.WorldEffect, title = "World effects"},
 	{dir = "bots", class = C.Bot, title = "Bots"},
 	{dir = "tools", class = C.Tool, title = "Tools"},
 	{dir = "libs", class = C.Library, title = "Libraries"},
@@ -436,7 +458,7 @@ function C.open(roots, reader)
 
 	local env = setmetatable({}, {__index = function(_, k)
 		if (C[k] ~= nil and type(C[k]) == "table" and C[k].category ~= nil
-		    or k == "Script") then
+		    or k == "Script" or k == "Effect") then
 			return C[k];
 		end
 		return _G[k];

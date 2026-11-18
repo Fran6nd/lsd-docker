@@ -1,4 +1,4 @@
-return Effect {
+return PlayerEffect {
 	title = "Pinning SMG",
 	summary = "SMG hits root their target in place, and the SMG never runs dry.",
 	module = "smg_is_incapacitating",

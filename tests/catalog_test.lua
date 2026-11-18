@@ -83,6 +83,32 @@ print("\n3. the classes are abstract where they should be");
 check(not pcall(C.Script, {title = "x"}), "Script itself cannot be instantiated");
 check(not pcall(C.Tool, {titel = "typo"}), "an unknown manifest field is refused");
 check(not pcall(C.Tool, {title = 3}), "a mistyped manifest field is refused");
+check(not pcall(C.Effect, {title = "x"}), "Effect itself cannot be instantiated");
+
+print("\n3b. effects come in two kinds, and player effects share one class");
+for _, id in ipairs({"railgun", "grenade_shotgun", "pinning_smg"}) do
+	check(cat:get(id) and cat:get(id):is_a(C.PlayerEffect), id .. " is a PlayerEffect");
+end
+check(cat:get("the_fall") and cat:get("the_fall"):is_a(C.WorldEffect), "the_fall is a WorldEffect");
+for _, e in ipairs(cat:of_class(C.Effect)) do
+	check(e:is_a(C.PlayerEffect) ~= e:is_a(C.WorldEffect), e.id .. " is exactly one kind of effect");
+end
+for _, e in ipairs(cat:of_class(C.PlayerEffect)) do
+	check(index_of(e:dependencies(), "player_effect") ~= nil,
+		e.id .. " pulls in lib_player_effect by its category");
+end
+-- what a gamemode requires is how it plays with an effect; a manifest
+-- for a mode that does exists only here
+local mode = C.Gamemode({id = "rail_ctf", base = "ctf", requires = {"railgun"}});
+cat.entries.rail_ctf = mode; cat.list[#cat.list+1] = mode;
+local rp = cat:plan({}, "rail_ctf");
+local rmods = {};
+for _, m in ipairs(rp.phases.libs) do rmods[m] = "libs"; end
+for _, m in ipairs(rp.phases.effects) do rmods[m] = "effects"; end
+eq(rmods.rifle_is_a_rail_gun, "effects", "a gamemode's required effect loads, in the effects phase");
+eq(rmods.lib_player_effect, "libs", "and brings lib_player_effect, as a library");
+eq(rmods.lib_shot_detect, "libs", "and its own requirements");
+cat.entries.rail_ctf = nil; table.remove(cat.list);
 
 print("\n4. every gamemode, with every listed script, has a load order");
 local all = {};
@@ -108,6 +134,7 @@ local function before(a, b, what)
 end
 before("lib_ext", "lib_flashlight", "lib_ext before the extensions");
 before("lib_shot_detect", "rifle_is_a_rail_gun", "shot detection before the railgun");
+before("lib_player_effect", "rifle_is_a_rail_gun", "the PlayerEffect class before the railgun");
 before("ctf", "tentspawns", "the gamemode before the spawns");
 before("tentspawns", "lib_bot", "the spawns before the bots");
 before("lib_bot", "hostage", "lib_bot before hostage, its rider");

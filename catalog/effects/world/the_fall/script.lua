@@ -1,5 +1,5 @@
 -- Uses lib_bot for the fallers, so it loads with the bots.
-return Effect {
+return WorldEffect {
 	title = "The Fall",
 	summary = "Die once and you fall down a shaft until you kill your way out.",
 	module = "the_fall",

@@ -56,6 +56,21 @@ docker logs "$NAME" 2>&1 | grep -q 'lib_flashlight' || fail "lib_flashlight not 
 docker exec "$NAME" lsdctl get flashlight_colors | grep -q random || fail "preset not written"
 echo "ok: install with a preset, server restarted and loaded it"
 
+# every effect, both kinds: catalog/effects/<kind>/<id>/ is one level
+# deeper than the other categories, and the player effects all load on
+# lib_player_effect
+docker exec "$NAME" lsdctl install railgun grenade_shotgun pinning_smg the_fall --yes --now \
+	|| fail "install effects"
+sleep 3
+wait_up "after effects"
+# (lib_player_effect registers no module, so it is not in the log: the
+# three effects built on it loading is the proof it loaded)
+for m in rifle_is_a_rail_gun shotgun_are_grenade_launchers \
+         smg_is_incapacitating the_fall; do
+	docker logs "$NAME" 2>&1 | grep -q "$m" || fail "$m not loaded"
+done
+echo "ok: player and world effects load"
+
 docker exec "$NAME" lsdctl gamemode hostage --yes --now || fail "gamemode"
 sleep 3
 wait_up "after gamemode"

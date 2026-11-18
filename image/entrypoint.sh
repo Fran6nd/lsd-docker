@@ -31,7 +31,8 @@ assemble_scripts() {
 	find scripts -mindepth 1 -delete
 	cp -R scripts.dist/. scripts/
 	for root in catalog "$DATA/catalog"; do
-		for entry in "$root"/*/*/; do
+		# catalog/<category>/<id>/, and effects/<kind>/<id>/
+		for entry in "$root"/*/*/ "$root"/effects/*/*/; do
 			[ -f "${entry}script.lua" ] || continue
 			for f in "$entry"*; do
 				[ "${f##*/}" = script.lua ] || cp -R "$f" scripts/
