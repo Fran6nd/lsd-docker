@@ -31,12 +31,25 @@ if docker container inspect "$NAME" >/dev/null 2>&1; then
 	exit 1
 fi
 
+# This host's LAN addresses, for the connect addresses lsdctl prints: a
+# container cannot see them itself. Docker's own bridges and VPN
+# interfaces are left out.
+host_addresses() {
+	if command -v ip >/dev/null 2>&1; then
+		ip -4 -o addr show scope global \
+			| awk '$2 !~ /^(docker|br-|veth|virbr|cni|flannel|tailscale|wg|tun)/ {split($4, a, "/"); print a[1]}'
+	elif command -v ifconfig >/dev/null 2>&1; then
+		ifconfig | awk '/^[a-z]/ {iface = $1} /inet / && $2 != "127.0.0.1" && iface ~ /^(en|eth|wl)/ {print $2}'
+	fi | tr '\n' ' ' | sed 's/ *$//'
+}
+ADDRESSES=$(host_addresses)
+
 run docker pull "$IMAGE"
 run docker volume create "$VOLUME" >/dev/null
 
 # The wizard needs a terminal; under `curl | sh` stdin is the script.
 if [ -r /dev/tty ]; then
-	run docker run --rm -it -v "$VOLUME:/data" "$IMAGE" setup </dev/tty
+	run docker run --rm -it -e LSD_HOST_ADDRESSES="$ADDRESSES" -v "$VOLUME:/data" "$IMAGE" setup </dev/tty
 else
 	say "no terminal: writing the default settings (change them later with lsdctl setup)"
 	run docker run --rm -v "$VOLUME:/data" "$IMAGE" setup --defaults
@@ -44,7 +57,8 @@ fi
 
 port=$(docker run --rm -v "$VOLUME:/data" "$IMAGE" get port)
 run docker run -d --name "$NAME" --restart unless-stopped \
-	-p "$port:$port/udp" -v "$VOLUME:/data" "$IMAGE" >/dev/null
+	-p "$port:$port/udp" -e LSD_HOST_ADDRESSES="$ADDRESSES" \
+	-v "$VOLUME:/data" "$IMAGE" >/dev/null
 
 # The alias, where there is somewhere on PATH to put it. Its $1 and $@
 # are its own, hence the single quotes.
@@ -66,6 +80,7 @@ done
 
 say ""
 say "The server is starting on port $port/udp."
+docker exec "$NAME" lsdctl address
 say "  status:      docker exec $NAME lsdctl status"
 say "  scripts:     docker exec $NAME lsdctl available"
 say "  everything:  docker exec $NAME lsdctl help"

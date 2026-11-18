@@ -34,9 +34,8 @@
 -- assign_new_pid counts up to (main.c:187-191) and what the masterlist
 -- advertises as capacity (masterlist.lua:25-38, and lib_bot's
 -- bot-hiding version of the same sum), so it is the one place the
--- number lives. This module hooks it, and defaults to the 32 the core
--- already returns -- so loading this changes nothing but the
--- announcement until an instance says otherwise.
+-- number lives. This module hooks it, and defaults to 254: the
+-- extension's whole point is seating more than the core's 32.
 --
 -- A WORD BEFORE RAISING IT. A pid is assigned when a client connects,
 -- by assign_new_pid out of on_any_connect, and the extension handshake
@@ -64,8 +63,8 @@ local EXT_ID = 192;
 local EXT_VERSION = 1;
 
 -- How many players this server will seat. 32 is the core's own
--- DEFAULT_MAX_PLAYERS and the value every client copes with; anything
--- above it needs the paragraph above read first.
+-- DEFAULT_MAX_PLAYERS and the value every client copes with; the
+-- default is above it, so read the paragraph above.
 --
 -- A COUNT, not a highest id, and the difference is the whole reason
 -- MAX_PLAYERS is the right ceiling rather than one less. assign_new_pid
@@ -78,9 +77,9 @@ local EXT_VERSION = 1;
 --
 -- Clamped at the bottom to 1 as well, since a server that can seat
 -- nobody is a typo rather than a configuration.
-getcfg("player_limit_max", 32,
-	"How many players this server will seat, 1 to 255. 32 is the "
-		.."value every client copes with.");
+getcfg("player_limit_max", 254,
+	"How many players this server will seat, 1 to 255. Above 32, an "
+		.."old client may mishandle players with high ids.");
 
 -- Hooked rather than left alone even at the default, so that the number
 -- has one home. An instance that sets player_limit_max gets it applied
@@ -95,7 +94,7 @@ getcfg("player_limit_max", 32,
 -- (masterlist.lua:58-74), so the advertised number follows by itself at
 -- the next one; it is only the moment between that stays stale.
 function mod.get_effective_max_players()
-	local n = math.floor(tonumber(player_limit_max) or 32);
+	local n = math.floor(tonumber(player_limit_max) or 254);
 
 	return math.max(1, math.min(n, MAX_PLAYERS));
 end

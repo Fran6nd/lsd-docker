@@ -5,7 +5,7 @@ return Extension {
 	ext_id = 192,
 	order = 10,
 	questions = {
-		{key = "player_limit_max", type = "number", default = 32, min = 1, max = 255,
-			ask = "How many players may the server seat (32 is safe for every client)?"},
+		{key = "player_limit_max", type = "number", default = 254, min = 1, max = 255,
+			ask = "How many players may the server seat (above 32, an old client may mishandle high player ids)?"},
 	},
 }

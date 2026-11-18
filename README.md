@@ -21,8 +21,15 @@ Or the same thing, by hand:
 ```sh
 docker run --rm -it -v lsd-data:/data ghcr.io/fran6nd/lsd-docker setup
 docker run -d --name lsd --restart unless-stopped \
-    -p 32887:32887/udp -v lsd-data:/data ghcr.io/fran6nd/lsd-docker
+    -p 32887:32887/udp -e LSD_HOST_ADDRESSES=192.168.1.20 \
+    -v lsd-data:/data ghcr.io/fran6nd/lsd-docker
 ```
+
+`LSD_HOST_ADDRESSES` is optional: it is the host's LAN address(es),
+which a container cannot see, so that `lsdctl address` can print the
+`aos://` URL players on your network connect with. The installer fills
+it in. Setup ends by printing those addresses, and the public one for a
+listed server.
 
 Skipping `setup` is fine: a server started on an empty volume writes
 default settings, generates a flat map so it can boot, and runs ctf.
@@ -49,7 +56,8 @@ docker exec -it lsd lsdctl help
 is `docker exec -it lsd lsdctl status`.)
 
 ```sh
-lsdctl status                        # version, state, gamemode, scripts, maps
+lsdctl status                        # version, state, gamemode, scripts, maps, addresses
+lsdctl address                       # the aos:// URLs players connect with
 lsdctl setup                         # the wizard again: name, port, listing, gamemode, scripts
 
 lsdctl available                     # every script this image can install

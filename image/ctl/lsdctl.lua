@@ -980,6 +980,64 @@ command("map", "map list | add <url|file>... | rm <name>... | load <name> | gene
 		end
 	end);
 
+--============================= ADDRESSES ============================--
+
+-- Where players connect, as the aos:// URLs clients open.
+--
+-- A container cannot see its host's LAN address -- only docker's own
+-- network -- so the host tells it: install.sh puts the host's addresses
+-- in LSD_HOST_ADDRESSES. The public address is looked up the way
+-- upstream's /server does, from icanhazip (IPv4: the protocol has no
+-- IPv6), and only for a listed server.
+local function host_addresses()
+	local out = {};
+	for a in string.gmatch(os.getenv("LSD_HOST_ADDRESSES") or "", "[^%s,]+") do
+		out[#out+1] = a;
+	end
+	return out;
+end
+
+local function public_address()
+	local h = io.popen("curl -fsS --max-time 4 https://ipv4.icanhazip.com 2>/dev/null");
+	local ip = h:read("*l");
+	h:close();
+	if (ip ~= nil and string.match(ip, "^%d+%.%d+%.%d+%.%d+$")) then
+		return ip;
+	end
+end
+
+local function print_addresses(doc)
+	local port = tostring(doc:get("port") or 32887);
+	local listed = doc:get("masterlist_enabled") ~= false;
+
+	say("Players connect with:");
+	if (listed) then
+		local ip = public_address();
+		if (ip ~= nil) then
+			say("  internet:      aos://%s:%s", ip, port);
+		else
+			say("  internet:      (could not look up this host's public address)");
+		end
+		say("                 (needs UDP %s forwarded to this host if it is behind a router)", port);
+	end
+
+	local lan = host_addresses();
+	for _, a in ipairs(lan) do
+		say("  local network: aos://%s:%s", a, port);
+	end
+	say("  this machine:  aos://127.0.0.1:%s", port);
+
+	if (#lan == 0) then
+		say("  (local network addresses are unknown inside the container: run it with");
+		say("   -e LSD_HOST_ADDRESSES=\"<host LAN IP>\", as install.sh does)");
+	end
+end
+
+command("address", "address", "the aos:// addresses players connect with",
+	function()
+		print_addresses(open_doc(true));
+	end);
+
 --============================== SERVER ==============================--
 
 command("restart", "restart [--now] [message]",
@@ -1061,6 +1119,8 @@ command("status", "status", "version, state, gamemode, scripts, maps",
 		end
 		say("maps:       %s", table.concat(map_names(), ", "));
 		for _, w in ipairs(doc.warnings) do say("warning:    %s", w); end
+		say("");
+		print_addresses(doc);
 	end);
 
 command("version", "version", "this image's version and upstream LSd commit",
@@ -1242,6 +1302,9 @@ command("setup", "setup [--defaults]",
 		doc:save();
 		say("");
 		say("saved %s", SETTINGS);
+		say("");
+		print_addresses(doc);
+		say("");
 
 		if (doc:get("port") ~= old_port and existing) then
 			say("the port changed: recreate the container so it publishes the new one:");
