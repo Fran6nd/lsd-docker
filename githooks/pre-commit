@@ -1,0 +1,44 @@
+#!/bin/sh
+# pre-commit -- keep the translation files in step with the scripts
+#
+# Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+#
+# Runs dev/l10n.lua, which rewrites every script's locales/template.pot
+# and brings each locales/<lang>.po in line with it, and stages what it
+# changed -- so a commit that adds, changes or drops a message carries
+# the translation files that go with it, and translators always work
+# from the current English.
+#
+# It reads the working tree, as the tool does, so a message in a file
+# left unstaged still reaches the templates; the tests' --check is the
+# same either way. Without luajit it says so and lets the commit
+# through; CI's tests catch a stale template.
+#
+# Enable with the other hooks:  git config core.hooksPath githooks
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+
+if ! command -v luajit >/dev/null 2>&1; then
+	echo "pre-commit: no luajit, translation files not updated" \
+		"(luajit dev/l10n.lua)" >&2
+	exit 0
+fi
+
+luajit dev/l10n.lua >/dev/null 2>&1 || {
+	echo "pre-commit: dev/l10n.lua failed:" >&2
+	luajit dev/l10n.lua >&2 || true
+	exit 1
+}
+
+# what the tool changed: new, changed or removed in the working tree
+# against what is staged (second status column, or untracked)
+changed=$(git status --porcelain -- ':(glob)catalog/**/locales/*' \
+	| grep -E '^(.[MADR]|\?\?)' | sed 's/^...//' || true)
+if [ -n "$changed" ]; then
+	printf '%s\n' "$changed" | while IFS= read -r f; do
+		git add -A -- "$f"
+	done
+	echo "pre-commit: translation files updated:" >&2
+	printf '  %s\n' $changed >&2
+fi
+exit 0

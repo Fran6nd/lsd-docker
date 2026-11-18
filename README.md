@@ -228,6 +228,40 @@ Entries in `/data/catalog/<category>/<id>/` work the same way and win
 over the image's own of the same id, which is how a server runs its own
 or a modified script without building an image.
 
+### Translations
+
+Every player reads the server in their own language: the one they chose
+with `/lang fr` (`/lang auto` to undo), else the locale their client
+reports (OpenSpades and its forks send it on connect), else
+`l10n_default_lang`. `fr_ca` falls back to `fr`, then the default, then
+English.
+
+A script writes its messages in English, with LSd's `%(name)`
+placeholders, and every message is translated for each player it
+reaches, broadcasts included:
+
+```lua
+l10n_send_chat(PID_BROADCAST, {en = "%(name) was kicked"}, {name = n})
+server_msg(pid, l10n_msg({en = "Edit mode on."}))  -- server_msg, send_chat,
+kick_reason_set(pid, l10n_msg({en = "Vote kicked"}))  -- msg_send take one
+l10n_msgn({en = "%(n) bot", en_plural = "%(n) bots"}, count)
+```
+
+Translations live with the script, as gettext files:
+
+```
+catalog/tools/votekick/locales/
+├── template.pot   every message of the script, written by dev/l10n.lua
+└── fr.po          its French
+```
+
+`luajit dev/l10n.lua` rewrites every template and brings each `.po` in
+line with it; the pre-commit hook runs it, so they never go stale.
+`luajit dev/l10n.lua --new de catalog/tools/votekick` starts a language.
+Edit a `.po` with any gettext editor (Poedit, ...); `msgfmt -c` checks
+it, and the tests check that each translation keeps its placeholders.
+Upstream LSd's own messages are translated in `catalog/overrides/locales/`.
+
 ## Developing
 
 ```sh
