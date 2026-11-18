@@ -197,7 +197,7 @@ co=$(docker exec "$NAME" lsdctl exec 'exec local h = pie_menu_hide_unavailable; 
 echo "$co" | grep -q "CO|true|true|true|" || fail "ctf callouts: $co"
 echo "ok: ctf has its callouts pie, first"
 # and its pings in the Mark pie, for a client with Teamplay only
-pg=$(docker exec "$NAME" lsdctl exec 'exec local t = teamplay_supported; local id = MAX_PLAYERS - 1; teamplay_supported = function() return true end; local b = pie_menu_build(id) or ""; teamplay_supported = function() return false end; local n = pie_menu_build(id) or ""; teamplay_supported = t; log("PG|" .. tostring(b:find("/callout ping intel %h", 1, true) ~= nil) .. "|" .. tostring(n:find("/callout ping", 1, true) ~= nil) .. "|")')
+pg=$(docker exec "$NAME" lsdctl exec 'exec local h = pie_menu_hide_unavailable; pie_menu_hide_unavailable = false; local t = teamplay_supported; local id = MAX_PLAYERS - 1; teamplay_supported = function() return true end; local b = pie_menu_build(id) or ""; teamplay_supported = function() return false end; local n = pie_menu_build(id) or ""; teamplay_supported = t; pie_menu_hide_unavailable = h; log("PG|" .. tostring(b:find("/callout ping intel %h", 1, true) ~= nil) .. "|" .. tostring(n:find("/callout ping", 1, true) ~= nil) .. "|")')
 echo "$pg" | grep -q "PG|true|false|" || fail "ctf pings: $pg"
 echo "ok: ctf pings are in the Mark pie, for Teamplay clients only"
 
