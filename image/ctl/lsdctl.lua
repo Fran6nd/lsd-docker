@@ -124,7 +124,7 @@ end
 
 -- What a new server runs: every protocol extension -- each at its own
 -- policy, which is never "required", so no client is turned away -- and
--- votekick and time_limit.
+-- votekick, time_limit and rewards.
 local function default_scripts()
 	local ids = {};
 	for _, e in ipairs(cat():of_class(catalog.Extension)) do
@@ -132,6 +132,7 @@ local function default_scripts()
 	end
 	ids[#ids+1] = "votekick";
 	ids[#ids+1] = "time_limit";
+	ids[#ids+1] = "rewards";
 	return ids;
 end
 

@@ -1,0 +1,28 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "warning: here airstrikes can be called in on you."
+msgstr "警告：这里可能有空袭落在你身上。"
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "An airstrike comes three seconds after the warning: run."
+msgstr "空袭会在警告三秒后落下：快跑。"
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "%(name) called in an airstrike! Get out of there!"
+msgstr "%(name) 呼叫了空袭！快离开那里！"
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "Aim at something to call an airstrike on it."
+msgstr "瞄准某处，对其发动空袭。"
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "Airstrike!"
+msgstr "空袭！"

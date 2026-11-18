@@ -1,0 +1,85 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ru\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Railgun"
+msgstr "Рейлган"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Rockets"
+msgstr "Ракеты"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Airstrike"
+msgstr "Авиаудар"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Medkit"
+msgstr "Аптечка"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Area heal"
+msgstr "Зональное лечение"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Night vision"
+msgstr "Ночное видение"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "You earned a reward point (%(points)/%(max)). Spend it: /reward, or the pie menu."
+msgstr "Ты получил очко награды, всего: %(points)/%(max). Потрать его: /reward или через круговое меню."
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "%(name) earned a reward"
+msgstr "%(name) получил награду"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Rewards -- you have %(points) point(s):"
+msgstr "Награды -- твой баланс: %(points)"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "  /reward %(name): %(label), %(cost) point(s)"
+msgstr "  /reward %(name): %(label), цена %(cost)"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "  Nothing is on offer here."
+msgstr "  Здесь сейчас ничего нет."
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "You got: %(what). Points left: %(points)."
+msgstr "Ты получил: %(what). Остаток: %(points)."
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "%(what) costs %(cost) point(s) and you have %(points)."
+msgstr "%(what) стоит %(cost), а у тебя %(points)."
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Rewards are for the living."
+msgstr "Награды только для живых."
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "%(what) is only offered at night."
+msgstr "%(what) доступно только ночью."
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "No such reward. Type /reward for the list."
+msgstr "Такой награды нет. Введи /reward, чтобы увидеть список."
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "%(what) could not be used right now; no point spent."
+msgstr "%(what) сейчас нельзя использовать; очко не потрачено."
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgctxt "command"
+msgid "Spend your reward points: /reward lists what you can get."
+msgstr "Потратить очки награды: /reward показывает, что доступно."
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Rewards"
+msgstr "Награды"

@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/effects/player/rocket/rocket.lua
+msgid "warning: here every shot fires a rocket."
+msgstr "attention : ici, chaque tir lance une roquette."
+
+#: catalog/effects/player/rocket/rocket.lua
+msgid "Spicy: every shot is a rocket -- keep your distance from your own blast."
+msgstr "Épicé : chaque tir est une roquette -- garde tes distances par rapport à ta propre explosion."

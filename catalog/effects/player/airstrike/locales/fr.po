@@ -1,0 +1,28 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "warning: here airstrikes can be called in on you."
+msgstr "attention : ici, des frappes aériennes peuvent être appelées sur toi."
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "An airstrike comes three seconds after the warning: run."
+msgstr "Une frappe aérienne tombe trois secondes après l'avertissement : cours !"
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "%(name) called in an airstrike! Get out of there!"
+msgstr "%(name) a appelé une frappe aérienne ! Dégage de là !"
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "Aim at something to call an airstrike on it."
+msgstr "Vise quelque chose pour y appeler une frappe aérienne."
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "Airstrike!"
+msgstr "Frappe aérienne !"

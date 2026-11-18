@@ -1,0 +1,85 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Railgun"
+msgstr "轨道炮"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Rockets"
+msgstr "火箭弹"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Airstrike"
+msgstr "空袭"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Medkit"
+msgstr "医疗包"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Area heal"
+msgstr "范围治疗"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Night vision"
+msgstr "夜视"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "You earned a reward point (%(points)/%(max)). Spend it: /reward, or the pie menu."
+msgstr "你获得一个奖励点数（%(points)/%(max)）。用 /reward 或饼状菜单花掉它。"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "%(name) earned a reward"
+msgstr "%(name) 获得了一个奖励"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Rewards -- you have %(points) point(s):"
+msgstr "奖励——你有 %(points) 点："
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "  /reward %(name): %(label), %(cost) point(s)"
+msgstr "  /reward %(name)：%(label)，%(cost) 点"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "  Nothing is on offer here."
+msgstr "  这里没有可兑换的奖励。"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "You got: %(what). Points left: %(points)."
+msgstr "你获得了：%(what)。剩余点数：%(points)。"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "%(what) costs %(cost) point(s) and you have %(points)."
+msgstr "%(what) 需要 %(cost) 点，你有 %(points) 点。"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Rewards are for the living."
+msgstr "奖励只属于活人。"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "%(what) is only offered at night."
+msgstr "%(what) 只在夜晚提供。"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "No such reward. Type /reward for the list."
+msgstr "没有这个奖励。输入 /reward 查看列表。"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "%(what) could not be used right now; no point spent."
+msgstr "%(what) 现在无法使用；未花费点数。"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgctxt "command"
+msgid "Spend your reward points: /reward lists what you can get."
+msgstr "花费你的奖励点数：/reward 列出可获得的奖励。"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "Rewards"
+msgstr "奖励"
