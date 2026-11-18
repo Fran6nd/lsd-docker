@@ -240,13 +240,13 @@ with `/lang fr` (`/lang auto` to undo), else the locale their client
 reports, else `l10n_default_lang`. `fr_ca` falls back to `fr`, then the
 default, then English.
 
-Translations are for the current ZeroSpades only: the client that sends
-its locale, speaks UTF-8 and draws the scripts translated into (accents,
-Cyrillic, Chinese). Every other client -- an older ZeroSpades, stock
+Translations are for ZeroSpades 0.0.9 and above only: the client that
+sends its locale, speaks UTF-8 and draws the scripts translated into
+(accents, Cyrillic, Chinese). Every other client -- an older ZeroSpades, stock
 OpenSpades, BetterSpades, Voxlap -- reads `l10n_default_lang`, and `/lang`
 tells them what translations need. The gate is a setting, the client
-names and the oldest version of each, matched in the version string a
-client reports:
+names and the oldest version of each (that version and above), matched
+in the version string a client reports:
 
 ```
 l10n_clients = {ZeroSpades: '0.0.9'}

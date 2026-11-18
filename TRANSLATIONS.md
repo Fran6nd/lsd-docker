@@ -28,17 +28,19 @@ locale their client reports, else `l10n_default_lang`. A locale falls
 back to its language (`es_mx` to `es`), then to the default, then to
 English. Anything not translated yet is shown in English.
 
-**Only the current ZeroSpades is translated for.** It is the client that
-reports its locale, speaks UTF-8 and draws the scripts translated into.
-Every other client reads `l10n_default_lang`, and `/lang` tells it what
-translations need. The gate is the setting
+**Only ZeroSpades 0.0.9 and above is translated for.** It is the client
+that reports its locale, speaks UTF-8 and draws the scripts translated
+into. Every other client -- an older ZeroSpades, stock OpenSpades,
+BetterSpades, Voxlap -- reads `l10n_default_lang`, and `/lang` tells it
+what translations need. The gate is the setting
 
 ```
 l10n_clients = {ZeroSpades: '0.0.9'}
 ```
 
-client names and the oldest version of each, matched in the version
-string a client reports ("... | ZeroSpades 0.0.9 b3432453 (arm64)").
+client names and the oldest version of each -- that version and every
+one above it get translations -- matched in the version string a client
+reports ("... | ZeroSpades 0.0.9 b3432453 (arm64)").
 
 Machine-translated drafts are **fuzzy**: present in the files, never
 shown to a player until a translator has checked them (see
