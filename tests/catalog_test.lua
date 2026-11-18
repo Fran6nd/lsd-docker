@@ -96,6 +96,16 @@ end
 for _, e in ipairs(cat:of_class(C.PlayerEffect)) do
 	check(index_of(e:dependencies(), "player_effect") ~= nil,
 		e.id .. " pulls in lib_player_effect by its category");
+	for _, m in ipairs(e:load_modules()) do
+		local f = io.open(e.dir .. "/" .. m .. ".lua");
+		local src = f and f:read("*a") or "";
+		if (f) then f:close(); end
+		check(src:find("PlayerEffect%s*{") and not src:find("init_mod%s*%("),
+			m .. " is built on PlayerEffect, not init_mod");
+		check(not src:find("mod%.on_load") and not src:find("mod%.on_unload")
+			and not src:find("mod%.after%.on_join"),
+			m .. " leaves on_load, on_unload and on_join to the class");
+	end
 end
 -- what a gamemode requires is how it plays with an effect; a manifest
 -- for a mode that does exists only here
