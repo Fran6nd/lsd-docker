@@ -56,7 +56,7 @@ eq(fr.entries[P.key("door", "Open")], "Ouverte", "msgctxt keeps two Opens apart"
 eq(fr.entries["Open"], "Ouvrir", "the other Open");
 eq(fr.entries["%(n) bot"] and fr.entries["%(n) bot"][2], "%(n) robots", "plural forms");
 eq(fr.entries["Unchecked"], nil, "a fuzzy entry is skipped");
-eq(fr.entries["A long line"], "Une longue ligne\n", "continued lines and escapes");
+eq(fr.entries["A long line\n"], "Une longue ligne\n", "continued lines and escapes");
 eq(fr.entries["Untranslated"], nil, "an empty msgstr is no translation");
 eq(fr.plural(2), 1, "the header's Plural-Forms is used");
 check(not pcall(P.parse, 'msgid "x"\nmsgstr nonsense\n'), "a broken file is refused");
@@ -178,6 +178,38 @@ sent = {};
 lang.func(0, {});
 check(sent[1] and sent[1][2]:find("fr_fr") and sent[1][2]:find("en, fr, pl"),
 	"no argument: the current language and the installed ones", sent[1] and sent[1][2]);
+
+print("\n8. the catalog's translation files");
+local r = os.execute("luajit dev/l10n.lua --check >/dev/null");
+check(r == 0 or r == true, "every template is up to date (luajit dev/l10n.lua)");
+local function same(a, b) return table.concat(a, ",") == table.concat(b, ","); end
+for path in io.popen("find catalog -path '*/locales/*.po' | sort"):lines() do
+	local ok, cat = pcall(P.parse, read(path));
+	check(ok, path .. " parses", cat);
+	if (ok) then
+		check(read(path):find("Plural%-Forms:") ~= nil, path .. " says how its language counts");
+		for _, e in ipairs(cat.list) do
+			local want = P.placeholders(e.msgid .. (e.plural or ""));
+			local outs = e.plural and e.forms or {e.str};
+			for _, s in ipairs(outs) do
+				if (s ~= nil and s ~= "" and not e.fuzzy) then
+					-- a plural's singular may leave out %(n): "one bot"
+					local have = P.placeholders(s .. (e.plural and "%(n)" or ""));
+					if (e.plural) then table.insert(want, "n"); end
+					local w = {};
+					local seen = {};
+					for _, x in ipairs(want) do if (not seen[x]) then seen[x] = true; w[#w+1] = x; end end
+					table.sort(w);
+					local h, hs = {}, {};
+					for _, x in ipairs(have) do if (not hs[x]) then hs[x] = true; h[#h+1] = x; end end
+					table.sort(h);
+					check(same(w, h), path .. ": placeholders of " .. string.format("%q", e.msgid),
+						table.concat(h, ",") .. " vs " .. table.concat(w, ","));
+				end
+			end
+		end
+	end
+end
 
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures > 0 and 1 or 0);

@@ -54,6 +54,13 @@ assemble_scripts() {
 	done
 	cp catalog/core/*.lua scripts/
 	cp catalog/overrides/*.lua scripts/ 2>/dev/null || true
+	# translations of upstream LSd's own messages
+	for po in catalog/overrides/locales/*.po; do
+		[ -f "$po" ] || continue
+		lang=$(basename "$po" .po)
+		mkdir -p "scripts/locales/$lang"
+		cp "$po" "scripts/locales/$lang/lsd.po"
+	done
 	cp -R "$DATA/scripts/." scripts/
 }
 

@@ -1,0 +1,102 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/gamemodes/hostage/hostage.lua:93
+msgid "This is HOSTAGE mode: free the hostage held at the enemy tent. Get close and it follows; walk it home to score."
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:99
+msgid "Thanks for picking me up!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:103
+msgid "%(hero) brought the %(team) hostage home! +1 %(team)"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:107
+msgid "%(killer) executed the %(team) hostage! +1 %(team)"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:112
+msgid "%(escort) is freeing your hostage -- go support!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:117
+msgid "A %(team) hostage is loose -- hunt it down and drag it back!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:122
+msgid "The %(team) hostage was dragged back to captivity."
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:127
+msgid "Get me out of here!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:128
+msgid "I'm a prisoner -- someone free me!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:130
+msgid "Psst! Come spring me from their tent!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:135
+msgid "I'm lost! Somebody come get me!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:137
+msgid "Hello? Anyone? I'm stranded out here!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:139
+msgid "Help, I don't know the way home!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:145
+msgid "Home at last -- thank you!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:149
+msgid "Argh -- they got me!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:153
+msgid "They're right behind us!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:154
+msgid "Hurry, enemies close!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:155
+msgid "Watch out -- keepers!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:158
+msgid "This way, we're almost there!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:159
+msgid "Keep going, take me home!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:160
+msgid "Don't leave me behind!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:164
+msgid "They've caught me -- help!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:165
+msgid "I'm being dragged back!"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua:166
+msgid "No -- not back to the cage!"
+msgstr ""

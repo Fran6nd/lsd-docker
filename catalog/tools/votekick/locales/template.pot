@@ -1,0 +1,42 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/tools/votekick/votekick.lua:24
+msgid "%(starter) started a votekick against %(target)! Type /y to vote (%(have)/%(need))."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua:28
+msgid "%(voter) voted to kick %(target) (%(have)/%(need))."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua:32
+msgid "%(target) was votekicked."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua:36
+msgid "The votekick against %(target) failed."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua:40
+msgid "You already voted."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua:43
+msgid "No votekick is in progress -- start one with /votekick <player>."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua:47
+msgid "Not enough players for a votekick."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua:51
+msgid "You can't votekick yourself."
+msgstr ""
+
+#: catalog/tools/votekick/votekick.lua:54
+msgid "%(target) can't be votekicked."
+msgstr ""

@@ -1,0 +1,34 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/extensions/teamplay/lib_teamplay.lua:749
+msgid "Pinging is turned off on this server."
+msgstr ""
+
+#: catalog/extensions/teamplay/lib_teamplay.lua:750
+msgid "You cannot ping while dead."
+msgstr ""
+
+#: catalog/extensions/teamplay/lib_teamplay.lua:751
+msgid "Too soon: wait a moment before pinging again."
+msgstr ""
+
+#: catalog/extensions/teamplay/lib_teamplay.lua:752
+msgid "That position is off the map."
+msgstr ""
+
+#: catalog/extensions/teamplay/lib_teamplay.lua:753
+msgid "You can only ping what you are looking at."
+msgstr ""
+
+#: catalog/extensions/teamplay/lib_teamplay.lua:891
+msgid "Unknown command"
+msgstr ""
+
+#: catalog/extensions/teamplay/lib_teamplay.lua:892
+msgid "Nothing to ping: /pingmark needs a position, three numbers, before the reason."
+msgstr ""

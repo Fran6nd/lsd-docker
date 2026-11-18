@@ -26,7 +26,7 @@ msgstr "Pas vérifié"
 
 msgid ""
 "A long "
-"line"
+"line\n"
 msgstr ""
 "Une longue "
 "ligne\n"

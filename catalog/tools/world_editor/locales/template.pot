@@ -1,0 +1,354 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/tools/world_editor/world_editor.lua:92
+msgid "world_editor: cannot write %(path) (%(err)) -- drop the :ro on the maps mount to persist"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:93
+msgid "world_editor: %(path) is not valid json, ignoring"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:94
+msgid "world_editor: loaded %(path)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:95
+msgid "world_editor: could not load %(name) (%(err))"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:96
+msgid "world_editor: could not delist (%(err))"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:97
+msgid "world_editor: could not relist (%(err))"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:98
+msgid "world_editor: relisted after a reload (edit mode did not survive it)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:99
+msgid "world_editor: component %(name) failed to load: %(err)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:100
+msgid "world_editor: edit mode %(state)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:101
+msgid "world_editor: cannot write %(path) (%(err))"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:104
+msgid "world_editor: not in edit mode (enable it from the console)."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:105
+msgid "world_editor: edit mode can only be toggled from the console."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:106
+msgid "world_editor: edit mode is %(state) (map %(map))%(extra)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:107
+msgid ", delisted by edit mode"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:108
+msgid "world_editor: created %(path)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:109
+msgid "world_editor: %(names) loaded -- terrain editing and flight for the session."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:110
+msgid "world_editor: delisted from the public lists (ip:port still works, so you can invite builders in)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:111
+msgid "world_editor: listed publicly again."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:112
+msgid "world_editor: edit mode ENABLED -- the map is being built on."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:113
+msgid "world_editor: edit mode disabled."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:116
+msgid "world_editor: placeable -- %(names)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:117
+msgid "  /place <component> for its help, e.g. /place elevator"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:118
+msgid "world_editor: no such component. placeable: %(names)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:119
+msgid "world_editor: %(name) -- %(desc)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:120
+msgid "  usage: /place %(name) %(usage)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:121
+msgid "world_editor: %(text)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:122
+msgid "world_editor: nothing being placed -- start with /place or /chunk."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:123
+msgid "world_editor: pick the two corners of the %(kind) -- aim and click each one."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:124
+msgid "world_editor: nothing being placed -- start with /place, /chunk or /delete."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:125
+msgid "world_editor: spade or shoot a block of the component to delete."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:126
+msgid "world_editor: spade two opposite corners."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:127
+msgid "world_editor: spade the centre, then the edge."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:128
+msgid "world_editor: mark at %(x) %(y) %(z)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:129
+msgid "world_editor: that mark is outside the map."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:130
+msgid "world_editor: nothing to mark there -- aim at ground or water."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:131
+msgid "world_editor: placement finished on mark %(n) -- %(extra) extra ignored."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:132
+msgid "world_editor: %(kind) #%(id) placed."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:135
+msgid "world_editor: no component on that block -- aim right at one."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:136
+msgid "world_editor: no components on this map."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:137
+msgid "world_editor: broke %(kind) #%(id)."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:138
+msgid "world_editor: %(verb) %(kind) #%(id) -- its blocks stay, back at rest."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:139
+msgid "world_editor: nothing to undo."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:140
+msgid "world_editor: %(kind) #%(id) is now %(perm)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:141
+msgid "  #%(id) %(kind) at %(x),%(y) %(perm) blocks %(blocks) %(status)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:144
+msgid "world_editor: perm must be ro, rw, or rw:<team>."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:145
+msgid "world_editor: chunk %(name) (%(perm)) created."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:146
+msgid "world_editor: you are not in a chunk (use /defaultperm for the open map)."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:147
+msgid "world_editor: %(name) is now %(perm)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:148
+msgid "world_editor: removed chunk %(name)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:149
+msgid "world_editor: default %(perm)%(readonly)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:150
+msgid ", map READONLY"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:151
+msgid "  #%(id) %(name) %(shape) %(perm)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:152
+msgid "world_editor: default is now %(perm)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:153
+msgid "world_editor: map readonly %(state)"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:156
+msgid "world_editor: no map name known -- pass one: /wesavemap <name>."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:157
+msgid "world_editor: bad name (no / \\ or leading dot)."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:158
+msgid "world_editor: saved %(name).vxl + %(name).editor.json in %(dir)/"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor.lua:159
+msgid "world_editor: save failed -- see server log (is maps/ writable?)."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/door.lua:62
+msgid "direction must be up, down, left or right."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/door.lua:63
+msgid "mark one corner of the door."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/door.lua:64
+msgid "now mark the opposite corner."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/door.lua:65
+msgid "a vertical door needs height -- mark corners at different heights."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/door.lua:66
+msgid "a sliding door needs width -- mark corners apart horizontally."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/door.lua:67
+msgid "that box overlaps another component -- mark clear of it."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/door.lua:68
+msgid "a door is a panel, not a block of wall -- one of its two horizontal sides has to be a single block thick."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/door.lua:83
+msgid "world_editor: door -- a built surface that retracts when a player nears it."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/door.lua:84
+msgid "  usage: /place door <up|down|left|right>"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/door.lua:85
+msgid "  up/down retract into ceiling/floor; left/right retract aside."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/door.lua:86
+msgid "  build the shape first, then mark two opposite corners around it:"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/door.lua:87
+msgid "  its blocks, colours and gaps all become the door and move together."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/door.lua:88
+msgid "  the panel retracts into the marked box and needs no room behind it."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/door.lua:89
+msgid "  an empty box gives a solid panel in your palette colour instead."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:60
+msgid "direction must be up or down."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:61
+msgid "mark one corner of the platform."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:62
+msgid "now mark the opposite corner of the platform."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:63
+msgid "now mark a block at the altitude to travel to."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:64
+msgid "that altitude is the platform's own level -- mark a different height."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:65
+msgid "the shaft would run through another component -- pick another altitude."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:84
+msgid "world_editor: elevator -- a built platform that carries riders up or down."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:85
+msgid "  usage: /place elevator <up|down>"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:86
+msgid "  up rests at the bottom and rises when stood on; down is the reverse."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:87
+msgid "  build the pad first, then mark two opposite corners around it,"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:88
+msgid "  then mark the altitude it should travel to -- the pad comes to"
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:89
+msgid "  rest level with that mark."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:90
+msgid "  its blocks, colours and gaps all become the platform."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:91
+msgid "  the piston column under it takes the colour of the pad's core."
+msgstr ""
+
+#: catalog/tools/world_editor/world_editor/elevator.lua:92
+msgid "  an empty box gives a plain slab in your palette colour instead."
+msgstr ""

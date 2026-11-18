@@ -246,14 +246,24 @@ local function unquote(s, lineno)
 end
 
 -- A gettext catalog. Fuzzy entries are skipped, as gettext skips them:
--- a fuzzy translation is a guess nobody has checked yet.
+-- a fuzzy translation is a guess nobody has checked yet. `list` has
+-- every entry as written, fuzzy and untranslated ones too, in order,
+-- for the tools that rewrite a file: {ctx=, msgid=, plural=, str=,
+-- forms={...}, fuzzy=, comments={...}}. `header` is the header's text.
 function P.parse(text)
-	local entries = {};
+	local entries, list = {}, {};
 	local header = "";
 	local cur, field, fuzzy = {}, nil, false;
 	local lineno = 0;
 
 	local function flush()
+		if (cur.msgid ~= nil and not (cur.msgid == "" and cur.ctx == nil)) then
+			local forms = {};
+			for k, v in pairs(cur.forms or {}) do forms[k + 1] = v; end
+			list[#list+1] = {ctx = cur.ctx, msgid = cur.msgid,
+				plural = cur.plural, str = cur.str, forms = forms,
+				fuzzy = fuzzy, comments = cur.comments or {}};
+		end
 		if (cur.msgid ~= nil and not fuzzy) then
 			if (cur.msgid == "" and cur.ctx == nil) then
 				header = cur.str or "";
@@ -280,6 +290,15 @@ function P.parse(text)
 		if (string.find(line, "^#,") and string.find(line, "fuzzy")) then
 			if (cur.msgid ~= nil) then flush(); end
 			fuzzy = true;
+		elseif (string.find(line, "^# ") or line == "#") then
+			-- a translator's comment, kept by the tools with its entry
+			if (cur.msgid ~= nil) then
+				local keep = fuzzy;
+				flush();
+				fuzzy = keep;
+			end
+			cur.comments = cur.comments or {};
+			cur.comments[#cur.comments+1] = line;
 		elseif (string.find(line, "^#") or string.find(line, "^%s*$")) then
 			-- comment or blank: an entry ends at its first blank line
 			if (string.find(line, "^%s*$") and cur.msgid ~= nil) then
@@ -330,7 +349,7 @@ function P.parse(text)
 	end
 	flush();
 
-	local cat = {entries = entries, nplurals = 2,
+	local cat = {entries = entries, list = list, header = header, nplurals = 2,
 		plural = function(n) return n == 1 and 0 or 1; end};
 
 	local pf = string.match(header, "[Pp]lural%-[Ff]orms:%s*([^\n]*)");
@@ -355,6 +374,68 @@ function P.parse(text)
 	end
 
 	return cat;
+end
+
+-- A string as a .po writes it: quoted and escaped, split after each
+-- newline so a long message reads as it will show.
+local function quote(s)
+	local q = string.gsub(s, '[\\"\n\t\r]', {["\\"] = "\\\\", ['"'] = '\\"',
+		["\n"] = "\\n", ["\t"] = "\\t", ["\r"] = "\\r"});
+	if (not string.find(s, "\n.")) then
+		return '"' .. q .. '"';
+	end
+	local out = {'""'};
+	for part in string.gmatch(q .. "\0", "(.-\\n)") do
+		out[#out+1] = '"' .. part .. '"';
+	end
+	local rest = string.match(q, ".*\\n(.*)$");
+	if (rest ~= nil and rest ~= "") then
+		out[#out+1] = '"' .. rest .. '"';
+	end
+	return table.concat(out, "\n");
+end
+P.quote = quote;
+
+-- A whole .po (or .pot) from a header text and a list of entries as
+-- P.parse lists them; an entry may also carry refs = {"file:line"}.
+-- `obsolete` entries are written commented out (#~), which is how
+-- gettext keeps a translation whose English is gone.
+function P.write(header, entries, obsolete)
+	local out = {"msgid \"\"", "msgstr " .. quote(header), ""};
+
+	local function entry(e, prefix)
+		local lines = {};
+		for _, c in ipairs(e.comments or {}) do lines[#lines+1] = c; end
+		if (prefix == "") then
+			for _, r in ipairs(e.refs or {}) do lines[#lines+1] = "#: " .. r; end
+		end
+		if (e.fuzzy) then lines[#lines+1] = "#, fuzzy"; end
+		local function put(kw, s)
+			local q = quote(s);
+			local first = true;
+			for l in (q .. "\n"):gmatch("([^\n]*)\n") do
+				lines[#lines+1] = prefix .. (first and (kw .. " ") or "") .. l;
+				first = false;
+			end
+		end
+		if (e.ctx ~= nil) then put("msgctxt", e.ctx); end
+		put("msgid", e.msgid);
+		if (e.plural ~= nil) then
+			put("msgid_plural", e.plural);
+			local n = math.max(#(e.forms or {}), e.nplurals or 2);
+			for i = 1, n do
+				put("msgstr[" .. (i-1) .. "]", (e.forms or {})[i] or "");
+			end
+		else
+			put("msgstr", e.str or "");
+		end
+		out[#out+1] = table.concat(lines, "\n");
+		out[#out+1] = "";
+	end
+
+	for _, e in ipairs(entries) do entry(e, ""); end
+	for _, e in ipairs(obsolete or {}) do entry(e, "#~ "); end
+	return table.concat(out, "\n");
 end
 
 return P;
