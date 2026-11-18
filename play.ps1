@@ -8,7 +8,7 @@
 #   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.ps1))) babel random
 #
 # The PowerShell twin of play.sh: a throwaway server (docker run --rm,
-# no volume kept) that asks which game (ctf, babel) and map (random, or
+# no volume kept) that asks which game (tdm, ctf, babel) and map (random, or
 # an aos.party link or id) unless told, prints the address friends on
 # your network join with, and stops by itself a minute after the last
 # player leaves -- Ctrl-C stops it at once. Then the container is gone,

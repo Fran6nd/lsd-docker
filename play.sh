@@ -7,7 +7,7 @@
 #   curl -fsSL .../play.sh | sh -s -- ctf https://aos.party/view/864
 #
 # Starts a throwaway server (docker run --rm, no volume kept): it asks
-# which game (ctf, babel) and which map (random, or an aos.party link or
+# which game (tdm, ctf, babel) and which map (random, or an aos.party link or
 # id) unless told, prints the address friends on your network join
 # with, and stops by itself a minute after the last player leaves --
 # Ctrl-C stops it at once. Then the container is gone, and so is the

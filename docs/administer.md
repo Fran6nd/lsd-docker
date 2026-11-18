@@ -24,7 +24,7 @@ PATH: `lsd status` is `docker exec -it lsd lsdctl status`.)
 ```sh
 lsdctl status                        # version, state, gamemode, scripts, maps, addresses
 lsdctl address                       # the aos:// URLs players connect with
-lsdctl setup                         # the wizard again: name, port, listing, gamemode, scripts
+lsdctl setup                         # the wizard again: quick (name, listing, game, map) or full
 
 lsdctl available                     # every script this image can install
 lsdctl info flashlight               # what it does, needs, asks, and every setting it reads

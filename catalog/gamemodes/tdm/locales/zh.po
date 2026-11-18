@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: catalog/gamemodes/tdm/tdm.lua
+msgid "%(blue) %(b) - %(g) %(green), first to %(limit) kills"
+msgstr "%(blue) %(b) - %(g) %(green)，先达到 %(limit) 次击杀者获胜"
+
+#: catalog/gamemodes/tdm/tdm.lua
+msgid "%(team) wins, %(b) - %(g)!"
+msgstr "%(team) 获胜，%(b) - %(g)！"

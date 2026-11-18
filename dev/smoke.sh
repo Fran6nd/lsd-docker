@@ -268,7 +268,7 @@ echo "ok: update check, status and the admins' notice"
 # cut to a second it ends by itself -- and Docker takes the container
 # and its volume with it.
 PLAY=lsd-play-$$
-docker run --rm -d --name "$PLAY" "$IMAGE" play ctf nowhere:1 >/dev/null || fail "start play"
+docker run --rm -d --name "$PLAY" "$IMAGE" play tdm nowhere:1 >/dev/null || fail "start play"
 i=0
 until docker exec "$PLAY" lsdctl status 2>/dev/null | grep -q 'server: *running'; do
 	i=$((i + 1)); [ $i -lt 60 ] || { docker logs "$PLAY" | tail -20 >&2; fail "play did not come up"; }
@@ -278,6 +278,12 @@ docker logs "$PLAY" 2>&1 | grep -q "playing a generated one" || fail "play did n
 pv=$(docker inspect -f '{{range .Mounts}}{{.Name}}{{end}}' "$PLAY")
 state=$(docker exec "$PLAY" lsdctl exec 'exec log("PLAY|" .. tostring(play_mode) .. "|" .. tostring(masterlist_enabled) .. "|")')
 echo "$state" | grep -q "PLAY|true|false|" || fail "play mode: $state"
+# tdm, the default game: ctf underneath, its rider loaded, nothing broken
+tdm=$(docker exec "$PLAY" lsdctl exec 'exec log("TDM|" .. tostring(package.loaded.tdm ~= nil) .. "|" .. tostring(tdm_kills) .. "|")')
+echo "$tdm" | grep -q "TDM|true|50|" || fail "tdm not loaded: $tdm"
+if docker logs "$PLAY" 2>&1 | grep -E 'failed to load|stack traceback'; then
+	fail "errors in the play server's log"
+fi
 # the server ends at once on this, taking the exec with it
 docker exec "$PLAY" lsdctl exec 'exec play_wait = 1' >/dev/null 2>&1 || true
 i=0
@@ -286,7 +292,7 @@ while docker container inspect "$PLAY" >/dev/null 2>&1; do
 	sleep 1
 done
 [ -n "$pv" ] && docker volume inspect "$pv" >/dev/null 2>&1 && fail "play left its volume behind"
-echo "ok: play runs a game unlisted and ends by itself, leaving nothing behind"
+echo "ok: play runs tdm unlisted and ends by itself, leaving nothing behind"
 
 if docker logs "$NAME" 2>&1 | grep -E 'failed to load|is installed but not in the catalog|stack traceback'; then
 	fail "errors in the server log"

@@ -1,0 +1,14 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/gamemodes/tdm/tdm.lua
+msgid "%(blue) %(b) - %(g) %(green), first to %(limit) kills"
+msgstr ""
+
+#: catalog/gamemodes/tdm/tdm.lua
+msgid "%(team) wins, %(b) - %(g)!"
+msgstr ""

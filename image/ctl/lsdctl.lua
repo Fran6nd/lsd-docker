@@ -27,9 +27,6 @@ local MAPS = DATA .. "/maps";
 local SOCK = DATA .. "/rw/console.sock";
 local ROOTS = {HOME .. "/catalog", DATA .. "/catalog"};
 
-local DEFAULT_SCRIPTS = {"player_limit", "message_types", "daytime",
-	"flashlight", "teamplay", "damage_markers", "votekick", "time_limit"};
-
 --============================== PLUMBING ============================--
 
 local function die(fmt, ...)
@@ -123,6 +120,19 @@ local function cat()
 		end
 	end
 	return cat_cache;
+end
+
+-- What a new server runs: every protocol extension -- each at its own
+-- policy, which is never "required", so no client is turned away -- and
+-- votekick and time_limit.
+local function default_scripts()
+	local ids = {};
+	for _, e in ipairs(cat():of_class(catalog.Extension)) do
+		if (e.listed) then ids[#ids+1] = e.id; end
+	end
+	ids[#ids+1] = "votekick";
+	ids[#ids+1] = "time_limit";
+	return ids;
 end
 
 local function entry(name)
@@ -1252,57 +1262,92 @@ local PLAY_MAPS = {
 		{id = 1180, name = "Babelpocalypse"},
 	},
 };
+-- team deathmatch plays on ctf's maps: two bases, a field between
+PLAY_MAPS.tdm = PLAY_MAPS.ctf;
 
-command("play", "play [ctf|babel] [random|<page|url|source:id>]",
+-- The games the short questions offer, the first the default. None of
+-- them needs an extension, so no client is ever turned away.
+local GAMES = {
+	{value = "tdm", label = "tdm", hint = "team deathmatch: every kill scores"},
+	{value = "ctf", label = "ctf", hint = "capture the flag"},
+	{value = "babel", label = "babel", hint = "build a tower to the enemy's flag"},
+};
+
+-- The game and the map, from the words given or asked: shared by play
+-- and the quick setup. Returns the gamemode id and the map wanted:
+-- "random", or a page, link or source:id.
+local function ask_game_and_map(ui, mode, want, default)
+	if (mode == nil) then
+		mode = ui:choose("Game", GAMES, default or GAMES[1].value);
+	end
+	if (PLAY_MAPS[mode] == nil) then
+		local ids = {};
+		for _, g in ipairs(GAMES) do ids[#ids+1] = g.value; end
+		die("the game is one of %s, not %s", table.concat(ids, ", "), tostring(mode));
+	end
+	if (want == nil) then
+		want = ui:ask({key = "map", type = "string",
+			ask = "Map: random, or an aos.party link or id"}, "random");
+	end
+	if (string.match(want, "^%d+$")) then
+		want = "aos.party:" .. want;
+	end
+	return mode, want;
+end
+
+-- Set the game up in doc and get its map(s). "random" is one map of the
+-- game's list for a single game (play), or the whole list in a random
+-- order for a server that keeps going (opts.rotation). A map that
+-- cannot be had is said and skipped; with none at all, what is already
+-- here plays (the generated flat one, at worst).
+local function set_game_and_map(doc, mode, want, opts)
+	choose_gamemode(doc, mode, make_ui(true), {});
+
+	local sources = map_sources(doc);
+	local picks = {};
+	if (want ~= "random") then
+		picks[1] = {source = want};
+	elseif (opts.rotation) then
+		for _, m in ipairs(PLAY_MAPS[mode]) do
+			picks[#picks+1] = {source = "aos.party:" .. m.id, name = m.name};
+		end
+	else
+		math.randomseed(os.time());
+		local m = PLAY_MAPS[mode][math.random(#PLAY_MAPS[mode])];
+		say("map: %s (random)", m.name);
+		picks[1] = {source = "aos.party:" .. m.id, name = m.name};
+	end
+
+	local names = {};
+	for _, p in ipairs(picks) do
+		local line, err = add_map(p.source, sources);
+		if (line ~= nil) then
+			say("%s", line);
+			names[#names+1] = string.match(line, "^added ([^ ]+)%.vxl");
+		else
+			say("could not get %s (%s)", p.name or p.source, tostring(err));
+		end
+	end
+
+	if (#names > 0) then
+		doc:set("map_rotation", table.concat(names, " "));
+		doc:set("map_random", opts.rotation == true and want == "random");
+	else
+		say("no map could be had: playing a generated one");
+	end
+end
+
+command("play", "play [tdm|ctf|babel] [random|<page|url|source:id>]",
 	"set up a casual game on a fresh container (the entrypoint's play runs it)",
 	function(args)
 		local words = parse_args(args, {});
-		local ui = make_ui(false);
 		local doc = open_doc(true);
+		local mode, want = ask_game_and_map(make_ui(false), words[1], words[2]);
 
-		local mode = words[1];
-		if (mode == nil) then
-			mode = ui:choose("Game", {
-				{value = "ctf", label = "ctf", hint = "capture the flag"},
-				{value = "babel", label = "babel", hint = "build a tower to the enemy's flag"},
-			}, "ctf");
-		end
-		if (PLAY_MAPS[mode] == nil) then
-			die("play: ctf or babel, not %s", tostring(mode));
-		end
-
-		local want = words[2];
-		if (want == nil) then
-			want = ui:ask({key = "map", type = "string",
-				ask = "Map: random, or an aos.party link or id"}, "random");
-		end
-		if (string.match(want, "^%d+$")) then
-			want = "aos.party:" .. want;
-		end
-
-		choose_gamemode(doc, mode, make_ui(true), {});
+		-- a game among friends: never listed
 		doc:set("masterlist_enabled", false);
 		doc:set("play_mode", true);
-
-		-- the map: the one asked for, or a random one of the list; a map
-		-- that cannot be had leaves the generated one, said plainly
-		local sources = map_sources(doc);
-		local line, err;
-		if (want == "random") then
-			math.randomseed(os.time());
-			local pick = PLAY_MAPS[mode][math.random(#PLAY_MAPS[mode])];
-			say("map: %s (random)", pick.name);
-			line, err = add_map("aos.party:" .. pick.id, sources);
-		else
-			line, err = add_map(want, sources);
-		end
-		if (line ~= nil) then
-			say("%s", line);
-			local name = string.match(line, "^added ([^ ]+)%.vxl");
-			doc:set("map_rotation", name);
-		else
-			say("could not get the map (%s): playing a generated one", tostring(err));
-		end
+		set_game_and_map(doc, mode, want, {});
 
 		doc:save();
 		say("");
@@ -1556,7 +1601,7 @@ map_random = False
 # map_rotation = "flat"
 
 # The gamemode: lsdctl gamemode <id>.
-gamemode = "ctf"
+gamemode = "tdm"
 
 # Installed scripts: lsdctl install / lsdctl remove. Libraries they
 # need are listed too.
@@ -1647,10 +1692,38 @@ command("init", "init", "write default settings if there are none, and bring old
 			return;
 		end
 		local doc = fresh_doc();
-		install_ids(doc, DEFAULT_SCRIPTS, make_ui(true), {});
+		install_ids(doc, default_scripts(), make_ui(true), {});
 		doc:save();
 		say("wrote default settings to %s -- customise with: lsdctl setup", SETTINGS);
 	end);
+
+-- The quick setup: the four questions somebody new to all this can
+-- answer, everything else as a new server has it -- every extension,
+-- none required, the game's own settings at their defaults. Run again,
+-- it keeps the scripts that are installed.
+local function quick_setup(doc, ui, existing, flags)
+	doc:set("masterlist_name", ui:ask({key = "masterlist_name", type = "string",
+		ask = "Server name"}, doc:get("masterlist_name")));
+	doc:set("masterlist_enabled", ui:ask({key = "masterlist_enabled", type = "boolean",
+		ask = "List the server publicly"}, doc:get("masterlist_enabled") ~= false));
+
+	local now = doc:get("gamemode");
+	local mode, want = ask_game_and_map(ui, nil, nil,
+		PLAY_MAPS[now or ""] and now or nil);
+	if (not existing) then
+		install_ids(doc, default_scripts(), make_ui(true), {});
+	end
+	set_game_and_map(doc, mode, want, {rotation = true});
+
+	ensure_maps();
+	doc:save();
+	say("");
+	say("saved %s -- every other setting: lsdctl setup, then full", SETTINGS);
+	say("");
+	print_addresses(doc);
+	say("");
+	apply(flags);
+end
 
 command("setup", "setup [--defaults]",
 	"the setup wizard: name, port, listing, gamemode, scripts and their setup. Run it again any time.",
@@ -1664,6 +1737,16 @@ command("setup", "setup [--defaults]",
 		if (ui.tty) then
 			local v = version();
 			say("LSD server setup (lsd-docker %s). Enter keeps the value in brackets.", v);
+			local how = ui:choose("Setup", {
+				{value = "quick", label = "quick",
+					hint = "name, public or not, game and map; the rest as a new server has it"},
+				{value = "full", label = "full",
+					hint = "every setting: port, gamemode, maps, each script"},
+			}, "quick");
+			if (how == "quick") then
+				quick_setup(doc, ui, existing, flags);
+				return;
+			end
 			say("");
 		end
 
@@ -1713,7 +1796,7 @@ command("setup", "setup [--defaults]",
 		-- the scripts, a category at a time; what is installed starts
 		-- ticked, and on a first setup so do the defaults
 		local chosen = {};
-		for _, id in ipairs(existing and doc:installed() or DEFAULT_SCRIPTS) do
+		for _, id in ipairs(existing and doc:installed() or default_scripts()) do
 			chosen[id] = true;
 		end
 

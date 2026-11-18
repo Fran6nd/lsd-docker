@@ -2,7 +2,7 @@
 
 | category | class | what | examples |
 |---|---|---|---|
-| gamemodes | `Gamemode` | exactly one runs; every one runs the map's layout (map_layout) | ctf, onectf, arena, babel, ffa, hostage, editor |
+| gamemodes | `Gamemode` | exactly one runs; every one runs the map's layout (map_layout) | tdm, ctf, onectf, arena, babel, ffa, hostage, editor |
 | extensions | `Extension` | protocol extensions; the setup also asks what a client lacking one costs | every extension in the [AoS protocol registry](https://github.com/zerospades/aosprotocol): player_properties, damage_markers, teamplay, pie_menu, flashlight, daytime, edit_mode, player_limit, message_types, kick_reason (UTF-8 chat is built into LSd); plus silent_player |
 | effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit, nightvision |
 | effects/world | `WorldEffect` | change the map or the match for everybody; same | the_fall |

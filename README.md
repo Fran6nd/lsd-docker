@@ -12,7 +12,12 @@ You do not need this repository to run it.
 You need Docker: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 on Windows and macOS, [Docker Engine](https://docs.docker.com/engine/install/)
 on Linux. Then one line pulls the image, runs the setup wizard, starts
-the server and prints the `aos://` addresses players connect with.
+the server and prints the `aos://` addresses players connect with. The
+wizard starts with a choice: **quick** asks four things -- the server's
+name, whether to list it publicly, the game (team deathmatch, capture the
+flag or babel) and the map -- and sets up the rest as a new server has it,
+with every protocol extension on and none required; **full** asks
+everything.
 
 **Linux and macOS**, in a terminal:
 
@@ -76,9 +81,9 @@ curl -fsSL https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.sh |
 irm https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.ps1 | iex
 ```
 
-It asks for the game (ctf or babel) and the map (random, or a link or id
+It asks for the game (tdm, ctf or babel) and the map (random, or a link or id
 from [aos.party](https://aos.party)), then prints the `aos://` address to
-join. A minute after the last player leaves it stops, and the container,
+join. It is never listed publicly. A minute after the last player leaves it stops, and the container,
 its data and -- if the game downloaded it -- the image are removed.
 Ctrl-C stops it at once. Answers can be given ahead:
 `curl ... | sh -s -- babel random`. Without the scripts, the same game is
