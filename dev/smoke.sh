@@ -42,6 +42,11 @@ docker run --rm -v "$VOL:/data" "$IMAGE" setup --defaults >/dev/null \
 	|| fail "setup --defaults"
 docker run --rm -v "$VOL:/data" "$IMAGE" set masterlist_enabled False >/dev/null \
 	|| fail "set before start"
+# policies from when everything came "recommended", and Player Limit's
+# old 254 seats: migrated at start to today's defaults
+docker run --rm -v "$VOL:/data" "$IMAGE" set player_limit_max 254 >/dev/null || fail "set old seats"
+docker run --rm -v "$VOL:/data" "$IMAGE" set ext_policy "{48: 'recommended', 192: 'recommended', 0x20: 'required'}" >/dev/null \
+	|| fail "set old policies"
 # a setting from before world_editor became map_layout, migrated at start
 docker run --rm -v "$VOL:/data" "$IMAGE" set world_editor_door_speed 9 >/dev/null \
 	|| fail "set an old setting"
@@ -53,6 +58,12 @@ docker exec "$NAME" lsdctl get map_layout_door_speed | grep -qx 9 \
 docker exec "$NAME" lsdctl get world_editor_door_speed >/dev/null \
 	&& fail "the old world_editor_door_speed is still there"
 echo "ok: old world_editor settings migrated"
+docker exec "$NAME" lsdctl get player_limit_max | grep -qx 32 || fail "254 seats not migrated to 32"
+pol=$(docker exec "$NAME" lsdctl get ext_policy)
+echo "$pol" | grep -Eq '48: *"applied"' || fail "teamplay's old recommended not migrated: $pol"
+echo "$pol" | grep -Eq '192: *"applied"' || fail "player_limit's old recommended not migrated: $pol"
+echo "$pol" | grep -Eq '32: *"required"' || fail "a policy set by hand was changed: $pol"
+echo "ok: old policies and seats migrated, a chosen policy kept"
 
 # maps: where to find them, a map added from a file (the same path a
 # download takes after it lands), and something that is not a map refused

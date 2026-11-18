@@ -85,6 +85,20 @@ check(not pcall(C.Tool, {titel = "typo"}), "an unknown manifest field is refused
 check(not pcall(C.Tool, {title = 3}), "a mistyped manifest field is refused");
 check(not pcall(C.Effect, {title = "x"}), "Effect itself cannot be instantiated");
 
+print("\n3a. extension policies: what a client without one costs");
+local pl = cat:get("player_limit");
+eq(pl:default_policy({player_limit_max = 32}), "applied", "32 seats: nothing asked of anyone");
+eq(pl:default_policy({player_limit_max = 64}), "required", "above 32: clients without it only watch");
+eq(pl:default_policy({}), "applied", "player_limit's default seats are 32");
+eq(cat:get("daytime"):default_policy({daytime_night = true}), "recommended", "night: told about the dark");
+eq(cat:get("daytime"):default_policy({}), "applied", "by day: nothing to tell");
+for _, id in ipairs({"teamplay", "damage_markers", "message_types", "flashlight", "pie_menu"}) do
+	eq(cat:get(id):default_policy({}), "applied", id .. " is applied");
+end
+for _, e in ipairs(cat:of_class(C.Extension)) do
+	check(e:default_policy({}) ~= "required", e.id .. ": no client turned away on a default server");
+end
+
 print("\n3b. effects come in two kinds, and player effects share one class");
 for _, id in ipairs({"railgun", "grenade_shotgun", "pinning_smg"}) do
 	check(cat:get(id) and cat:get(id):is_a(C.PlayerEffect), id .. " is a PlayerEffect");

@@ -52,6 +52,27 @@ night vision keep the ordinary flashlight, unless `nightvision_only`. A
 gamemode can switch it for them with
 `PlayerEffect.get("nightvision"):trigger(pid, {on = true})`.
 
+## Extensions: what a client without one costs
+
+Each extension has a policy (`ext_policy` in the settings, asked by its
+setup): **applied** -- used by clients that have it, nobody else is
+told; **recommended** -- a client without it is told what it misses;
+**required** -- a client without it watches from spectator. A new server
+turns nobody away:
+
+| extension | without it | default |
+|---|---|---|
+| player_properties, damage_markers, pie_menu, flashlight, kick_reason, message_types, silent_player, edit_mode, teamplay | something cosmetic, or a plain fallback | applied |
+| daytime | at night, a black fog instead of real darkness | applied by day, recommended at night |
+| player_limit | see below | applied up to 32 seats, required above |
+
+**More than 32 players** (`player_limit_max`, 32 by default): clients
+with Player Limit can play; a client without it watches from spectator
+and is never sent a player id it cannot hold (32 or more) -- and one that
+arrives when 32 ids are already taken is told it is player 1 and sent
+nothing about anybody. Older settings move to these defaults by
+themselves; a policy you chose is kept.
+
 The flashlight's presets:
 
 | preset | |

@@ -26,6 +26,9 @@
 --   |                     requires, settings, presets, setup()
 --   +- Library            a dependency other scripts pull in; hidden
 --   +- Extension          a protocol extension: needs ext/ext_policy,
+--   |                     and a default policy -- a level, or a function
+--   |                     of its own settings giving one (player_limit:
+--   |                     required only above 32 seats),
 --   |                     and its setup includes what a client missing
 --   |                     it costs (its ext_policy entry)
 --   +- Gamemode           exactly one runs; a base module, optionally
@@ -107,7 +110,7 @@ local SPEC = {
 	settings = "table", presets = "table", default_preset = "string",
 	questions = "table", upstream = "boolean", listed = "boolean",
 	-- Extension
-	ext_id = "number", ext_title = "string", policy = "string",
+	ext_id = "number", ext_title = "string", policy = "string|function",
 	-- Gamemode
 	base = "string", rider = "string",
 };
@@ -124,7 +127,7 @@ function Script:new(spec)
 		if (want == nil) then
 			error(string.format("unknown manifest field %q", tostring(k)), 2);
 		end
-		if (type(v) ~= want) then
+		if (not string.find("|" .. want .. "|", "|" .. type(v) .. "|", 1, true)) then
 			error(string.format("manifest field %q is a %s, expected a %s",
 				k, type(v), want), 2);
 		end
@@ -323,6 +326,14 @@ C.POLICIES = POLICIES;
 -- speak it costs. That answer lives in the shared ext_policy map, not
 -- in the extension's section, because lib_ext_policy reads one map for
 -- every extension.
+-- The policy this extension comes with, for these settings of its own.
+function C.Extension:default_policy(values)
+	if (type(self.policy) == "function") then
+		return self.policy(values or {});
+	end
+	return self.policy;
+end
+
 function C.Extension:setup(ui, current, opts)
 	local values, preset = Script.setup(self, ui, current, opts);
 	local policy = opts and opts.policy;
@@ -330,8 +341,13 @@ function C.Extension:setup(ui, current, opts)
 	if (policy == nil) then
 		local now = type(current.ext_policy) == "table"
 			and current.ext_policy[self.ext_id] or nil;
+		-- a policy that is the default for the old settings was never
+		-- chosen: it follows the settings to their new default
+		if (now == self:default_policy(current)) then
+			now = nil;
+		end
 		policy = ui:choose("What a client without " .. self:label()
-			.. " costs", POLICIES, now or self.policy);
+			.. " costs", POLICIES, now or self:default_policy(values));
 	end
 
 	self._policy = policy;
@@ -343,7 +359,7 @@ function C.Extension:on_install(doc)
 	if (type(policy) ~= "table") then policy = {}; end
 
 	policy[self.ext_id] = self._policy or policy[self.ext_id]
-		or self.policy;
+		or self:default_policy({});
 	doc:set_policy(policy);
 end
 

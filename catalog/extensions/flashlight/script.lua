@@ -4,6 +4,8 @@ return Extension {
 	summary = "Server-controlled flashlights: the F key, beam shape and colour.",
 	module = "lib_flashlight",
 	ext_id = 0x32,
+	-- a client without it has no light, and needs none by day
+	policy = "applied",
 	presets = {
 		{name = "default",
 			summary = "OpenSpades' warm white beam, seen by everybody",

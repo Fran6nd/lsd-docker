@@ -881,7 +881,10 @@ command("info", "info <script>", "what a script is, needs and asks",
 		say("  modules:   %s", table.concat(e:load_modules(), ", "));
 		local deps = e:dependencies();
 		if (#deps > 0) then say("  requires:  %s", table.concat(deps, ", ")); end
-		if (e.ext_id) then say("  extension: id %d, default policy %s", e.ext_id, e.policy); end
+		if (e.ext_id) then
+			say("  extension: id %d, default policy %s", e.ext_id,
+				e:default_policy(doc:section(e.id) or {}));
+		end
 		for _, p in ipairs(e.presets or {}) do
 			say("  preset %-12s %s", p.name, p.summary or "");
 		end
@@ -1673,6 +1676,37 @@ local function migrate(doc)
 		end
 		if (moved[new] ~= nil and doc:get(new) == nil) then
 			doc:set(new, moved[new]);
+			changed = true;
+		end
+	end
+
+	-- Policies from when every extension came "recommended": one still
+	-- on it takes its extension's default now, for its settings. And
+	-- Player Limit's old 254 seats, the default nobody chose, becomes
+	-- 32: above that, clients without it can only watch.
+	local section = doc:section("player_limit");
+	if (section ~= nil and tonumber(section.player_limit_max) == 254) then
+		local e = cat():get("player_limit");
+		if (e ~= nil) then
+			section.player_limit_max = 32;
+			doc:write_section(e, section);
+			changed = true;
+		end
+	end
+	local policy = doc:get("ext_policy");
+	if (type(policy) == "table") then
+		local moved = false;
+		for _, e in ipairs(cat():of_class(catalog.Extension)) do
+			if (policy[e.ext_id] == "recommended") then
+				local now = e:default_policy(doc:section(e.id) or {});
+				if (now ~= "recommended") then
+					policy[e.ext_id] = now;
+					moved = true;
+				end
+			end
+		end
+		if (moved) then
+			doc:set_policy(policy);
 			changed = true;
 		end
 	end
