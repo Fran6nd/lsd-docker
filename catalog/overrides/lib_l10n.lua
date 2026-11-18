@@ -167,11 +167,38 @@ local function pick_form(forms, index)
 	return s;
 end
 
+local resolve;
+
+-- The placeholders' values in `lang`: a value that is itself a message
+-- -- "following %(name)" inside "%(team) hostage: %(state)" -- is
+-- translated into the same language as the message around it.
+local function args_in(m, lang)
+	local args = m.args;
+	if (args == nil) then
+		return nil;
+	end
+	local out;
+	for k, v in pairs(args) do
+		if (l10n_is_msg(v)) then
+			out = out or {};
+			out[k] = resolve(v, lang);
+		end
+	end
+	if (out == nil) then
+		return args;
+	end
+	for k, v in pairs(args) do
+		if (out[k] == nil) then out[k] = v; end
+	end
+	return out;
+end
+
 -- The text of `m` in `lang`, best candidate first.
-local function resolve(m, lang)
+function resolve(m, lang)
 	local tab = m.tab;
 	local key = P.key(tab.ctx, tab.en);
 	local plural = m.count ~= nil;
+	m = {tab = tab, count = m.count, args = args_in(m, lang)};
 
 	for _, l in ipairs(P.candidates(lang, l10n_default_lang)) do
 		local cat = (l ~= "en") and catalog(l) or nil;

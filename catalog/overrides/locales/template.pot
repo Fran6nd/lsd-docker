@@ -5,613 +5,613 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: catalog/overrides/lib_l10n.lua:298
+#: catalog/overrides/lib_l10n.lua
 msgid "Your language: %(lang). Available: %(list). Use /lang <code>, or /lang auto for your client's."
 msgstr ""
 
-#: catalog/overrides/lib_l10n.lua:299
+#: catalog/overrides/lib_l10n.lua
 msgid "Language set to %(lang)."
 msgstr ""
 
-#: catalog/overrides/lib_l10n.lua:300
+#: catalog/overrides/lib_l10n.lua
 msgid "Language follows your client again: %(lang)."
 msgstr ""
 
-#: catalog/overrides/lib_l10n.lua:301
+#: catalog/overrides/lib_l10n.lua
 msgid "No translations for %(lang) here; some messages stay in English."
 msgstr ""
 
-#: catalog/overrides/lib_l10n.lua:302
+#: catalog/overrides/lib_l10n.lua
 msgid "%(lang) is not a language code (en, fr, pt_br, ...)."
 msgstr ""
 
-#: catalog/overrides/sel.lua:22
-#: lsd/scripts/sel.lua:13
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
 msgid "Beginning selection."
 msgstr ""
 
-#: catalog/overrides/sel.lua:26
-#: lsd/scripts/sel.lua:17
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
 msgid "Beginning selection start."
 msgstr ""
 
-#: catalog/overrides/sel.lua:30
-#: lsd/scripts/sel.lua:21
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
 msgid "Beginning selection end."
 msgstr ""
 
-#: catalog/overrides/sel.lua:34
-#: lsd/scripts/sel.lua:25
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
 msgid "Selection started at {x=%(x), y=%(y), z=%(z)}."
 msgstr ""
 
-#: catalog/overrides/sel.lua:38
-#: lsd/scripts/sel.lua:29
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
 msgid "Selection ended at {x=%(x), y=%(y), z=%(z)}."
 msgstr ""
 
-#: catalog/overrides/sel.lua:42
-#: lsd/scripts/sel.lua:33
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
 msgid "Begin a selection first."
 msgstr ""
 
-#: catalog/overrides/sel.lua:46
-#: lsd/scripts/sel.lua:37
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
 msgid "Start the selection first."
 msgstr ""
 
-#: catalog/overrides/sel.lua:50
-#: lsd/scripts/sel.lua:41
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
 msgid "End the selection first."
 msgstr ""
 
-#: catalog/overrides/sel.lua:55
-#: lsd/scripts/sel.lua:46
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
 msgid "shape should be one of the following: cube, box, sphere, cylinderx, cylindery, cylinderz, fn"
 msgstr ""
 
-#: catalog/overrides/sel.lua:59
-#: lsd/scripts/sel.lua:50
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
 msgid "%(arg) should be one of the following: x, -x, +x, y, -y, +y, z, -z, +z"
 msgstr ""
 
-#: catalog/overrides/sel.lua:63
-#: lsd/scripts/sel.lua:54
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
 msgid "Swizzle must map all of x, y and z"
 msgstr ""
 
-#: catalog/overrides/sel.lua:67
+#: catalog/overrides/sel.lua
 msgid "Nothing that way to pick. Aim at a block."
 msgstr ""
 
-#: catalog/overrides/sel.lua:71
-#: lsd/scripts/sel.lua:58
+#: catalog/overrides/sel.lua
+#: lsd/scripts/sel.lua
 msgid "Couldn't find any block in that cast. You're certain you're not looking at the sky?"
 msgstr ""
 
-#: lsd/scripts/afkick.lua:5
+#: lsd/scripts/afkick.lua
 msgid "%(name) was kicked: AFK"
 msgstr ""
 
-#: lsd/scripts/afkick.lua:9
+#: lsd/scripts/afkick.lua
 msgid "You will be automatically AFK-kicked in %(time) s"
 msgstr ""
 
-#: lsd/scripts/apoc.lua:21
+#: lsd/scripts/apoc.lua
 msgid "%(originname)'s apocs have been given to %(destname)"
 msgstr ""
 
-#: lsd/scripts/apoc.lua:25
+#: lsd/scripts/apoc.lua
 msgid "%(name) can now use /apoc. . ."
 msgstr ""
 
-#: lsd/scripts/apoc.lua:30
+#: lsd/scripts/apoc.lua
 msgid "You need a %(needstreak) killstreak to use apoc! Current streak: %(curstreak)"
 msgstr ""
 
-#: lsd/scripts/apoc.lua:34
+#: lsd/scripts/apoc.lua
 msgid "Don't be so hasty!"
 msgstr ""
 
-#: lsd/scripts/arena.lua:17
+#: lsd/scripts/arena.lua
 msgid "Starting round in %(time) s."
 msgstr ""
 
-#: lsd/scripts/auth.lua:28
+#: lsd/scripts/auth.lua
 msgid "You need to login to run that command."
 msgstr ""
 
-#: lsd/scripts/auth.lua:32
+#: lsd/scripts/auth.lua
 msgid "Don't make the password that long or you might not be able to change it! Try <= %(max) chars."
 msgstr ""
 
-#: lsd/scripts/auth.lua:37
+#: lsd/scripts/auth.lua
 msgid "Can't register; are you sure that name isn't taken?"
 msgstr ""
 
-#: lsd/scripts/auth.lua:42
+#: lsd/scripts/auth.lua
 msgid "User not found."
 msgstr ""
 
-#: lsd/scripts/auth.lua:46
+#: lsd/scripts/auth.lua
 msgid "Try logging in again in %(timeleft) s."
 msgstr ""
 
-#: lsd/scripts/auth.lua:50
+#: lsd/scripts/auth.lua
 msgid "Bad password or TOTP."
 msgstr ""
 
-#: lsd/scripts/auth.lua:54
+#: lsd/scripts/auth.lua
 msgid "algorithm should be one of the following: SHA1, SHA256, SHA512"
 msgstr ""
 
-#: lsd/scripts/auth.lua:58
+#: lsd/scripts/auth.lua
 msgid "Your password is too short and hard to remember. Try using a couple of actual, *random* words instead."
 msgstr ""
 
-#: lsd/scripts/auth.lua:62
+#: lsd/scripts/auth.lua
 msgid "Pass your code to /totpverify to set up TOTP."
 msgstr ""
 
-#: lsd/scripts/auth.lua:66
+#: lsd/scripts/auth.lua
 msgid "Your account's TOTP configuration has been set."
 msgstr ""
 
-#: lsd/scripts/auth.lua:70
+#: lsd/scripts/auth.lua
 msgid "Bad TOTP."
 msgstr ""
 
-#: lsd/scripts/babel.lua:12
+#: lsd/scripts/babel.lua
 msgid ">:("
 msgstr ""
 
-#: lsd/scripts/babel.lua:16
-#: lsd/scripts/babel_protect.lua:23
+#: lsd/scripts/babel.lua
+#: lsd/scripts/babel_protect.lua
 msgid "Can't do that there!"
 msgstr ""
 
-#: lsd/scripts/babel.lua:20
-#: lsd/scripts/ctf.lua:6
-#: lsd/scripts/onectf.lua:6
+#: lsd/scripts/babel.lua
+#: lsd/scripts/ctf.lua
+#: lsd/scripts/onectf.lua
 msgid "You're not holding the intel!"
 msgstr ""
 
-#: lsd/scripts/babel_heaven.lua:21
+#: lsd/scripts/babel_heaven.lua
 msgid "Cannot find image; try /heavenlist."
 msgstr ""
 
-#: lsd/scripts/babel_heaven.lua:25
+#: lsd/scripts/babel_heaven.lua
 msgid "You can list images with /heavenlist."
 msgstr ""
 
-#: lsd/scripts/babel_heaven.lua:29
+#: lsd/scripts/babel_heaven.lua
 msgid "You must wait %(timeuntil) s to paint over the platform again."
 msgstr ""
 
-#: lsd/scripts/babel_unlocks.lua:18
+#: lsd/scripts/babel_unlocks.lua
 msgid "%(name) has placed %(blocks) blocks, /heaven unlocked!"
 msgstr ""
 
-#: lsd/scripts/babel_unlocks.lua:23
+#: lsd/scripts/babel_unlocks.lua
 msgid "%(name) has placed %(blocks) tower blocks."
 msgstr ""
 
-#: lsd/scripts/babel_unlocks.lua:27
+#: lsd/scripts/babel_unlocks.lua
 msgid "Congratulations on placing 0 blocks today!"
 msgstr ""
 
-#: lsd/scripts/babel_unlocks.lua:31
+#: lsd/scripts/babel_unlocks.lua
 msgid "You need a %(needstreak) killstreak and 1 capture to use apoc! Current streak: %(curstreak)"
 msgstr ""
 
-#: lsd/scripts/babel_unlocks.lua:35
+#: lsd/scripts/babel_unlocks.lua
 msgid "You have a %(streak) streak! Capture an intel for /apoc."
 msgstr ""
 
-#: lsd/scripts/bans.lua:13
+#: lsd/scripts/bans.lua
 msgid "%(name) was banned"
 msgstr ""
 
-#: lsd/scripts/bans.lua:17
+#: lsd/scripts/bans.lua
 msgid "#%(id): <%(name)>, %(addr), %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
 msgstr ""
 
-#: lsd/scripts/bans.lua:21
+#: lsd/scripts/bans.lua
 msgid "#%(id): <%(name)>, %(addr), expired, %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
 msgstr ""
 
-#: lsd/scripts/bans.lua:25
+#: lsd/scripts/bans.lua
 msgid "#%(id): <%(name)>, %(addr), revoked, %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
 msgstr ""
 
-#: lsd/scripts/bans.lua:29
+#: lsd/scripts/bans.lua
 msgid "Ban ID: #%(id)"
 msgstr ""
 
-#: lsd/scripts/bans.lua:33
+#: lsd/scripts/bans.lua
 msgid "Invalid ban ID."
 msgstr ""
 
-#: lsd/scripts/base_logging.lua:6
+#: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) attempted to connect but server was full"
 msgstr ""
 
-#: lsd/scripts/base_logging.lua:10
+#: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) (#%(pid)) connected"
 msgstr ""
 
-#: lsd/scripts/base_logging.lua:14
+#: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) (#%(pid)) (%(name)) disconnected"
 msgstr ""
 
-#: lsd/scripts/base_logging.lua:18
+#: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) (#%(pid)) disconnected"
 msgstr ""
 
-#: lsd/scripts/base_logging.lua:22
+#: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) (#%(pid)) joined as \"%(name)\""
 msgstr ""
 
-#: lsd/scripts/base_logging.lua:26
+#: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) (#%(pid)) got version: '%(char)' (%(charval)) v%(major).%(minor).%(patch): %(msg)"
 msgstr ""
 
-#: lsd/scripts/base_logging.lua:30
+#: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) (#%(pid)) got version-ext: \"%(cli)\" v%(major).%(minor).%(patch), %(flags), %(lang)"
 msgstr ""
 
-#: lsd/scripts/base_logging.lua:35
+#: lsd/scripts/base_logging.lua
 msgid "(Global) %(name) (#%(pid)): %(msg)"
 msgstr ""
 
-#: lsd/scripts/base_logging.lua:39
+#: lsd/scripts/base_logging.lua
 msgid "(Team) %(name) (#%(pid)): %(msg)"
 msgstr ""
 
-#: lsd/scripts/caps.lua:185
+#: lsd/scripts/caps.lua
 msgid "You need the %(cap) capability to run that command."
 msgstr ""
 
-#: lsd/scripts/command_an.lua:29
+#: lsd/scripts/command_an.lua
 msgid ", crap"
 msgstr ""
 
-#: lsd/scripts/command_an.lua:33
+#: lsd/scripts/command_an.lua
 msgid "%(player) hit %(hitplayer) (torso, %(dist) blocks, %(delta) ms%(iscrap))"
 msgstr ""
 
-#: lsd/scripts/command_an.lua:37
+#: lsd/scripts/command_an.lua
 msgid "%(player) hit %(hitplayer)  (head, %(dist) blocks, %(delta) ms%(iscrap))"
 msgstr ""
 
-#: lsd/scripts/command_an.lua:41
+#: lsd/scripts/command_an.lua
 msgid "%(player) hit %(hitplayer)  (arms, %(dist) blocks, %(delta) ms%(iscrap))"
 msgstr ""
 
-#: lsd/scripts/command_an.lua:45
+#: lsd/scripts/command_an.lua
 msgid "%(player) hit %(hitplayer)  (legs, %(dist) blocks, %(delta) ms%(iscrap))"
 msgstr ""
 
-#: lsd/scripts/command_an.lua:49
+#: lsd/scripts/command_an.lua
 msgid "%(player) hit %(hitplayer) (spade, %(dist) blocks, %(delta) ms%(iscrap))"
 msgstr ""
 
-#: lsd/scripts/command_an.lua:53
+#: lsd/scripts/command_an.lua
 msgid "%(player) sent a hit packet with a crap length"
 msgstr ""
 
-#: lsd/scripts/command_an.lua:57
+#: lsd/scripts/command_an.lua
 msgid "%(player) sent a hit packet with a crap type"
 msgstr ""
 
-#: lsd/scripts/command_an.lua:61
+#: lsd/scripts/command_an.lua
 msgid "%(player) sent a hit packet with a crap target"
 msgstr ""
 
-#: lsd/scripts/command_an.lua:65
+#: lsd/scripts/command_an.lua
 msgid "Stopped analyzing."
 msgstr ""
 
-#: lsd/scripts/command_an.lua:69
+#: lsd/scripts/command_an.lua
 msgid "Now analyzing %(player)."
 msgstr ""
 
-#: lsd/scripts/command_cli.lua:5
+#: lsd/scripts/command_cli.lua
 msgid "%(name): not reported"
 msgstr ""
 
-#: lsd/scripts/command_cli.lua:9
+#: lsd/scripts/command_cli.lua
 msgid "%(name): handshaked"
 msgstr ""
 
-#: lsd/scripts/command_cli.lua:13
+#: lsd/scripts/command_cli.lua
 msgid "%(name): '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
 msgstr ""
 
-#: lsd/scripts/command_cli.lua:17
+#: lsd/scripts/command_cli.lua
 msgid "%(name): (no handshake) '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
 msgstr ""
 
-#: lsd/scripts/command_cli.lua:21
+#: lsd/scripts/command_cli.lua
 msgid "%(name): fakepid"
 msgstr ""
 
-#: lsd/scripts/command_cmds.lua:8
+#: lsd/scripts/command_cmds.lua
 msgid "Command not found."
 msgstr ""
 
-#: lsd/scripts/command_cmds.lua:12
+#: lsd/scripts/command_cmds.lua
 msgid "Were you looking for /commands?"
 msgstr ""
 
-#: lsd/scripts/command_fog.lua:6
+#: lsd/scripts/command_fog.lua
 msgid "You need the %(cap) capability to set the fog color."
 msgstr ""
 
-#: lsd/scripts/command_fog.lua:11
+#: lsd/scripts/command_fog.lua
 msgid "The current fog color is {r=%(r), g=%(g), b=%(b)} (%(hex))."
 msgstr ""
 
-#: lsd/scripts/command_ip.lua:6
+#: lsd/scripts/command_ip.lua
 msgid "%(name): %(addr)"
 msgstr ""
 
-#: lsd/scripts/command_kick.lua:5
+#: lsd/scripts/command_kick.lua
 msgid "%(name) was kicked"
 msgstr ""
 
-#: lsd/scripts/command_kill.lua:5
+#: lsd/scripts/command_kill.lua
 msgid "You can't kill yourself unless you're in-game."
 msgstr ""
 
-#: lsd/scripts/command_kill.lua:10
+#: lsd/scripts/command_kill.lua
 msgid "You need the %(cap) capability to kill others."
 msgstr ""
 
-#: lsd/scripts/command_ping.lua:5
+#: lsd/scripts/command_ping.lua
 msgid "%(name)'s round-trip time is %(rtt) ms."
 msgstr ""
 
-#: lsd/scripts/command_ping.lua:9
+#: lsd/scripts/command_ping.lua
 msgid "You can only check your own round-trip time while in-game."
 msgstr ""
 
-#: lsd/scripts/command_pm.lua:7
+#: lsd/scripts/command_pm.lua
 msgid "PM from %(name): %(msg)"
 msgstr ""
 
-#: lsd/scripts/command_ratio.lua:8
+#: lsd/scripts/command_ratio.lua
 msgid "You haven't even made one kill. No deaths though."
 msgstr ""
 
-#: lsd/scripts/command_ratio.lua:12
+#: lsd/scripts/command_ratio.lua
 msgid "%(name): %(kills) kills, %(deaths) deaths, %(ratio) kills per life"
 msgstr ""
 
-#: lsd/scripts/command_savemap.lua:8
+#: lsd/scripts/command_savemap.lua
 msgid "name must not contain '/' or '\\', or start with a '.'"
 msgstr ""
 
-#: lsd/scripts/command_server.lua:11
+#: lsd/scripts/command_server.lua
 msgid "Unknown address"
 msgstr ""
 
-#: lsd/scripts/command_switch.lua:5
+#: lsd/scripts/command_switch.lua
 msgid "team should be one of 1, 2, 256, -1, spec, spectator, %(firstteam), %(secondteam)."
 msgstr ""
 
-#: lsd/scripts/command_tp.lua:7
+#: lsd/scripts/command_tp.lua
 msgid "You have gone nowhere successfully."
 msgstr ""
 
-#: lsd/scripts/command_ups.lua:9
+#: lsd/scripts/command_ups.lua
 msgid "%(arg) should be one of {%(freqs)} (Hz)"
 msgstr ""
 
-#: lsd/scripts/command_ups.lua:13
+#: lsd/scripts/command_ups.lua
 msgid "Current update rate: %(freq) Hz"
 msgstr ""
 
-#: lsd/scripts/command_version.lua:5
+#: lsd/scripts/command_version.lua
 msgid "Running %(server_name) commit %(commit)"
 msgstr ""
 
-#: lsd/scripts/commands.lua:144
+#: lsd/scripts/commands.lua
 msgid "%(arg) should be a IPv4 address, optionally given in CIDR notation."
 msgstr ""
 
-#: lsd/scripts/commands.lua:148
+#: lsd/scripts/commands.lua
 msgid "%(arg) should be a time delta."
 msgstr ""
 
-#: lsd/scripts/commands.lua:152
+#: lsd/scripts/commands.lua
 msgid "%(arg) should be finite."
 msgstr ""
 
-#: lsd/scripts/commands.lua:156
+#: lsd/scripts/commands.lua
 msgid "%(arg) should use at most one of the following units: s, min, h, d, w, month, y."
 msgstr ""
 
-#: lsd/scripts/commands.lua:160
+#: lsd/scripts/commands.lua
 msgid "%(arg) should be between %(min) and %(max)"
 msgstr ""
 
-#: lsd/scripts/commands.lua:299
+#: lsd/scripts/commands.lua
 msgid "%(arg): Player not found."
 msgstr ""
 
-#: lsd/scripts/commands.lua:303
+#: lsd/scripts/commands.lua
 msgid "%(arg): Player not connected."
 msgstr ""
 
-#: lsd/scripts/commands.lua:307
+#: lsd/scripts/commands.lua
 msgid "%(arg): Ambiguous player."
 msgstr ""
 
-#: lsd/scripts/commands.lua:311
+#: lsd/scripts/commands.lua
 msgid "%(arg): Invalid player ID."
 msgstr ""
 
-#: lsd/scripts/commands.lua:349
+#: lsd/scripts/commands.lua
 msgid "Unknown command"
 msgstr ""
 
-#: lsd/scripts/commands.lua:353
+#: lsd/scripts/commands.lua
 msgid "Some error occurred with that command :("
 msgstr ""
 
-#: lsd/scripts/commands.lua:357
+#: lsd/scripts/commands.lua
 msgid "This command can only be run while in-game."
 msgstr ""
 
-#: lsd/scripts/dd.lua:39
+#: lsd/scripts/dd.lua
 msgid "dd: prevented fast block placement from %(name) (#%(pid))"
 msgstr ""
 
-#: lsd/scripts/dd.lua:43
+#: lsd/scripts/dd.lua
 msgid "dd: prevented fast 1x dig from %(name) (#%(pid))"
 msgstr ""
 
-#: lsd/scripts/dd.lua:47
+#: lsd/scripts/dd.lua
 msgid "dd: prevented fast block shot from %(name) (#%(pid))"
 msgstr ""
 
-#: lsd/scripts/dd.lua:51
+#: lsd/scripts/dd.lua
 msgid "dd: prevented fast 3x dig from %(name) (#%(pid))"
 msgstr ""
 
-#: lsd/scripts/dd.lua:55
+#: lsd/scripts/dd.lua
 msgid "dd: prevented fast block line placement from %(name) (#%(pid))"
 msgstr ""
 
-#: lsd/scripts/dd.lua:59
+#: lsd/scripts/dd.lua
 msgid "dd: prevented fast spadehit from %(name) (#%(pid))"
 msgstr ""
 
-#: lsd/scripts/dd.lua:63
+#: lsd/scripts/dd.lua
 msgid "dd: prevented fast player shot from %(name) (#%(pid))"
 msgstr ""
 
-#: lsd/scripts/emote.lua:24
+#: lsd/scripts/emote.lua
 msgid "Cannot find image; try /emotelist."
 msgstr ""
 
-#: lsd/scripts/emote.lua:28
+#: lsd/scripts/emote.lua
 msgid "You can list images with /emotelist."
 msgstr ""
 
-#: lsd/scripts/emote.lua:32
+#: lsd/scripts/emote.lua
 msgid "You must wait %(timeuntil) s to paint an emote again."
 msgstr ""
 
-#: lsd/scripts/if_websocket.lua:9
+#: lsd/scripts/if_websocket.lua
 msgid "ifwsock: got tcp connection %(addr) (#%(pid))"
 msgstr ""
 
-#: lsd/scripts/if_websocket.lua:13
+#: lsd/scripts/if_websocket.lua
 msgid "ifwsock: tcp connection %(addr) (#%(pid)) closed"
 msgstr ""
 
-#: lsd/scripts/if_websocket.lua:17
+#: lsd/scripts/if_websocket.lua
 msgid "ifwsock: connected: (#%(pid))"
 msgstr ""
 
-#: lsd/scripts/if_websocket.lua:21
+#: lsd/scripts/if_websocket.lua
 msgid "ifwsock: disconnected: %(addr) (#%(pid))"
 msgstr ""
 
-#: lsd/scripts/irc_console.lua:19
+#: lsd/scripts/irc_console.lua
 msgid "Unable to set nick. Make sure the user exists and the nick isn't already in use."
 msgstr ""
 
-#: lsd/scripts/irc_console.lua:23
+#: lsd/scripts/irc_console.lua
 msgid "Unable to remove nick. Make sure the user exists and has a linked nickname."
 msgstr ""
 
-#: lsd/scripts/map_meta.lua:12
+#: lsd/scripts/map_meta.lua
 msgid "Next up: %(name)"
 msgstr ""
 
-#: lsd/scripts/map_meta.lua:16
+#: lsd/scripts/map_meta.lua
 msgid "Next up: %(name) by %(author)"
 msgstr ""
 
-#: lsd/scripts/masterlist.lua:14
+#: lsd/scripts/masterlist.lua
 msgid "Connected to masterlist %(addr)"
 msgstr ""
 
-#: lsd/scripts/masterlist.lua:18
+#: lsd/scripts/masterlist.lua
 msgid "Disconnected from masterlist %(addr)"
 msgstr ""
 
-#: lsd/scripts/masterlist.lua:22
+#: lsd/scripts/masterlist.lua
 msgid "Reconnecting to masterlist %(addr)"
 msgstr ""
 
-#: lsd/scripts/medkit.lua:8
+#: lsd/scripts/medkit.lua
 msgid "The medkit cannot bring you back from the dead."
 msgstr ""
 
-#: lsd/scripts/medkit.lua:12
+#: lsd/scripts/medkit.lua
 msgid "You've already used all your medkits! Restock at the tent."
 msgstr ""
 
-#: lsd/scripts/medkit.lua:16
+#: lsd/scripts/medkit.lua
 msgid "The medkit only heals physical wounds."
 msgstr ""
 
-#: lsd/scripts/setspawn.lua:7
+#: lsd/scripts/setspawn.lua
 msgid "You'll now spawn at the default position."
 msgstr ""
 
-#: lsd/scripts/setspawn.lua:12
+#: lsd/scripts/setspawn.lua
 msgid "You'll now spawn at {x=%(x), y=%(y), z=%(z)}."
 msgstr ""
 
-#: lsd/scripts/team_balance.lua:7
+#: lsd/scripts/team_balance.lua
 msgid "%(team) is unbalanced; switched to other team"
 msgstr ""
 
-#: lsd/scripts/team_balance.lua:11
+#: lsd/scripts/team_balance.lua
 msgid "%(team) is unbalanced; cannot switch"
 msgstr ""
 
-#: lsd/scripts/time_limit.lua:25
+#: lsd/scripts/time_limit.lua
 msgid "Remaining time extended to %(time)."
 msgstr ""
 
-#: lsd/scripts/time_limit.lua:29
+#: lsd/scripts/time_limit.lua
 msgid "%(time) remaining."
 msgstr ""
 
-#: lsd/scripts/time_limit.lua:33
+#: lsd/scripts/time_limit.lua
 msgid "You need the %(cap) capability to set the time limit."
 msgstr ""
 
-#: lsd/scripts/toggles.lua:6
+#: lsd/scripts/toggles.lua
 msgid "Added %(cap) to %(name)"
 msgstr ""
 
-#: lsd/scripts/toggles.lua:10
+#: lsd/scripts/toggles.lua
 msgid "Removed %(cap) from %(name)"
 msgstr ""
 
-#: lsd/scripts/websock_console.lua:9
+#: lsd/scripts/websock_console.lua
 msgid "wscon: got tcp connection (#%(pid))"
 msgstr ""
 
-#: lsd/scripts/websock_console.lua:13
+#: lsd/scripts/websock_console.lua
 msgid "wscon: tcp connection #%(pid) closed"
 msgstr ""
 
-#: lsd/scripts/websock_console.lua:17
+#: lsd/scripts/websock_console.lua
 msgid "wscon: connected: %(name) (#%(pid))"
 msgstr ""
 
-#: lsd/scripts/websock_console.lua:21
+#: lsd/scripts/websock_console.lua
 msgid "wscon: disconnected: %(name) (#%(pid))"
 msgstr ""
 
-#: lsd/scripts/websock_console.lua:25
+#: lsd/scripts/websock_console.lua
 msgid "wscon: %(name) (#%(pid)): /%(cmd)"
 msgstr ""

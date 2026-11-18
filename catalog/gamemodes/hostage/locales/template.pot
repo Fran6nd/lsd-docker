@@ -5,98 +5,98 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: catalog/gamemodes/hostage/hostage.lua:93
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "This is HOSTAGE mode: free the hostage held at the enemy tent. Get close and it follows; walk it home to score."
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:99
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "Thanks for picking me up!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:103
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "%(hero) brought the %(team) hostage home! +1 %(team)"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:107
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "%(killer) executed the %(team) hostage! +1 %(team)"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:112
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "%(escort) is freeing your hostage -- go support!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:117
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "A %(team) hostage is loose -- hunt it down and drag it back!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:122
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "The %(team) hostage was dragged back to captivity."
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:127
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "Get me out of here!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:128
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "I'm a prisoner -- someone free me!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:130
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "Psst! Come spring me from their tent!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:135
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "I'm lost! Somebody come get me!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:137
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "Hello? Anyone? I'm stranded out here!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:139
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "Help, I don't know the way home!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:145
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "Home at last -- thank you!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:149
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "Argh -- they got me!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:153
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "They're right behind us!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:154
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "Hurry, enemies close!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:155
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "Watch out -- keepers!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:158
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "This way, we're almost there!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:159
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "Keep going, take me home!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:160
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "Don't leave me behind!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:164
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "They've caught me -- help!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:165
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "I'm being dragged back!"
 msgstr ""
 
-#: catalog/gamemodes/hostage/hostage.lua:166
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "No -- not back to the cage!"
 msgstr ""

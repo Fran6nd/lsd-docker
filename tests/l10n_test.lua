@@ -125,6 +125,9 @@ eq(l10n_str(0, l10n_msg({en = "Open", ctx = "door"})), "Ouverte", "a context pic
 eq(l10n_str(0, l10n_msg({en = "Bye", fr = "Salut"})), "Salut", "an inline translation wins");
 eq(l10n_str(0, "plain"), "plain", "a plain string passes through");
 eq(tostring(kicked), "Bob was kicked", "tostring is the log language");
+local nested = l10n_msg("%(name) was kicked", {name = l10n_msg({en = "Open", ctx = "door"})});
+eq(l10n_str(0, nested), "Ouverte a été expulsé", "a message inside a message: same language");
+eq(l10n_str(2, nested), "Open was kicked", "in English too");
 
 print("\n5. plurals");
 local function bots(n) return l10n_msgn({en = "%(n) bot", en_plural = "%(n) bots"}, n); end

@@ -5,38 +5,38 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: catalog/tools/votekick/votekick.lua:24
+#: catalog/tools/votekick/votekick.lua
 msgid "%(starter) started a votekick against %(target)! Type /y to vote (%(have)/%(need))."
 msgstr ""
 
-#: catalog/tools/votekick/votekick.lua:28
+#: catalog/tools/votekick/votekick.lua
 msgid "%(voter) voted to kick %(target) (%(have)/%(need))."
 msgstr ""
 
-#: catalog/tools/votekick/votekick.lua:32
+#: catalog/tools/votekick/votekick.lua
 msgid "%(target) was votekicked."
 msgstr ""
 
-#: catalog/tools/votekick/votekick.lua:36
+#: catalog/tools/votekick/votekick.lua
 msgid "The votekick against %(target) failed."
 msgstr ""
 
-#: catalog/tools/votekick/votekick.lua:40
+#: catalog/tools/votekick/votekick.lua
 msgid "You already voted."
 msgstr ""
 
-#: catalog/tools/votekick/votekick.lua:43
+#: catalog/tools/votekick/votekick.lua
 msgid "No votekick is in progress -- start one with /votekick <player>."
 msgstr ""
 
-#: catalog/tools/votekick/votekick.lua:47
+#: catalog/tools/votekick/votekick.lua
 msgid "Not enough players for a votekick."
 msgstr ""
 
-#: catalog/tools/votekick/votekick.lua:51
+#: catalog/tools/votekick/votekick.lua
 msgid "You can't votekick yourself."
 msgstr ""
 
-#: catalog/tools/votekick/votekick.lua:54
+#: catalog/tools/votekick/votekick.lua
 msgid "%(target) can't be votekicked."
 msgstr ""

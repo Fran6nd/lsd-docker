@@ -5,30 +5,30 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: catalog/extensions/teamplay/lib_teamplay.lua:749
+#: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "Pinging is turned off on this server."
 msgstr ""
 
-#: catalog/extensions/teamplay/lib_teamplay.lua:750
+#: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "You cannot ping while dead."
 msgstr ""
 
-#: catalog/extensions/teamplay/lib_teamplay.lua:751
+#: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "Too soon: wait a moment before pinging again."
 msgstr ""
 
-#: catalog/extensions/teamplay/lib_teamplay.lua:752
+#: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "That position is off the map."
 msgstr ""
 
-#: catalog/extensions/teamplay/lib_teamplay.lua:753
+#: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "You can only ping what you are looking at."
 msgstr ""
 
-#: catalog/extensions/teamplay/lib_teamplay.lua:891
+#: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "Unknown command"
 msgstr ""
 
-#: catalog/extensions/teamplay/lib_teamplay.lua:892
+#: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "Nothing to ping: /pingmark needs a position, three numbers, before the reason."
 msgstr ""

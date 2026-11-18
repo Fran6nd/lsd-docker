@@ -246,7 +246,11 @@ local function template(entry)
 				by_key[key] = e;
 				list[#list+1] = e;
 			end
-			e.refs[#e.refs+1] = f .. ":" .. m.line;
+			-- the file, not the line: a line number would make every
+			-- unrelated edit above a message a stale template
+			if (e.refs[#e.refs] ~= f) then
+				e.refs[#e.refs+1] = f;
+			end
 		end
 	end
 	return list, by_key, skipped;
