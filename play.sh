@@ -31,7 +31,8 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 # Was the image here already? Then it is somebody's -- a server of yours,
-# say -- and stays. Only an image this game downloaded goes with it.
+# say -- and stays (updated, see below). Only an image this game
+# downloaded goes with it.
 had_image=
 docker image inspect "$IMAGE" >/dev/null 2>&1 && had_image=1
 
@@ -73,10 +74,16 @@ host_addresses() {
 	fi | tr '\n' ' ' | sed 's/ *$//'
 }
 
-# an image already here is left as it is -- not even updated
+# Always the newest image: one line has to be enough, and an old copy
+# left here by an earlier game or a server may predate `play`. Pulling
+# only moves the tag -- a server running on the old image keeps it.
+# Offline, a copy already here will do.
 if [ -z "$had_image" ]; then
 	say "downloading the game (removed again when it is over)..."
 	docker pull -q "$IMAGE" >/dev/null
+else
+	say "checking for a newer version of the game..."
+	docker pull -q "$IMAGE" >/dev/null 2>&1 || say "offline? playing the copy already here"
 fi
 
 # Questions need a terminal; under `curl | sh` stdin is the script.

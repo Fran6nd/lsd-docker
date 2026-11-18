@@ -33,7 +33,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Was the image here already? Then it is somebody's -- a server of yours,
-# say -- and stays, not even updated. Only an image this game
+# say -- and stays (updated, see below). Only an image this game
 # downloaded goes with it.
 docker image inspect $Image *> $null
 $HadImage = ($LASTEXITCODE -eq 0)
@@ -60,9 +60,17 @@ $Addresses = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue
 	} | Select-Object -ExpandProperty IPAddress) -join ' '
 
 try {
+	# Always the newest image: one line has to be enough, and an old
+	# copy left here may predate `play`. Pulling only moves the tag -- a
+	# server running on the old image keeps it. Offline, a copy already
+	# here will do.
 	if (-not $HadImage) {
 		Write-Host 'Downloading the game (removed again when it is over)...'
 		docker pull -q $Image | Out-Null
+	} else {
+		Write-Host 'Checking for a newer version of the game...'
+		docker pull -q $Image *> $null
+		if ($LASTEXITCODE -ne 0) { Write-Host 'Offline? Playing the copy already here.' }
 	}
 	docker run --rm -it -p "${Port}:32887/udp" `
 		-e "LSD_HOST_ADDRESSES=$Addresses" -e "LSD_HOST_PORT=$Port" `
