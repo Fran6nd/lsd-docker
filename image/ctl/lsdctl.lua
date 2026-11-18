@@ -745,6 +745,81 @@ local function by_category(entries)
 	return entries;
 end
 
+-- The modules the running server has loaded, of those named; nil when
+-- it is not running.
+local function loaded_modules(names)
+	if (#names == 0) then return {}; end
+	local list = {};
+	for _, n in ipairs(names) do list[#list+1] = string.format("%q", n); end
+	local out = console({"exec for _, m in ipairs({" .. table.concat(list, ",")
+		.. "}) do log(\"LSDCTL\" .. \"-MOD|\" .. m .. \"|\" .. tostring(package.loaded[m] ~= nil)) end"}, 1);
+	if (out == nil) then return nil; end
+	local got = {};
+	for _, r in ipairs(replies(out, "LSDCTL-MOD|")) do
+		local m, yes = string.match(r, "^([^|]+)|(%a+)");
+		if (m ~= nil) then got[m] = yes == "true"; end
+	end
+	return got;
+end
+
+command("local", "local",
+	"your own scripts on /data: whether each is installed, running, and what it replaces",
+	function()
+		local doc = open_doc(false);
+
+		local mine = {};
+		for _, e in ipairs(cat().list) do
+			if (is_local(e)) then mine[#mine+1] = e; end
+		end
+
+		local loose = {};
+		local h = io.popen("cd " .. sh_quote(DATA .. "/scripts") .. " 2>/dev/null && find . -name '*.lua' | sort");
+		for f in h:lines() do loose[#loose+1] = string.sub(f, 3); end
+		h:close();
+
+		local names = {};
+		for _, e in ipairs(mine) do
+			for _, m in ipairs(e:load_modules()) do names[#names+1] = m; end
+		end
+		for _, f in ipairs(loose) do
+			names[#names+1] = (string.gsub(string.gsub(f, "%.lua$", ""), "/", "."));
+		end
+		local up = loaded_modules(names);
+
+		local function state(mods)
+			if (up == nil) then return "server not running"; end
+			for _, m in ipairs(mods) do
+				if (not up[m]) then return "not running"; end
+			end
+			return "running";
+		end
+
+		say("Your entries (%s/catalog), kept across updates:", DATA);
+		if (#mine == 0) then say("  none"); end
+		for _, e in ipairs(by_category(mine)) do
+			local installed = doc:is_installed(e.id) or doc:get("gamemode") == e.id;
+			say("  %s %-18s %-16s %s%s", installed and "*" or " ", e.id, category_title(e),
+				installed and state(e:load_modules()) or "not installed",
+				e.replaces and ("; replaces the image's " .. e.id) or "");
+		end
+
+		say("");
+		say("Loose modules (%s/scripts), kept across updates:", DATA);
+		if (#loose == 0) then say("  none"); end
+		for _, f in ipairs(loose) do
+			local m = string.gsub(string.gsub(f, "%.lua$", ""), "/", ".");
+			local base = string.match(f, "[^/]+$");
+			local over = read_file(HOME .. "/scripts.dist/" .. f) ~= nil and "upstream LSd's"
+				or (run("find " .. sh_quote(HOME .. "/catalog") .. " -name " .. sh_quote(base)
+					.. " | grep -q .") and "the image's" or nil);
+			say("    %-34s %s%s", f, state({m}),
+				over and ("; replaces " .. over .. " " .. base) or "");
+		end
+
+		say("");
+		say("* installed. Add one: README, \"Your own scripts\".");
+	end);
+
 command("available", "available [category] [--all]",
 	"every script this image can install (* installed); --all shows libraries",
 	function(args)

@@ -161,6 +161,15 @@ local_ok || fail "local script lost when the container was recreated"
 docker exec "$NAME" lsdctl info hello | grep -q "yours: updates keep it" || fail "lsdctl info"
 echo "ok: it survives the container being recreated, as on update"
 
+# lsdctl local: the operator's scripts, and whether each is running
+docker exec "$NAME" sh -c 'echo "return nil" > /data/scripts/extra.lua'
+mine=$(docker exec "$NAME" lsdctl local)
+echo "$mine" | grep -q "hello .* running" || fail "lsdctl local: hello not running: $mine"
+echo "$mine" | grep -q "extra.lua .*not running" || fail "lsdctl local: loose module: $mine"
+docker exec "$NAME" rm /data/scripts/extra.lua
+echo "ok: lsdctl local lists the operator's scripts and what runs"
+
+
 if docker logs "$NAME" 2>&1 | grep -E 'failed to load|is installed but not in the catalog|stack traceback'; then
 	fail "errors in the server log"
 fi

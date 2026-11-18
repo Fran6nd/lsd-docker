@@ -238,6 +238,20 @@ of the image's -- without building an image, from its data volume:
 survive every update. An entry of yours with the id of one of the
 image's replaces it -- updates included -- until you remove yours.
 
+**Seeing them**: `lsd local` lists your entries and loose modules, and
+for each whether it is installed, whether the running server has it
+loaded, and which of the image's scripts it replaces:
+
+```
+Your entries (/data/catalog), kept across updates:
+  * hello              Tools            running
+  * votekick           Tools            running; replaces the image's votekick
+    draft              Tools            not installed
+
+Loose modules (/data/scripts), kept across updates:
+    motd.lua                           running; replaces the image's motd.lua
+```
+
 **Adding one.** Write the entry on your machine, as described above:
 
 ```
