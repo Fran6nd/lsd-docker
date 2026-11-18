@@ -25,6 +25,14 @@
 -- A locale falls back to its language, then to the default, then to
 -- English: a fr_ca player reads fr_ca, then fr.
 --
+-- ONLY FOR CLIENTS THAT CAN SHOW IT. Translation is gated on the client:
+-- l10n_clients names the clients that get it and the oldest version of
+-- each, matched in the version string the client reports (LSd's
+-- get_client_msg; ZeroSpades writes "... | ZeroSpades 0.0.9 <commit>").
+-- Every other client -- older ZeroSpades, OpenSpades, BetterSpades,
+-- Voxlap -- reads l10n_default_lang, and /lang tells them why it cannot
+-- change it.
+--
 -- MESSAGES, for anything that is not a one-off chat line:
 --
 --   local m = l10n_msg({en="%(name) was kicked"}, {name=n})  -- or a
@@ -50,6 +58,9 @@ local P = require "l10n_po";
 getcfg("l10n_default_lang", "en");
 getcfg("l10n_log_lang", "en");
 getcfg("l10n_dir", "scripts/locales");
+getcfg("l10n_clients", {ZeroSpades = "0.0.9"},
+	"The clients translated for, each with its oldest version: "
+		.. "{ZeroSpades: '0.0.9'}. Others read l10n_default_lang.");
 
 -- the languages a player may pick, from what is installed; nil until
 -- first asked
@@ -292,12 +303,67 @@ end
 -- pid -> what they chose with /lang; cleared when they leave
 local chosen = pid_connected_table();
 
+--============================ THE GATE ==============================--
+
+local function version_of(s)
+	local a, b, c = string.match(tostring(s), "^(%d+)%.(%d+)%.(%d+)");
+	if (a == nil) then return nil; end
+	return {tonumber(a), tonumber(b), tonumber(c)};
+end
+
+local function at_least(v, min)
+	for i = 1, 3 do
+		if (v[i] ~= min[i]) then return v[i] > min[i]; end
+	end
+	return true;
+end
+
+-- Whether this version string is a client l10n_clients lets translate.
+-- Pure, so the tests can ask it directly.
+function l10n_client_matches(msg)
+	if (type(msg) ~= "string" or type(l10n_clients) ~= "table") then
+		return false;
+	end
+	for name, min in pairs(l10n_clients) do
+		local want = version_of(min);
+		local escaped = string.gsub(tostring(name), "%p", "%%%0");
+		for ver in string.gmatch(msg, "%f[%w]" .. escaped .. " (%d+%.%d+%.%d+)") do
+			local v = version_of(ver);
+			if (want ~= nil and v ~= nil and at_least(v, want)) then
+				return true;
+			end
+		end
+	end
+	return false;
+end
+
+-- pid -> {msg=, ok=}: the answer for the version string it was worked
+-- out from, so a reply arriving later is seen
+local gate = pid_connected_table();
+
+-- Whether `pid` gets translations at all.
+function l10n_client_ok(pid)
+	if (is_fakepid(pid)) then
+		return false;
+	end
+	local ok, msg = pcall(get_client_msg, pid);
+	if (not ok or type(msg) ~= "string") then
+		return false;
+	end
+	local g = gate[pid];
+	if (g == nil or g.msg ~= msg) then
+		g = {msg = msg, ok = l10n_client_matches(msg)};
+		gate[pid] = g;
+	end
+	return g.ok;
+end
+
 function mod.impl.l10n_get_lang(pid)
 	return P.norm_lang(l10n_default_lang) or "en";
 end
 
 function mod.l10n_get_lang(pid)
-	if (is_fakepid(pid)) then
+	if (is_fakepid(pid) or not l10n_client_ok(pid)) then
 		return mod.next.l10n_get_lang(pid);
 	end
 
@@ -405,6 +471,16 @@ local lang_set = {en = "Language set to %(lang)."};
 local lang_auto = {en = "Language follows your client again: %(lang)."};
 local lang_none = {en = "No translations for %(lang) here; some messages stay in English."};
 local lang_bad = {en = "%(lang) is not a language code (en, fr, pt_br, ...)."};
+local lang_gated = {en = "Translations need %(clients); this server speaks %(lang) to your client."};
+
+local function clients_text()
+	local out = {};
+	for name, min in pairs(l10n_clients or {}) do
+		out[#out+1] = tostring(name) .. " " .. tostring(min) .. "+";
+	end
+	table.sort(out);
+	return table.concat(out, ", ");
+end
 
 local cmd = {name = "lang", usage = "[<code>|auto]",
 	desc = "Show or choose the language the server speaks to you.",
@@ -414,6 +490,12 @@ local cmd = {name = "lang", usage = "[<code>|auto]",
 
 function cmd.func(pid, argv)
 	cmd_assert(pid, cmd, #argv <= 1);
+
+	if (not l10n_client_ok(pid)) then
+		l10n_send_chat(pid, lang_gated, {clients = clients_text(),
+			lang = l10n_get_lang(pid)});
+		return;
+	end
 
 	if (argv[1] == nil) then
 		l10n_send_chat(pid, lang_now, {lang = l10n_get_lang(pid),

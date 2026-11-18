@@ -232,9 +232,20 @@ or a modified script without building an image.
 
 Every player reads the server in their own language: the one they chose
 with `/lang fr` (`/lang auto` to undo), else the locale their client
-reports (OpenSpades and its forks send it on connect), else
-`l10n_default_lang`. `fr_ca` falls back to `fr`, then the default, then
-English.
+reports, else `l10n_default_lang`. `fr_ca` falls back to `fr`, then the
+default, then English.
+
+Translations are for the current ZeroSpades only: the client that sends
+its locale, speaks UTF-8 and draws the scripts translated into (accents,
+Cyrillic, Chinese). Every other client -- an older ZeroSpades, stock
+OpenSpades, BetterSpades, Voxlap -- reads `l10n_default_lang`, and `/lang`
+tells them what translations need. The gate is a setting, the client
+names and the oldest version of each, matched in the version string a
+client reports:
+
+```
+l10n_clients = {ZeroSpades: '0.0.9'}
+```
 
 A script writes its messages in English, with LSd's `%(name)`
 placeholders, and every message is translated for each player it

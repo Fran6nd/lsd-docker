@@ -62,15 +62,22 @@ eq(fr.plural(2), 1, "the header's Plural-Forms is used");
 check(not pcall(P.parse, 'msgid "x"\nmsgstr nonsense\n'), "a broken file is refused");
 
 print("\n4. lib_l10n: who reads what");
--- the stubbed server: 0 sent fr_FR, 1 sent pl, 2 sent nothing, 3 sent pt_br
+-- the stubbed server: 0 sent fr_FR, 1 sent pl, 2 sent nothing, 3 sent
+-- pt_br, all on ZeroSpades 0.0.9; 4 sent fr on stock OpenSpades, 5 fr
+-- on an older ZeroSpades
 MAX_PLAYERS = 32; PID_BROADCAST = 0x20000001;
-local LANG = {[0] = "fr_FR", [1] = "pl", [2] = "", [3] = "pt_br"};
+local LANG = {[0] = "fr_FR", [1] = "pl", [2] = "", [3] = "pt_br", [4] = "fr", [5] = "fr"};
+local ZS = "Darwin 25.6.0 | ZeroSpades 0.0.9 b3432453 (arm64)";
+local MSG = {[0] = ZS, [1] = ZS, [2] = ZS, [3] = ZS,
+	[4] = "Linux 6.1 | OpenSpades 0.1.5 (x86_64)",
+	[5] = "Windows 10 | ZeroSpades 0.0.8 (x86_64)"};
 local sent, logged = {}, {};
 function init_mod() return {impl={before={},after={},next={}}, late={before={},after={},next={}},
 	before={}, after={}, next={}, early={before={},after={},next={}}, xearly={before={},after={},next={}}}; end
 function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
 function pid_connected_table() return {}; end
 function get_client_ext_language(pid) return LANG[pid] or ""; end
+function get_client_msg(pid) return MSG[pid]; end
 function is_fakepid(pid) return pid >= MAX_PLAYERS and pid < 0x20000000; end
 function piditer(pid)
 	if (pid ~= PID_BROADCAST) then
@@ -122,6 +129,23 @@ mod.on_load();
 eq(l10n_get_lang(0), "fr_fr", "a client's locale, normalised");
 eq(l10n_get_lang(2), "en", "no locale: the default");
 eq(l10n_get_lang(40), "en", "the console: the default");
+
+print("\n4b. the gate: translations for the current ZeroSpades only");
+check(l10n_client_matches(ZS), "ZeroSpades 0.0.9 with a commit hash");
+check(l10n_client_matches("x | ZeroSpades 0.0.10 (y)"), "a newer patch");
+check(l10n_client_matches("x | ZeroSpades 0.1.0"), "a newer minor");
+check(not l10n_client_matches(MSG[5]), "not an older ZeroSpades");
+check(not l10n_client_matches(MSG[4]), "not stock OpenSpades");
+check(not l10n_client_matches("x | NotZeroSpades 9.9.9"), "nor a name that only ends the same");
+check(not l10n_client_matches(nil), "nor a client that never said");
+eq(l10n_get_lang(4), "en", "OpenSpades asking for fr reads the default");
+eq(l10n_get_lang(5), "en", "so does an older ZeroSpades");
+MSG[6] = ZS;
+check(not l10n_client_ok(6) == false, "a reply arriving later opens the gate");
+MSG[6] = nil;
+l10n_clients = {ZeroSpades = "0.0.8"};
+check(l10n_client_matches(MSG[5]), "l10n_clients sets the oldest version");
+l10n_clients = {ZeroSpades = "0.0.9"};
 
 local kicked = l10n_msg({en = "%(name) was kicked"}, {name = "Bob"});
 eq(l10n_str(0, kicked), "Bob a été expulsé", "fr_fr falls back to fr");
@@ -205,6 +229,11 @@ eq(l10n_get_lang(2), "en", "auto: back to the client's");
 sent = {};
 lang.func(2, {"../x"});
 check(sent[1] and sent[1][2]:find("not a language code"), "a bad code is refused");
+sent = {};
+lang.func(4, {"fr"});
+check(sent[1] and sent[1][2]:find("Translations need ZeroSpades 0.0.9+", 1, true),
+	"/lang tells another client what translations need", sent[1] and sent[1][2]);
+eq(l10n_get_lang(4), "en", "and changes nothing");
 eq(l10n_get_lang(2), "en", "and changes nothing");
 sent = {};
 lang.func(0, {});

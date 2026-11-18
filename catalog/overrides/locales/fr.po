@@ -64,6 +64,10 @@ msgid "%(lang) is not a language code (en, fr, pt_br, ...)."
 msgstr "%(lang) n'est pas un code de langue (en, fr, pt_br, ...)."
 
 #: catalog/overrides/lib_l10n.lua
+msgid "Translations need %(clients); this server speaks %(lang) to your client."
+msgstr "Les traductions demandent %(clients) ; ce serveur parle %(lang) à ton client."
+
+#: catalog/overrides/lib_l10n.lua
 msgctxt "command"
 msgid "Show or choose the language the server speaks to you."
 msgstr "Voir ou choisir la langue dans laquelle le serveur te parle."

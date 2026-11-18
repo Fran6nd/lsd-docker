@@ -88,12 +88,19 @@ echo "$fr" | grep -q "L10N3|Commande inconnue|Afficher la version du serveur.|" 
 	|| fail "French for upstream LSd: $fr"
 echo "ok: upstream LSd's text translated"
 
+# the gate: translations for the current ZeroSpades only
+gate=$(docker exec "$NAME" lsdctl exec 'exec log("GATE|%s|%s|", tostring(l10n_client_matches("Linux | ZeroSpades 0.0.9 abc (x86_64)")), tostring(l10n_client_matches("Linux | OpenSpades 0.1.5 (x86_64)")))')
+echo "$gate" | grep -q "GATE|true|false|" || fail "the ZeroSpades gate: $gate"
+echo "ok: translations gated to the current ZeroSpades"
+
 # the pie menu: commands put themselves in it (votekick, /lang), in the
 # player's language, through the scripts' own translations
 docker exec "$NAME" lsdctl install pie_menu --yes --now >/dev/null || fail "install pie_menu"
 sleep 3
 wait_up "after pie_menu"
-pie=$(docker exec "$NAME" lsdctl exec 'exec l10n_set_lang(0, "fr"); local b = pie_menu_build(0) or ""; log("PIE|%s|%s|%s|", tostring(b:find("/votekick %p", 1, true) ~= nil), tostring(b:find("Voter l\x27exclusion", 1, true) ~= nil), tostring(b:find("/lang", 1, true) ~= nil)); l10n_set_lang(0, nil)')
+# (slot 0 has no client to pass the ZeroSpades gate, so it is opened
+# for this one build and closed again)
+pie=$(docker exec "$NAME" lsdctl exec 'exec local g = l10n_client_ok; l10n_client_ok = function() return true end; l10n_set_lang(0, "fr"); local b = pie_menu_build(0) or ""; log("PIE|%s|%s|%s|", tostring(b:find("/votekick %p", 1, true) ~= nil), tostring(b:find("Voter l\x27exclusion", 1, true) ~= nil), tostring(b:find("/lang", 1, true) ~= nil)); l10n_set_lang(0, nil); l10n_client_ok = g')
 echo "$pie" | grep -q "PIE|true|true|true|" || fail "pie menu registrations: $pie"
 echo "ok: commands register into the pie menu, translated"
 
