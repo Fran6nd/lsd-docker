@@ -230,6 +230,11 @@ or a modified script without building an image.
 
 ### Translations
 
+English, French; Spanish, Chinese and Russian as machine-translated
+drafts awaiting review. **[TRANSLATIONS.md](TRANSLATIONS.md)** covers
+the whole pipeline: the files, machine translation with LibreTranslate,
+reviewing, adding a language, and what happens when LSd changes.
+
 Every player reads the server in their own language: the one they chose
 with `/lang fr` (`/lang auto` to undo), else the locale their client
 reports, else `l10n_default_lang`. `fr_ca` falls back to `fr`, then the
@@ -266,12 +271,9 @@ catalog/tools/votekick/locales/
 └── fr.po          its French
 ```
 
-`luajit dev/l10n.lua` rewrites every template and brings each `.po` in
-line with it; the pre-commit hook runs it, so they never go stale.
-`luajit dev/l10n.lua --new de catalog/tools/votekick` starts a language.
-Edit a `.po` with any gettext editor (Poedit, ...); `msgfmt -c` checks
-it, and the tests check that each translation keeps its placeholders.
-Upstream LSd's own messages are translated in `catalog/overrides/locales/`.
+The pre-commit hook keeps the templates and `.po` files in step with the
+code; `dev/l10n_mt.sh <lang>` drafts a new language by machine. See
+[TRANSLATIONS.md](TRANSLATIONS.md).
 
 The pie menu speaks the same way. Its default layout has pies with ids
 (`mark`, `chat`, `player`, `watching`), and a command puts itself in one
