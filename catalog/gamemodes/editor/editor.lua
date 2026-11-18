@@ -40,6 +40,10 @@ local PIES = require "editor.pies";
 local CAP_BUILD = "editor_build";
 local CAP_ADMIN = "editor_admin";
 
+getcfg("editor_all_permissions", false,
+	"Give every player every permission (the \"all\" cap: kick, ban, Lua) "
+		.. "while the editor runs -- for a private build server.");
+
 -- Stock scripts the editor lends for the session, with the cap each is
 -- gated on; one already loaded by the server is left as it is.
 local BORROWED = {
@@ -161,6 +165,9 @@ local function give_back()
 end
 
 local function make_builder(pid)
+	if (editor_all_permissions == true and not has_cap(pid, "all")) then
+		grant_cap(pid, "all");
+	end
 	if (not has_cap(pid, CAP_BUILD)) then grant_cap(pid, CAP_BUILD); end
 	-- unrestricted_blocks lets through what this cap names
 	if (unrestricted_blocks_cap ~= nil and not has_cap(pid, unrestricted_blocks_cap)) then
@@ -169,6 +176,18 @@ local function make_builder(pid)
 	for _, b in ipairs(BORROWED) do
 		if (not has_cap(pid, b.cap)) then grant_cap(pid, b.cap); end
 	end
+	-- The pie menu hides the wedges of commands a player may not run, and
+	-- may have been built before these were granted: send it again.
+	if (pie_menu_refresh ~= nil) then
+		pie_menu_refresh(pid);
+	end
+end
+
+-- A builder from the moment they connect, as caps.lua grants "default"
+-- -- before the client agrees to the pie menu, so the first menu it is
+-- sent already has the editor's tools.
+function mod.after.on_successful_connect(pid)
+	make_builder(pid);
 end
 
 function mod.after.on_join(pid, team, gun, name)

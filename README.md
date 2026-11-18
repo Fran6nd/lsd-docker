@@ -243,6 +243,10 @@ installs `pie_menu`):
 | Place | a block | Door (up / aside), Lift (up / down), Mark here, Delete |
 | Map | anything | Undo, Save, Fly, Components, Chunks, Help |
 
+For a private build server, the editor's setup can give every player
+every permission while it runs -- kick, ban, Lua included:
+`lsd configure editor`, or `lsd set editor_all_permissions True`.
+
 Select two corners, then Fill or Remove the box -- or Door or Lift, which
 take it as theirs; a lift then wants the height it travels to: aim there,
 Mark here. Every wedge is a command too, for clients without the pie

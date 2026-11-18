@@ -6,4 +6,8 @@ return Gamemode {
 	module = "editor",
 	-- the tools are in the pie menu
 	requires = {"unrestricted_blocks", "infinite_blocks", "pie_menu"},
+	questions = {
+		{key = "editor_all_permissions", type = "boolean", default = false,
+			ask = "Give every player every permission while editing (kick, ban, Lua -- private servers only)?"},
+	},
 }
