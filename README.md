@@ -321,10 +321,11 @@ patching, not adding; a new script belongs in `/data/catalog`.
 
 ### Translations
 
-English, French; Spanish, Chinese and Russian as machine-translated
-drafts awaiting review. **[TRANSLATIONS.md](TRANSLATIONS.md)** covers
-the whole pipeline: the files, machine translation with LibreTranslate,
-reviewing, adding a language, and what happens when LSd changes.
+English, French, Spanish, Chinese and Russian, each complete: the tests
+fail unless every language translates every message.
+**[TRANSLATIONS.md](TRANSLATIONS.md)** covers the whole pipeline: the
+files, machine translation with LibreTranslate, reviewing, adding a
+language, parity, and what happens when LSd changes.
 
 Every player reads the server in their own language: the one they chose
 with `/lang fr` (`/lang auto` to undo), else the locale their client

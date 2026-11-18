@@ -5,6 +5,7 @@ are made: extracted from the scripts, drafted by machine translation,
 reviewed by people, and kept in step with the code.
 
 - [What players get](#what-players-get)
+- [Parity](#parity)
 - [The files](#the-files)
 - [The pipeline](#the-pipeline)
 - [Adding a language](#adding-a-language)
@@ -18,10 +19,10 @@ reviewed by people, and kept in step with the code.
 | Language | Code | State |
 |---|---|---|
 | English | `en` | the source text |
-| French | `fr` | translated by hand |
-| Spanish | `es` | machine-translated drafts, waiting for review |
-| Chinese (Simplified) | `zh` | machine-translated drafts, waiting for review |
-| Russian | `ru` | machine-translated drafts, waiting for review |
+| French | `fr` | complete |
+| Spanish | `es` | complete (drafted by machine, then reviewed) |
+| Chinese (Simplified) | `zh` | complete (drafted by machine, then reviewed) |
+| Russian | `ru` | complete (drafted by machine, then reviewed) |
 
 A player reads the language they chose with `/lang <code>`, else the
 locale their client reports, else `l10n_default_lang`. A locale falls
@@ -45,6 +46,28 @@ reports ("... | ZeroSpades 0.0.9 b3432453 (arm64)").
 Machine-translated drafts are **fuzzy**: present in the files, never
 shown to a player until a translator has checked them (see
 [Reviewing](#reviewing-machine-translations)).
+
+## Parity
+
+Every language translates every message. The tests enforce it: each
+language the catalog has a `.po` for must have one beside every
+script's template, with every message in it translated and reviewed --
+an empty or fuzzy entry fails `dev/test.sh` and CI, naming the script,
+the language and a missing message.
+
+So a change that adds or rewords a message is finished when every
+language has it:
+
+```sh
+luajit dev/l10n.lua                       # the new message, empty, in every .po
+dev/l10n_mt.sh es zh ru                   # machine drafts for the empty entries
+luajit dev/l10n_review.lua todo fr > todo.lua    # what fr still needs
+#   ...fill each `str` in todo.lua...
+luajit dev/l10n_review.lua apply fr todo.lua     # in, reviewed
+```
+
+(or review in Poedit, as below). A language is added the same way, and
+counts once its first `.po` exists.
 
 ## The files
 
@@ -120,7 +143,10 @@ or when a translation lost or gained a `%(placeholder)`.
    again on what came out wrong: clear those entries and re-run, or
    fix them by hand.
 
-3. [Review](#reviewing-machine-translations) the drafts.
+3. [Review](#reviewing-machine-translations) the drafts -- all of them:
+   from its first `.po` on, the language counts for
+   [parity](#parity), and the tests fail until every message of every
+   script is translated in it.
 
 4. Check the client can show the script. ZeroSpades draws Latin,
    Cyrillic, Greek and CJK, left to right; it does not lay out
@@ -169,6 +195,13 @@ In [Poedit](https://poedit.net) (or any gettext editor):
 A team can put the same files on a translation platform (zerospades
 uses Crowdin); they are plain gettext.
 
+**Many entries at once**: `luajit dev/l10n_review.lua todo <lang>`
+writes every entry of that language not yet in use -- empty, or a fuzzy
+draft -- as a Lua list (`file`, `ctx`, `en`, `draft`, `str`). Fill in
+each `str`, then `luajit dev/l10n_review.lua apply <lang> todo.lua` puts
+them in as reviewed: fuzzy cleared, the machine mark dropped. One whose
+`%(placeholders)` differ from the English is refused and named.
+
 `luajit dev/l10n_mt.lua <lang> --accept` writes drafts as reviewed,
 for a language where a rough translation beats English. Nothing does
 this by default.
@@ -212,6 +245,8 @@ needed.
 | `luajit dev/l10n.lua --new <lang> [<path>...]` | start a language, empty |
 | `dev/l10n_mt.sh [--accept] <lang>...` | start LibreTranslate, start and draft languages, stop it |
 | `luajit dev/l10n_mt.lua <lang> [--url URL] [--accept] [<path>...]` | draft against a LibreTranslate already running |
+| `luajit dev/l10n_review.lua todo <lang>` | what a language still needs, as a Lua list to fill |
+| `luajit dev/l10n_review.lua apply <lang> <file>` | put a filled list in, as reviewed |
 
 `dev/l10n_mt.sh` reads `LIBRETRANSLATE_IMAGE` (default
 `libretranslate/libretranslate:latest`) and `LIBRETRANSLATE_PORT`

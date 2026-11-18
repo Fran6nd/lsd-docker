@@ -274,6 +274,44 @@ for path in io.popen("find catalog -path '*/locales/*.po' | sort"):lines() do
 	end
 end
 
+print("\n8b. parity: every language translates every message");
+-- The languages are whatever the catalog has a .po for, anywhere; each
+-- must then have one beside every template, with every message in it
+-- translated and reviewed (not fuzzy). Adding a message means adding it
+-- in every language: dev/l10n_mt.sh drafts, dev/l10n_review.lua reviews.
+local langs, lang_list = {}, {};
+for path in io.popen("find catalog -path '*/locales/*.po' | sort"):lines() do
+	local l = string.match(path, "/locales/([^/]+)%.po$");
+	if (not langs[l]) then langs[l] = true; lang_list[#lang_list+1] = l; end
+end
+table.sort(lang_list);
+check(#lang_list >= 4, "the catalog's languages: " .. table.concat(lang_list, ", "));
+for tpath in io.popen("find catalog -name template.pot | sort"):lines() do
+	local dir = string.gsub(tpath, "/locales/template%.pot$", "");
+	local tmpl = P.parse(read(tpath)).list;
+	for _, l in ipairs(lang_list) do
+		local f = io.open(dir .. "/locales/" .. l .. ".po");
+		local missing = {};
+		if (f == nil) then
+			missing[1] = "(no " .. l .. ".po)";
+		else
+			local cat = P.parse(f:read("*a"));
+			f:close();
+			local have = {};
+			for _, e in ipairs(cat.list) do
+				if (not e.fuzzy and ((e.str ~= nil and e.str ~= "") or #e.forms > 0)) then
+					have[P.key(e.ctx, e.msgid)] = true;
+				end
+			end
+			for _, t in ipairs(tmpl) do
+				if (not have[P.key(t.ctx, t.msgid)]) then missing[#missing+1] = t.msgid; end
+			end
+		end
+		check(#missing == 0, string.format("%s: %s has all %d", dir, l, #tmpl),
+			#missing .. " missing, e.g. " .. tostring(missing[1]));
+	end
+end
+
 print("\n9. command help");
 sent = {};
 send_usage(2, commands.lang);

@@ -93,10 +93,11 @@ gate=$(docker exec "$NAME" lsdctl exec 'exec log("GATE|%s|%s|", tostring(l10n_cl
 echo "$gate" | grep -q "GATE|true|false|" || fail "the ZeroSpades gate: $gate"
 echo "ok: translations gated to the current ZeroSpades"
 
-# machine-translated drafts (fuzzy) are installed but never shown
-draft=$(docker exec "$NAME" lsdctl exec 'exec log("DRAFT|" .. l10n_get_str_lang("es", {en = "Vote kicked"}) .. "|" .. table.concat(l10n_languages(), ",") .. "|")')
-echo "$draft" | grep -q "DRAFT|Vote kicked|en,fr|" || fail "drafts must stay unused: $draft"
-echo "ok: unreviewed drafts are not shown"
+# every language translates everything: all are offered, and used
+langs=$(docker exec "$NAME" lsdctl exec 'exec log("LANGS|" .. table.concat(l10n_languages(), ",") .. "|" .. l10n_get_str_lang("es", {en = "Unknown command"}) .. "|" .. l10n_get_str_lang("zh", {en = "Unknown command"}) .. "|" .. l10n_get_str_lang("ru", {en = "Unknown command"}) .. "|")')
+echo "$langs" | grep -q "LANGS|en,es,fr,ru,zh|" || fail "languages offered: $langs"
+echo "$langs" | grep "LANGS|" | grep -q "|Unknown command|" && fail "a language falls back to English: $langs"
+echo "ok: Spanish, Chinese and Russian are offered and used"
 
 # the pie menu: commands put themselves in it (votekick, /lang), in the
 # player's language, through the scripts' own translations
