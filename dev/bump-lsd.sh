@@ -21,10 +21,11 @@ git -C lsd log --oneline "$old..$new"
 # upstream's messages may have changed: bring the templates and .po
 # files in line (a reworded message keeps its translation, as fuzzy)
 luajit dev/l10n.lua
-fuzzy=$(grep -l '^#, fuzzy' $(find catalog -path '*/locales/*.po') 2>/dev/null || true)
+fuzzy=$(find catalog -path '*/locales/*.po' -exec grep -l '^#, fuzzy' {} + 2>/dev/null || true)
 [ -z "$fuzzy" ] || printf 'translations to check (fuzzy):\n%s\n' "$fuzzy"
 dev/test.sh
-git add lsd $(find catalog -path "*/locales/*")
+git add lsd
+find catalog -path "*/locales/*" -exec git add -- {} +
 git commit -q -m "lsd: update to $new"
 echo "committed; next: dev/test.sh --image, then dev/release.sh"
 echo "overridden upstream files to re-apply: catalog/overrides/README"

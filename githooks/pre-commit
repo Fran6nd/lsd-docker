@@ -46,6 +46,6 @@ if [ -n "$changed" ]; then
 		git add -A -- "$f"
 	done
 	echo "pre-commit: translation files updated:" >&2
-	printf '  %s\n' $changed >&2
+	printf '%s\n' "$changed" | sed 's/^/  /' >&2
 fi
 exit 0

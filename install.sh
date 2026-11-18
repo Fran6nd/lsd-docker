@@ -53,7 +53,7 @@ run docker pull "$IMAGE"
 run docker volume create "$VOLUME" >/dev/null
 
 # The wizard needs a terminal; under `curl | sh` stdin is the script.
-if [ -r /dev/tty ]; then
+if (exec </dev/tty) 2>/dev/null; then
 	run docker run --rm -it -e LSD_HOST_ADDRESSES="$ADDRESSES" -v "$VOLUME:/data" "$IMAGE" setup </dev/tty
 else
 	say "no terminal: writing the default settings (change them later with lsdctl setup)"
