@@ -104,10 +104,10 @@
 -- per block (main.c:660-673) and the whole point of a batch is that it
 -- does not. Only blocks the map actually took -- solid after a build,
 -- air after a destroy -- go into the batch that is sent, so a script
--- vetoing block_action (world_editor guards components that way) drops
+-- vetoing block_action (map_layout guards components that way) drops
 -- the block instead of desyncing it. on_block_action is not called: it
 -- is the per-packet event, and its listeners answer per block with
--- network traffic of their own (infinite_blocks restocks, world_editor
+-- network traffic of their own (infinite_blocks restocks, map_layout
 -- reverts). Protection for batches goes through edit_mode_listen_batch.
 local mod = init_mod();
 local bit = require("bit");

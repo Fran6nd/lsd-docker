@@ -38,7 +38,7 @@
 --
 -- Whether it landed is asked separately, because "the damage the server
 -- applied" has to mean applied. god.lua swallows a damage_player whole
--- and world_editor.lua does the same while edit mode is on, and a
+-- and the editor gamemode swallows environment damage, and a
 -- marker for damage that never landed is a lie told to the one player
 -- in a position to notice.
 --

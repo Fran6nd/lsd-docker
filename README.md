@@ -159,13 +159,13 @@ next release.
 
 | category | class | what | examples |
 |---|---|---|---|
-| gamemodes | `Gamemode` | exactly one runs | ctf, onectf, arena, babel, ffa, hostage |
+| gamemodes | `Gamemode` | exactly one runs; every one runs the map's layout (map_layout) | ctf, onectf, arena, babel, ffa, hostage, editor |
 | extensions | `Extension` | protocol extensions; the setup also asks what a client lacking one costs | every extension in the [AoS protocol registry](https://github.com/zerospades/aosprotocol): player_properties, damage_markers, teamplay, pie_menu, flashlight, daytime, edit_mode, player_limit, message_types, kick_reason (UTF-8 chat is built into LSd); plus silent_player |
 | effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit |
 | effects/world | `WorldEffect` | change the map or the match for everybody; same | the_fall |
 | bots | `Bot` | server-side players | guards, battle_bots |
-| tools | `Tool` | everything else | world_editor, votekick, esp_demo, headless, time_limit, ... |
-| libs | `Library` | what the others need; installed with them, not listed | ext, ext_policy, bot, shot_detect, player_effect |
+| tools | `Tool` | everything else | votekick, esp_demo, headless, time_limit, ... |
+| libs | `Library` | what the others need; installed with them, not listed | ext, ext_policy, bot, shot_detect, player_effect, map_layout |
 
 A player effect forced on in setup is everybody's (`<id>_everyone = true`).
 A gamemode can hand one out instead, per player, for a time, until death
@@ -221,8 +221,36 @@ pie_menu = [
 ]
 ```
 
-Edit mode follows the world editor's `worldedit on|off`, or
-`/editmode [player] [on|off]` for holders of the `editmode` cap.
+The Edit Mode extension puts a player in edit mode with
+`/editmode [player] [on|off]` (the `editmode` cap), and the editor
+gamemode puts every builder in it when `editor_edit_mode = 'auto'`.
+
+### Building maps
+
+Building is a gamemode of its own: `lsd gamemode editor`. While it runs,
+the server is off the public lists (the address still works, to invite
+builders), and every player builds: terrain tools (`/sel`, `/selfill`,
+`/selrm`, `/selcpy`, ...), flight (`/noclip`), any block anywhere,
+unlimited blocks, no fall damage, and a gun that does not chew the map.
+
+A map's **layout** -- what it holds besides terrain -- is placed here
+and runs in every gamemode, kept in `<map>.editor.json` beside the map:
+
+- **doors** that open as a player nears them, **elevators** that carry
+  riders: build the shape, then `/place door left` (or `/place elevator
+  up`) and select its box; `/place` lists them, `/undo` and `/delete`
+  take one back, its blocks left as they are;
+- **permission chunks**: `/chunk box rw:1 base` -- who may edit inside;
+  `/defaultperm` for the rest of the map, `/mapreadonly on` to lock it.
+
+`/save` writes the map and its layout to `maps/`; then
+`lsd gamemode ctf` (or any other) plays it, doors and all. Marks can
+also come by coordinate (`/marks x y z ...`), which with `/place` drives
+a placement from the console.
+
+Under the hood: `catalog/libs/map_layout/` runs layouts (doors,
+elevators, permissions, the layout file), and
+`catalog/gamemodes/editor/` is the editing session and its commands.
 
 ### Writing a catalog entry
 
