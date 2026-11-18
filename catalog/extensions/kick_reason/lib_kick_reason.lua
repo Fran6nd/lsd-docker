@@ -97,7 +97,12 @@ function kick_reason_set(pid, text)
 	if (type(pid) ~= "number" or pid < 0 or pid >= MAX_PLAYERS) then
 		return;
 	end
-	explicit[pid] = text ~= nil and tostring(text) or nil;
+	-- a lib_l10n message is kept as one: send_chat translates it for
+	-- the player being kicked
+	if (text ~= nil and not (l10n_is_msg ~= nil and l10n_is_msg(text))) then
+		text = tostring(text);
+	end
+	explicit[pid] = text;
 end
 
 function kick_reason_kick(pid, text, code)
@@ -113,6 +118,9 @@ local function reason_text(pid, code)
 	end
 	if (text == nil or text == "") then
 		return nil;
+	end
+	if (l10n_is_msg ~= nil and l10n_is_msg(text)) then
+		return text;
 	end
 	return tostring(text);
 end

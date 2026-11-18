@@ -1,0 +1,9 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "%(name) was kicked"
+msgstr "a second script's translation, which loses"
+
+msgid "Bye"
+msgstr "Au revoir"

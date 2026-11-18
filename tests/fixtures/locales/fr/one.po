@@ -1,0 +1,35 @@
+# a script's French
+msgid ""
+msgstr ""
+"Language: fr\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "%(name) was kicked"
+msgstr "%(name) a été expulsé"
+
+msgctxt "door"
+msgid "Open"
+msgstr "Ouverte"
+
+msgid "Open"
+msgstr "Ouvrir"
+
+msgid "%(n) bot"
+msgid_plural "%(n) bots"
+msgstr[0] "%(n) robot"
+msgstr[1] "%(n) robots"
+
+#, fuzzy
+msgid "Unchecked"
+msgstr "Pas vérifié"
+
+msgid ""
+"A long "
+"line"
+msgstr ""
+"Une longue "
+"ligne\n"
+
+msgid "Untranslated"
+msgstr ""

@@ -34,8 +34,21 @@ assemble_scripts() {
 		# catalog/<category>/<id>/, and effects/<kind>/<id>/
 		for entry in "$root"/*/*/ "$root"/effects/*/*/; do
 			[ -f "${entry}script.lua" ] || continue
+			id=$(basename "$entry")
 			for f in "$entry"*; do
-				[ "${f##*/}" = script.lua ] || cp -R "$f" scripts/
+				case "${f##*/}" in
+				script.lua) ;;
+				# translations: locales/<lang>.po is installed as
+				# scripts/locales/<lang>/<id>.po, one file per script
+				locales)
+					for po in "$f"/*.po; do
+						[ -f "$po" ] || continue
+						lang=$(basename "$po" .po)
+						mkdir -p "scripts/locales/$lang"
+						cp "$po" "scripts/locales/$lang/$id.po"
+					done ;;
+				*) cp -R "$f" scripts/ ;;
+				esac
 			done
 		done
 	done

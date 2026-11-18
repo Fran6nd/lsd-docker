@@ -1,0 +1,350 @@
+-- lib_l10n.lua -- Every message in the player's own language
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+--
+-- Replaces upstream's lib_l10n, whose API every LSd script already uses
+-- and which this keeps whole: l10n_send_chat(pid, {en="..."}, {name=x}),
+-- l10n_get_str_pid, l10n_get_str_lang, l10n_log, l10n_get_lang. What it
+-- adds is where the other languages come from, and messages that are
+-- translated for each player they reach.
+--
+-- THE TEXT IS THE KEY, as in zerospades (Sources/Core/Strings.cpp): a
+-- message is written in English, and its English is what a translation
+-- is looked up by. Placeholders are LSd's, %(name). A message table may
+-- still carry its own translations inline, {en="Hi", fr="Salut"}, which
+-- win over the files; `ctx` tells two identical English strings apart.
+--
+-- TRANSLATIONS ARE PER SCRIPT. A catalog entry ships
+-- locales/<lang>.po beside its module; the entrypoint installs it as
+-- scripts/locales/<lang>/<id>.po, and every file of a language is merged
+-- into one catalog the first time somebody needs that language. The
+-- files are gettext's, so any .po editor works on them.
+--
+-- WHICH LANGUAGE. What the player chose with /lang, else the locale
+-- their client reported (OpenSpades and its forks send it in the version
+-- reply LSd asks every client for on connect), else l10n_default_lang.
+-- A locale falls back to its language, then to the default, then to
+-- English: a fr_ca player reads fr_ca, then fr.
+--
+-- MESSAGES, for anything that is not a one-off chat line:
+--
+--   local m = l10n_msg({en="%(name) was kicked"}, {name=n})  -- or a
+--   local m = l10n_msg("%(name) was kicked", {name=n})  -- plain string
+--   server_msg(PID_BROADCAST, m)   -- each player reads their language
+--   l10n_msgn({en="%(n) bot", en_plural="%(n) bots"}, count)
+--   l10n_str(pid, m)               -- the text for one player
+--
+-- A message is not a string: it is turned into one per recipient, when
+-- it is sent. server_msg and send_chat take one anywhere a string goes,
+-- to one player or a broadcast, so a script can store a message, put it
+-- in `tips`, or hand it to another script, and it is still translated
+-- for whoever finally reads it. tostring() gives the server's default
+-- language, for logs.
+local mod = init_mod();
+local P = require "l10n_po";
+
+getcfg("l10n_default_lang", "en");
+getcfg("l10n_log_lang", "en");
+getcfg("l10n_dir", "scripts/locales");
+
+-- the languages a player may pick, from what is installed; nil until
+-- first asked
+local installed_langs = nil;
+
+--============================== CATALOGS ============================--
+
+-- lang -> {entries=, plural=}, or false when there are no files for it
+local catalogs = {};
+
+local function list_dir(path)
+	local ok, lfs = pcall(require, "lfs");
+	local out = {};
+	if (not ok or lfs.attributes(path, "mode") ~= "directory") then
+		return out;
+	end
+	for name in lfs.dir(path) do
+		if (name ~= "." and name ~= "..") then
+			out[#out+1] = name;
+		end
+	end
+	table.sort(out);
+	return out;
+end
+
+local function catalog(lang)
+	local cat = catalogs[lang];
+	if (cat ~= nil) then
+		return cat or nil;
+	end
+
+	cat = false;
+	local dir = l10n_dir .. "/" .. lang;
+	for _, name in ipairs(list_dir(dir)) do
+		if (string.find(name, "%.po$")) then
+			local f = io.open(dir .. "/" .. name);
+			local text = f and f:read("*a");
+			if (f) then f:close(); end
+
+			local ok, got = pcall(P.parse, text or "");
+			if (not ok) then
+				log("lib_l10n: %s/%s: %s", dir, name, tostring(got));
+			else
+				if (not cat) then
+					cat = {entries = {}, plural = got.plural};
+				end
+				-- the first script to translate a text keeps it
+				for k, v in pairs(got.entries) do
+					if (cat.entries[k] == nil) then
+						cat.entries[k] = v;
+					end
+				end
+			end
+		end
+	end
+
+	catalogs[lang] = cat;
+	return cat or nil;
+end
+
+-- The languages with at least one translation file, plus English.
+function l10n_languages()
+	if (installed_langs == nil) then
+		installed_langs = {"en"};
+		for _, name in ipairs(list_dir(l10n_dir)) do
+			local l = P.norm_lang(name);
+			if (l ~= nil and l ~= "en") then
+				installed_langs[#installed_langs+1] = l;
+			end
+		end
+	end
+	return installed_langs;
+end
+
+--============================== MESSAGES ============================--
+
+local Msg = {};
+Msg.__index = Msg;
+
+function l10n_is_msg(x)
+	return getmetatable(x) == Msg;
+end
+
+local function as_tab(msg)
+	if (type(msg) == "string") then
+		return {en = msg};
+	end
+	if (type(msg) ~= "table" or type(msg.en) ~= "string") then
+		error("a message is an English string or a table with en=", 3);
+	end
+	return msg;
+end
+
+function l10n_msg(msg, interptab)
+	return setmetatable({tab = as_tab(msg), args = interptab}, Msg);
+end
+
+-- A message whose words depend on a count: msg.en is the singular,
+-- msg.en_plural the plural, and the .po's Plural-Forms picks for every
+-- other language. %(n) is the count unless interptab says otherwise.
+function l10n_msgn(msg, count, interptab)
+	local tab = as_tab(msg);
+	local args = {};
+	for k, v in pairs(interptab or {}) do args[k] = v; end
+	if (args.n == nil) then args.n = count; end
+	return setmetatable({tab = tab, args = args, count = count}, Msg);
+end
+
+-- English's own rule, for the source text and for an inline plural
+-- written without a catalog to say how that language counts
+local function en_plural(n)
+	return n == 1 and 0 or 1;
+end
+
+local function pick_form(forms, index)
+	local s = forms[index + 1];
+	if (s == nil or s == "") then
+		s = forms[1];
+	end
+	return s;
+end
+
+-- The text of `m` in `lang`, best candidate first.
+local function resolve(m, lang)
+	local tab = m.tab;
+	local key = P.key(tab.ctx, tab.en);
+	local plural = m.count ~= nil;
+
+	for _, l in ipairs(P.candidates(lang, l10n_default_lang)) do
+		local cat = (l ~= "en") and catalog(l) or nil;
+		local rule = cat and cat.plural or en_plural;
+
+		if (l == "en") then
+			if (plural and tab.en_plural ~= nil and en_plural(m.count) ~= 0) then
+				return P.interp(tab.en_plural, m.args);
+			end
+			return P.interp(tab.en, m.args);
+		end
+
+		local inline = tab[l];
+		if (type(inline) == "string") then
+			return P.interp(inline, m.args);
+		elseif (type(inline) == "table" and plural) then
+			local s = pick_form(inline, rule(m.count));
+			if (s ~= nil) then return P.interp(s, m.args); end
+		end
+
+		local e = cat and cat.entries[key];
+		if (type(e) == "string") then
+			return P.interp(e, m.args);
+		elseif (type(e) == "table") then
+			local s = pick_form(e, plural and rule(m.count) or 0);
+			if (s ~= nil) then return P.interp(s, m.args); end
+		end
+	end
+end
+
+function Msg:__tostring()
+	return resolve(self, l10n_log_lang);
+end
+
+-- The text of `msg` for one player. A plain string is returned as is.
+function l10n_str(pid, msg)
+	if (not l10n_is_msg(msg)) then
+		return msg;
+	end
+	return resolve(msg, l10n_get_lang(pid));
+end
+
+--=========================== THE LANGUAGE ===========================--
+
+-- pid -> what they chose with /lang; cleared when they leave
+local chosen = pid_connected_table();
+
+function mod.impl.l10n_get_lang(pid)
+	return P.norm_lang(l10n_default_lang) or "en";
+end
+
+function mod.l10n_get_lang(pid)
+	if (is_fakepid(pid)) then
+		return mod.next.l10n_get_lang(pid);
+	end
+
+	if (chosen[pid] ~= nil) then
+		return chosen[pid];
+	end
+
+	local ok, ext = pcall(get_client_ext_language, pid);
+	local l = ok and P.norm_lang(ext) or nil;
+	if (l == nil) then
+		return mod.next.l10n_get_lang(pid);
+	end
+	return l;
+end
+
+-- Set or clear (nil) the language `pid` reads.
+function l10n_set_lang(pid, lang)
+	chosen[pid] = lang and P.norm_lang(lang) or nil;
+end
+
+--======================= THE UPSTREAM API ===========================--
+
+function mod.impl.l10n_get_str_lang(lang, msgtab, interptab)
+	return resolve(l10n_msg(msgtab, interptab), lang);
+end
+
+-- Try to only pass a singular, non-broadcast PID.
+function mod.impl.l10n_get_str_pid(pid, msgtab, interptab)
+	return l10n_get_str_lang(l10n_get_lang(pid), msgtab, interptab);
+end
+
+function mod.impl.l10n_send_chat(pid, msgtab, interptab)
+	server_msg(pid, l10n_msg(msgtab, interptab));
+end
+
+function mod.impl.l10n_log(msgtab, interptab)
+	log("%s", l10n_get_str_lang(l10n_log_lang, msgtab, interptab));
+end
+
+--========================== SENDING MESSAGES ========================--
+
+-- From the xearly chain, so every other hook on these -- the consoles,
+-- /ignore, the C itself -- only ever sees the finished text, one player
+-- at a time.
+local function each(pid, msg, send)
+	if (is_fakepid(pid)) then
+		send(pid, l10n_str(pid, msg));
+		return;
+	end
+	for i in piditer(pid) do
+		send(i, l10n_str(i, msg));
+	end
+end
+
+function mod.xearly.server_msg(pid, msg)
+	if (not l10n_is_msg(msg)) then
+		return mod.xearly.next.server_msg(pid, msg);
+	end
+	each(pid, msg, function(i, s) mod.xearly.next.server_msg(i, s); end);
+end
+
+function mod.xearly.send_chat(pid, msg, type, from)
+	if (not l10n_is_msg(msg)) then
+		return mod.xearly.next.send_chat(pid, msg, type, from);
+	end
+	each(pid, msg, function(i, s) mod.xearly.next.send_chat(i, s, type, from); end);
+end
+
+--=============================== /lang ==============================--
+
+local lang_now = {en = "Your language: %(lang). Available: %(list). Use /lang <code>, or /lang auto for your client's."};
+local lang_set = {en = "Language set to %(lang)."};
+local lang_auto = {en = "Language follows your client again: %(lang)."};
+local lang_none = {en = "No translations for %(lang) here; some messages stay in English."};
+local lang_bad = {en = "%(lang) is not a language code (en, fr, pt_br, ...)."};
+
+local cmd = {name = "lang", usage = "[<code>|auto]",
+	desc = "Show or choose the language the server speaks to you."};
+
+function cmd.func(pid, argv)
+	cmd_assert(pid, cmd, #argv <= 1);
+
+	if (argv[1] == nil) then
+		l10n_send_chat(pid, lang_now, {lang = l10n_get_lang(pid),
+			list = table.concat(l10n_languages(), ", ")});
+		return;
+	end
+
+	if (string.lower(argv[1]) == "auto") then
+		l10n_set_lang(pid, nil);
+		l10n_send_chat(pid, lang_auto, {lang = l10n_get_lang(pid)});
+		return;
+	end
+
+	local l = P.norm_lang(argv[1]);
+	if (l == nil) then
+		l10n_send_chat(pid, lang_bad, {lang = argv[1]});
+		return;
+	end
+
+	l10n_set_lang(pid, l);
+	l10n_send_chat(pid, lang_set, {lang = l});
+
+	local have = false;
+	for _, x in ipairs(l10n_languages()) do
+		if (x == l or x == string.match(l, "^[^_]+")) then have = true; end
+	end
+	if (not have) then
+		l10n_send_chat(pid, lang_none, {lang = l});
+	end
+end
+
+-- commands loads before this (group_deps), so it is there to register
+-- with; a reload re-registers over the old one
+function mod.on_load()
+	catalogs = {};
+	installed_langs = nil;
+	if (register_command ~= nil) then
+		register_command(cmd, mod);
+	end
+end
+
+return mod;

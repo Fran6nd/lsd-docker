@@ -5,6 +5,10 @@ Upstream LSd modules, patched. Copied over upstream's at every start.
   lib_ctf.lua  objgrav calls get_floor on the clamped position, not the
                raw one: an intel or tent at z=64 over solid ground
                panicked the server. Report upstream; drop once fixed.
+  lib_l10n.lua Every message in the player's language: per-script
+               gettext catalogs (locales/<lang>.po), messages translated
+               per recipient by server_msg and send_chat, /lang. Keeps
+               upstream's API. Ours; not meant for upstream as is.
 
 Each one is a whole file, so after `dev/bump-lsd.sh` re-apply the patch
 onto upstream's new copy (git -C lsd diff OLD..NEW -- scripts/<file>).

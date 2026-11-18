@@ -96,7 +96,11 @@ end
 -- depends on what that client agreed to, so a broadcast is a per-client
 -- decision and cannot be one packet.
 function msg_send(pid, type, text)
-	text = tostring(text);
+	-- a lib_l10n message stays one, to be translated for each client
+	-- by send_chat and server_msg; anything else is made text here
+	if (l10n_is_msg == nil or not l10n_is_msg(text)) then
+		text = tostring(text);
+	end
 
 	if (not EXTENDED[type]) then
 		-- the base protocol's own types, which need no agreement from
@@ -115,7 +119,7 @@ function msg_send(pid, type, text)
 
 	if (message_types_debug) then
 		log("lib_message_types: type %d to %s: %q", type, tostring(pid),
-			text);
+			tostring(text));
 	end
 end
 
