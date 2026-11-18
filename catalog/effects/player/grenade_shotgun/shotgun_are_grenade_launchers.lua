@@ -28,7 +28,6 @@
 -- Knowing that a shell was fired at all is lib_shot_detect's job, not this
 -- one's -- it is the same problem the railgun script has, and it is
 -- harder than it looks. Load lib_shot_detect before this.
-local mod = init_mod();
 
 getcfg("sgl_pellets", 8);     -- pellets per shell
 getcfg("sgl_spread", 0.024);  -- 0.75 shotgun spread
@@ -45,6 +44,32 @@ getcfg("sgl_gather", 0.1);
 local impacts = pid_spawn_table();
 local pending = pid_spawn_table();
 
+-- One shell, one live pellet, whoever worked out that a shell was fired.
+--
+-- The swallowing hooks below are why lib_shot_detect watches from the
+-- xearly chain: they take a pellet's hit and its block destroy out of
+-- the chain entirely, and those two packets are the only proof a shell
+-- was fired that survives a sprinting player.
+--
+-- A shell is not resolved on the shot: it is queued, so that the
+-- client's impact reports have a moment to arrive before we decide what
+-- the pellets did (see sgl_gather). The aim is taken NOW, not when the
+-- shell is resolved: the recoil kick is on its way and would otherwise
+-- be what the pellets are traced along.
+local fx = PlayerEffect {
+	gun = PlayerEffect.GUN_SHOTGUN,
+	warning = "here shotguns are grenade launchers.",
+	tip = "Spicy: every shotgun blast drops a grenade pellet -- mind the splash.",
+	on_shot = function(pid)
+		pending[pid] = {
+			at = get_time(),
+			pos = get_position(pid),
+			dir = get_orientation(pid),
+		};
+	end,
+};
+local mod = fx.mod;
+
 -- A pellet landed somewhere the client can prove. What it struck does
 -- matter: a pellet that found a man is worth more than one that found a
 -- wall, and more again than one this script only guessed at, so the
@@ -58,19 +83,6 @@ local function record_impact(pid, pos, onplayer)
 		impacts[pid] = list;
 	end
 	list[#list+1] = {x=pos.x, y=pos.y, z=pos.z, onplayer=onplayer};
-end
-
--- Whose body a simulated pellet stops at. Only placement rides on this
--- -- the damage is the grenade's, and the_fall compensates that itself
--- in blast_fallers -- but placement is what decides whether a shell
--- bursts on a man or on the wall behind him, and the_fall's shaft bots
--- read as the shooter's own team for half of them. Read live; nil on an
--- instance without the_fall, where the raw teams are the answer.
-local function hostile(shooter, target)
-	if (fall_is_hostile ~= nil) then
-		return fall_is_hostile(shooter, target);
-	end
-	return get_team(shooter) ~= get_team(target);
 end
 
 local function jitter(dir)
@@ -116,7 +128,9 @@ local function simulate_pellet(pid, from)
 	-- the ray against enemy bodies and burst at the first one clipped
 	local tbody = nil;
 	for i in piditer(PID_BROADCAST) do
-		if (i ~= pid and is_alive(i) and hostile(pid, i)) then
+		-- whose body stops it is fx:hostile's answer, so the_fall's
+		-- disguised bots stop pellets like any other enemy
+		if (i ~= pid and is_alive(i) and fx:hostile(pid, i)) then
 			local q = get_position(i);
 			local wx, wy, wz = q.x-start.x, q.y-start.y, q.z-start.z;
 			local t = wx*dir.x + wy*dir.y + wz*dir.z;
@@ -170,16 +184,12 @@ local function burst(pid, at)
 	end
 end
 
-function mod.after.on_join(pid)
-	server_msg(pid, "warning: here shotguns are grenade launchers.");
-end
-
 -- Pellets don't hurt players: only the grenade does damage. The hit is
 -- still worth keeping, though -- it is the client telling us where one
 -- pellet of the shell actually landed, which beats any guess we could
 -- make about it.
 function mod.on_hit(pid, type, hitPlayer)
-	if (is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 2) then
+	if (fx:holding(pid)) then
 		record_impact(pid, get_position(hitPlayer), true);
 		return;
 	end
@@ -191,7 +201,7 @@ end
 -- Same as above, the destroy is kept first: it is a pellet's real
 -- landing point, named by the only party that knows it.
 function mod.on_block_action(pid, pos, type)
-	if (type == 1 and is_alive(pid) and get_tool(pid) == 2 and get_gun(pid) == 2) then
+	if (type == 1 and fx:holding(pid)) then
 		record_impact(pid, {x=pos.x+0.5, y=pos.y+0.5, z=pos.z+0.5});
 		send_set_block_color(pid, get_map_block_color(pos), get_anon_pid());
 		send_block_action(pid, pos, 0, get_anon_pid());
@@ -265,68 +275,6 @@ function mod.after.tick()
 				impacts[pid] = nil;
 			end
 		end
-	end
-end
-
--- Advertise ourselves, rather than leaving it to whoever writes the
--- config. The script that changes a weapon is the thing that knows what
--- changed, so an instance gets the line by loading the script, and the
--- claim cannot drift from the code making it. tip_spam reads `tips` live
--- every tick, so appending is the whole of it; `tips` is nil on an
--- instance not running tip_spam, hence the guard. Taken out again on
--- unload, and taken out before being put in, so a reload leaves one.
-local TIP = "Spicy: every shotgun blast drops a grenade pellet -- mind the splash.";
-
-local function untip()
-	if (tips == nil) then
-		return;
-	end
-	for i = #tips, 1, -1 do
-		if (tips[i] == TIP) then
-			table.remove(tips, i);
-		end
-	end
-end
-
--- One shell, one live pellet, whoever worked out that a shell was fired.
---
--- The swallowing hooks above are why lib_shot_detect watches from the xearly
--- chain: they take a pellet's hit and its block destroy out of the chain
--- entirely, and those two packets are the only proof a shell was fired
--- that survives a sprinting player.
-function mod.on_load()
-	untip();
-	if (tips ~= nil) then
-		tips[#tips+1] = TIP;
-	end
-
-	if (shot_listen == nil) then
-		error("shotgun_are_grenade_launchers needs lib_shot_detect loaded first "
-			.."(its script pulls lib_shot_detect in; check with: lsdctl status)", 0);
-	end
-
-	-- a shell is not resolved here: it is queued, so that the client's
-	-- impact reports have a moment to arrive before we decide what the
-	-- pellets did (see sgl_gather)
-	shot_listen("shotgun_are_grenade_launchers", function(pid, gun)
-		if (gun == 2) then
-			-- the aim is taken NOW, not when the shell is resolved: the
-			-- recoil kick is on its way and would otherwise be what the
-			-- pellets are traced along
-			pending[pid] = {
-				at = get_time(),
-				pos = get_position(pid),
-				dir = get_orientation(pid),
-			};
-		end
-	end);
-end
-
-function mod.on_unload()
-	untip();
-
-	if (shot_unlisten ~= nil) then
-		shot_unlisten("shotgun_are_grenade_launchers");
 	end
 end
 
