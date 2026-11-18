@@ -6,6 +6,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 #: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -15,6 +16,7 @@ msgstr ""
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -24,6 +26,7 @@ msgstr ""
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -56,6 +59,7 @@ msgid "Watch behind you!"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
 #: catalog/libs/callouts/callouts/tdm.lua
@@ -80,6 +84,7 @@ msgstr ""
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/hostage.lua
@@ -93,6 +98,7 @@ msgid "Flank here"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Hold here"
 msgstr ""
@@ -156,6 +162,7 @@ msgid "Build here"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -165,6 +172,67 @@ msgstr ""
 
 #: catalog/libs/callouts/callouts/babel.lua
 msgid "Defend the tower"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Push"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Push, all together!"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Hold this spot!"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Flank"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Flank them this way!"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Need backup"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "I need backup!"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Fall back"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Fall back!"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Defend"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Go here"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/ctf.lua
@@ -195,11 +263,6 @@ msgid "Defend our base!"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/ctf.lua
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Push"
-msgstr ""
-
-#: catalog/libs/callouts/callouts/ctf.lua
 msgid "Push forward, go for their intel!"
 msgstr ""
 
@@ -208,25 +271,12 @@ msgstr ""
 msgid "Intel here"
 msgstr ""
 
-#: catalog/libs/callouts/callouts/ctf.lua
-#: catalog/libs/callouts/callouts/default.lua
-#: catalog/libs/callouts/callouts/hostage.lua
-#: catalog/libs/callouts/callouts/onectf.lua
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Defend"
-msgstr ""
-
 #: catalog/libs/callouts/callouts/default.lua
 msgid "Need help"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/default.lua
 msgid "Danger"
-msgstr ""
-
-#: catalog/libs/callouts/callouts/default.lua
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Go here"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/ffa.lua
@@ -331,38 +381,6 @@ msgstr ""
 
 #: catalog/libs/callouts/callouts/onectf.lua
 msgid "I have the intel -- cover me!"
-msgstr ""
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Push, all together!"
-msgstr ""
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Hold this spot!"
-msgstr ""
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Flank"
-msgstr ""
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Flank them this way!"
-msgstr ""
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Need backup"
-msgstr ""
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "I need backup!"
-msgstr ""
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Fall back"
-msgstr ""
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Fall back!"
 msgstr ""
 
 #: catalog/libs/callouts/lib_callouts.lua

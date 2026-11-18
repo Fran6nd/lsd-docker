@@ -105,7 +105,7 @@ local SPEC = {
 	id = "string", title = "string", summary = "string",
 	description = "string",
 	module = "string", modules = "table",
-	requires = "table", after = "table",
+	requires = "table", after = "table", with = "table",
 	phase = "string", order = "number",
 	settings = "table", presets = "table", default_preset = "string",
 	questions = "table", upstream = "boolean", listed = "boolean",
@@ -135,6 +135,7 @@ function Script:new(spec)
 
 	local o = setmetatable(spec, self);
 	o.requires = o.requires or {};
+	o.with = o.with or {};
 	o.after = o.after or {};
 	o.settings = o.settings or {};
 	o.questions = o.questions or {};
@@ -154,6 +155,18 @@ end
 -- Other catalog ids that must be installed for this one to work. The
 -- category may add its own: every Extension needs `ext`.
 function Script:dependencies()
+	local out = self:load_dependencies();
+
+	for _, d in ipairs(self.with) do out[#out+1] = d; end
+
+	return out;
+end
+
+-- The ones that must load first. `with` names scripts installed
+-- alongside that load later than this one and are not needed at its
+-- load: the bots mode's rider sets a global the guards read, and the
+-- guards, being bots, load after every rider.
+function Script:load_dependencies()
 	local out = {};
 
 	for _, d in ipairs(self.class_requires or {}) do out[#out+1] = d; end
@@ -606,7 +619,7 @@ function Catalog:sort(entries)
 	for _, e in ipairs(entries) do by_id[e.id] = e; end
 
 	for _, e in ipairs(entries) do
-		for _, d in ipairs(e:dependencies()) do
+		for _, d in ipairs(e:load_dependencies()) do
 			local de = by_id[d] or self:find(d);
 			local at = e:needs_from();
 			if (de ~= nil and PHASE_INDEX[de.phase] > PHASE_INDEX[at]) then
@@ -631,7 +644,7 @@ function Catalog:sort(entries)
 	local before = {};   -- id -> ids that must precede it
 	for _, e in ipairs(base) do
 		local b = {};
-		for _, d in ipairs(e:dependencies()) do
+		for _, d in ipairs(e:load_dependencies()) do
 			local de = by_id[d];
 			if (de and de.phase == e.phase) then b[#b+1] = d; end
 		end
@@ -677,9 +690,6 @@ end
 -- Returns {phases = {phase = {module, ...}}, entries = {...},
 -- gamemode = entry, missing = {...}}.
 function Catalog:plan(installed, gamemode)
-	local ids = {};
-	for _, id in ipairs(installed or {}) do ids[#ids+1] = id; end
-
 	local mode = self:find(gamemode or "ctf");
 	if (mode == nil or not mode:is_a(C.Gamemode)) then
 		local known = {};
@@ -688,6 +698,17 @@ function Catalog:plan(installed, gamemode)
 		end
 		error(string.format("%q is not a gamemode. Known: %s",
 			tostring(gamemode), table.concat(known, ", ")), 0);
+	end
+	-- What runs is what is installed and not a library -- a library is
+	-- there for what needs it, so one left behind by a gamemode no longer
+	-- running (babel's babel_protect) is not loaded -- and no gamemode
+	-- but the one chosen, whose own needs come with it.
+	local ids = {};
+	for _, id in ipairs(installed or {}) do
+		local e = self:find(id);
+		if (e == nil or not (e:is_a(C.Library) or (e:is_a(C.Gamemode) and e ~= mode))) then
+			ids[#ids+1] = id;
+		end
 	end
 	ids[#ids+1] = mode.id;
 

@@ -238,6 +238,30 @@ before("lib_bot", "lib_headless", "lib_bot before lib_headless");
 before("lib_flashlight", "bot_standard", "the flashlight before the guards that carry it");
 check(index_of(order, "lib_ext_policy") ~= nil, "ext_policy comes with any extension");
 
+-- bots: its rider loads before the guards it installs with it
+local bp = cat:plan({}, "bots");
+local bo = {};
+for _, p in ipairs(C.PHASES) do
+	for _, m in ipairs(bp.phases[p]) do bo[#bo+1] = m; end
+end
+check(index_of(bo, "bot_standard") ~= nil and index_of(bo, "lib_daytime") ~= nil
+	and index_of(bo, "lib_flashlight") ~= nil, "bots brings the guards, daytime and the flashlight");
+check(index_of(bo, "bots") ~= nil and index_of(bo, "bots") < index_of(bo, "bot_standard"),
+	"the bots rider loads before the guards", table.concat(bo, " "));
+
+-- a library left installed by another gamemode is not loaded
+local function loads(plan, m)
+	for _, p in ipairs(C.PHASES) do
+		for _, x in ipairs(plan.phases[p]) do if (x == m) then return true; end end
+	end
+	return false;
+end
+check(loads(cat:plan({"babel_protect", "babel", "votekick"}, "babel"), "babel_protect"),
+	"babel loads babel_protect");
+local left = cat:plan({"babel_protect", "babel", "votekick"}, "bots");
+check(not loads(left, "babel_protect") and loads(left, "votekick"),
+	"switched to bots, babel's babel_protect is not loaded; installed tools are");
+
 print("\n6. dependencies close, and an unknown gamemode is refused");
 local closed = cat:closure({"esp_demo"});
 local ids = {};

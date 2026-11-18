@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: catalog/gamemodes/bots/bots.lua
+msgid "Night falls. Press F for your flashlight."
+msgstr "夜幕降临。按 F 打开手电筒。"
+
+#: catalog/gamemodes/bots/bots.lua
+msgid "Dawn."
+msgstr "黎明。"

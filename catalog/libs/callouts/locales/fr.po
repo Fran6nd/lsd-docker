@@ -8,6 +8,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
 #: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -17,6 +18,7 @@ msgstr "Ordres"
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -26,6 +28,7 @@ msgstr "Ennemi ici"
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -58,6 +61,7 @@ msgid "Watch behind you!"
 msgstr "Surveille tes arrières !"
 
 #: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
 #: catalog/libs/callouts/callouts/tdm.lua
@@ -82,6 +86,7 @@ msgstr "Couvrez-moi !"
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/hostage.lua
@@ -95,6 +100,7 @@ msgid "Flank here"
 msgstr "Contourner ici"
 
 #: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Hold here"
 msgstr "Tenez ici"
@@ -158,6 +164,7 @@ msgid "Build here"
 msgstr "Construire ici"
 
 #: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -168,6 +175,67 @@ msgstr "Attaquer"
 #: catalog/libs/callouts/callouts/babel.lua
 msgid "Defend the tower"
 msgstr "Défendre la tour"
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Push"
+msgstr "Poussez"
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Push, all together!"
+msgstr "Poussez, tous ensemble !"
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Hold this spot!"
+msgstr "Tenez cette position !"
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Flank"
+msgstr "Contourner"
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Flank them this way!"
+msgstr "Contournez-les par ici !"
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Need backup"
+msgstr "Besoin de renfort"
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "I need backup!"
+msgstr "J'ai besoin de renfort !"
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Fall back"
+msgstr "Repli"
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Fall back!"
+msgstr "Repliez-vous !"
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Defend"
+msgstr "Défendre"
+
+#: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Go here"
+msgstr "Aller ici"
 
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -197,11 +265,6 @@ msgid "Defend our base!"
 msgstr "Défendez notre base !"
 
 #: catalog/libs/callouts/callouts/ctf.lua
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Push"
-msgstr "Poussez"
-
-#: catalog/libs/callouts/callouts/ctf.lua
 msgid "Push forward, go for their intel!"
 msgstr "Avancez, visez leurs renseignements !"
 
@@ -210,14 +273,6 @@ msgstr "Avancez, visez leurs renseignements !"
 msgid "Intel here"
 msgstr "Renseignements ici"
 
-#: catalog/libs/callouts/callouts/ctf.lua
-#: catalog/libs/callouts/callouts/default.lua
-#: catalog/libs/callouts/callouts/hostage.lua
-#: catalog/libs/callouts/callouts/onectf.lua
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Defend"
-msgstr "Défendre"
-
 #: catalog/libs/callouts/callouts/default.lua
 msgid "Need help"
 msgstr "Besoin d'aide"
@@ -225,11 +280,6 @@ msgstr "Besoin d'aide"
 #: catalog/libs/callouts/callouts/default.lua
 msgid "Danger"
 msgstr "Danger"
-
-#: catalog/libs/callouts/callouts/default.lua
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Go here"
-msgstr "Aller ici"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 msgid "Say"
@@ -334,38 +384,6 @@ msgstr "Ils ont les renseignements -- arrêtez le porteur !"
 #: catalog/libs/callouts/callouts/onectf.lua
 msgid "I have the intel -- cover me!"
 msgstr "J'ai les renseignements -- couvrez-moi !"
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Push, all together!"
-msgstr "Poussez, tous ensemble !"
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Hold this spot!"
-msgstr "Tenez cette position !"
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Flank"
-msgstr "Contourner"
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Flank them this way!"
-msgstr "Contournez-les par ici !"
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Need backup"
-msgstr "Besoin de renfort"
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "I need backup!"
-msgstr "J'ai besoin de renfort !"
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Fall back"
-msgstr "Repli"
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Fall back!"
-msgstr "Repliez-vous !"
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Mark"
