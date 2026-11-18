@@ -141,6 +141,20 @@ up, and restored if it is not. New images bring new and updated scripts:
 The update runs in a throwaway container. The server's own container is
 never given the docker socket.
 
+**Knowing when there is one.** The server asks ghcr.io, a minute after
+it starts and then every six hours, which lsd-docker versions are
+published -- an anonymous request for the image's tags, nothing about
+the server is sent. When a newer one exists, every admin is told as they
+log in (`/login`), once per connection, in their language; nobody else
+is. `lsd status` shows it too, and `lsd update-check` asks right away.
+To turn it off: `lsd set update_check False`. (The notice goes to whoever
+holds the `update_notice` cap, which admins have.)
+
+**LSd itself is part of the image.** An instance updates only by moving
+to a newer lsd-docker image; nothing in it fetches or rebuilds LSd. LSd
+moves in development (`dev/bump-lsd.sh`), and reaches servers with the
+next release.
+
 ## The catalog
 
 | category | class | what | examples |

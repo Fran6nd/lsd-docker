@@ -73,6 +73,15 @@ serve() {
 	stopping=
 	trap 'stopping=1; [ -z "$child" ] || kill -TERM "$child" 2>/dev/null' TERM INT
 
+	# Is a newer lsd-docker image published? Asked a minute after start,
+	# then every six hours, unless update_check = False; the answer is a
+	# file that lib_update_notice tells admins about as they log in. Only
+	# the image is checked: LSd is built into it.
+	( sleep 60; while :; do
+		su-exec lsd lsdctl update-check --quiet >/dev/null 2>&1 || true
+		sleep 21600
+	done ) &
+
 	fails=0
 	while :; do
 		assemble_scripts

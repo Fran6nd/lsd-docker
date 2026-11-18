@@ -7,6 +7,10 @@ msgstr ""
 "Language: fr\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
+#: catalog/core/lib_update_notice.lua
+msgid "lsd-docker %(latest) is available; this server runs %(running). Update from the host: lsd update"
+msgstr "lsd-docker %(latest) est disponible ; ce serveur tourne en %(running). Mise à jour depuis l'hôte : lsd update"
+
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
 msgid "Command not found."

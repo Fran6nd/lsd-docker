@@ -5,6 +5,10 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#: catalog/core/lib_update_notice.lua
+msgid "lsd-docker %(latest) is available; this server runs %(running). Update from the host: lsd update"
+msgstr ""
+
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
 msgid "Command not found."

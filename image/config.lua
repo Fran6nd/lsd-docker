@@ -193,6 +193,8 @@ end
 
 load "motd"
 load "tip_spam"
+-- tells admins, as they log in, of a newer lsd-docker image
+load "lib_update_notice"
 
 --============================== SCRIPTS =============================--
 

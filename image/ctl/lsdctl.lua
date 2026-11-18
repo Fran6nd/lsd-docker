@@ -1179,6 +1179,63 @@ command("masterlist", "masterlist [on|off]",
 			on and "" or " (unlisted is not private: ip:port still joins)");
 	end);
 
+--============================ UPDATE CHECK ==========================--
+-- Whether a newer image is published: the registry is asked, anonymously,
+-- for the image's tags -- the versions an update can actually pull --
+-- and the answer kept in UPDATE_FILE, where lib_update_notice reads it
+-- to tell admins as they log in. The entrypoint runs this every six
+-- hours unless update_check = False; nothing else here goes online.
+
+local IMAGE_REPO = os.getenv("LSD_IMAGE_REPO") or "fran6nd/lsd-docker";
+local UPDATE_FILE = DATA .. "/rw/update-check";
+
+local function release_parts(v)
+	local a, b, c, d = string.match(tostring(v), "^(%d+)%.(%d+)%.(%d+)%.(%d+)$");
+	if (a == nil) then return nil; end
+	return {tonumber(a), tonumber(b), tonumber(c), tonumber(d)};
+end
+
+-- Is release `a` newer than release `b`? Not for a build that is not a
+-- release ("dev"): nothing can be said to be newer than that.
+local function newer(a, b)
+	local x, y = release_parts(a), release_parts(b);
+	if (x == nil or y == nil) then return false; end
+	for i = 1, 4 do
+		if (x[i] ~= y[i]) then return x[i] > y[i]; end
+	end
+	return false;
+end
+
+-- The newest release published on ghcr.io, or nil and why.
+local function latest_release()
+	local cmd = "tok=$(curl -fsS --max-time 20 "
+		.. sh_quote("https://ghcr.io/token?scope=repository:" .. IMAGE_REPO .. ":pull")
+		.. " | jq -r .token) && curl -fsS --max-time 20 -H \"Authorization: Bearer $tok\" "
+		.. sh_quote("https://ghcr.io/v2/" .. IMAGE_REPO .. "/tags/list")
+		.. " | jq -r '.tags[]' 2>/dev/null";
+	local h = io.popen(cmd);
+	local best;
+	for tag in h:lines() do
+		if (release_parts(tag) ~= nil and (best == nil or newer(tag, best))) then
+			best = tag;
+		end
+	end
+	h:close();
+	if (best == nil) then
+		return nil, "could not ask ghcr.io/" .. IMAGE_REPO;
+	end
+	return best;
+end
+
+-- What the last check found: {running=, latest=, checked=}, or nil.
+local function update_state()
+	local t = read_file(UPDATE_FILE);
+	if (t == nil) then return nil; end
+	local st = {};
+	for k, v in string.gmatch(t, "(%w+) ([^\n]+)") do st[k] = v; end
+	return st;
+end
+
 command("status", "status", "version, state, gamemode, scripts, maps",
 	function()
 		local v, c = version();
@@ -1206,9 +1263,49 @@ command("status", "status", "version, state, gamemode, scripts, maps",
 			say("error:      %s", tostring(plan));
 		end
 		say("maps:       %s", table.concat(map_names(), ", "));
+		local up = update_state();
+		if (up ~= nil and newer(up.latest, v)) then
+			say("update:     %s available (checked %s): lsd update", up.latest,
+				up.checked or "?");
+		end
 		for _, w in ipairs(doc.warnings) do say("warning:    %s", w); end
 		say("");
 		print_addresses(doc);
+	end);
+
+command("update-check", "update-check [--quiet]",
+	"is a newer image published? (the server asks every 6 hours; update_check = False stops it)",
+	function(args)
+		local _, flags = parse_args(args, {});
+		local doc = open_doc(false);
+		if (flags.quiet and doc:get("update_check") == false) then
+			os.remove(UPDATE_FILE);
+			return;
+		end
+
+		local running_v = version();
+		local latest, err = latest_release();
+		if (latest == nil) then
+			if (not flags.quiet) then die("%s", err); end
+			os.exit(1);
+		end
+
+		local f = io.open(UPDATE_FILE, "w");
+		if (f ~= nil) then
+			f:write(string.format("running %s\nlatest %s\nchecked %s\n", running_v,
+				latest, os.date("!%Y-%m-%dT%H:%M:%SZ")));
+			f:close();
+		end
+
+		if (flags.quiet) then return; end
+		if (newer(latest, running_v)) then
+			say("lsd-docker %s is available (this is %s): lsd update", latest, running_v);
+		elseif (release_parts(running_v) == nil) then
+			say("this is a development build (%s); the latest release is %s",
+				running_v, latest);
+		else
+			say("up to date (%s)", running_v);
+		end
 	end);
 
 command("version", "version", "this image's version and upstream LSd commit",
@@ -1251,6 +1348,10 @@ masterlist_enabled = True
 # Which server lists to announce to. Unset is every list the image
 # knows (LSD's own and Build and Shoot's), and follows image updates.
 # masterlist_remotes = ["66.135.15.57", "master.buildandshoot.com"]
+
+# Every six hours the server asks ghcr.io whether a newer lsd-docker
+# image is published, and tells admins as they log in. False stops it.
+# update_check = False
 
 # Maps to play, space separated, in order. Unset plays every .vxl in
 # /data/maps in name order (lsdctl map list).

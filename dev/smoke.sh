@@ -169,6 +169,16 @@ echo "$mine" | grep -q "extra.lua .*not running" || fail "lsdctl local: loose mo
 docker exec "$NAME" rm /data/scripts/extra.lua
 echo "ok: lsdctl local lists the operator's scripts and what runs"
 
+# the update check: the registry answers, and a newer version reaches
+# status and the admins' notice
+check=$(docker exec "$NAME" lsdctl update-check) || fail "update-check: $check"
+echo "$check" | grep -Eq "up to date|is available|development build" || fail "update-check said: $check"
+docker exec "$NAME" sh -c 'printf "running %s\nlatest 2999.1.1.1\nchecked now\n" "$(cat /lsd/VERSION)" > /data/rw/update-check'
+docker exec "$NAME" lsdctl status | grep -q "update: *2999.1.1.1 available" || fail "status does not show the update"
+note=$(docker exec "$NAME" lsdctl exec 'exec log("NOTE|" .. tostring(update_notice()) .. "|")')
+echo "$note" | grep -q "NOTE|lsd-docker 2999.1.1.1 is available" || fail "notice: $note"
+docker exec "$NAME" rm /data/rw/update-check
+echo "ok: update check, status and the admins' notice"
 
 if docker logs "$NAME" 2>&1 | grep -E 'failed to load|is installed but not in the catalog|stack traceback'; then
 	fail "errors in the server log"

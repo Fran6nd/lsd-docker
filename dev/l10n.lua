@@ -209,7 +209,8 @@ local function entries()
 			files = sh_lines("find " .. q(dir) .. " -name '*.lua' ! -name script.lua | sort")};
 	end
 	out[#out+1] = {dir = "catalog/overrides", upstream = true,
-		files = sh_lines("ls lsd/scripts/*.lua catalog/overrides/*.lua image/config.lua | sort")};
+		files = sh_lines("ls lsd/scripts/*.lua catalog/overrides/*.lua catalog/core/*.lua "
+			.. "image/config.lua | sort")};
 	return out;
 end
 
