@@ -78,6 +78,11 @@ local function cast(pid)
 		l10n_send_chat(PID_BROADCAST, kicked_msg, {target=vote.tname});
 		local target = vote.target;
 		vote = nil;
+		-- the Kick Reason extension tells the kicked player why, where
+		-- their client speaks it; without it this is a plain kick
+		if (kick_reason_set ~= nil) then
+			kick_reason_set(target, "Vote kicked");
+		end
 		disconnect(target, 2);
 	else
 		l10n_send_chat(PID_BROADCAST, voted_msg, {voter=get_name(pid),

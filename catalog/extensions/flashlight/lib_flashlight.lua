@@ -235,10 +235,13 @@ getcfg("flashlight_request_interval", 0.25,
 -- unless you are asking why a client's light is not coming on.
 getcfg("flashlight_debug", false,
 	"Log every light switched and every request refused.");
--- Whose lights a player is told about. A light nobody is told about is
--- not drawn by anybody, so 'self' is a beam that lights your own way
--- and gives nothing away: the night vision preset. Configs still go to
--- everybody -- they say what a light looks like, not that it is on.
+-- Whose lights a player sees. Every client is still told every light,
+-- as the spec requires of Light and Light State; what changes is the
+-- beam it is told to draw them with. A light a viewer may not see is
+-- configured for that viewer with Reach and Cone 0, which the spec
+-- defines as giving no light -- and with them its lamp glare, whose
+-- Beam and Distance terms both fall to nothing. 'self' is a beam that
+-- lights your own way and gives nothing away: the night vision preset.
 getcfg("flashlight_visibility", "all",
 	"Whose lights a player sees: 'all', 'team' (their team's and their "
 		.."own) or 'self' (only their own, so nobody spots a light).");
@@ -263,8 +266,8 @@ local function negotiated(pid)
 	return ext_supported ~= nil and ext_supported(pid, EXT_ID) ~= nil;
 end
 
--- Whether viewer is told about target's light at all; see
--- flashlight_visibility. Your own light is always yours to see.
+-- Whether viewer sees target's light; see flashlight_visibility. Your
+-- own light is always yours to see.
 local function visible(viewer, target)
 	if (viewer == target or flashlight_visibility == "all"
 	    or flashlight_visibility == nil) then
@@ -334,11 +337,11 @@ end
 -- array is off", so the tail is implied and a server with nobody lit
 -- sends the shortest packet the extension has -- one zero byte, since
 -- the size is given as "2+" and a bitmap of no bytes is not a bitmap.
-local function build_state(viewer)
+local function build_state()
 	local bytes, top = {}, 0;
 
 	for i in piditer(PID_BROADCAST) do
-		if (lit[i] and visible(viewer, i)) then
+		if (lit[i]) then
 			local idx = math.floor(i/8) + 1;
 
 			bytes[idx] = bit.bor(bytes[idx] or 0, bit.lshift(1, i % 8));
@@ -443,53 +446,87 @@ local function has_own_beam(pid)
 	return cfg[pid] ~= nil or pinned[pid];
 end
 
--- pid's beam, as it stands, to everybody who has negotiated.
+-- The beam that gives no light, for a viewer who may not see a light:
+-- "A Reach or Cone of 0 gives no light". See flashlight_visibility.
+local DARK = {reach = 0, cone = 0, r = 0, g = 0, b = 0, flicker = 0};
+
+local function hiding()
+	return flashlight_visibility == "self" or flashlight_visibility == "team";
+end
+
+-- target's beam as viewer is to draw it.
+local function beam_for(viewer, target, now)
+	if (visible(viewer, target)) then
+		return effective(target, now);
+	end
+	return DARK;
+end
+
+-- pid's beam, as it stands, to everybody who has negotiated -- each told
+-- the beam they may see.
 local function broadcast_beam(pid, now)
 	local w = effective(pid, now);
 
 	for i in piditer(PID_BROADCAST) do
 		if (negotiated(i)) then
-			send_config(i, pid, w);
+			send_config(i, pid, visible(i, pid) and w or DARK);
 		end
 	end
 
 	return w;
 end
 
--- The default beam, as one packet addressed to the reserved id, sent to
--- everybody who has negotiated. One packet for the whole server rather
--- than one per player: the client applies it to every player without a
--- config of their own, joiners included, so there is nothing to repeat
--- when somebody arrives.
-local function announce_default(pid)
-	if (not flashlight_send_default) then
+-- Every beam one viewer is owed: the default under the exceptions, since
+-- a per-player config overrides the default and arriving second is the
+-- simplest way to be the one that wins.
+--
+-- Hiding lights, the viewer's default is DARK -- so a player who joins
+-- later is hidden without a packet -- and every player is then named
+-- with the beam this viewer may see, their own included. A config
+-- lasts until Player Left, so one sent while a player was a teammate
+-- would otherwise outlive the team change.
+local function send_view(viewer, now)
+	now = now or get_time();
+
+	if (hiding()) then
+		send_config(viewer, DEFAULT_ID, DARK);
+		for i in piditer(PID_BROADCAST) do
+			send_config(viewer, i, beam_for(viewer, i, now));
+		end
 		return;
 	end
 
-	local c = default_config();
+	if (flashlight_send_default) then
+		send_config(viewer, DEFAULT_ID, default_config());
+	end
+	for i in piditer(PID_BROADCAST) do
+		if (has_own_beam(i)) then
+			send_config(viewer, i, effective(i, now));
+		end
+	end
+end
+
+-- The default beam, re-announced to one viewer or to everybody who has
+-- negotiated: one packet to the reserved id covers every player without
+-- a config of their own, joiners included. Anybody with one of their
+-- own -- configured, or pinned by a blast -- is told theirs by name in
+-- the same pass, so a changed default never leaves them behind.
+local function announce_default(pid)
+	local now = get_time();
 
 	if (pid ~= nil) then
-		send_config(pid, DEFAULT_ID, c);
+		send_view(pid, now);
 		return;
 	end
 
 	for i in piditer(PID_BROADCAST) do
 		if (negotiated(i)) then
-			send_config(i, DEFAULT_ID, c);
-		end
-	end
-
-	-- A player a blast pinned is still meant to be on the default, and
-	-- the default packet does not reach them any more: their beam is
-	-- their own on every client now. So they are told it by name.
-	for i in piditer(PID_BROADCAST) do
-		if (pinned[i] and cfg[i] == nil) then
-			broadcast_beam(i);
+			send_view(i, now);
 		end
 	end
 
 	if (flashlight_debug) then
-		log("lib_flashlight: default beam is %s", describe(c));
+		log("lib_flashlight: default beam is %s", describe(default_config()));
 	end
 end
 
@@ -519,16 +556,8 @@ end
 -- "after State Data", which this is well after, since negotiation
 -- finishes long after a join.
 local function on_ready(pid)
-	announce_default(pid);
-
-	local now = get_time();
-	for i in piditer(PID_BROADCAST) do
-		if (has_own_beam(i)) then
-			send_config(pid, i, effective(i, now));
-		end
-	end
-
-	send_packet(pid, build_state(pid));
+	send_view(pid);
+	send_packet(pid, build_state());
 
 	if (flashlight_debug) then
 		log("lib_flashlight: #%d negotiated, sent the beams and the state",
@@ -583,6 +612,15 @@ function mod.after.spawn_player(pid)
 
 	if (flashlight_colors == "random") then
 		recolour(pid);
+	end
+
+	-- A spawn is where a team changes, and with it who may see whom:
+	-- everybody is told pid's beam afresh, and pid everybody's.
+	if (flashlight_visibility == "team") then
+		broadcast_beam(pid);
+		if (negotiated(pid)) then
+			send_view(pid);
+		end
 	end
 end
 
@@ -946,7 +984,7 @@ function flashlight_set(pid, on)
 	lit[pid] = on;
 
 	for i in piditer(PID_BROADCAST) do
-		if (negotiated(i) and visible(i, pid)) then
+		if (negotiated(i)) then
 			send_light(i, pid, on);
 		end
 	end
@@ -1037,11 +1075,9 @@ end
 
 --============================ LIFECYCLE =============================--
 
--- Registering is also what re-announces. Whatever a client agreed with
--- the last copy of this module is not something the new copy has any
--- record of, and the client will not repeat itself -- so lib_ext sends
--- the list again to everybody connected, and their replies re-establish
--- the agreement and run on_ready.
+-- Negotiation happens once per connection, so a hot load does not
+-- re-run it: lib_ext keeps the agreements, and runs on_ready again for
+-- every client that had agreed to this extension once it re-registers.
 --
 -- Which also repairs the state across a hot load, in the one direction
 -- that can be repaired: the new copy's tables are empty, so every light

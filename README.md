@@ -146,7 +146,7 @@ never given the docker socket.
 | category | class | what | examples |
 |---|---|---|---|
 | gamemodes | `Gamemode` | exactly one runs | ctf, onectf, arena, babel, ffa, hostage |
-| extensions | `Extension` | protocol extensions; the setup also asks what a client lacking one costs | flashlight, daytime, teamplay, damage_markers, player_limit, message_types, silent_player |
+| extensions | `Extension` | protocol extensions; the setup also asks what a client lacking one costs | every extension in the [AoS protocol registry](https://github.com/zerospades/aosprotocol): player_properties, damage_markers, teamplay, pie_menu, flashlight, daytime, edit_mode, player_limit, message_types, kick_reason (UTF-8 chat is built into LSd); plus silent_player |
 | effects | `Effect` | change how the game plays | railgun, grenade_shotgun, pinning_smg, the_fall, grenade_pit |
 | bots | `Bot` | server-side players | guards, battle_bots |
 | tools | `Tool` | everything else | world_editor, votekick, esp_demo, headless, time_limit, ... |
@@ -159,6 +159,21 @@ The flashlight's presets:
 | `default` | OpenSpades' warm white beam, seen by everybody |
 | `night_vision` | a green beam only its carrier sees: nobody spots your light |
 | `disco` | every player's beam a random colour, changing as they play |
+
+The pie menu's slices come from the settings file, or a built-in menu
+of pings, quick chat and player commands when it names none:
+
+```
+pie_menu = [
+	{theme: 'Orders', when: 'block enemy', slices: [
+		{text: '/pingmark %h Attack', label: 'Attack'},
+		{text: '/pingmark %h Defend', label: {en: 'Defend', fr: 'Défendre'}},
+	]},
+]
+```
+
+Edit mode follows the world editor's `worldedit on|off`, or
+`/editmode [player] [on|off]` for holders of the `editmode` cap.
 
 ### Writing a catalog entry
 

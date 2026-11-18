@@ -82,15 +82,15 @@ local function parse_scalar(raw, complain)
 		return nil;
 	end
 
-	-- 0 and "off" are TRUTHY in Lua, so without naming them here
-	-- `masterlist_enabled = 0` would switch the listing ON.
+	-- "off" is TRUTHY in Lua as a string, so the words are read here.
+	-- 0 is not one of them: it is a number, and has to stay one --
+	-- `guard_count = 0` is a count, and extension id 0 is a map key.
 	local lower = string.lower(raw);
 
 	if (lower == "true" or lower == "yes" or lower == "on") then
 		return true;
 	end
-	if (lower == "false" or lower == "no" or lower == "off"
-	    or raw == "0") then
+	if (lower == "false" or lower == "no" or lower == "off") then
 		return false;
 	end
 	if (raw == "None" or raw == "nil") then

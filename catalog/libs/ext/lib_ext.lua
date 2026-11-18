@@ -43,7 +43,10 @@
 --        agree to it, and ext_supported answers no for everybody --
 --        including clients that agreed before it was disabled
 --   ext_is_disabled(id)        -> is it being withheld
---   ext_announce(pid)          re-send the list to one client
+--   ext_announce(pid)          send the list to one client. Low level:
+--                                 it is sent once per connection by
+--                                 this module, and a second one is a
+--                                 renegotiation the spec rules out
 --
 -- VERSIONS ARE MATCHED, NOT NEGOTIATED. The spec says nothing about
 -- resolving a mismatch, and guessing is worse than declining: a client
@@ -52,6 +55,16 @@
 -- assuming otherwise is malformed packets on a live connection. So an
 -- exact match counts and nothing else does. When a version 2 of some
 -- extension exists, whoever writes it registers both and picks.
+--
+-- NEGOTIATION HAPPENS ONCE PER CONNECTION. The spec is explicit: one
+-- ExtInfo each way covers the whole connection, Map Start does not
+-- re-run it "and neither side should expect it to". So the list goes out
+-- once, the client's first reply is the one that counts, and nothing
+-- here -- a map change, an extension hot-loaded or switched on later --
+-- sends it again. The cost is that an extension loaded or enabled while
+-- a client is connected only reaches clients that connect afterwards;
+-- a client that cannot be expected to handle a second ExtInfo is the
+-- alternative, and it is the worse one.
 local mod = init_mod();
 
 -- ExtensionInfo. Declared in protocol.h:640-654 and PacketTypeExtensionInfo
@@ -99,12 +112,29 @@ local disabled = ext_disabled;
 -- disconnect, because the next occupant of that slot has agreed to
 -- nothing -- ids are recycled and an inherited agreement is a client
 -- being sent packets it never asked for and cannot parse.
-local agreed = pid_connected_table();
+--
+-- A global, like the registry, and now for a harder reason: negotiation
+-- happens once per connection, so an agreement this module forgot on a
+-- reload could never be made again. pid_tables keeps clearing it on
+-- disconnect -- it holds the table weakly, and this name holds it.
+ext_agreed = ext_agreed or pid_connected_table();
+local agreed = ext_agreed;
 -- pid -> true once the list has gone out to them, so a client that
 -- reports its version twice -- or by both of the two routes below -- is
--- announced to once. Also the set ext_register re-announces to on a hot
--- load: "everyone who has told us what they are".
+-- announced to once -- once per connection being what the spec asks.
 local announced = pid_connected_table(false);
+-- pid -> {id -> true}: what we actually offered them, the half of
+-- "mutually supported" that is ours. A client may list extensions we
+-- never offered -- the spec lets it reply with everything it speaks --
+-- and one we registered after announcing, or had disabled at the time,
+-- was not part of this connection's negotiation, so naming it back does
+-- not make it agreed.
+-- A global for the same reason as ext_agreed.
+ext_offered = ext_offered or pid_connected_table();
+local offered = ext_offered;
+-- ready(pid) calls owed to a re-registered extension, run on the next
+-- tick; see ext_register.
+local pending_ready = {};
 
 --=========================== THE WIRE ===============================--
 
@@ -113,10 +143,12 @@ local announced = pid_connected_table(false);
 -- client comparable by eye in a packet log.
 local function build_list()
 	local ids = {};
+	local set = {};
 
 	for id in pairs(registry) do
 		if (not disabled[id]) then
 			ids[#ids+1] = id;
+			set[id] = true;
 		end
 	end
 	table.sort(ids);
@@ -126,7 +158,7 @@ local function build_list()
 		out[#out+1] = string.char(id, registry[id].version);
 	end
 
-	return table.concat(out), #ids;
+	return table.concat(out), #ids, set;
 end
 
 -- Is this client new enough to be told? Strictly greater than the
@@ -142,7 +174,7 @@ local function new_enough(major, minor, patch)
 end
 
 function ext_announce(pid)
-	local list, n = build_list();
+	local list, n, set = build_list();
 
 	-- "we support nothing" is a legal packet and a pointless one: it
 	-- tells the client only that we speak the negotiation itself, and
@@ -151,6 +183,7 @@ function ext_announce(pid)
 		return false;
 	end
 
+	offered[pid] = set;
 	send_packet(pid, list);
 	return true;
 end
@@ -207,6 +240,46 @@ function mod.after.on_version_ext(pid, major, minor, patch, flags, cli, lang)
 	announce_once(pid);
 end
 
+-- Both ends named `id` at the version we speak, we offered it to this
+-- client, and it is not withheld. ext_supported is this, exported.
+local function agrees(pid, id)
+	local reg = registry[id];
+	local seen = agreed[pid];
+	local ours = offered[pid];
+
+	-- A disabled extension is not supported by anybody, including a
+	-- client that agreed to it before it was disabled. Otherwise
+	-- disabling would only stop new clients using it and leave the ones
+	-- already here being sent packets the server has decided not to
+	-- speak.
+	if (disabled[id]) then
+		return nil;
+	end
+
+	if (reg == nil or seen == nil or ours == nil or not ours[id]
+	    or seen[id] ~= reg.version) then
+		return nil;
+	end
+	return reg.version;
+end
+
+-- Hand a client to one extension's ready callback. A ready callback is
+-- other people's code sending its own packets, so one that throws is
+-- dropped rather than left to take down every later extension's opening
+-- packets with it.
+local function run_ready(pid, id, reg)
+	if (reg.ready == nil) then
+		return;
+	end
+
+	local ok, err = pcall(reg.ready, pid);
+	if (not ok) then
+		reg.ready = nil;
+		log("lib_ext: %s crashed on ready for #%d, dropped: %s",
+			reg.name, pid, tostring(err));
+	end
+end
+
 -- Their half. An extension is mutually supported once both sides have
 -- named it at the same version; ours went out above, so their list
 -- settles every extension at once.
@@ -217,24 +290,32 @@ local function on_extinfo(pid, data)
 		return;
 	end
 
+	-- Once per connection: the first well-formed reply settles it. A
+	-- second one is a renegotiation the spec rules out, and honouring it
+	-- would re-run every ready callback -- a second Config, a second Sky,
+	-- whatever opening packets each extension sends -- on the client's
+	-- say-so.
+	if (agreed[pid] ~= nil) then
+		return;
+	end
+
+	-- A reply to nothing. The client answers our list; one that sends its
+	-- own before we have sent ours has not been asked yet, and gets asked
+	-- -- once -- when its version comes in.
+	if (offered[pid] == nil) then
+		return;
+	end
+
 	local seen = {};
 	for i = 0, n-1 do
 		seen[string.byte(data, 3 + i*2)] = string.byte(data, 4 + i*2);
 	end
 	agreed[pid] = seen;
 
-	-- Tell each extension that agrees with this client. A ready callback
-	-- is other people's code sending its own packets, so one that throws
-	-- is dropped rather than left to take down every later extension's
-	-- opening packets with it.
+	-- Tell each extension that agrees with this client.
 	for id,reg in pairs(registry) do
-		if (seen[id] == reg.version and reg.ready ~= nil) then
-			local ok, err = pcall(reg.ready, pid);
-			if (not ok) then
-				reg.ready = nil;
-				log("lib_ext: %s crashed on ready for #%d, dropped: %s",
-					reg.name, pid, tostring(err));
-			end
+		if (agrees(pid, id) ~= nil) then
+			run_ready(pid, id, reg);
 		end
 	end
 end
@@ -263,19 +344,40 @@ function ext_register(name, id, version, ready, title)
 	registry[id] = {name = name, version = version, ready = ready,
 		title = title or name};
 
-	-- The list we already announced is now short by one. Re-announcing
-	-- is what makes a hot load work at all: every connected client was
-	-- told a list that did not have this extension in it, and none of
-	-- them will ask again on their own.
+	-- No re-announcement: negotiation happens once per connection (see
+	-- the header). A client already connected was offered the list as it
+	-- stood, and an extension registered for the first time since is
+	-- simply not part of its connection.
 	--
-	-- To everyone we have announced to, which is not the same as
-	-- everyone get_client_char answers for: that is nil for a client
-	-- that reported itself through on_version_ext instead, and skipping
-	-- those would hot-load an extension that one half of the server
-	-- never hears about.
-	for i in piditer(PID_BROADCAST) do
-		if (announced[i]) then
-			ext_announce(i);
+	-- A module RELOADED is different. Its id was in the list, the client
+	-- agreed to it, and that agreement still stands -- but the new copy
+	-- of the module has no record of having sent its opening packets, so
+	-- it is handed every client that agreed, exactly as at negotiation.
+	-- On the next tick rather than now, because this is called from the
+	-- module's own on_load and the rest of that may not have run yet.
+	if (ready ~= nil) then
+		for i in piditer(PID_BROADCAST) do
+			if (agrees(i, id) ~= nil) then
+				pending_ready[#pending_ready+1] = {pid = i, id = id};
+			end
+		end
+	end
+end
+
+function mod.after.tick()
+	if (#pending_ready == 0) then
+		return;
+	end
+
+	local due = pending_ready;
+	pending_ready = {};
+
+	for _,p in ipairs(due) do
+		local reg = registry[p.id];
+		-- still registered, still agreed: neither an unload nor a
+		-- disconnect in between leaves anything to tell
+		if (reg ~= nil and agrees(p.pid, p.id) ~= nil) then
+			run_ready(p.pid, p.id, reg);
 		end
 	end
 end
@@ -286,45 +388,27 @@ end
 
 -- The version both ends agreed on, or nil. Registration is half the
 -- answer: an extension this server has stopped announcing is not
--- supported however recently a client said it spoke it.
+-- supported however recently a client said it spoke it. So is having
+-- offered it to this client at all -- see `offered`.
 function ext_supported(pid, id)
-	local reg = registry[id];
-	local seen = agreed[pid];
-
-	-- A disabled extension is not supported by anybody, including a
-	-- client that agreed to it before it was disabled. Otherwise
-	-- disabling would only stop new clients using it and leave the ones
-	-- already here being sent packets the server has decided not to
-	-- speak.
-	if (disabled[id]) then
-		return nil;
-	end
-
-	if (reg == nil or seen == nil or seen[id] ~= reg.version) then
-		return nil;
-	end
-	return reg.version;
+	return agrees(pid, id);
 end
 
--- Stop offering an extension, or start again. Re-announces either way:
--- the list every connected client was told is now wrong, and none of
--- them will ask again on their own.
+-- Stop offering an extension, or start again. Not re-announced, since
+-- negotiation happens once per connection: disabling takes effect for
+-- everybody at once, through ext_supported, and enabling reaches the
+-- clients that connect afterwards plus any already here that were
+-- offered it before it was disabled and agreed.
 local function set_disabled(id, off)
 	if (type(id) ~= "number") then
 		error("ext_disable/ext_enable: id must be a number", 3);
 	end
 
 	if ((disabled[id] and true or false) == off) then
-		return false; -- already so, and a re-announce would say nothing
+		return false; -- already so
 	end
 
 	disabled[id] = off or nil;
-
-	for i in piditer(PID_BROADCAST) do
-		if (announced[i]) then
-			ext_announce(i);
-		end
-	end
 
 	return true;
 end
@@ -366,13 +450,12 @@ function ext_each(fn)
 	end
 end
 
--- The registry survives a reload of this module; the per-client
--- bookkeeping cannot, since pid tables are made fresh. So rebuild the
--- announced set from what the core itself remembers about each client:
--- an id char means it answered with a VersionResponse, ext-supported
--- means it answered with an extended version block. Either way we have
--- already told it the list, and either way ext_register must reach it
--- when a new extension hot-loads.
+-- The registry and the agreements survive a reload of this module; the
+-- announced set is a fresh pid table. So rebuild it from what the core
+-- itself remembers about each client: an id char means it answered with
+-- a VersionResponse, ext-supported means it answered with an extended
+-- version block. Either way we have already told it the list, and
+-- telling it again would be the renegotiation the spec rules out.
 function mod.on_load()
 	for i in piditer(PID_BROADCAST) do
 		local ok_char, char = pcall(get_client_char, i);

@@ -52,7 +52,7 @@ eq(v.other, "single quoted", "a single-quoted string");
 eq(v.flag_on, true, "True is true");
 eq(v.flag_off, false, "False is false");
 eq(v.flag_word, false, '"off" is false, not a truthy string');
-eq(v.zero, false, "0 is false: masterlist_enabled = 0 must not list");
+eq(v.zero, 0, "0 is the number 0: guard_count = 0 is a count");
 eq(v.count, 300, "a number");
 eq(v.hexy, 0x33, "a hex number");
 eq(v.nothing, nil, "None is unset");
@@ -94,6 +94,8 @@ fog = (128, 232, 255)
 ]]);
 eq(v.ext_policy[0x33], "required", "a hex key");
 eq(v.ext_policy[48], "recommended", "a decimal key, its comment stripped");
+eq(parse("p = {0: 'applied', 0x00: 'x'}\n").p[0] ~= nil, true,
+	"extension id 0 is a key, not false");
 eq(v.fog.g, 232, "a three-tuple is a colour");
 
 print("\n5. escapes");

@@ -345,11 +345,10 @@ end
 
 --============================ LIFECYCLE =============================--
 
--- Registering is also what re-announces. Whatever a client agreed with
--- the last copy of this module is not something the new copy has any
--- record of, and the client will not repeat itself -- so lib_ext sends
--- the list again to everybody connected, and their replies re-establish
--- the agreement.
+-- Registering does not re-announce: negotiation happens once per
+-- connection, so a client keeps whatever it agreed with the last copy of
+-- this module (lib_ext holds that, not us) and one already connected when
+-- the extension is first loaded never gets it.
 --
 -- No ready callback: there is nothing this extension has to say to a
 -- client that has just negotiated. The first packet it ever sends is

@@ -1067,8 +1067,10 @@ function mod.late.on_block_action(pid, pos, type)
 	end
 
 	-- a gun never destroys blocks in edit mode: fly around armed without
-	-- chewing the map
-	if (editing and get_tool(pid) == 2) then
+	-- chewing the map. Not for a spectator, whose tool is whatever
+	-- spawn_player left (the gun) and who builds through the Edit Mode
+	-- extension.
+	if (editing and get_tool(pid) == 2 and is_alive(pid)) then
 		revert_action(pid, pos, type);
 		return;
 	end
@@ -1293,6 +1295,12 @@ function mod.after.load_map(name)
 	if (editing) then
 		editing = false;
 		listing_show();
+		-- nor may the protocol's edit mode outlive ours
+		if (edit_mode_set ~= nil) then
+			for i in piditer(PID_BROADCAST) do
+				pcall(edit_mode_set, i, false);
+			end
+		end
 	end
 	load_layout();
 end
@@ -1402,11 +1410,26 @@ end
 -- it, so a server that loads sel or noclip itself keeps them.
 local borrowed_ours = {};
 
+-- The Edit Mode protocol extension (catalog/extensions/edit_mode), when
+-- it is installed: a builder whose client speaks it is put in its Edit
+-- Mode too, so the client itself lifts its limits (reach, mid-air,
+-- Block Batch) instead of only the server waving packets through. Read
+-- at call time, so this works whichever loaded first and does nothing
+-- without it. A client that cannot speak it is refused by edit_mode_set
+-- and builds as before, through unrestricted_blocks -- but note the
+-- extension benches such clients while anybody is in its edit mode.
+local function edit_mode(pid, on)
+	if (edit_mode_set ~= nil) then
+		pcall(edit_mode_set, pid, on);
+	end
+end
+
 local function grant_all(pid)
 	if (not has_cap(pid, CAP_BUILD)) then grant_cap(pid, CAP_BUILD); end
 	for _, b in ipairs(BORROWED) do
 		if (b.cap ~= nil and not has_cap(pid, b.cap)) then grant_cap(pid, b.cap); end
 	end
+	edit_mode(pid, true);
 end
 
 local function edit_start()
@@ -1426,6 +1449,15 @@ local function edit_start()
 		end
 	end
 
+	-- Block Batch skips on_block_action, and so the may_edit guard
+	-- there; this is the same guard for it. Only "allow": a batch never
+	-- takes a component down.
+	if (edit_mode_listen_batch ~= nil) then
+		edit_mode_listen_batch("world_editor", function(pid, action, b)
+			return may_edit(pid, b.x, b.y, b.z) == "allow";
+		end);
+	end
+
 	for i in piditer(PID_BROADCAST) do
 		if (is_joined(i)) then grant_all(i); end
 	end
@@ -1434,6 +1466,7 @@ end
 
 local function edit_stop()
 	for i in piditer(PID_BROADCAST) do
+		edit_mode(i, false);
 		if (is_joined(i)) then
 			if (has_cap(i, CAP_BUILD)) then drop_cap(i, CAP_BUILD); end
 			for _, b in ipairs(BORROWED) do

@@ -24,7 +24,9 @@
 -- API (globals):
 --   teamplay_supported(pid)              -> true once ext 48 is agreed
 --   teamplay_mark(viewer, target, secs, opts)     one viewer
---   teamplay_mark_all(target, secs, opts)         everyone who can see it
+--   teamplay_mark_all(target, secs, opts)         everyone who can see it,
+--        including clients that negotiate later: the mark is remembered
+--        and re-sent to them with the time it has left
 --   teamplay_clear(viewer, target) / teamplay_clear_all(target)
 --   teamplay_ping(viewer, pos, opts) / teamplay_ping_all(pos, opts)
 --   teamplay_send_config()               re-announce features and north
@@ -34,6 +36,10 @@
 --        fn(pid) the moment a client finishes negotiating. This is the
 --        hook to hang standing marks off: negotiation finishes well
 --        after on_join, so anything sent at join time is sent too early.
+--
+--   /pingmark <x> <y> <z> [reason...]
+--        the spec's chat command for a ping, under the Ping packet's
+--        rules; it exists only for clients that negotiated ext 48
 --
 --   TEAMPLAY_FOREVER  duration meaning "until something clears it"
 --   TEAMPLAY_WORLD / TEAMPLAY_MINIMAP / TEAMPLAY_COMPASS
@@ -73,10 +79,12 @@
 -- waiting to be asked (see mod.after.finish_map_load) -- north is the
 -- one field a new world is likely to want different. Everything else is
 -- per player id and is dropped on both ends: every mark and every ping
--- is gone from every client the moment the new map starts. A server
--- holding standing marks re-sends them itself, from its own
--- finish_map_load, the same way it re-sends them to a client that has
--- only just negotiated.
+-- is gone from every client the moment the new map starts, and from
+-- this module's memory too. A server holding standing marks re-sends
+-- them itself, from its own finish_map_load. Marks made with
+-- teamplay_mark_all are re-sent to a client that has only just
+-- negotiated by this module; per-viewer ones are the caller's, through
+-- teamplay_listen_ready.
 --
 -- WHAT THIS DOES NOT DO: anything for clients that don't speak it. A
 -- client that does not name ext 48 never gets a packet 112 and never
@@ -243,6 +251,11 @@ getcfg("teamplay_ping_aim_cos", 0.985);
 -- the ping is a point on a surface, which is up to a block and a half
 -- apart before anybody is lying; 2 covers that and little else.
 getcfg("teamplay_ping_los_slack", 2.0);
+-- How far from where the server has the pinger a ping may land, in
+-- blocks. The spec has the server check a ping against "the player's
+-- actual position" and refuse ones that diverge from it; 128 is the fog
+-- distance, past which nobody can see anything to ping.
+getcfg("teamplay_ping_range", 128);
 -- Log every ping and every reason one was refused. For working out why a
 -- client's pings are not arriving; noisy, and off unless you are asking.
 getcfg("teamplay_ping_debug", false);
@@ -265,6 +278,20 @@ end
 
 -- pid -> when we last accepted a ping from them
 local ping_at = pid_connected_table(0);
+
+-- target pid -> {expires=, opts=} for each mark made through
+-- teamplay_mark_all, whose audience is everybody -- including whoever
+-- has not negotiated yet. The spec has a server keeping +inf marks
+-- remember them for players who join later, and one using finite ones
+-- re-send an active mark with the time that is left; on_ready does both
+-- from here. A mark sent to one viewer is not kept: its audience was
+-- that viewer, and a client connecting later is not them.
+--
+-- Keyed by the TARGET and cleared when the target disconnects: "the
+-- server does the same and stops referring to the id" on Player Left,
+-- and a mark that outlived its target would land on the next player to
+-- be given the id.
+local standing = pid_connected_table();
 
 local listeners = {};       -- client pings
 local ready_listeners = {}; -- clients that have just negotiated
@@ -522,6 +549,21 @@ end
 local function on_ready(pid)
 	send_config(pid);
 
+	-- Standing marks next, before the listeners: it is the module's own
+	-- state and theirs may replace it.
+	local now = get_time();
+	for target = 0, MAX_PLAYERS-1 do
+		local m = standing[target];
+		if (m ~= nil) then
+			local left = m.expires - now;
+			if (left > 0) then
+				teamplay_mark(pid, target, left, m.opts);
+			else
+				standing[target] = nil;
+			end
+		end
+	end
+
 	for lname,fn in pairs(ready_listeners) do
 		local ok, err = pcall(fn, pid);
 		if (not ok) then
@@ -550,6 +592,27 @@ function mod.after.finish_map_load()
 	resend_config = true;
 end
 
+-- Map Start "clears everything for every id on both ends", and the Map
+-- Start goes out from inside finish_map_load (main.c:1030-1043) -- so the
+-- standing marks are forgotten before it. Before, not after: a mode that
+-- re-marks its carriers from its own finish_map_load hook is marking the
+-- new world, and those have to be the ones remembered.
+function mod.before.finish_map_load()
+	for target = 0, MAX_PLAYERS-1 do
+		standing[target] = nil;
+	end
+end
+
+-- CLEAR_ON_RESPAWN ends a mark on the target's next Create Player. The
+-- clients drop it themselves; this drops it from what a joining client
+-- would otherwise be sent.
+function mod.after.spawn_player(pid)
+	local m = standing[pid];
+	if (m ~= nil and m.opts.clear_on_respawn) then
+		standing[pid] = nil;
+	end
+end
+
 function mod.after.tick()
 	if (resend_config) then
 		resend_config = false;
@@ -564,16 +627,49 @@ end
 -- two ends can be checked against each other, and the server raycasts
 -- from the pinger through their crosshair to confirm line of sight.
 --
--- So: the point has to lie along the aim, and the line to it has to be
--- clear. A point behind the pinger or through a wall is a desynced
--- client at best and a client pinging what it cannot see at worst, and
--- the two are not worth telling apart -- neither is a ping.
+-- So: the point has to be within sight range of where the server has
+-- the pinger, lie along their aim, have a clear line to it, and have
+-- something there to ping. A point behind the pinger, through a wall or
+-- in mid-air is a desynced client at best and a client pinging what it
+-- cannot see at worst, and the two are not worth telling apart --
+-- neither is a ping.
+
+-- Is a living player standing at pos? The one thing a ping may name that
+-- the voxel raycast cannot see: a body is not a block, and a ping on an
+-- enemy in the open has no wall behind it within reach. Position is the
+-- head and z grows downwards, so a body runs from a little above it to
+-- about three blocks below; a block either side covers its width.
+local function body_at(pos)
+	for i in piditer(PID_BROADCAST) do
+		local ok, alive = pcall(is_alive, i);
+		if (ok and alive) then
+			local p = get_position(i);
+			if (math.abs(p.x - pos.x) <= 1 and math.abs(p.y - pos.y) <= 1
+			    and pos.z >= p.z - 1 and pos.z <= p.z + 3) then
+				return true;
+			end
+		end
+	end
+	return false;
+end
+
 local function ping_is_sane(pid, pos)
 	local eye = get_position(pid);
 	local dir = get_orientation(pid);
 	local dx, dy, dz = pos.x - eye.x, pos.y - eye.y, pos.z - eye.z;
 	local reach = math.sqrt(dx*dx + dy*dy + dz*dz);
 	local aim = math.sqrt(dir.x*dir.x + dir.y*dir.y + dir.z*dir.z);
+
+	-- The spec's "the player's actual position": a point further from
+	-- where the server has them than anybody can see has diverged from
+	-- it, whatever direction it is in.
+	if (reach > teamplay_ping_range) then
+		if (teamplay_ping_debug) then
+			log("lib_teamplay: ping #%d refused, out of range: %.1f > %.1f",
+				pid, reach, teamplay_ping_range);
+		end
+		return false;
+	end
 
 	-- get_orientation is documented as a direction vector, not as a unit
 	-- one (lua_playerget:27 leaves its length open), so normalise before
@@ -608,94 +704,103 @@ local function ping_is_sane(pid, pos)
 	-- has to stay one at any range: a squared tolerance that is generous
 	-- up close is nothing at all fifty blocks out.
 	local hit = raycast(eye, pos, false);
-	if (hit == nil) then
+	if (hit ~= nil) then
+		local hd = math.sqrt((hit.x-eye.x)^2 + (hit.y-eye.y)^2
+			+ (hit.z-eye.z)^2);
+
+		if (hd < reach - teamplay_ping_los_slack) then
+			if (teamplay_ping_debug) then
+				log("lib_teamplay: ping #%d refused, wall in the way: solid"
+					.. " at %.1f but the ping is %.1f away (slack %.1f)",
+					pid, hd, reach, teamplay_ping_los_slack);
+			end
+			return false;
+		end
+
 		return true;
 	end
 
-	local hd = math.sqrt((hit.x-eye.x)^2 + (hit.y-eye.y)^2 + (hit.z-eye.z)^2);
+	-- A clear line all the way to the point only says nothing is in the
+	-- way. The spec's raycast is also how the server identifies what was
+	-- pinged, and a point the line reaches without meeting anything is a
+	-- point in the air -- unless something stands just past it. So carry
+	-- the same line on by the slack: a surface there is the target, and
+	-- so is a player's body, which the voxels do not show.
+	if (reach > 0.001) then
+		local k = (reach + teamplay_ping_los_slack) / reach;
+		local far = {x = eye.x + dx*k, y = eye.y + dy*k, z = eye.z + dz*k};
 
-	if (hd < reach - teamplay_ping_los_slack) then
-		if (teamplay_ping_debug) then
-			log("lib_teamplay: ping #%d refused, wall in the way: solid at"
-				.. " %.1f but the ping is %.1f away (slack %.1f)",
-				pid, hd, reach, teamplay_ping_los_slack);
+		if (raycast(eye, far, false) == nil and not body_at(pos)) then
+			if (teamplay_ping_debug) then
+				log("lib_teamplay: ping #%d refused, nothing there:"
+					.. " %.1f,%.1f,%.1f is open air", pid, pos.x, pos.y, pos.z);
+			end
+			return false;
 		end
-		return false;
 	end
 
 	return true;
 end
 
-local function on_ping(pid, data)
-	if (teamplay_ping_debug) then
-		log("lib_teamplay: ping from #%d, %d bytes, msgid %s",
-			pid, #data, tostring(string.byte(data, PING_FIXED)));
-	end
+-- Why a ping request was refused, as said back to a /pingmark user. A
+-- client that sent the packet is told nothing -- the spec gives the
+-- packet no answer -- so these only ever reach chat.
+local REFUSED = {
+	off = {en = "Pinging is turned off on this server."},
+	dead = {en = "You cannot ping while dead."},
+	soon = {en = "Too soon: wait a moment before pinging again."},
+	map = {en = "That position is off the map."},
+	sight = {en = "You can only ping what you are looking at."},
+};
 
+-- A client's request for a ping, from the packet or from /pingmark --
+-- the spec has the command follow the packet's rules exactly, so they
+-- share this. Returns nil once the ping is accepted and relayed, or the
+-- key into REFUSED saying why it was not.
+local function request_ping(pid, pos, raw_reason)
 	-- FEAT_PING is permission to send, and the only bit that bears on a
 	-- ping arriving. The client is told not to send these without it, and
 	-- the spec has us ignore any that turn up regardless.
-	if (bit.band(teamplay_features, FEAT_PING) == 0) then
-		if (teamplay_ping_debug) then
-			log("lib_teamplay: ping #%d refused: sending is not permitted"
-				.. " (features %d)", pid, teamplay_features);
-		end
-		return;
-	end
-	-- exactly PING_FIXED is a ping with no reason, which is allowed;
-	-- shorter than that is a truncated packet, which is not.
 	--
+	-- A client that never negotiated was never sent a Config, so it was
+	-- never given the bit either: its pings are ignored the same way.
+	if (bit.band(teamplay_features, FEAT_PING) == 0 or not negotiated(pid)) then
+		return "off";
+	end
+
 	-- A dead player does not ping: the client is told not to send one and
 	-- the server drops any that turn up regardless. Whether a spectator
 	-- may is the server's to decide, and is_alive settles both questions
 	-- at once -- SPECTATORs are not alive (lua_playerget:8), so the answer
 	-- here is no.
-	if (#data < PING_FIXED or not is_alive(pid)) then
-		if (teamplay_ping_debug) then
-			log("lib_teamplay: ping #%d refused: %d bytes (want >=%d), alive %s",
-				pid, #data, PING_FIXED, tostring(is_alive(pid)));
-		end
-		return;
+	if (not is_alive(pid)) then
+		return "dead";
 	end
 
 	local now = get_time();
 	if (now - ping_at[pid] < teamplay_ping_interval) then
-		if (teamplay_ping_debug) then
-			log("lib_teamplay: ping #%d refused, too soon: %.2fs since the"
-				.. " last (need %.2fs)", pid, now - ping_at[pid],
-				teamplay_ping_interval);
-		end
-		return;
+		return "soon";
 	end
-
-	-- The Message ID is read here and acted on nowhere: reserved and
-	-- unimplemented, so a receiver that gets a non-zero one renders the
-	-- packet anyway and ignores the byte. Dropping over it would be the
-	-- wrong instinct -- the byte exists for a version that names labels
-	-- out of a table, and refusing what we cannot yet read would make
-	-- that version a break rather than an addition.
 
 	-- the originating id is the sender's to claim and ours to ignore
-	-- (pid is who actually sent the packet), and so are the duration and
-	-- the surfaces: how long a ping is worth and where it is shown are
-	-- both decided on the relay, not by whoever asked for it
-	local pos = get_f32x3(data, 4);
+	-- (pid is who actually sent it), and so are the duration, the
+	-- surfaces and the colour: how long a ping is worth, where it is shown
+	-- and what it is drawn in are all decided on the relay, not by
+	-- whoever asked for it -- and never a reason to refuse it.
 	if (pos.x ~= pos.x or pos.y ~= pos.y or pos.z ~= pos.z) then
-		return; -- NaN
+		return "map"; -- NaN
 	end
-	if (pos.x < 0 or pos.x >= 512 or pos.y < 0 or pos.y >= 512
-	    or pos.z < -1 or pos.z > 64) then
-		if (teamplay_ping_debug) then
-			log("lib_teamplay: ping #%d refused, off the map: %.1f,%.1f,%.1f",
-				pid, pos.x, pos.y, pos.z);
-		end
-		return;
+	-- The map is 512 x 512 x 64, edges included: a ping lands on a face,
+	-- and the outer faces of the last voxels sit exactly on the bounds.
+	if (pos.x < 0 or pos.x > 512 or pos.y < 0 or pos.y > 512
+	    or pos.z < 0 or pos.z > 64) then
+		return "map";
 	end
 	if (not ping_is_sane(pid, pos)) then
-		return;
+		return "sight";
 	end
 
-	local reason = clean_reason(string.sub(data, PING_FIXED + 1));
+	local reason = clean_reason(raw_reason);
 
 	ping_at[pid] = now;
 
@@ -726,6 +831,113 @@ local function on_ping(pid, data)
 				name, tostring(err));
 		end
 	end
+
+	return nil;
+end
+
+local function on_ping(pid, data)
+	if (teamplay_ping_debug) then
+		log("lib_teamplay: ping from #%d, %d bytes, msgid %s",
+			pid, #data, tostring(string.byte(data, PING_FIXED)));
+	end
+
+	-- exactly PING_FIXED is a ping with no reason, which is allowed;
+	-- shorter than that is a truncated packet, which is not.
+	if (#data < PING_FIXED) then
+		if (teamplay_ping_debug) then
+			log("lib_teamplay: ping #%d refused: %d bytes (want >=%d)",
+				pid, #data, PING_FIXED);
+		end
+		return;
+	end
+
+	-- The Message ID is read here and acted on nowhere: reserved and
+	-- unimplemented, so a receiver that gets a non-zero one renders the
+	-- packet anyway and ignores the byte. Dropping over it would be the
+	-- wrong instinct -- the byte exists for a version that names labels
+	-- out of a table, and refusing what we cannot yet read would make
+	-- that version a break rather than an addition.
+	local why = request_ping(pid, get_f32x3(data, 4),
+		string.sub(data, PING_FIXED + 1));
+
+	if (why ~= nil and teamplay_ping_debug) then
+		log("lib_teamplay: ping #%d refused: %s", pid, REFUSED[why].en);
+	end
+end
+
+--============================ /PINGMARK =============================--
+
+-- "/pingmark <x> <y> <z> [reason...]": a ping asked for in chat, so one
+-- can come from a key bind or a Pie Menu slice (its %h is the point under
+-- the crosshair). The spec has it follow the Ping packet's rules
+-- exactly -- request_ping -- and answer in chat whenever it refuses.
+--
+-- A number here is what the spec says it is: base 10, `.` for the
+-- decimal point. Narrower than tonumber, which would also take hex,
+-- exponents and padding nobody's %h produces.
+local function decimal(s)
+	if (s == nil) then
+		return nil;
+	end
+	if (string.find(s, "^[-+]?%d+%.?%d*$") or string.find(s, "^[-+]?%.%d+$")) then
+		return tonumber(s);
+	end
+	return nil;
+end
+
+-- What commands.lua says to a command it does not know. The command
+-- exists only for players whose client negotiated the extension, and for
+-- anybody else it is to look exactly like one that does not exist.
+local UNKNOWN_CMD = {en = "Unknown command"};
+local BAD_POSITION = {en = "Nothing to ping: /pingmark needs a position,"
+	.. " three numbers, before the reason."};
+
+local pingmark = {name = "pingmark", usage = "<x> <y> <z> [reason...]",
+	desc = "Ping a position for your team."};
+
+function pingmark.func(pid, argv)
+	if (not negotiated(pid)) then
+		l10n_send_chat(pid, UNKNOWN_CMD);
+		return;
+	end
+
+	-- "when the line does not start with three numbers, as when a slice's
+	-- %h met nothing" -- which is the commonest refusal, so it says what
+	-- was missing rather than only printing the usage
+	local x, y, z = decimal(argv[1]), decimal(argv[2]), decimal(argv[3]);
+	if (x == nil or y == nil or z == nil) then
+		send_usage(pid, pingmark);
+		l10n_send_chat(pid, BAD_POSITION);
+		return;
+	end
+
+	-- The rest of the line, read the way commands.lua reads any argument:
+	-- split on whitespace and unquoted, then put back with one space.
+	local words = {};
+	for i = 4, #argv do
+		words[#words+1] = argv[i];
+	end
+
+	local why = request_ping(pid, {x = x, y = y, z = z},
+		table.concat(words, " "));
+	if (why ~= nil) then
+		l10n_send_chat(pid, REFUSED[why]);
+	end
+end
+
+-- commands.lua is stock and loaded first, but a server stripped of it
+-- has no commands at all rather than a reason to fail to load this
+if (register_command ~= nil) then
+	register_command(pingmark, mod);
+end
+
+-- Kept out of /commands for the players it does not exist for, for the
+-- same reason it answers them "Unknown command".
+function mod.can_see_command(pid, cmd)
+	if (cmd == pingmark and not negotiated(pid)) then
+		return false;
+	end
+	return mod.next.can_see_command(pid, cmd);
 end
 
 --============================= INTAKE ===============================--
@@ -794,6 +1006,27 @@ function teamplay_mark(viewer, target, secs, opts)
 end
 
 function teamplay_mark_all(target, secs, opts)
+	secs = secs or 0;
+	if (put_duration(secs) == nil) then
+		return;
+	end
+
+	-- remembered for whoever negotiates later -- see `standing`. A copy
+	-- of the options, so a caller reusing its table cannot change a mark
+	-- that is already out.
+	if (standing[target] ~= nil or (secs > 0 and target >= 0
+	    and target < MAX_PLAYERS)) then
+		if (secs == 0) then
+			standing[target] = nil;
+		else
+			local copy = {};
+			for k,v in pairs(opts or {}) do
+				copy[k] = v;
+			end
+			standing[target] = {expires = get_time() + secs, opts = copy};
+		end
+	end
+
 	for i in piditer(PID_BROADCAST) do
 		teamplay_mark(i, target, secs, opts);
 	end
@@ -888,11 +1121,10 @@ function teamplay_unlisten_ready(name)
 	ready_listeners[name] = nil;
 end
 
--- Registering is also what re-announces. Whatever a client agreed with
--- the last copy of this module is not something the new copy has any
--- record of, and the client will not repeat itself -- so lib_ext sends
--- the list again to everybody connected, and their replies re-establish
--- the agreement and run on_ready.
+-- Registering does not re-announce: negotiation happens once per
+-- connection. On a reload lib_ext keeps what each client agreed with the
+-- last copy of this module and runs on_ready again for them, which sends
+-- the Config this copy owes them.
 function mod.on_load()
 	if (ext_register == nil) then
 		error("lib_teamplay needs lib_ext loaded first "

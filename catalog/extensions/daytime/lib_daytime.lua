@@ -6,7 +6,7 @@
 -- the dark.
 --
 -- ONE SUB-PACKET, Sky, Server to Client:
---   [0x73][0][Time u16][Reserved u16][Weather u16]   -- eight bytes
+--   [0x73][0][Time u16][Reserved u16][Weather u8[2]]   -- eight bytes
 --
 --   Time      0 is night, anything else is day
 --   Reserved  must be 0
@@ -245,8 +245,22 @@ end
 -- It also stops being the fallback's business, so whatever was painted
 -- for it is forgotten -- it scales the map's own fog for itself from
 -- here, and the global it reads is already the right input.
+--
+-- Forgotten AND undone. A client can sit through a tick or two of the
+-- fallback before its reply arrives, and if that was at night it was
+-- painted black -- which it would then keep by day, when the spec has it
+-- draw the world "as it does without this extension", under the map's
+-- own fog. So a painted client is handed that fog back first.
 local function on_ready(pid)
+	local had = painted[pid];
+	local fog = get_fog();
+
 	painted[pid] = nil;
+	if (had ~= nil and fog ~= nil and (had.r ~= fog.r or had.g ~= fog.g
+	    or had.b ~= fog.b)) then
+		send_fog(pid, fog);
+	end
+
 	send_sky(pid);
 
 	if (daytime_debug) then
@@ -315,8 +329,10 @@ function mod.after.finish_map_load()
 	end
 end
 
--- Registering re-announces the extension list, and the replies run
--- on_ready, which is what gets a Sky to everybody after a hot load.
+-- Registering does not re-announce -- negotiation happens once per
+-- connection -- but on a reload lib_ext runs on_ready again for every
+-- client that agreed with the last copy, which is what gets a Sky to
+-- them from this one.
 function mod.on_load()
 	if (ext_register == nil) then
 		error("lib_daytime needs lib_ext loaded first "

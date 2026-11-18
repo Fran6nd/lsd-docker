@@ -99,9 +99,9 @@ function mod.get_effective_max_players()
 	return math.max(1, math.min(n, MAX_PLAYERS));
 end
 
--- Registering is also what re-announces: every connected client was
--- told a list that did not have this extension in it, and none of them
--- will ask again on their own. lib_ext handles that.
+-- Registering does not re-announce: negotiation happens once per
+-- connection, so a client already connected when this is first loaded
+-- was told a list without it and keeps that list.
 --
 -- No ready callback. A packetless extension has nothing to send when a
 -- client turns out to speak it -- that is what packetless means.
