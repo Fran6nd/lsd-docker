@@ -39,31 +39,3 @@ msgstr "Nada que marcar: /pingmark necesita una posición, tres números, antes 
 msgctxt "command"
 msgid "Ping a position for your team."
 msgstr "Marcar una posición para tu equipo."
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Enemy"
-msgstr "Enemigo"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Ping this spot for your team"
-msgstr "Marcar este punto para tu equipo"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Attack"
-msgstr "Atacar"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Defend"
-msgstr "Defender"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Need help"
-msgstr "Necesito ayuda"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Danger"
-msgstr "Peligro"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Go here"
-msgstr "Ve aquí"

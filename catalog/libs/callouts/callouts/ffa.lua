@@ -11,4 +11,6 @@ return {
 		{key = "camper", label = {en = "Camper"}, ping = true,
 			say = {en = "Camper over there!"}},
 	},
+	-- no team to ping for
+	pings = {},
 };

@@ -15,4 +15,12 @@ return {
 		{key = "back", label = {en = "Fall back"},
 			say = {en = "Fall back!"}},
 	},
+	-- the Mark pie, for players whose client shows Teamplay pings
+	pings = {
+		{key = "enemy", label = {en = "Enemy"}},
+		{key = "attack", label = {en = "Attack"}},
+		{key = "defend", label = {en = "Defend"}},
+		{key = "sniper", label = {en = "Sniper"}},
+		{key = "go", label = {en = "Go here"}},
+	},
 };

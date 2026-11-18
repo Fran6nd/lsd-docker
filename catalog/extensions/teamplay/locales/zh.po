@@ -39,31 +39,3 @@ msgstr "无可标记：/pingmark 需要在理由前给出位置（三个数字�
 msgctxt "command"
 msgid "Ping a position for your team."
 msgstr "为队伍标记一个位置。"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Enemy"
-msgstr "敌人"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Ping this spot for your team"
-msgstr "为队伍标记此处"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Attack"
-msgstr "进攻"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Defend"
-msgstr "防守"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Need help"
-msgstr "需要帮助"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Danger"
-msgstr "危险"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Go here"
-msgstr "去这里"

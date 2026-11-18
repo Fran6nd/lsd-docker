@@ -60,6 +60,7 @@ msgstr "注意你身后！"
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
 msgid "Sniper"
 msgstr "狙击手"
 
@@ -78,6 +79,29 @@ msgstr "掩护我"
 #: catalog/libs/callouts/callouts/hostage.lua
 msgid "Cover me!"
 msgstr "掩护我！"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Enemy"
+msgstr "敌人"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Flank here"
+msgstr "这里侧翼包抄"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Hold here"
+msgstr "在这守住"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Last one here"
+msgstr "最后一个在这"
 
 #: catalog/libs/callouts/callouts/babel.lua
 msgid "Babel"
@@ -123,6 +147,28 @@ msgstr "拆他们的"
 msgid "Break their tower here!"
 msgstr "在这里拆他们的塔！"
 
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Digger here"
+msgstr "挖墙的人在这"
+
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Build here"
+msgstr "这里建造"
+
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Attack"
+msgstr "进攻"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Defend the tower"
+msgstr "守塔"
+
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
 msgid "I have intel"
@@ -158,6 +204,32 @@ msgstr "推进"
 #: catalog/libs/callouts/callouts/ctf.lua
 msgid "Push forward, go for their intel!"
 msgstr "向前推进，去拿他们的情报！"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Intel here"
+msgstr "情报在这"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Defend"
+msgstr "防守"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Need help"
+msgstr "需要支援"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Danger"
+msgstr "危险"
+
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Go here"
+msgstr "去这里"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 msgid "Say"
@@ -239,6 +311,10 @@ msgstr "救援"
 msgid "Go free our hostage!"
 msgstr "去救出我们的人质！"
 
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Hostage here"
+msgstr "人质在这"
+
 #: catalog/libs/callouts/callouts/onectf.lua
 msgid "Grab intel"
 msgstr "拿情报"
@@ -262,10 +338,6 @@ msgstr "我拿到情报了，掩护我！"
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Push, all together!"
 msgstr "一起推进！"
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Hold here"
-msgstr "在这守住"
 
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Hold this spot!"
@@ -294,6 +366,34 @@ msgstr "撤退"
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Fall back!"
 msgstr "撤退！"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Mark"
+msgstr "标记"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Our intel is here"
+msgstr "我们的情报在这"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Their intel is here"
+msgstr "他们的情报在这"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "The intel is here"
+msgstr "情报在这"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Has our intel"
+msgstr "持有我方情报"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Has the intel"
+msgstr "持有情报"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Nothing to ping there."
+msgstr "那里无可标记。"
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgctxt "command"

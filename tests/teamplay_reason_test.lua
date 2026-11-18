@@ -70,7 +70,7 @@ local function upvalue(fn, name)
 	end
 end
 
-local clean_reason = upvalue(teamplay_mark, "clean_reason");
+local clean_reason = upvalue(upvalue(teamplay_mark, "reason_for"), "clean_reason");
 local valid_utf8 = upvalue(clean_reason, "valid_utf8");
 local utf8_truncate = upvalue(clean_reason, "utf8_truncate");
 local pingmark = registered["pingmark"];

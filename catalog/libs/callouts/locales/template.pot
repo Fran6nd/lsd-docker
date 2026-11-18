@@ -58,6 +58,7 @@ msgstr ""
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
 msgid "Sniper"
 msgstr ""
 
@@ -75,6 +76,29 @@ msgstr ""
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 msgid "Cover me!"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Enemy"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Flank here"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Hold here"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Last one here"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/babel.lua
@@ -121,6 +145,28 @@ msgstr ""
 msgid "Break their tower here!"
 msgstr ""
 
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Digger here"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Build here"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Attack"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Defend the tower"
+msgstr ""
+
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
 msgid "I have intel"
@@ -155,6 +201,32 @@ msgstr ""
 
 #: catalog/libs/callouts/callouts/ctf.lua
 msgid "Push forward, go for their intel!"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Intel here"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Defend"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Need help"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Danger"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Go here"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/ffa.lua
@@ -237,6 +309,10 @@ msgstr ""
 msgid "Go free our hostage!"
 msgstr ""
 
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Hostage here"
+msgstr ""
+
 #: catalog/libs/callouts/callouts/onectf.lua
 msgid "Grab intel"
 msgstr ""
@@ -259,10 +335,6 @@ msgstr ""
 
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Push, all together!"
-msgstr ""
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Hold here"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/tdm.lua
@@ -291,6 +363,34 @@ msgstr ""
 
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Fall back!"
+msgstr ""
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Mark"
+msgstr ""
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Our intel is here"
+msgstr ""
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Their intel is here"
+msgstr ""
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "The intel is here"
+msgstr ""
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Has our intel"
+msgstr ""
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Has the intel"
+msgstr ""
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Nothing to ping there."
 msgstr ""
 
 #: catalog/libs/callouts/lib_callouts.lua

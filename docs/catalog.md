@@ -82,6 +82,15 @@ the player's chat, in each teammate's language, and the ones about a
 place drop a Teamplay ping where the player aims. They live in
 `catalog/libs/callouts/callouts/<gamemode>.lua`, one small file each.
 
+The same files hold each gamemode's **pings**: the pie menu's Mark pie
+(aiming at a block or an enemy) -- in ctf "Intel here", "Build here",
+"Sniper"; in babel "Digger here", "Defend the tower". They are offered
+only to players whose client shows Teamplay pings, and follow
+Teamplay's rules for a client's own ping (alive, in sight, not too
+often); the marker reads in each teammate's language. A gamemode with
+no pings of its own gets Enemy, Attack, Defend, Need help, Danger and
+Go here; ffa has none, having no team.
+
 The flashlight's presets:
 
 | preset | |

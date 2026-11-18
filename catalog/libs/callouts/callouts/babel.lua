@@ -15,4 +15,12 @@ return {
 		{key = "blocks", label = {en = "Break theirs"}, ping = true,
 			say = {en = "Break their tower here!"}},
 	},
+	-- the Mark pie, for players whose client shows Teamplay pings
+	pings = {
+		{key = "enemy", label = {en = "Enemy"}},
+		{key = "digger", label = {en = "Digger here"}},
+		{key = "build", label = {en = "Build here"}},
+		{key = "attack", label = {en = "Attack"}},
+		{key = "tower", label = {en = "Defend the tower"}},
+	},
 };

@@ -582,9 +582,9 @@ end
 --=========================== THE BUILT-IN ===========================--
 -- The default layout: the menu a server gets when its operator writes
 -- none. Each pie has an id, which is what scripts register their
--- actions into (see pie_menu_slice and cmd.pie): Teamplay fills `mark`
--- with its pings, votekick takes the first wedge of `player`, /lang the
--- last of `watching`. What is here otherwise is only what any LSd has --
+-- actions into (see pie_menu_slice and cmd.pie): lib_callouts fills
+-- `mark` with the gamemode's pings, votekick takes the first wedge of
+-- `player`, /lang the last of `watching`. What is here otherwise is only what any LSd has --
 -- plain chat lines and the stock commands of group_commands -- so the
 -- layout works on its own, and the scripts installed fill it in.
 --
@@ -597,7 +597,7 @@ end
 P.BUILTIN = {
 	-- First on a block or an enemy, because a ping is what a player
 	-- aiming at something most often wants. Not SKY: %h is empty there.
-	-- Empty here; Teamplay registers its pings into it.
+	-- Empty here; lib_callouts registers the gamemode's pings into it.
 	{id = "mark", theme = {en = "Mark"}, when = "block enemy", slices = {}},
 	{id = "chat", theme = {en = "Quick chat"}, when = "alive",
 	 slices = {

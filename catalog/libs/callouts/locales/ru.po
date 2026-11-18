@@ -60,6 +60,7 @@ msgstr "Смотри сзади!"
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
 msgid "Sniper"
 msgstr "Снайпер"
 
@@ -78,6 +79,29 @@ msgstr "Прикрой"
 #: catalog/libs/callouts/callouts/hostage.lua
 msgid "Cover me!"
 msgstr "Прикройте меня!"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Enemy"
+msgstr "Враг"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Flank here"
+msgstr "Обходим здесь"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Hold here"
+msgstr "Держим здесь"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Last one here"
+msgstr "Последний здесь"
 
 #: catalog/libs/callouts/callouts/babel.lua
 msgid "Babel"
@@ -123,6 +147,28 @@ msgstr "Сломать их"
 msgid "Break their tower here!"
 msgstr "Сломайте их башню здесь!"
 
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Digger here"
+msgstr "Копатель здесь"
+
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Build here"
+msgstr "Строим здесь"
+
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Attack"
+msgstr "Атаковать"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Defend the tower"
+msgstr "Защитить башню"
+
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
 msgid "I have intel"
@@ -158,6 +204,32 @@ msgstr "Давим"
 #: catalog/libs/callouts/callouts/ctf.lua
 msgid "Push forward, go for their intel!"
 msgstr "Вперёд, за их разведданными!"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Intel here"
+msgstr "Разведданные здесь"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Defend"
+msgstr "Защитить"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Need help"
+msgstr "Нужна помощь"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Danger"
+msgstr "Опасность"
+
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Go here"
+msgstr "Сюда"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 msgid "Say"
@@ -239,6 +311,10 @@ msgstr "Спасти"
 msgid "Go free our hostage!"
 msgstr "Освободите нашего заложника!"
 
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Hostage here"
+msgstr "Заложник здесь"
+
 #: catalog/libs/callouts/callouts/onectf.lua
 msgid "Grab intel"
 msgstr "Взять разведданные"
@@ -262,10 +338,6 @@ msgstr "У меня разведданные -- прикройте!"
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Push, all together!"
 msgstr "Давим все вместе!"
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Hold here"
-msgstr "Держим здесь"
 
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Hold this spot!"
@@ -294,6 +366,34 @@ msgstr "Отступаем"
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Fall back!"
 msgstr "Отступайте!"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Mark"
+msgstr "Метка"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Our intel is here"
+msgstr "Наши разведданные здесь"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Their intel is here"
+msgstr "Их разведданные здесь"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "The intel is here"
+msgstr "Разведданные здесь"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Has our intel"
+msgstr "У меня наши разведданные"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Has the intel"
+msgstr "У меня разведданные"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Nothing to ping there."
+msgstr "Здесь ничего нет."
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgctxt "command"

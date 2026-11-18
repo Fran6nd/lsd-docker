@@ -108,6 +108,24 @@ do
 	function log() end
 	function pid_connected_table() return {}; end
 	local pm = dofile("catalog/extensions/pie_menu/lib_pie_menu.lua").codec;
+	-- pings: at most six, own keys, an English label; a pie a client takes
+	local function check_pings(pings, where)
+		if (type(pings) ~= "table" or #pings > 6) then return false; end
+		local slices, keys = {}, {};
+		for i, p in ipairs(pings) do
+			if (keys[p.key] or type(p.key) ~= "string" or not string.match(p.key, "^[%w_]+$")
+			    or type(p.label) ~= "table" or type(p.label.en) ~= "string") then
+				return false;
+			end
+			keys[p.key] = true;
+			slices[i] = {text = "/callout ping " .. p.key .. " %h", label = p.label};
+		end
+		return #pings == 0 or pcall(pm.normalize_pie,
+			{theme = "Mark", when = "block enemy", slices = slices}, where);
+	end
+	local default = dofile("catalog/libs/callouts/callouts/default.lua");
+	check(#default.pings > 0 and check_pings(default.pings, "default"),
+		"the default pings make a Mark pie");
 	for _, g in ipairs(cat:of_class(C.Gamemode)) do
 		local f = io.open("catalog/libs/callouts/callouts/" .. g.id .. ".lua");
 		if (f ~= nil) then
@@ -127,6 +145,7 @@ do
 			local ok, err = pcall(pm.normalize_pie,
 				{theme = set.theme, when = "alive", slices = slices}, g.id);
 			check(ok, g.id .. ": its pie is one a client accepts", err);
+			check(check_pings(set.pings, g.id), g.id .. ": its pings make a Mark pie");
 		elseif (g.id ~= "editor") then
 			check(false, g.id .. " has no callouts (catalog/libs/callouts/callouts/" .. g.id .. ".lua)");
 		end

@@ -114,6 +114,9 @@ local missing_msg = {
 local recaptured_msg = {
 	en="The %(team) hostage was dragged back to captivity.",
 };
+-- Teamplay ping labels for the same two moments
+local loose_ping = {en="Their hostage is loose here"};
+local freeing_ping = {en="Our hostage is being freed"};
 -- held at the enemy tent, waiting to be sprung
 local captive_msgs = {
 	{en="Get me out of here!"},
@@ -385,6 +388,9 @@ local function think(pid)
 				mem.missing_alerted = true;
 				l10n_send_chat(PID_BROADCAST_TEAM(3-myteam), missing_msg,
 					{team=get_team_name(myteam)});
+				if (callouts_ping_team ~= nil) then
+					callouts_ping_team(3-myteam, get_position(pid), loose_ping);
+				end
 			end
 		end
 		return;
@@ -399,6 +405,9 @@ local function think(pid)
 			hostage_say_to(pid, follow, thanks_msg);
 			l10n_send_chat(PID_BROADCAST_TEAM(myteam), freeing_msg,
 				{escort=get_name(follow)});
+			if (callouts_ping_team ~= nil) then
+				callouts_ping_team(myteam, get_position(pid), freeing_ping);
+			end
 		end
 		mem.hero = follow;
 

@@ -39,31 +39,3 @@ msgstr "Нечего отмечать: /pingmark нужна позиция -- т
 msgctxt "command"
 msgid "Ping a position for your team."
 msgstr "Отметить точку для своей команды."
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Enemy"
-msgstr "Враг"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Ping this spot for your team"
-msgstr "Отметить это место для команды"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Attack"
-msgstr "Атака"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Defend"
-msgstr "Защита"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Need help"
-msgstr "Нужна помощь"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Danger"
-msgstr "Опасность"
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Go here"
-msgstr "Иди сюда"

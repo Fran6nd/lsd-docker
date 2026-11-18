@@ -37,31 +37,3 @@ msgstr ""
 msgctxt "command"
 msgid "Ping a position for your team."
 msgstr ""
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Enemy"
-msgstr ""
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Ping this spot for your team"
-msgstr ""
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Attack"
-msgstr ""
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Defend"
-msgstr ""
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Need help"
-msgstr ""
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Danger"
-msgstr ""
-
-#: catalog/extensions/teamplay/lib_teamplay.lua
-msgid "Go here"
-msgstr ""

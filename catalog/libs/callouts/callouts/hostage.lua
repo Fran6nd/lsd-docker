@@ -15,4 +15,11 @@ return {
 		{key = "cover", label = {en = "Cover me"},
 			say = {en = "Cover me!"}},
 	},
+	-- the Mark pie, for players whose client shows Teamplay pings
+	pings = {
+		{key = "hostage", label = {en = "Hostage here"}},
+		{key = "enemy", label = {en = "Enemy"}},
+		{key = "escort", label = {en = "Escort"}},
+		{key = "defend", label = {en = "Defend"}},
+	},
 };

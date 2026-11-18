@@ -36,6 +36,14 @@ msgid "The %(team) hostage was dragged back to captivity."
 msgstr "%(team) 的人质被拖回关押处。"
 
 #: catalog/gamemodes/hostage/hostage.lua
+msgid "Their hostage is loose here"
+msgstr "他们的人质逃到这了"
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "Our hostage is being freed"
+msgstr "我们的人质正在被解救"
+
+#: catalog/gamemodes/hostage/hostage.lua
 msgid "Get me out of here!"
 msgstr "快带我离开这里！"
 

@@ -60,6 +60,7 @@ msgstr "Surveille tes arrières !"
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
 msgid "Sniper"
 msgstr "Sniper"
 
@@ -78,6 +79,29 @@ msgstr "Couvre-moi"
 #: catalog/libs/callouts/callouts/hostage.lua
 msgid "Cover me!"
 msgstr "Couvrez-moi !"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Enemy"
+msgstr "Ennemi"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Flank here"
+msgstr "Contourner ici"
+
+#: catalog/libs/callouts/callouts/arena.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Hold here"
+msgstr "Tenez ici"
+
+#: catalog/libs/callouts/callouts/arena.lua
+msgid "Last one here"
+msgstr "Dernier ici"
 
 #: catalog/libs/callouts/callouts/babel.lua
 msgid "Babel"
@@ -123,6 +147,28 @@ msgstr "Détruire la leur"
 msgid "Break their tower here!"
 msgstr "Détruisez leur tour ici !"
 
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Digger here"
+msgstr "Creuseur ici"
+
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Build here"
+msgstr "Construire ici"
+
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Attack"
+msgstr "Attaquer"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Defend the tower"
+msgstr "Défendre la tour"
+
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
 msgid "I have intel"
@@ -158,6 +204,32 @@ msgstr "Poussez"
 #: catalog/libs/callouts/callouts/ctf.lua
 msgid "Push forward, go for their intel!"
 msgstr "Avancez, visez leurs renseignements !"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Intel here"
+msgstr "Renseignements ici"
+
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/hostage.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Defend"
+msgstr "Défendre"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Need help"
+msgstr "Besoin d'aide"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Danger"
+msgstr "Danger"
+
+#: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/tdm.lua
+msgid "Go here"
+msgstr "Aller ici"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 msgid "Say"
@@ -239,6 +311,10 @@ msgstr "Sauver"
 msgid "Go free our hostage!"
 msgstr "Libérez notre otage !"
 
+#: catalog/libs/callouts/callouts/hostage.lua
+msgid "Hostage here"
+msgstr "Otage ici"
+
 #: catalog/libs/callouts/callouts/onectf.lua
 msgid "Grab intel"
 msgstr "Prendre les renseignements"
@@ -262,10 +338,6 @@ msgstr "J'ai les renseignements -- couvrez-moi !"
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Push, all together!"
 msgstr "Poussez, tous ensemble !"
-
-#: catalog/libs/callouts/callouts/tdm.lua
-msgid "Hold here"
-msgstr "Tenez ici"
 
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Hold this spot!"
@@ -294,6 +366,34 @@ msgstr "Repli"
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Fall back!"
 msgstr "Repliez-vous !"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Mark"
+msgstr "Marquer"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Our intel is here"
+msgstr "Nos renseignements ici"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Their intel is here"
+msgstr "Leurs renseignements ici"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "The intel is here"
+msgstr "Les renseignements ici"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Has our intel"
+msgstr "Possède nos renseignements"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Has the intel"
+msgstr "Possède les renseignements"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Nothing to ping there."
+msgstr "Rien à signaler ici."
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgctxt "command"
