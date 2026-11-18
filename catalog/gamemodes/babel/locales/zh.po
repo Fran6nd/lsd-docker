@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: catalog/gamemodes/babel/babel_plus.lua
+msgid "Camping by your tower"
+msgstr "在你的塔边蹲守"
+
+#: catalog/gamemodes/babel/babel_plus.lua
+msgid "In your spawn"
+msgstr "在你的出生点"
