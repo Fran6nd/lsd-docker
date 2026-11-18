@@ -1,0 +1,172 @@
+-- map_sources.lua -- Where maps come from, and what was pasted
+-- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+--
+-- Pure Lua, no server API: lsdctl's `map add` and the setup wizard use
+-- it, and the tests drive it directly.
+--
+-- A SOURCE is a site that publishes maps by id, as aos.party does:
+--
+--   {name = "aos.party",
+--    view = "https://aos.party/view/%(id)",          -- a map's page
+--    vxl  = "https://aos.party/download/%(id)/vxl",  -- the map
+--    txt  = "https://aos.party/download/%(id)/txt"}  -- its metadata
+--
+-- aos.party is built in; an operator adds more in the settings, as
+-- `map_sources = [{name: ..., view: ..., vxl: ..., txt: ...}]`. `txt`
+-- may be left out, for a site without metadata.
+--
+-- WHAT MAY BE PASTED, and what it becomes (M.resolve):
+--
+--   https://aos.party/view/864          a source's page   -> vxl + txt
+--   https://aos.party/download/864/vxl  a source's map    -> vxl + txt
+--   aos.party:864                       name:id           -> vxl + txt
+--   https://example.org/maps/Foo.vxl    any other URL     -> that file
+--   /path/to/Foo.vxl                    a local file      -> that file
+--
+-- A download's name comes from the server's Content-Disposition when it
+-- sends one (aos.party's /download/864/vxl is Remus.vxl), else from the
+-- URL; either way it is checked (M.safe_name) before it names a file.
+local M = {};
+
+M.BUILTIN = {
+	{name = "aos.party",
+	 view = "https://aos.party/view/%(id)",
+	 vxl = "https://aos.party/download/%(id)/vxl",
+	 txt = "https://aos.party/download/%(id)/txt"},
+};
+
+-- The smallest a real .vxl can be: 512x512 columns, each at least a
+-- 4-byte span header and one 4-byte colour. A generated flat map is
+-- exactly this.
+M.MIN_VXL = 512 * 512 * 8;
+
+-- The built-in sources, then the operator's (from map_sources), a later
+-- one of the same name replacing an earlier one. Malformed entries are
+-- skipped and named in `bad`.
+function M.sources(extra)
+	local out, by_name, bad = {}, {}, {};
+	local function add(s)
+		if (type(s) ~= "table" or type(s.name) ~= "string" or s.name == ""
+		    or type(s.vxl) ~= "string" or not string.find(s.vxl, "%(id)", 1, true)) then
+			bad[#bad+1] = type(s) == "table" and tostring(s.name) or tostring(s);
+			return;
+		end
+		if (by_name[s.name] ~= nil) then
+			out[by_name[s.name]] = s;
+		else
+			out[#out+1] = s;
+			by_name[s.name] = #out;
+		end
+	end
+	for _, s in ipairs(M.BUILTIN) do add(s); end
+	if (type(extra) == "table") then
+		for _, s in ipairs(extra) do add(s); end
+	end
+	return out, bad;
+end
+
+local function fill(template, id)
+	return (string.gsub(template, "%%%(id%)", id));
+end
+
+-- A template as a pattern capturing the id: "%(id)" matches what an id
+-- can be, everything else literally.
+local function pattern(template)
+	local p = string.gsub(template, "[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0");
+	p = string.gsub(p, "%%%%%%%(id%%%)", "([%%w_-]+)");
+	return "^" .. p .. "/?$";
+end
+
+local function downloads(s, id)
+	local out = {{url = fill(s.vxl, id), kind = "vxl", source = s.name}};
+	if (type(s.txt) == "string") then
+		out[#out+1] = {url = fill(s.txt, id), kind = "txt", source = s.name, optional = true};
+	end
+	return out;
+end
+
+-- What to fetch for what was pasted: a list of {url=, kind=, source=,
+-- optional=} or {file=} -- or nil and why.
+function M.resolve(input, sources)
+	if (type(input) ~= "string" or input == "") then
+		return nil, "nothing to add";
+	end
+	input = string.gsub(input, "^%s+", "");
+	input = string.gsub(input, "%s+$", "");
+
+	for _, s in ipairs(sources) do
+		-- name:id
+		local id = string.match(input, "^" .. string.gsub(s.name, "%p", "%%%0") .. ":([%w_-]+)$");
+		if (id ~= nil) then
+			return downloads(s, id);
+		end
+		-- the source's own page or download
+		for _, key in ipairs({"view", "vxl", "txt"}) do
+			if (type(s[key]) == "string") then
+				id = string.match(input, pattern(s[key]));
+				if (id ~= nil) then
+					return downloads(s, id);
+				end
+			end
+		end
+	end
+
+	if (string.match(input, "^https?://")) then
+		return {{url = input, kind = "any"}};
+	end
+	if (string.match(input, "^[%w_.-]+:[%w_-]+$")) then
+		return nil, "no map source called " .. string.match(input, "^([^:]+)");
+	end
+	return {{file = input}};
+end
+
+-- The filename a Content-Disposition header gives, or nil.
+function M.disposition_name(headers)
+	if (type(headers) ~= "string") then
+		return nil;
+	end
+	local name;
+	for line in string.gmatch(headers, "[^\r\n]+") do
+		if (string.match(string.lower(line), "^content%-disposition:")) then
+			name = string.match(line, 'filename%*?="([^"]+)"')
+				or string.match(line, "filename%*?=([^;%s]+)");
+		end
+	end
+	if (name ~= nil) then
+		name = string.gsub(name, "^UTF%-8''", "");
+	end
+	return name;
+end
+
+-- A name fit to be a file in maps/: its last path part, letters, digits,
+-- dot, dash and underscore only, ending in .vxl or .txt, not hidden.
+-- Returns it, or nil and why.
+function M.safe_name(name)
+	if (type(name) ~= "string") then
+		return nil, "no name";
+	end
+	name = string.match(name, "([^/\\]+)$") or "";
+	name = string.gsub(name, "[^%w%._-]", "_");
+	if (name == "" or string.sub(name, 1, 1) == ".") then
+		return nil, "no usable name";
+	end
+	if (not string.match(name, "%.vxl$") and not string.match(name, "%.txt$")) then
+		return nil, string.format("%s is not a .vxl or .txt", name);
+	end
+	return name;
+end
+
+-- Is this the start of a real .vxl, of this size? Refuses an HTML page
+-- (an error, a login wall) and anything too small to hold a map.
+function M.looks_like_vxl(head, size)
+	if (type(size) ~= "number" or size < M.MIN_VXL) then
+		return false, string.format("%s bytes is too small for a map", tostring(size));
+	end
+	local h = string.lower(string.gsub(head or "", "^%s+", ""));
+	if (string.sub(h, 1, 1) == "<") then
+		return false, "that is a web page, not a map";
+	end
+	return true;
+end
+
+return M;

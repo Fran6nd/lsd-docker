@@ -105,8 +105,9 @@ lsdctl get guard_count
 lsdctl edit                          # the settings file in vi
 
 lsdctl map list
-lsdctl map add https://example.com/mesa.vxl
-lsdctl map load mesa                 # switch the live map now
+lsdctl map add https://aos.party/view/864    # a map from aos.party, with its .txt
+lsdctl map add https://example.com/mesa.vxl  # any .vxl link, or a local file
+lsdctl map load Remus                # switch the live map now
 lsdctl masterlist off                # unlist, live, nobody disconnected
 
 lsdctl restart                       # warns players; the container stays up
@@ -118,6 +119,19 @@ The settings are read when the server starts, so every change restarts
 the server process after a five-second in-game warning; `--now` skips
 the wait and `--no-restart` leaves it for later. The container itself
 stays up, and the map, bans and accounts survive.
+
+**Finding maps:** [aos.party](https://aos.party) is a good place -- browse
+it, and paste a map's page into `lsdctl map add` (or into the setup
+wizard, which asks for maps after the gamemode). Its download links work
+too (`lsdctl map add https://aos.party/download/864/vxl`), and so does
+`aos.party:864`; each brings the map's `.txt` (name, author) along.
+Other sites that publish maps by id can be added beside aos.party:
+
+```
+map_sources = [{name: 'example', view: 'https://example.org/map/%(id)',
+                vxl: 'https://example.org/get/%(id).vxl',
+                txt: 'https://example.org/get/%(id).txt'}]
+```
 
 On a terminal every setup asks its questions; otherwise, or with
 `--yes`, the defaults (or the `--preset` given) are taken, so all of it

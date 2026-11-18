@@ -997,8 +997,114 @@ end
 
 local function sh_ok(cmd) return run(cmd); end
 
-command("map", "map list | add <url|file>... | rm <name>... | load <name> | generate <name> [height]",
-	"the maps in rotation; `add` downloads, `load` switches the live map",
+--=============================== MAP SOURCES ========================--
+-- What `map add` and the setup wizard accept, and from where: see
+-- catalog/core/map_sources.lua. aos.party is built in; map_sources in
+-- the settings adds more.
+local MS = require "map_sources";
+
+local function map_sources(doc)
+	local list, bad = MS.sources((doc or open_doc(false)):get("map_sources"));
+	for _, b in ipairs(bad) do
+		say("map_sources: %s is not a usable source (name, and a vxl with %%(id)), skipped", b);
+	end
+	return list;
+end
+
+local function file_size(path)
+	local f = io.open(path, "rb");
+	if (f == nil) then return nil, nil; end
+	local head = f:read(16) or "";
+	local size = f:seek("end");
+	f:close();
+	return size, head;
+end
+
+-- One download into maps/, under the name the server gives it (or the
+-- URL's). `as` forces the name: a map's .txt is named after its .vxl, as
+-- LSd looks it up. Returns the name, or nil and why.
+local function fetch(url, as)
+	local tmp = MAPS .. "/.part-" .. tostring(os.time()) .. "-" .. tostring(math.random(1e6));
+	local ok = sh_ok(string.format("curl -fsSL --proto '=http,https' --max-time 300 -D %s -o %s %s",
+		sh_quote(tmp .. ".h"), sh_quote(tmp), sh_quote(url)));
+	local headers = read_file(tmp .. ".h") or "";
+	os.remove(tmp .. ".h");
+	if (not ok) then
+		os.remove(tmp);
+		return nil, "could not download " .. url;
+	end
+
+	local name, err = MS.safe_name(as or MS.disposition_name(headers)
+		or string.match(string.gsub(url, "[?#].*$", ""), "([^/]+)$"));
+	if (name == nil) then
+		os.remove(tmp);
+		return nil, url .. ": " .. err;
+	end
+	if (string.match(name, "%.vxl$")) then
+		local size, head = file_size(tmp);
+		local good, why = MS.looks_like_vxl(head, size);
+		if (not good) then
+			os.remove(tmp);
+			return nil, url .. ": " .. why;
+		end
+	end
+	if (not os.rename(tmp, MAPS .. "/" .. name)) then
+		os.remove(tmp);
+		return nil, "could not write " .. name;
+	end
+	return name;
+end
+
+-- Add one map from whatever was pasted. Returns a line saying what was
+-- added, or nil and why. Nothing is half-added: a map whose .vxl fails
+-- leaves nothing behind, and a missing .txt only costs its metadata.
+local function add_map(input, sources)
+	local plan, err = MS.resolve(input, sources);
+	if (plan == nil) then
+		return nil, err;
+	end
+
+	if (plan[1].file ~= nil) then
+		local src = plan[1].file;
+		local name, why = MS.safe_name(src);
+		if (name == nil) then return nil, src .. ": " .. why; end
+		if (string.match(name, "%.vxl$")) then
+			local size, head = file_size(src);
+			if (size == nil) then return nil, "no file " .. src; end
+			local good, why2 = MS.looks_like_vxl(head, size);
+			if (not good) then return nil, src .. ": " .. why2; end
+		end
+		if (not sh_ok("cp " .. sh_quote(src) .. " " .. sh_quote(MAPS .. "/" .. name))) then
+			return nil, "could not copy " .. src;
+		end
+		return "added " .. name;
+	end
+
+	local vxl, why = fetch(plan[1].url);
+	if (vxl == nil) then
+		return nil, why;
+	end
+	local line = "added " .. vxl .. (plan[1].source and (" from " .. plan[1].source) or "");
+	if (plan[2] ~= nil) then
+		local txt = fetch(plan[2].url, (string.gsub(vxl, "%.vxl$", ".txt")));
+		if (txt ~= nil) then line = line .. ", with its .txt"; end
+	end
+	return line;
+end
+
+-- The hint for finding maps, naming every source.
+local function where_to_find(sources)
+	local names = {};
+	for _, s in ipairs(sources) do names[#names+1] = s.name; end
+	local first = sources[1];
+	local example = first and (first.view and string.gsub(first.view, "%%%(id%)", "864")
+		or (first.name .. ":864")) or "https://example.org/map.vxl";
+	return string.format("find maps on %s; add one with: lsdctl map add %s",
+		table.concat(names, ", "), example);
+end
+
+command("map", "map list | add <page|url|source:id|file>... | rm <name>... | load <name> | generate <name> [height]",
+	"the maps in rotation; `add` downloads (aos.party by default: lsdctl map add https://aos.party/view/864), `load` switches the live map",
 	function(args)
 		local sub = table.remove(args, 1) or "list";
 		run("mkdir -p " .. sh_quote(MAPS));
@@ -1016,6 +1122,11 @@ command("map", "map list | add <url|file>... | rm <name>... | load <name> | gene
 				say("  %s %s", mark, n);
 			end
 			if (#names == 0) then say("  no maps in %s", MAPS); end
+			-- only the map generated on a first start: say where the
+			-- real ones are
+			if (#names == 0 or (#names == 1 and names[1] == "flat")) then
+				say("%s", where_to_find(map_sources()));
+			end
 			say(type(rot) == "string" and ("rotation: " .. rot .. "  (* played, - installed only)")
 				or "rotation: every map above, in name order");
 			for n in pairs(inrot) do
@@ -1024,23 +1135,14 @@ command("map", "map list | add <url|file>... | rm <name>... | load <name> | gene
 				if (not found) then say("warning: %s is in map_rotation but not installed", n); end
 			end
 		elseif (sub == "add") then
-			if (#args == 0) then die("map add <url|file>..."); end
+			local sources = map_sources();
+			if (#args == 0) then
+				die("map add <page|url|source:id|file>...\n  %s", where_to_find(sources));
+			end
 			for _, src in ipairs(args) do
-				local base = string.match(src, "([^/]+)$");
-				if (not string.match(base, "%.vxl$") and not string.match(base, "%.txt$")) then
-					die("%s: expected a .vxl (or its .txt)", src);
-				end
-				local dst = MAPS .. "/" .. base;
-				local ok;
-				if (string.match(src, "^https?://")) then
-					ok = sh_ok(string.format("curl -fSL --proto '=http,https' -o %s %s",
-						sh_quote(dst .. ".part"), sh_quote(src)))
-						and os.rename(dst .. ".part", dst);
-				else
-					ok = sh_ok("cp " .. sh_quote(src) .. " " .. sh_quote(dst));
-				end
-				if (not ok) then os.remove(dst .. ".part"); die("could not add %s", src); end
-				say("added %s", base);
+				local line, err = add_map(src, sources);
+				if (line == nil) then die("%s", err); end
+				say("%s", line);
 			end
 			say("maps join the rotation at the next map change");
 		elseif (sub == "rm") then
@@ -1353,6 +1455,10 @@ masterlist_enabled = True
 # image is published, and tells admins as they log in. False stops it.
 # update_check = False
 
+# Where `lsdctl map add` finds maps by page, link or name:id. aos.party
+# is built in; more sites that publish maps by id go here.
+# map_sources = [{name: 'example', view: 'https://example.org/map/%(id)', vxl: 'https://example.org/get/%(id).vxl', txt: 'https://example.org/get/%(id).txt'}]
+
 # Maps to play, space separated, in order. Unset plays every .vxl in
 # /data/maps in name order (lsdctl map list).
 # map_rotation = "flat"
@@ -1483,6 +1589,32 @@ command("setup", "setup [--defaults]",
 		end
 		local mode = ui:choose("Gamemode", modes, doc:get("gamemode") or "ctf");
 		choose_gamemode(doc, mode, ui, {});
+
+		-- the maps: what is here, more from the map sources, and which to
+		-- play. Downloads happen as they are answered; a failed one is
+		-- said and skipped, never fatal to the setup.
+		if (ui.tty) then
+			local sources = map_sources(doc);
+			say("");
+			say("Maps installed: %s", table.concat(map_names(), ", "));
+			say("%s", where_to_find(sources));
+			say("Paste a map's page, its download link or source:id -- one per line, empty to finish.");
+			while (true) do
+				local input = ui:ask({key = "map", type = "string", ask = "Map to add"}, "");
+				if (input == nil or input == "") then break; end
+				local line, err = add_map(input, sources);
+				say("  %s", line or err);
+			end
+			local rot = doc:get("map_rotation");
+			local want = ui:ask({key = "map_rotation", type = "string",
+				ask = "Maps to play, in order, space separated ('all' for every map)"},
+				type(rot) == "string" and rot or "all");
+			if (want == "all" or want == "") then
+				if (rot ~= nil) then doc:unset("map_rotation"); end
+			elseif (want ~= rot) then
+				doc:set("map_rotation", want);
+			end
+		end
 
 		-- the scripts, a category at a time; what is installed starts
 		-- ticked, and on a first setup so do the defaults

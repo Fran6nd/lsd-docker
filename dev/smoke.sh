@@ -54,6 +54,17 @@ docker exec "$NAME" lsdctl get world_editor_door_speed >/dev/null \
 	&& fail "the old world_editor_door_speed is still there"
 echo "ok: old world_editor settings migrated"
 
+# maps: where to find them, a map added from a file (the same path a
+# download takes after it lands), and something that is not a map refused
+docker exec "$NAME" lsdctl map list | grep -q "find maps on aos.party" \
+	|| fail "map list does not point at aos.party on a fresh server"
+docker exec "$NAME" cp /data/maps/flat.vxl /tmp/Copy.vxl
+docker exec "$NAME" lsdctl map add /tmp/Copy.vxl | grep -q "added Copy.vxl" || fail "map add of a file"
+docker exec "$NAME" sh -c 'head -c 4096 /data/maps/flat.vxl > /tmp/Tiny.vxl'
+docker exec "$NAME" lsdctl map add /tmp/Tiny.vxl >/dev/null 2>&1 && fail "a file too small to be a map was added"
+docker exec "$NAME" lsdctl map rm Copy >/dev/null || fail "map rm"
+echo "ok: map list points at aos.party; map add takes a map and refuses a non-map"
+
 docker exec "$NAME" lsdctl status
 docker exec "$NAME" lsdctl available >/dev/null
 docker exec "$NAME" lsdctl install flashlight --preset disco --policy required --yes --now \
