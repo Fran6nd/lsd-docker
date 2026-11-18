@@ -246,8 +246,18 @@ echo "ok: lsdctl local lists the operator's scripts and what runs"
 # status and the admins' notice
 check=$(docker exec "$NAME" lsdctl update-check) || fail "update-check: $check"
 echo "$check" | grep -Eq "up to date|is available|development build" || fail "update-check said: $check"
-docker exec "$NAME" sh -c 'printf "running %s\nlatest 2999.1.1.1\nchecked now\n" "$(cat /lsd/VERSION)" > /data/rw/update-check'
-docker exec "$NAME" lsdctl status | grep -q "update: *2999.1.1.1 available" || fail "status does not show the update"
+# Nothing is newer than a build that is not a release, and CI builds
+# ci-<sha>: status compares with the version it runs, so its line is
+# checked on a release build (the release workflow's smoke test) only.
+# The notice reads the running version from the file, so it is told one.
+docker exec "$NAME" sh -c 'printf "running 2000.1.1.1\nlatest 2999.1.1.1\nchecked now\n" > /data/rw/update-check'
+running_v=$(docker exec "$NAME" cat /lsd/VERSION)
+case $running_v in
+[0-9]*.[0-9]*.[0-9]*.[0-9]*)
+	docker exec "$NAME" lsdctl status | grep -q "update: *2999.1.1.1 available" || fail "status does not show the update" ;;
+*)
+	echo "skip: status's update line (a $running_v build is not a release)" ;;
+esac
 note=$(docker exec "$NAME" lsdctl exec 'exec log("NOTE|" .. tostring(update_notice()) .. "|")')
 echo "$note" | grep -q "NOTE|lsd-docker 2999.1.1.1 is available" || fail "notice: $note"
 docker exec "$NAME" rm /data/rw/update-check
