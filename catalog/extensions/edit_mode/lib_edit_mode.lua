@@ -1064,20 +1064,20 @@ if (register_command ~= nil) then
 		local name = get_name(who);
 
 		if (ok) then
-			server_msg(pid, string.format("Edit mode %s for %s.",
-				want and "on" or "off", name));
+			l10n_send_chat(pid, want and {en = "Edit mode on for %(name)."}
+				or {en = "Edit mode off for %(name)."}, {name = name});
 			if (who ~= pid) then
-				server_msg(who, string.format("Edit mode %s.",
-					want and "on" or "off"));
+				l10n_send_chat(who, want and {en = "Edit mode on."}
+					or {en = "Edit mode off."});
 			end
 		elseif (why == "pending") then
-			server_msg(pid, string.format("%s is still connecting; edit"
-				.. " mode goes on once their client has negotiated.", name));
+			l10n_send_chat(pid, {en = "%(name) is still connecting; edit mode "
+				.. "goes on once their client has negotiated."}, {name = name});
 		elseif (why == "unsupported") then
-			server_msg(pid, string.format("%s's client does not support the"
-				.. " Edit Mode extension.", name));
+			l10n_send_chat(pid, {en = "%(name)'s client does not support the "
+				.. "Edit Mode extension."}, {name = name});
 		else
-			server_msg(pid, string.format("Edit mode: %s.", tostring(why)));
+			l10n_send_chat(pid, {en = "Edit mode: %(why)."}, {why = tostring(why)});
 		end
 	end
 

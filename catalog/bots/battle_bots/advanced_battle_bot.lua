@@ -174,11 +174,16 @@ function cmd.func(pid)
 		local b = bot_get(i);
 		if (b ~= nil and b.data.abb) then
 			any = true;
-			server_msg(pid, string.format("%s: %d HP, skill %.2f (%s)",
-				get_name(i), get_hp(i), b.data.skill, b.data.state or "spawning"));
+			-- the state is the AI's own word for what it is doing
+			l10n_send_chat(pid, {en = "%(name): %(hp) HP, skill %(skill) (%(state))"},
+				{name = get_name(i), hp = get_hp(i),
+				 skill = string.format("%.2f", b.data.skill),
+				 state = b.data.state or "spawning"});
 		end
 	end
-	if (not any) then server_msg(pid, "No advanced battle bots active."); end
+	if (not any) then
+		l10n_send_chat(pid, {en = "No advanced battle bots active."});
+	end
 end
 register_command(cmd, mod);
 

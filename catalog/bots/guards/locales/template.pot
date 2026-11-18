@@ -1,0 +1,14 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/bots/guards/bot_standard.lua
+msgid "%(name): %(hp) HP (%(state))"
+msgstr ""
+
+#: catalog/bots/guards/bot_standard.lua
+msgid "No guard bots active."
+msgstr ""

@@ -1,0 +1,22 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/effects/world/the_fall/the_fall.lua
+msgid "You can't build in the Fall."
+msgstr ""
+
+#: catalog/effects/world/the_fall/the_fall.lua
+msgid "You killed your way out. Back in the game."
+msgstr ""
+
+#: catalog/effects/world/the_fall/the_fall.lua
+msgid "You're going into the Fall. Kill someone to get out."
+msgstr ""
+
+#: catalog/effects/world/the_fall/the_fall.lua
+msgid "warning: here your first death drops you into the Fall, and only a kill gets you out."
+msgstr ""

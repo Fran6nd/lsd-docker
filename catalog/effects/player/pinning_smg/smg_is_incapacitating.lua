@@ -55,8 +55,8 @@ local frozen = pid_spawn_table();
 local fx = PlayerEffect {
 	name = "pinning_smg",
 	gun = PlayerEffect.GUN_SMG,
-	warning = "here the smg pins what it hits and never reloads.",
-	tip = "Spicy: the SMG pins whoever it hits where they stand, and never reloads.",
+	warning = {en = "warning: here the smg pins what it hits and never reloads."},
+	tip = {en = "Spicy: the SMG pins whoever it hits where they stand, and never reloads."},
 	-- a pin is only maintained from the tick below, so unloading frees
 	-- everybody by itself -- but the table is cleared anyway rather than
 	-- left holding names nothing will ever look at again

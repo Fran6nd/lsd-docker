@@ -59,8 +59,8 @@ local pending = pid_spawn_table();
 local fx = PlayerEffect {
 	name = "grenade_shotgun",
 	gun = PlayerEffect.GUN_SHOTGUN,
-	warning = "here shotguns are grenade launchers.",
-	tip = "Spicy: every shotgun blast drops a grenade pellet -- mind the splash.",
+	warning = {en = "warning: here shotguns are grenade launchers."},
+	tip = {en = "Spicy: every shotgun blast drops a grenade pellet -- mind the splash."},
 	on_shot = function(pid)
 		pending[pid] = {
 			at = get_time(),

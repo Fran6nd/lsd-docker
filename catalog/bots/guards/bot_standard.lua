@@ -280,12 +280,14 @@ function cmd.func(pid)
 		local b = bot_get(i);
 		if (b ~= nil and b.data.guard) then
 			any = true;
-			server_msg(pid, get_name(i)..": "..get_hp(i).." HP ("
-				..(b.data.state or "spawning")..")");
+			-- the state is the AI's own word for what it is doing
+			l10n_send_chat(pid, {en = "%(name): %(hp) HP (%(state))"},
+				{name = get_name(i), hp = get_hp(i),
+				 state = b.data.state or "spawning"});
 		end
 	end
 	if (not any) then
-		server_msg(pid, "No guard bots active.");
+		l10n_send_chat(pid, {en = "No guard bots active."});
 	end
 end
 register_command(cmd, mod);

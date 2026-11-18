@@ -57,16 +57,18 @@ local PE = PlayerEffect;
 
 print("\n1. the class refuses a bad spec");
 check(not pcall(PE, {name = "x", gun = 0}), "a warning is required");
-check(not pcall(PE, {gun = 0, warning = "x"}), "a name is required");
-check(not pcall(PE, {name = "x", warning = "x"}), "a gun is required");
-check(not pcall(PE, {name = "x", gun = 0, warning = "x", tipp = "typo"}), "an unknown field is refused");
-check(not pcall(PE, {name = "x", gun = "rifle", warning = "x"}), "a mistyped field is refused");
+check(not pcall(PE, {gun = 0, warning = {en = "x"}}), "a name is required");
+check(not pcall(PE, {name = "x", warning = {en = "x"}}), "a gun is required");
+check(not pcall(PE, {name = "x", gun = 0, warning = {en = "x"}, tipp = "typo"}), "an unknown field is refused");
+check(not pcall(PE, {name = "x", gun = "rifle", warning = {en = "x"}}), "a mistyped field is refused");
+check(not pcall(PE, {name = "x", gun = 0, warning = "x"}), "a warning is a message, {en = ...}");
+check(not pcall(PE, {name = "x", gun = 0, warning = {fr = "x"}}), "with its English");
 
 print("\n2. load, join and unload");
 tips = {"a stock tip"};
 local shots, loads, unloads = {}, 0, 0;
 local fx = PE {
-	name = "odd", gun = PE.GUN_RIFLE, warning = "here rifles are odd.", tip = "Spicy: odd rifles.",
+	name = "odd", gun = PE.GUN_RIFLE, warning = {en = "warning: here rifles are odd."}, tip = {en = "Spicy: odd rifles."},
 	on_shot = function(pid) shots[#shots+1] = pid; end,
 	load = function() loads = loads + 1; end,
 	unload = function() unloads = unloads + 1; end,

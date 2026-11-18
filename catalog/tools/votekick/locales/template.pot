@@ -40,3 +40,7 @@ msgstr ""
 #: catalog/tools/votekick/votekick.lua
 msgid "%(target) can't be votekicked."
 msgstr ""
+
+#: catalog/tools/votekick/votekick.lua
+msgid "Vote kicked"
+msgstr ""

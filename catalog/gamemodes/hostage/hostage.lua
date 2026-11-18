@@ -659,10 +659,12 @@ local function hostage_status_line(team)
 	local hpid = byteam[team];
 
 	if (hpid == nil) then
-		return name.." hostage: not spawned (no tents?)";
+		return l10n_msg({en = "%(team) hostage: not spawned (no tents?)"},
+			{team = name});
 	end
 	if (not is_alive(hpid)) then
-		return name.." hostage: down, respawning";
+		return l10n_msg({en = "%(team) hostage: down, respawning"},
+			{team = name});
 	end
 
 	local mem = bot_get(hpid).data;
@@ -672,18 +674,21 @@ local function hostage_status_line(team)
 	local state;
 	if (mem.follow ~= nil and is_alive(mem.follow)) then
 		if (get_team(mem.follow) == team) then
-			state = "following "..get_name(mem.follow);
+			state = l10n_msg({en = "following %(name)"},
+				{name = get_name(mem.follow)});
 		else
-			state = "being recaptured by "..get_name(mem.follow);
+			state = l10n_msg({en = "being recaptured by %(name)"},
+				{name = get_name(mem.follow)});
 		end
 	elseif (near_a_tent(hpid)) then
-		state = "waiting at a tent";
+		state = l10n_msg({en = "waiting at a tent"});
 	else
-		state = "stranded";
+		state = l10n_msg({en = "stranded"});
 	end
 
-	return string.format("%s hostage: %s (%d blocks from home)",
-		name, state, dist);
+	-- the state is a message too, so it is read in the same language
+	return l10n_msg({en = "%(team) hostage: %(state) (%(dist) blocks from home)"},
+		{team = name, state = state, dist = dist});
 end
 
 local function reset_hostages()
@@ -703,11 +708,11 @@ function cmd.func(pid, argv)
 
 	if (argv[1] == "reset") then
 		if (not has_cap(pid, "hostage")) then
-			server_msg(pid, "you lack the 'hostage' cap");
+			l10n_send_chat(pid, {en = "You lack the 'hostage' cap."});
 			return;
 		end
 		reset_hostages();
-		server_msg(pid, "hostages reset");
+		l10n_send_chat(pid, {en = "Hostages reset."});
 		return;
 	end
 

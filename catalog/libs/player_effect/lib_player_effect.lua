@@ -17,8 +17,13 @@
 --   local fx = PlayerEffect {
 --       name    = "railgun",               -- its catalog id
 --       gun     = PlayerEffect.GUN_RIFLE,  -- the weapon it is about
---       warning = "here rifles are railguns.", -- told on join
---       tip     = "Spicy: ...",            -- optional, for tip_spam
+--       warning = {en = "warning: here rifles are railguns."},
+--                                          -- told on join
+--       tip     = {en = "Spicy: ..."},     -- optional, for tip_spam
+--
+-- warning and tip are lib_l10n messages, written {en = "..."} so that
+-- dev/l10n.lua finds them for the script's locales/template.pot; each
+-- player reads them in their own language.
 --       on_shot = function(pid) end,       -- optional; once per shot of
 --                                          -- `gun` by a player who has
 --                                          -- the effect
@@ -78,9 +83,26 @@ PlayerEffect.HIT_SPADE = 4;
 -- name -> the loaded effect of that name
 local loaded = {};
 
-local SPEC = {name = "string", gun = "number", warning = "string",
-	tip = "string", on_shot = "function", load = "function",
+local SPEC = {name = "string", gun = "number", warning = "table",
+	tip = "table", on_shot = "function", load = "function",
 	unload = "function"};
+
+-- A message for every player in their language, or the English alone
+-- where lib_l10n is not loaded (the host-side tests).
+local function message(tab)
+	if (l10n_msg ~= nil) then
+		return l10n_msg(tab);
+	end
+	return tab.en;
+end
+
+-- The English of a tip as it sits in `tips`, whatever form it took
+local function english(t)
+	if (l10n_is_msg ~= nil and l10n_is_msg(t)) then
+		return t.tab.en;
+	end
+	return t;
+end
 
 function PlayerEffect.new(spec)
 	for k, v in pairs(spec) do
@@ -94,6 +116,11 @@ function PlayerEffect.new(spec)
 	end
 	if (spec.name == nil or spec.gun == nil or spec.warning == nil) then
 		error("a PlayerEffect needs a name, a gun and a warning", 3);
+	end
+	for _, k in ipairs({"warning", "tip"}) do
+		if (spec[k] ~= nil and type(spec[k].en) ~= "string") then
+			error(string.format("PlayerEffect field %q needs en = \"...\"", k), 3);
+		end
 	end
 
 	local fx = setmetatable(spec, PlayerEffect);
@@ -112,7 +139,7 @@ function PlayerEffect.new(spec)
 	-- here, who then finds his is not, has been told something false
 	function mod.after.on_join(pid)
 		if (fx.everyone) then
-			server_msg(pid, "warning: " .. fx.warning);
+			server_msg(pid, message(fx.warning));
 		end
 	end
 
@@ -252,7 +279,9 @@ function PlayerEffect:_untip()
 		return;
 	end
 	for i = #tips, 1, -1 do
-		if (tips[i] == self.tip) then
+		-- by its English, so the tip of a reloaded copy of this
+		-- effect is found too
+		if (english(tips[i]) == self.tip.en) then
 			table.remove(tips, i);
 		end
 	end
@@ -261,7 +290,7 @@ end
 function PlayerEffect:_load()
 	self:_untip();
 	if (tips ~= nil and self.tip ~= nil) then
-		tips[#tips+1] = self.tip;
+		tips[#tips+1] = message(self.tip);
 	end
 
 	if (self.on_shot ~= nil) then

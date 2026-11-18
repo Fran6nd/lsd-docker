@@ -81,7 +81,7 @@ local function cast(pid)
 		-- the Kick Reason extension tells the kicked player why, where
 		-- their client speaks it; without it this is a plain kick
 		if (kick_reason_set ~= nil) then
-			kick_reason_set(target, "Vote kicked");
+			kick_reason_set(target, l10n_msg({en = "Vote kicked"}));
 		end
 		disconnect(target, 2);
 	else

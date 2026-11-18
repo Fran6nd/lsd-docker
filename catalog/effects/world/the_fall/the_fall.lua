@@ -109,7 +109,12 @@ local HIT_HEAD = 1;
 local BLAST_REACH = 16;
 local BLAST_SCALE = 4096;
 
-local no_build_msg = "You can't build in the Fall.";
+-- what players are told, each in their own language (lib_l10n)
+local no_build_msg = {en = "You can't build in the Fall."};
+local out_msg = {en = "You killed your way out. Back in the game."};
+local in_msg = {en = "You're going into the Fall. Kill someone to get out."};
+local warning_msg = {en = "warning: here your first death drops you into "
+	.. "the Fall, and only a kill gets you out."};
 
 -- which PLAYERS are in the shaft. Set on death, cleared by the kill that
 -- buys them out; while it is set the shaft itself can't kill them and
@@ -302,7 +307,7 @@ end
 -- the server never applies it). Same early-hook pattern as babel_protect.
 function mod.early.on_block_action(pid, pos, type)
 	if (type == 0 and in_zone(pos.x + 0.5, pos.y + 0.5)) then
-		server_msg(pid, no_build_msg);
+		l10n_send_chat(pid, no_build_msg);
 		return;
 	end
 	mod.early.next.on_block_action(pid, pos, type);
@@ -312,7 +317,7 @@ end
 function mod.early.on_block_line(pid, startp, endp)
 	for pos in iter_block_line(startp, endp) do
 		if (in_zone(pos.x + 0.5, pos.y + 0.5)) then
-			server_msg(pid, no_build_msg);
+			l10n_send_chat(pid, no_build_msg);
 			return;
 		end
 	end
@@ -367,7 +372,7 @@ end
 local function rescue(pid)
 	falling[pid] = nil;
 	spawn_player(pid, get_spawn_position(pid));
-	server_msg(pid, "You killed your way out. Back in the game.");
+	l10n_send_chat(pid, out_msg);
 end
 
 -- did this kill belong to someone who is falling? Then they just bought
@@ -461,15 +466,14 @@ function mod.kill(pid, type, killer)
 	mod.next.kill(pid, type, killer);
 	try_rescue(killer, pid);
 	falling[pid] = true;
-	server_msg(pid, "You're going into the Fall. Kill someone to get out.");
+	l10n_send_chat(pid, in_msg);
 end
 
 function mod.after.on_join(pid)
 	falling[pid] = nil;
 	redrop[pid] = nil;
 	if (not bot_is_bot(pid)) then
-		server_msg(pid, "warning: here your first death drops you into the "
-			.."Fall, and only a kill gets you out.");
+		l10n_send_chat(pid, warning_msg);
 	end
 end
 

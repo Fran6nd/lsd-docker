@@ -31,8 +31,8 @@ local shoot;
 local fx = PlayerEffect {
 	name = "railgun",
 	gun = PlayerEffect.GUN_RIFLE,
-	warning = "here rifles are railguns.",
-	tip = "Spicy: rifles are railguns -- they pierce the whole map and leave a tracer.",
+	warning = {en = "warning: here rifles are railguns."},
+	tip = {en = "Spicy: rifles are railguns -- they pierce the whole map and leave a tracer."},
 	on_shot = function(pid) shoot(pid); end,
 };
 local mod = fx.mod;

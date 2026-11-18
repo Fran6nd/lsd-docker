@@ -100,3 +100,39 @@ msgstr ""
 #: catalog/gamemodes/hostage/hostage.lua
 msgid "No -- not back to the cage!"
 msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "%(team) hostage: not spawned (no tents?)"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "%(team) hostage: down, respawning"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "following %(name)"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "being recaptured by %(name)"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "waiting at a tent"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "stranded"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "%(team) hostage: %(state) (%(dist) blocks from home)"
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "You lack the 'hostage' cap."
+msgstr ""
+
+#: catalog/gamemodes/hostage/hostage.lua
+msgid "Hostages reset."
+msgstr ""
