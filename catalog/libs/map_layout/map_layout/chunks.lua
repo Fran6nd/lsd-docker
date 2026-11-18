@@ -1,4 +1,4 @@
--- world_editor/chunks.lua -- Spatial authorization: who may edit what
+-- map_layout/chunks.lua -- Spatial authorization: who may edit what
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- A "chunk" is a named region of the map with a permission attached.
@@ -12,7 +12,7 @@
 -- Two things keep this fast and predictable:
 --
 --   * Lookup is indexed, not a linear scan -- see areas.index(), which
---     world_editor also uses for component reserved volumes. Block
+--     map_layout also uses for component reserved volumes. Block
 --     edits are frequent (a block line is dozens at once), so an
 --     O(#chunks) scan per block would bite.
 --
@@ -22,7 +22,7 @@
 --     rather than fighting it.
 local M = {};
 
-local areas = require "world_editor.areas";
+local areas = require "map_layout.areas";
 
 -- chunks[id] = {id, name, shape, perm, prio, <shape fields>}
 local chunks = {};

@@ -1,0 +1,254 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "This is the EDITOR: build freely, then /save. /place lists what can be placed."
+msgstr "Ceci est l'ÉDITEUR : construis librement, puis /save. /place liste ce qui peut être placé."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: could not load %(name) (%(err))"
+msgstr "editor: impossible de charger %(name) (%(err))"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: could not delist (%(err))"
+msgstr "editor: impossible de retirer des listes (%(err))"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: could not relist (%(err))"
+msgstr "editor: impossible de réinscrire dans les listes (%(err))"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: placeable -- %(names)"
+msgstr "editor: plaçables -- %(names)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "  /place <component> for its help, e.g. /place elevator"
+msgstr "  /place <composant> pour son aide, ex. /place elevator"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: no such component. placeable: %(names)"
+msgstr "editor: composant inconnu. plaçables : %(names)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: %(name) -- %(desc)"
+msgstr "editor: %(name) -- %(desc)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "  usage: /place %(name) %(usage)"
+msgstr "  utilisation : /place %(name) %(usage)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: select the box for the %(kind) -- /sel, then aim and click each corner."
+msgstr "editor: sélectionne la boîte de l'élément %(kind) -- /sel, puis vise et clique chaque coin."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: mark a block to place."
+msgstr "editor: marque un bloc pour placer."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: nothing being placed -- start with /place, /chunk or /delete."
+msgstr "editor: rien en cours de placement -- commence par /place, /chunk ou /delete."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: placement finished on mark %(n) -- %(extra) extra ignored."
+msgstr "editor: placement terminé à la marque %(n) -- %(extra) en trop ignorée(s)."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: spade or shoot a block of the component to delete."
+msgstr "editor: frappe à la pelle ou tire sur un bloc du composant à supprimer."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: no components on this map."
+msgstr "editor: aucun composant sur cette carte."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: nothing to undo."
+msgstr "editor: rien à annuler."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: removed %(kind) #%(id) -- its blocks stay, back at rest."
+msgstr "editor: %(kind) #%(id) retiré -- ses blocs restent, au repos."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: %(kind) #%(id) is now %(perm)"
+msgstr "editor: %(kind) #%(id) est maintenant %(perm)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "  #%(id) %(kind) at %(x),%(y) %(perm) blocks %(blocks) %(status)"
+msgstr "  #%(id) %(kind) en %(x),%(y) %(perm) blocs %(blocks) %(status)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: perm must be ro, rw, or rw:<team>."
+msgstr "editor: perm doit valoir ro, rw ou rw:<équipe>."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: mark two opposite corners."
+msgstr "editor: marque deux coins opposés."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: mark the centre, then the edge."
+msgstr "editor: marque le centre, puis le bord."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: you are not in a chunk (use /defaultperm for the open map)."
+msgstr "editor: tu n'es dans aucun chunk (utilise /defaultperm pour la carte ouverte)."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: %(name) is now %(perm)"
+msgstr "editor: %(name) est maintenant %(perm)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: removed chunk %(name)"
+msgstr "editor: chunk %(name) supprimé"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: default %(perm)"
+msgstr "editor: par défaut %(perm)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: default %(perm), map read-only"
+msgstr "editor: par défaut %(perm), carte en lecture seule"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "  #%(id) %(name) %(shape) %(perm)"
+msgstr "  #%(id) %(name) %(shape) %(perm)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: default is now %(perm)"
+msgstr "editor: par défaut maintenant %(perm)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: map read-only: no player edits it."
+msgstr "editor: carte en lecture seule : aucun joueur ne la modifie."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: map editable again."
+msgstr "editor: la carte est de nouveau modifiable."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: no map name known -- pass one: /save <name>."
+msgstr "editor: nom de carte inconnu -- donnes-en un : /save <nom>."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: bad name (no / \\ or leading dot)."
+msgstr "editor: nom invalide (pas de / \\ ni de point au début)."
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: saved %(name).vxl and %(name).editor.json in %(dir)/"
+msgstr "editor: %(name).vxl et %(name).editor.json enregistrés dans %(dir)/"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: save failed -- see the server log (is maps/ writable?)."
+msgstr "editor: échec de l'enregistrement -- vois le journal du serveur (maps/ est-il accessible en écriture ?)."
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Place a component; /place alone lists them, /place <c> shows help."
+msgstr "Placer un composant ; /place seul les liste, /place <c> affiche l'aide."
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Drop a placement mark where you are (or at x y z)."
+msgstr "Poser une marque de placement là où tu es (ou en x y z)."
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Place one or more placement marks by coordinate."
+msgstr "Poser une ou plusieurs marques de placement par coordonnées."
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Un-place the most recent component (its blocks stay)."
+msgstr "Annuler le placement du dernier composant (ses blocs restent)."
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Un-place the component whose block you mark (its blocks stay)."
+msgstr "Annuler le placement du composant dont tu marques un bloc (ses blocs restent)."
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Set protection on the nearest component."
+msgstr "Régler la protection du composant le plus proche."
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "List placed components and their live state."
+msgstr "Lister les composants placés et leur état en direct."
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Save the map (.vxl) and its layout (.editor.json) to maps/."
+msgstr "Enregistrer la carte (.vxl) et sa disposition (.editor.json) dans maps/."
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Create an authorization chunk from two marks."
+msgstr "Créer un chunk d'autorisation à partir de deux marques."
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Set the authorization of the chunk you are standing in."
+msgstr "Régler l'autorisation du chunk où tu te trouves."
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Delete the chunk you are standing in."
+msgstr "Supprimer le chunk où tu te trouves."
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "List authorization chunks."
+msgstr "Lister les chunks d'autorisation."
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Who may edit blocks outside every chunk."
+msgstr "Qui peut modifier les blocs hors de tout chunk."
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Master lock: refuse every player block edit."
+msgstr "Verrou général : refuser toute modification de blocs par les joueurs."
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: %(text)"
+msgstr "editor: %(text)"
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: mark at %(x) %(y) %(z)"
+msgstr "editor: marque en %(x) %(y) %(z)"
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: that mark is outside the map."
+msgstr "editor: cette marque est hors de la carte."
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: nothing to mark there -- aim at ground or water."
+msgstr "editor: rien à marquer ici -- vise le sol ou l'eau."
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: no component on that block -- aim right at one."
+msgstr "editor: aucun composant sur ce bloc -- vise-le bien."
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: deleted %(kind) #%(id) -- its blocks stay, back at rest."
+msgstr "editor: %(kind) #%(id) supprimé -- ses blocs restent, au repos."
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: %(kind) #%(id) placed."
+msgstr "editor: %(kind) #%(id) placé."
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: chunk %(name) (%(perm)) created."
+msgstr "editor: chunk %(name) (%(perm)) créé."
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: mark again."
+msgstr "editor: marque encore."

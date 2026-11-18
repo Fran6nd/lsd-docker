@@ -1,0 +1,148 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ru\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: cannot write %(path) (%(err)) -- drop the :ro on the maps mount to persist"
+msgstr "map_layout: не удалось записать %(path) (%(err)) -- убери :ro у монтирования maps, чтобы сохранялось"
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: %(path) is not valid json, ignoring"
+msgstr "map_layout: %(path) -- невалидный json, пропускаю"
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: loaded %(path)"
+msgstr "map_layout: загружен %(path)"
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: component %(name) failed to load: %(err)"
+msgstr "map_layout: компонент %(name) не загрузился: %(err)"
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: cannot write %(path) (%(err))"
+msgstr "map_layout: не удалось записать %(path) (%(err))"
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "You broke %(kind) #%(id)."
+msgstr "Ты сломал %(kind) #%(id)."
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "direction must be up, down, left or right."
+msgstr "направление должно быть up, down, left или right."
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "mark one corner of the door."
+msgstr "отметь один угол двери."
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "now mark the opposite corner."
+msgstr "теперь отметь противоположный угол."
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "a vertical door needs height -- mark corners at different heights."
+msgstr "вертикальной двери нужна высота -- отметь углы на разной высоте."
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "a sliding door needs width -- mark corners apart horizontally."
+msgstr "раздвижной двери нужна ширина -- отметь углы на расстоянии по горизонтали."
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "that box overlaps another component -- mark clear of it."
+msgstr "эта область пересекает другой компонент -- отмечай в стороне от него."
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "a door is a panel, not a block of wall -- one of its two horizontal sides has to be a single block thick."
+msgstr "дверь -- это панель, а не кусок стены: по одной из двух горизонтальных осей она должна быть толщиной в один блок."
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "editor: door -- a built surface that retracts when a player nears it."
+msgstr "editor: door -- построенная поверхность, которая убирается, когда к ней подходит игрок."
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  usage: /place door <up|down|left|right>"
+msgstr "  использование: /place door <up|down|left|right>"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  up/down retract into ceiling/floor; left/right retract aside."
+msgstr "  up/down убираются в потолок/пол; left/right -- в сторону."
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  build the shape first, then mark two opposite corners around it:"
+msgstr "  сначала построй форму, затем отметь вокруг неё два противоположных угла:"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  its blocks, colours and gaps all become the door and move together."
+msgstr "  все её блоки, цвета и пустоты становятся дверью и двигаются вместе."
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  the panel retracts into the marked box and needs no room behind it."
+msgstr "  панель убирается внутрь отмеченной области, место за ней не нужно."
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  an empty box gives a solid panel in your palette colour instead."
+msgstr "  пустая область даёт сплошную панель твоего цвета из палитры."
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "direction must be up or down."
+msgstr "направление должно быть up или down."
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "mark one corner of the platform."
+msgstr "отметь один угол платформы."
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "now mark the opposite corner of the platform."
+msgstr "теперь отметь противоположный угол платформы."
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "now mark a block at the altitude to travel to."
+msgstr "теперь отметь блок на высоте, куда ехать."
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "that altitude is the platform's own level -- mark a different height."
+msgstr "это уровень самой платформы -- отметь другую высоту."
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "the shaft would run through another component -- pick another altitude."
+msgstr "шахта пройдёт через другой компонент -- выбери другую высоту."
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "editor: elevator -- a built platform that carries riders up or down."
+msgstr "editor: elevator -- построенная платформа, которая возит игроков вверх или вниз."
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  usage: /place elevator <up|down>"
+msgstr "  использование: /place elevator <up|down>"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  up rests at the bottom and rises when stood on; down is the reverse."
+msgstr "  up стоит внизу и поднимается, когда на неё встают; down -- наоборот."
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  build the pad first, then mark two opposite corners around it,"
+msgstr "  сначала построй площадку, затем отметь вокруг неё два противоположных угла,"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  then mark the altitude it should travel to -- the pad comes to"
+msgstr "  затем отметь высоту, куда ей ехать -- площадка"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  rest level with that mark."
+msgstr "  остановится вровень с этой отметкой."
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  its blocks, colours and gaps all become the platform."
+msgstr "  все её блоки, цвета и пустоты становятся платформой."
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  the piston column under it takes the colour of the pad's core."
+msgstr "  поршневая колонна под ней берёт цвет центра площадки."
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  an empty box gives a plain slab in your palette colour instead."
+msgstr "  пустая область даёт простую плиту твоего цвета из палитры."

@@ -1,4 +1,4 @@
--- world_editor/door.lua -- A built surface that retracts to open
+-- map_layout/door.lua -- A built surface that retracts to open
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- Placement: /place door up|down|left|right
@@ -46,16 +46,16 @@
 -- blocks that actually change -- see motion_for. That is what keeps a
 -- big door from dumping hundreds of block updates into a single tick,
 -- and it is the same overlap trick the elevator uses; see the block api
--- in world_editor.lua for why re-sending an unchanged cell is not free.
+-- in map_layout/blocks.lua for why re-sending an unchanged cell is not free.
 --
 -- The map's z axis points *down*: z1 is the top row, z2 the bottom.
 local D = {name = "door"};
 
-local areas   = require "world_editor.areas";
-local stencil = require "world_editor.stencil";
+local areas   = require "map_layout.areas";
+local stencil = require "map_layout.stencil";
 require "lib_l10n";
 
--- Prompts and refusals go back to world_editor as lib_l10n message
+-- Prompts and refusals go back to the editor as lib_l10n message
 -- tables, not strings, so a component's voice is translatable like
 -- everything else the editor says.
 local msg = {
@@ -68,8 +68,8 @@ local msg = {
 	too_thick    = {en="a door is a panel, not a block of wall -- one of its two horizontal sides has to be a single block thick."},
 };
 
-getcfg("world_editor_door_speed", 8);     -- blocks moved per second
-getcfg("world_editor_door_range", 4);     -- how close a player must be, in blocks
+getcfg("map_layout_door_speed", 8);     -- blocks moved per second
+getcfg("map_layout_door_range", 4);     -- how close a player must be, in blocks
 
 -- default panel colour, used for a door placed on an empty box when the
 -- placer's palette read fails too
@@ -80,7 +80,7 @@ local DIRS = {up=true, down=true, left=true, right=true};
 D.desc  = "a built surface that retracts into its frame when someone is near.";
 D.usage = "<up|down|left|right>";
 D.help  = {
-	{en="world_editor: door -- a built surface that retracts when a player nears it."},
+	{en="editor: door -- a built surface that retracts when a player nears it."},
 	{en="  usage: /place door <up|down|left|right>"},
 	{en="  up/down retract into ceiling/floor; left/right retract aside."},
 	{en="  build the shape first, then mark two opposite corners around it:"},
@@ -92,7 +92,7 @@ D.help  = {
 -- --------------------------------------------------------------- stencil
 --
 -- Reading the marked box off the map and packing it for the layout json
--- is shared with the elevator; see world_editor/stencil.lua. What is the
+-- is shared with the elevator; see map_layout/stencil.lua. What is the
 -- door's own is how that drawing is indexed once decoded: by plane along
 -- the retract axis, so a move is a shift of plane indices.
 
@@ -293,7 +293,7 @@ end
 -- Everything is keyed by COLOUR first and plane second, because that is
 -- how the writes are issued: one call per colour covering every plane it
 -- appears on. we.fill sends the block colour once per call (deliberately
--- -- see the block api in world_editor.lua) and ends a clear with one
+-- -- see the block api in map_layout/blocks.lua) and ends a clear with one
 -- floating-block cull, so grouping this way makes a step cost one colour
 -- packet per colour and exactly one cull, instead of one of each per
 -- plane.
@@ -373,7 +373,7 @@ function D.spawn(d, we)
 	if (inst.z2 > we.deepest) then inst.z2 = we.deepest; cells = nil; end
 	if (inst.z1 > inst.z2) then inst.z1 = inst.z2; cells = nil; end
 	if (cells == nil and d.cells ~= nil) then
-		log("world_editor: door at %d,%d had to be clamped to z<=%d; its drawing no longer fits, using a solid panel",
+		log("map_layout: door at %d,%d had to be clamped to z<=%d; its drawing no longer fits, using a solid panel",
 		    inst.x1, inst.y1, we.deepest);
 	end
 
@@ -405,7 +405,7 @@ function D.spawn(d, we)
 			occ, why = decode_occ(inst, #pal, cells);
 		end
 		if (occ == nil) then
-			log("world_editor: door at %d,%d has an unusable drawing (%s); using a solid panel",
+			log("map_layout: door at %d,%d has an unusable drawing (%s); using a solid panel",
 			    inst.x1, inst.y1, tostring(why));
 		else
 			n = why;                       -- decode_occ's second return: cell count
@@ -548,7 +548,7 @@ end
 -- Put the panel back where it was captured, in one go.
 --
 -- Used when the door is being dropped but its blocks are being handed
--- back to the map (see release_component in world_editor.lua): the
+-- back to the map (see release in lib_map_layout.lua): the
 -- drawing has to be whole, and in the place it was built, before it
 -- stops being ours. Deleting a door caught half-open would otherwise
 -- leave a half-open door frozen into the terrain.
@@ -609,12 +609,12 @@ end
 
 -- ---------------------------------------------------------------- trigger
 
--- The doorway fattened by world_editor_door_range, so someone walking up to either
+-- The doorway fattened by map_layout_door_range, so someone walking up to either
 -- face sets it off. The panel never leaves the frame, so this is built
 -- once at spawn rather than rebuilt 60 times a second.
 local function near_area(inst)
 	if (inst.trigger == nil) then
-		local r = world_editor_door_range;
+		local r = map_layout_door_range;
 		inst.trigger = areas.box(inst.x1-r, inst.y1-r, inst.z1-r,
 		                         inst.x2+r, inst.y2+r, inst.z2+r);
 	end
@@ -649,7 +649,7 @@ function D.tick(inst, we, dt)
 		return;
 	end
 
-	if (not we.due(inst, "t", world_editor_door_speed, dt)) then
+	if (not we.due(inst, "t", map_layout_door_speed, dt)) then
 		return;
 	end
 

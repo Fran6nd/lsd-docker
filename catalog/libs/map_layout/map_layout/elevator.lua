@@ -1,4 +1,4 @@
--- world_editor/elevator.lua -- A built platform that lifts riders
+-- map_layout/elevator.lua -- A built platform that lifts riders
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- Placement: /place elevator <up|down>
@@ -24,7 +24,7 @@
 --
 -- The piston is kept. It is the visible support column under the
 -- platform: the pad's own silhouette eroded on every side (see
--- world_editor_elevator_piston), running from just beneath the platform down to
+-- map_layout_elevator_piston), running from just beneath the platform down to
 -- the shaft base, so the wider platform appears to ride on a narrower
 -- column. Because the pad is now a drawing rather than one flat colour,
 -- the column is drawn in the colour of the platform's CORE -- the block
@@ -42,7 +42,7 @@
 -- cell that already holds the right colour is left alone, because
 -- re-sending it is both a packet storm and a destroy-then-create on one
 -- cell in one tick, which is the pattern that leaves client connectivity
--- stale (see the block api in world_editor.lua).
+-- stale (see the block api in map_layout/blocks.lua).
 --
 -- On placement the whole shaft is cleared of map blocks and then
 -- reserved, so the platform has a free path and nobody can wall it in.
@@ -51,8 +51,8 @@
 -- "up" steps z downward.
 local E = {name = "elevator"};
 
-local areas   = require "world_editor.areas";
-local stencil = require "world_editor.stencil";
+local areas   = require "map_layout.areas";
+local stencil = require "map_layout.stencil";
 require "lib_l10n";
 
 -- see door.lua: prompts and refusals travel as message tables
@@ -65,12 +65,12 @@ local msg = {
 	shaft_busy  = {en="the shaft would run through another component -- pick another altitude."},
 };
 
-getcfg("world_editor_elevator_speed", 6);    -- layers per second
-getcfg("world_editor_elevator_wait", 1.0);   -- seconds held at the far end
-getcfg("world_editor_elevator_abort", 0.6);  -- empty this long mid-travel -> return
-getcfg("world_editor_elevator_headroom", 3); -- rider headroom reserved above the top
-getcfg("world_editor_elevator_piston", 0.4); -- piston width as a fraction of the platform
-getcfg("world_editor_elevator_stand", 2.4);  -- head-to-feet: pos.z when stood on the top
+getcfg("map_layout_elevator_speed", 6);    -- layers per second
+getcfg("map_layout_elevator_wait", 1.0);   -- seconds held at the far end
+getcfg("map_layout_elevator_abort", 0.6);  -- empty this long mid-travel -> return
+getcfg("map_layout_elevator_headroom", 3); -- rider headroom reserved above the top
+getcfg("map_layout_elevator_piston", 0.4); -- piston width as a fraction of the platform
+getcfg("map_layout_elevator_stand", 2.4);  -- head-to-feet: pos.z when stood on the top
 
 local RED = {r=255, g=32, b=32};   -- fallback if the palette read fails
 
@@ -81,7 +81,7 @@ local RIDER_REACH = 6;
 E.desc  = "a built platform that lifts riders between two altitudes.";
 E.usage = "<up|down>";
 E.help  = {
-	{en="world_editor: elevator -- a built platform that carries riders up or down."},
+	{en="editor: elevator -- a built platform that carries riders up or down."},
 	{en="  usage: /place elevator <up|down>"},
 	{en="  up rests at the bottom and rises when stood on; down is the reverse."},
 	{en="  build the pad first, then mark two opposite corners around it,"},
@@ -155,7 +155,7 @@ function E.click(s, pos, we)
 	-- Nothing of another component may be inside the shaft: E.render digs
 	-- the whole column to give the platform a free path, which would tear
 	-- a hole through whatever else lives there.
-	local st = math.max(0, d.zlo - world_editor_elevator_headroom);
+	local st = math.max(0, d.zlo - map_layout_elevator_headroom);
 	local sb = math.min(we.deepest, d.zhi + thick - 1);
 	for z = st, sb do
 		for y = d.y1, d.y2 do
@@ -382,7 +382,7 @@ end
 -- top of the shaft: the highest layer the platform can reach, plus the
 -- headroom a rider standing on it needs
 local function shaft_top(inst)
-	return inst.zlo - world_editor_elevator_headroom;
+	return inst.zlo - map_layout_elevator_headroom;
 end
 
 function E.spawn(d, we)
@@ -398,7 +398,7 @@ function E.spawn(d, we)
 		else
 			x1, y1, x2, y2 = f.x1, f.y1, f.x2, f.y2;
 		end
-		log("world_editor: elevator #%s uses the old footprint format; loaded as a plain slab",
+		log("map_layout: elevator #%s uses the old footprint format; loaded as a plain slab",
 		    tostring(d.id));
 		d = {x1=x1, y1=y1, x2=x2, y2=y2, z1=d.zlo, z2=d.zlo,
 		     dir=d.dir, zlo=d.zlo, zhi=d.zhi};
@@ -441,7 +441,7 @@ function E.spawn(d, we)
 			occ, why = decode_occ(inst, #pal, cells);
 		end
 		if (occ == nil) then
-			log("world_editor: elevator at %d,%d has an unusable drawing (%s); using a plain slab",
+			log("map_layout: elevator at %d,%d has an unusable drawing (%s); using a plain slab",
 			    inst.x1, inst.y1, tostring(why));
 		else
 			n = why;                       -- decode_occ's second return: cell count
@@ -462,7 +462,7 @@ function E.spawn(d, we)
 	-- leaving the piston at least one block narrower, and nil when there
 	-- is no room to inset at all.
 	local half = math.min(inst.x2 - inst.x1, inst.y2 - inst.y1) / 2;
-	local target = math.floor(half * world_editor_elevator_piston);
+	local target = math.floor(half * map_layout_elevator_piston);
 	if (target < 1) then target = 1; end
 	if (target > half - 1) then target = half - 1; end
 	inst.piston = (target >= 1)
@@ -620,7 +620,7 @@ end
 -- sink, where relative motion plus client jitter buries them a little
 -- deeper each step. inst.z is already the new top layer here.
 local function carry(inst, riding, dz)
-	local top = inst.z - world_editor_elevator_stand;   -- pos.z of feet-on-surface
+	local top = inst.z - map_layout_elevator_stand;   -- pos.z of feet-on-surface
 	for _, pid in ipairs(riding) do
 		local p = get_position(pid);
 		local nz = p.z + dz;
@@ -670,7 +670,7 @@ end
 -- back at the altitude it was built at, and nothing else.
 --
 -- Called when the elevator is being un-placed but its blocks are being
--- handed back (see release_component in world_editor.lua). Two things
+-- handed back (see release in lib_map_layout.lua). Two things
 -- have to happen and they have to happen together:
 --
 --   * the pad returns to its resting altitude, or an elevator deleted
@@ -764,7 +764,7 @@ function E.tick(inst, we, dt)
 	if (inst.state == "going") then
 		if (not has_riders(inst, we)) then
 			inst.empty = (inst.empty or 0) + dt;
-			if (inst.empty >= world_editor_elevator_abort) then
+			if (inst.empty >= map_layout_elevator_abort) then
 				inst.state = "returning";
 				inst.t = 0;
 			end
@@ -777,14 +777,14 @@ function E.tick(inst, we, dt)
 	if (inst.z == target) then
 		if (inst.state == "going") then
 			inst.state = "holding";
-			inst.hold = world_editor_elevator_wait;
+			inst.hold = map_layout_elevator_wait;
 		else
 			inst.state = "rest";
 		end
 		return;
 	end
 
-	if (we.due(inst, "t", world_editor_elevator_speed, dt)) then
+	if (we.due(inst, "t", map_layout_elevator_speed, dt)) then
 		step(inst, we, (target < inst.z) and -1 or 1);
 	end
 end

@@ -1,4 +1,4 @@
--- world_editor/areas.lua -- Shapes, containment and area triggers
+-- map_layout/areas.lua -- Shapes, containment and area triggers
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- One shape vocabulary serves the whole editor: authorization chunks
@@ -169,7 +169,7 @@ end
 -- lookup instead of a scan over everything. Both users need it for the
 -- same reason: they are queried once per *block* on every player edit,
 -- and a block line is dozens of blocks at once, so O(#areas) per block
--- would bite. Chunks index their permission regions; world_editor
+-- would bite. Chunks index their permission regions; map_layout
 -- indexes component reserved volumes.
 
 local CELL = 32;                    -- grid granularity, in blocks

@@ -42,16 +42,15 @@
 --
 -- THE CAP IS THE WHOLE GATE. Anyone holding it can rewrite the map from
 -- anywhere, so grant it narrowly and never from a cap group.
--- world_editor grants the default cap only for as long as edit mode is
--- on and drops it again afterwards, which is the intended pairing --
--- but this script does not depend on world_editor and works with any
--- scheme that hands out the cap.
+-- The editor gamemode grants the default cap to every builder while it
+-- runs, which is the intended pairing -- but this script does not depend
+-- on the editor and works with any scheme that hands out the cap.
 local mod = init_mod();
 
 local bit = require("bit");
 
 getcfg("unrestricted_blocks", true);                   -- master switch
-getcfg("unrestricted_blocks_cap", "worldedit_build");  -- who gets to bypass
+getcfg("unrestricted_blocks_cap", "editor_build");  -- who gets to bypass
 
 -- lsd/src/protocol.h: PacketTypeBlockAction = 13, PacketTypeBlockLine = 14.
 -- struct PacketBlockAction { u8 packetID, playerID, type; ivec3p pos; }

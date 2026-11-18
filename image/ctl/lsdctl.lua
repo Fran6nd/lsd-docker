@@ -1379,10 +1379,75 @@ local function ensure_maps()
 	end
 end
 
-command("init", "init", "write default settings if there are none (the entrypoint runs this)",
+-- Settings a release renamed, carried to their new names. world_editor
+-- (a tool) became map_layout (the runtime every gamemode loads) and the
+-- editor gamemode: its keys move, and the tool leaves the installed
+-- list -- `lsdctl gamemode editor` is how to edit now.
+local RENAMED = {
+	world_editor_dir = "map_layout_dir",
+	world_editor_default_perm = "map_layout_default_perm",
+	world_editor_readonly = "map_layout_readonly",
+	world_editor_autosave = "map_layout_autosave",
+	world_editor_door_speed = "map_layout_door_speed",
+	world_editor_door_range = "map_layout_door_range",
+	world_editor_elevator_speed = "map_layout_elevator_speed",
+	world_editor_elevator_wait = "map_layout_elevator_wait",
+	world_editor_elevator_abort = "map_layout_elevator_abort",
+	world_editor_elevator_headroom = "map_layout_elevator_headroom",
+	world_editor_elevator_piston = "map_layout_elevator_piston",
+	world_editor_elevator_stand = "map_layout_elevator_stand",
+	world_editor_mark_range = "editor_mark_range",
+	world_editor_water_level = "editor_water_level",
+};
+local RETIRED = {"world_editor"};
+
+-- Bring an older settings file up to date; true if it changed.
+local function migrate(doc)
+	local changed = false;
+
+	local moved = {};
+	for old, new in pairs(RENAMED) do
+		local v = doc:get(old);
+		if (v ~= nil) then moved[new] = v; end
+	end
+
+	for _, id in ipairs(RETIRED) do
+		if (doc:is_installed(id) or doc:section(id) ~= nil) then
+			local keep = {};
+			for _, x in ipairs(doc:installed()) do
+				if (x ~= id) then keep[#keep+1] = x; end
+			end
+			doc:set_installed(keep);
+			doc:remove_section(id);
+			changed = true;
+		end
+	end
+
+	for old, new in pairs(RENAMED) do
+		if (doc:get(old) ~= nil) then
+			doc:unset(old);
+			changed = true;
+		end
+		if (moved[new] ~= nil and doc:get(new) == nil) then
+			doc:set(new, moved[new]);
+			changed = true;
+		end
+	end
+
+	return changed;
+end
+
+command("init", "init", "write default settings if there are none, and bring older ones up to date (the entrypoint runs this)",
 	function()
 		ensure_maps();
-		if (exists(SETTINGS)) then return; end
+		if (exists(SETTINGS)) then
+			local doc = open_doc(true);
+			if (migrate(doc)) then
+				doc:save();
+				say("settings brought up to date (%s)", SETTINGS);
+			end
+			return;
+		end
 		local doc = fresh_doc();
 		install_ids(doc, DEFAULT_SCRIPTS, make_ui(true), {});
 		doc:save();

@@ -10,7 +10,7 @@
 --
 --   script.lua         the manifest: one call to its category's class
 --   <module>.lua       the LSd module(s) it ships, if any
---   <module>/...       their submodules (require "world_editor.chunks")
+--   <module>/...       their submodules (require "map_layout.chunks")
 --
 -- Everything in the directory but script.lua is copied into the
 -- server's scripts/ at start. An entry for an upstream module (ctf,
@@ -29,7 +29,8 @@
 --   |                     and its setup includes what a client missing
 --   |                     it costs (its ext_policy entry)
 --   +- Gamemode           exactly one runs; a base module, optionally
---   |                     a rider loaded after the bots
+--   |                     a rider loaded after the bots; every one runs
+--   |                     the map's layout (map_layout)
 --   +- Effect             abstract: changes how the game plays. Meant
 --   |  |                  to be pulled in by the gamemodes that play
 --   |  |                  with it (their `requires`); setup can also
@@ -355,9 +356,12 @@ function C.Extension:on_remove(doc)
 	end
 end
 
+-- Every gamemode runs the map's layout -- its doors, elevators and edit
+-- permissions -- so the library comes with the category.
 C.Gamemode = Script:extend({
 	category = "gamemode",
 	phase = "gamemode",
+	class_requires = {"map_layout"},
 });
 
 -- A gamemode is a base module loaded where the mode belongs -- before

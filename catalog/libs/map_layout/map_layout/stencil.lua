@@ -1,4 +1,4 @@
--- world_editor/stencil.lua -- Capture an existing build as a component
+-- map_layout/stencil.lua -- Capture an existing build as a component
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- Components that MOVE a piece of the map -- the door, the elevator --

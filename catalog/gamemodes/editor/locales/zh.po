@@ -1,0 +1,254 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "This is the EDITOR: build freely, then /save. /place lists what can be placed."
+msgstr "这里是编辑器：自由建造，然后 /save。/place 列出可放置的内容。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: could not load %(name) (%(err))"
+msgstr "editor: 无法加载 %(name)（%(err)）"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: could not delist (%(err))"
+msgstr "editor: 无法从公开列表移除（%(err)）"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: could not relist (%(err))"
+msgstr "editor: 无法重新加入公开列表（%(err)）"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: placeable -- %(names)"
+msgstr "editor: 可放置——%(names)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "  /place <component> for its help, e.g. /place elevator"
+msgstr "  /place <component> 查看其帮助，例如 /place elevator"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: no such component. placeable: %(names)"
+msgstr "editor: 没有该组件。可放置：%(names)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: %(name) -- %(desc)"
+msgstr "editor: %(name)——%(desc)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "  usage: /place %(name) %(usage)"
+msgstr "  用法：/place %(name) %(usage)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: select the box for the %(kind) -- /sel, then aim and click each corner."
+msgstr "editor: 为 %(kind) 选择区域——输入 /sel，然后瞄准并点击每个角。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: mark a block to place."
+msgstr "editor: 标记一个方块以放置。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: nothing being placed -- start with /place, /chunk or /delete."
+msgstr "editor: 当前没有正在放置的组件——请先用 /place、/chunk 或 /delete。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: placement finished on mark %(n) -- %(extra) extra ignored."
+msgstr "editor: 已在第 %(n) 个标记处完成放置——忽略多余的 %(extra) 个。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: spade or shoot a block of the component to delete."
+msgstr "editor: 用铲子敲击或射击要删除组件的一个方块。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: no components on this map."
+msgstr "editor: 此地图上没有组件。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: nothing to undo."
+msgstr "editor: 没有可撤销的操作。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: removed %(kind) #%(id) -- its blocks stay, back at rest."
+msgstr "editor: 已移除 %(kind) #%(id)——其方块保留，回到静止位置。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: %(kind) #%(id) is now %(perm)"
+msgstr "editor: %(kind) #%(id) 现为 %(perm)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "  #%(id) %(kind) at %(x),%(y) %(perm) blocks %(blocks) %(status)"
+msgstr "  #%(id) %(kind) 位于 %(x),%(y) %(perm) 方块 %(blocks) %(status)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: perm must be ro, rw, or rw:<team>."
+msgstr "editor: perm 必须是 ro、rw 或 rw:<team>。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: mark two opposite corners."
+msgstr "editor: 标记两个相对的角。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: mark the centre, then the edge."
+msgstr "editor: 先标记中心，再标记边缘。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: you are not in a chunk (use /defaultperm for the open map)."
+msgstr "editor: 你不在任何区块内（开放地图请用 /defaultperm）。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: %(name) is now %(perm)"
+msgstr "editor: %(name) 现为 %(perm)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: removed chunk %(name)"
+msgstr "editor: 已移除区块 %(name)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: default %(perm)"
+msgstr "editor: 默认 %(perm)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: default %(perm), map read-only"
+msgstr "editor: 默认 %(perm)，地图只读"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "  #%(id) %(name) %(shape) %(perm)"
+msgstr "  #%(id) %(name) %(shape) %(perm)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: default is now %(perm)"
+msgstr "editor: 默认现为 %(perm)"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: map read-only: no player edits it."
+msgstr "editor: 地图只读：任何玩家都无法修改。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: map editable again."
+msgstr "editor: 地图恢复可编辑。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: no map name known -- pass one: /save <name>."
+msgstr "editor: 未知地图名——请指定：/save <名称>。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: bad name (no / \\ or leading dot)."
+msgstr "editor: 名称无效（不能含 / \\ 或以点开头）。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: saved %(name).vxl and %(name).editor.json in %(dir)/"
+msgstr "editor: 已将 %(name).vxl 和 %(name).editor.json 保存到 %(dir)/"
+
+#: catalog/gamemodes/editor/editor.lua
+msgid "editor: save failed -- see the server log (is maps/ writable?)."
+msgstr "editor: 保存失败——请查看服务器日志（maps/ 是否可写？）。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Place a component; /place alone lists them, /place <c> shows help."
+msgstr "放置组件；单独输入 /place 列出组件，/place <c> 显示帮助。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Drop a placement mark where you are (or at x y z)."
+msgstr "在你所在位置（或 x y z 处）放置一个放置标记。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Place one or more placement marks by coordinate."
+msgstr "按坐标放置一个或多个放置标记。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Un-place the most recent component (its blocks stay)."
+msgstr "撤销最近放置的组件（其方块保留）。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Un-place the component whose block you mark (its blocks stay)."
+msgstr "撤销你所标记方块所属的组件（其方块保留）。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Set protection on the nearest component."
+msgstr "设置最近组件的保护。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "List placed components and their live state."
+msgstr "列出已放置的组件及其实时状态。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Save the map (.vxl) and its layout (.editor.json) to maps/."
+msgstr "将地图（.vxl）及其布局（.editor.json）保存到 maps/。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Create an authorization chunk from two marks."
+msgstr "用两个标记创建授权区块。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Set the authorization of the chunk you are standing in."
+msgstr "设置你所在区块的授权。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Delete the chunk you are standing in."
+msgstr "删除你所在的区块。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "List authorization chunks."
+msgstr "列出授权区块。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Who may edit blocks outside every chunk."
+msgstr "谁可以修改所有区块之外的方块。"
+
+#: catalog/gamemodes/editor/editor.lua
+msgctxt "command"
+msgid "Master lock: refuse every player block edit."
+msgstr "总锁：拒绝所有玩家对方块的修改。"
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: %(text)"
+msgstr "editor: %(text)"
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: mark at %(x) %(y) %(z)"
+msgstr "editor: 标记于 %(x) %(y) %(z)"
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: that mark is outside the map."
+msgstr "editor: 该标记在地图外。"
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: nothing to mark there -- aim at ground or water."
+msgstr "editor: 那里无法标记——请瞄准地面或水面。"
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: no component on that block -- aim right at one."
+msgstr "editor: 该方块上没有组件——请直接瞄准组件。"
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: deleted %(kind) #%(id) -- its blocks stay, back at rest."
+msgstr "editor: 已删除 %(kind) #%(id)——其方块保留，回到静止位置。"
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: %(kind) #%(id) placed."
+msgstr "editor: 已放置 %(kind) #%(id)。"
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: chunk %(name) (%(perm)) created."
+msgstr "editor: 已创建区块 %(name)（%(perm)）。"
+
+#: catalog/gamemodes/editor/editor/placement.lua
+msgid "editor: mark again."
+msgstr "editor: 再标记一次。"

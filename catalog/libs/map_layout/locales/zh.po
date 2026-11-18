@@ -1,0 +1,148 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: cannot write %(path) (%(err)) -- drop the :ro on the maps mount to persist"
+msgstr "map_layout: 无法写入 %(path)（%(err)）——去掉 maps 挂载上的 :ro 才能保存"
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: %(path) is not valid json, ignoring"
+msgstr "map_layout: %(path) 不是有效的 json，已忽略"
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: loaded %(path)"
+msgstr "map_layout: 已加载 %(path)"
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: component %(name) failed to load: %(err)"
+msgstr "map_layout: 组件 %(name) 加载失败：%(err)"
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: cannot write %(path) (%(err))"
+msgstr "map_layout: 无法写入 %(path)（%(err)）"
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "You broke %(kind) #%(id)."
+msgstr "你破坏了 %(kind) #%(id)。"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "direction must be up, down, left or right."
+msgstr "direction 必须是 up、down、left 或 right。"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "mark one corner of the door."
+msgstr "标记门的一个角。"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "now mark the opposite corner."
+msgstr "现在标记对角。"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "a vertical door needs height -- mark corners at different heights."
+msgstr "垂直门需要高度——请在不同高度标记角点。"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "a sliding door needs width -- mark corners apart horizontally."
+msgstr "滑动门需要宽度——请在水平方向上分开标记角点。"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "that box overlaps another component -- mark clear of it."
+msgstr "该区域与另一组件重叠——请避开它标记。"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "a door is a panel, not a block of wall -- one of its two horizontal sides has to be a single block thick."
+msgstr "门是一块面板，不是一堵墙——它的两个水平方向中必须有一个只有一格厚。"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "editor: door -- a built surface that retracts when a player nears it."
+msgstr "editor: door（门）——玩家靠近时会自动收起的建造面。"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  usage: /place door <up|down|left|right>"
+msgstr "  用法：/place door <up|down|left|right>"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  up/down retract into ceiling/floor; left/right retract aside."
+msgstr "  up/down 收入天花板/地板；left/right 向侧面收起。"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  build the shape first, then mark two opposite corners around it:"
+msgstr "  先建好形状，再在其周围标记两个对角："
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  its blocks, colours and gaps all become the door and move together."
+msgstr "  其方块、颜色和空隙都会成为门，并一起移动。"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  the panel retracts into the marked box and needs no room behind it."
+msgstr "  面板收入所标记的区域内，背后无需留空间。"
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  an empty box gives a solid panel in your palette colour instead."
+msgstr "  若区域为空，则会生成一块使用你调色板颜色的实心面板。"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "direction must be up or down."
+msgstr "direction 必须是 up 或 down。"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "mark one corner of the platform."
+msgstr "标记平台的一个角。"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "now mark the opposite corner of the platform."
+msgstr "现在标记平台的对角。"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "now mark a block at the altitude to travel to."
+msgstr "现在在要到达的高度标记一个方块。"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "that altitude is the platform's own level -- mark a different height."
+msgstr "该高度就是平台自身所在高度——请标记其他高度。"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "the shaft would run through another component -- pick another altitude."
+msgstr "升降井会穿过另一组件——请选择其他高度。"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "editor: elevator -- a built platform that carries riders up or down."
+msgstr "editor: elevator（电梯）——载着乘客上升或下降的建造平台。"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  usage: /place elevator <up|down>"
+msgstr "  用法：/place elevator <up|down>"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  up rests at the bottom and rises when stood on; down is the reverse."
+msgstr "  up 停在底部，有人站上时上升；down 则相反。"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  build the pad first, then mark two opposite corners around it,"
+msgstr "  先建好平台，再在其周围标记两个对角，"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  then mark the altitude it should travel to -- the pad comes to"
+msgstr "  然后标记它要到达的高度——平台最终会停在"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  rest level with that mark."
+msgstr "  与该标记齐平的位置。"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  its blocks, colours and gaps all become the platform."
+msgstr "  其方块、颜色和空隙都会成为平台。"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  the piston column under it takes the colour of the pad's core."
+msgstr "  其下方的活塞柱会采用平台核心的颜色。"
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  an empty box gives a plain slab in your palette colour instead."
+msgstr "  若区域为空，则会生成一块使用你调色板颜色的普通平板。"

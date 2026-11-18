@@ -1,0 +1,146 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: cannot write %(path) (%(err)) -- drop the :ro on the maps mount to persist"
+msgstr ""
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: %(path) is not valid json, ignoring"
+msgstr ""
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: loaded %(path)"
+msgstr ""
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: component %(name) failed to load: %(err)"
+msgstr ""
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "map_layout: cannot write %(path) (%(err))"
+msgstr ""
+
+#: catalog/libs/map_layout/lib_map_layout.lua
+msgid "You broke %(kind) #%(id)."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "direction must be up, down, left or right."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "mark one corner of the door."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "now mark the opposite corner."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "a vertical door needs height -- mark corners at different heights."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "a sliding door needs width -- mark corners apart horizontally."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "that box overlaps another component -- mark clear of it."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "a door is a panel, not a block of wall -- one of its two horizontal sides has to be a single block thick."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "editor: door -- a built surface that retracts when a player nears it."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  usage: /place door <up|down|left|right>"
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  up/down retract into ceiling/floor; left/right retract aside."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  build the shape first, then mark two opposite corners around it:"
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  its blocks, colours and gaps all become the door and move together."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  the panel retracts into the marked box and needs no room behind it."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/door.lua
+msgid "  an empty box gives a solid panel in your palette colour instead."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "direction must be up or down."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "mark one corner of the platform."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "now mark the opposite corner of the platform."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "now mark a block at the altitude to travel to."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "that altitude is the platform's own level -- mark a different height."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "the shaft would run through another component -- pick another altitude."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "editor: elevator -- a built platform that carries riders up or down."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  usage: /place elevator <up|down>"
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  up rests at the bottom and rises when stood on; down is the reverse."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  build the pad first, then mark two opposite corners around it,"
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  then mark the altitude it should travel to -- the pad comes to"
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  rest level with that mark."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  its blocks, colours and gaps all become the platform."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  the piston column under it takes the colour of the pad's core."
+msgstr ""
+
+#: catalog/libs/map_layout/map_layout/elevator.lua
+msgid "  an empty box gives a plain slab in your palette colour instead."
+msgstr ""

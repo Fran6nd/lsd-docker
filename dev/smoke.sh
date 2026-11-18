@@ -42,9 +42,17 @@ docker run --rm -v "$VOL:/data" "$IMAGE" setup --defaults >/dev/null \
 	|| fail "setup --defaults"
 docker run --rm -v "$VOL:/data" "$IMAGE" set masterlist_enabled False >/dev/null \
 	|| fail "set before start"
+# a setting from before world_editor became map_layout, migrated at start
+docker run --rm -v "$VOL:/data" "$IMAGE" set world_editor_door_speed 9 >/dev/null \
+	|| fail "set an old setting"
 docker run -d --name "$NAME" -v "$VOL:/data" "$IMAGE" >/dev/null
 wait_up "first boot"
 echo "ok: first boot on default settings"
+docker exec "$NAME" lsdctl get map_layout_door_speed | grep -qx 9 \
+	|| fail "world_editor_door_speed was not migrated to map_layout_door_speed"
+docker exec "$NAME" lsdctl get world_editor_door_speed >/dev/null \
+	&& fail "the old world_editor_door_speed is still there"
+echo "ok: old world_editor settings migrated"
 
 docker exec "$NAME" lsdctl status
 docker exec "$NAME" lsdctl available >/dev/null
@@ -78,6 +86,36 @@ wait_up "after triggered effects"
 fx=$(docker exec "$NAME" lsdctl exec 'exec log("FX|" .. tostring(PlayerEffect.get("area_heal") ~= nil) .. "|" .. tostring(PlayerEffect.get("area_hurt") ~= nil) .. "|" .. tostring(commands.m and commands.m.desc) .. "|" .. tostring(PlayerEffect.get("medkit"):trigger(MAX_PLAYERS - 1)) .. "|")')
 echo "$fx" | grep -q "FX|true|true|Use a medkit.|nil|" || fail "triggered effects: $fx"
 echo "ok: medkit, area_heal and area_hurt load; a trigger for nobody does nothing"
+
+# the editor gamemode: place a door from the console by coordinates (a
+# one-block-thick panel in open air), save the map with its layout, and
+# find the layout running again once a game mode loads that map
+docker exec "$NAME" lsdctl gamemode editor --yes --now >/dev/null || fail "gamemode editor"
+sleep 3
+wait_up "after gamemode editor"
+docker logs "$NAME" 2>&1 | grep -q "gamemode editor" || fail "the editor is not running"
+# one console connection for both: a placement belongs to its session,
+# and every lsdctl exec is a session of its own
+docker exec "$NAME" sh -c 'printf "place door left\nmarks 256 256 10 256 258 12\n" \
+	| socat -t 2 - UNIX-CONNECT:/data/rw/console.sock' >/dev/null
+placed=$(docker exec "$NAME" lsdctl exec 'exec local n = 0; for _ in pairs(map_layout.instances()) do n = n + 1 end; log("PLACED|" .. n .. "|")')
+echo "$placed" | grep -q "PLACED|1|" || fail "door not placed from the console: $placed"
+docker exec "$NAME" lsdctl exec 'save smoketest' >/dev/null
+docker exec "$NAME" test -s /data/maps/smoketest.vxl || fail "save wrote no .vxl"
+docker exec "$NAME" grep -q '"kind": "door"' /data/maps/smoketest.editor.json \
+	|| fail "save wrote no layout with the door"
+echo "ok: the editor places a door and saves the map with its layout"
+
+docker exec "$NAME" lsdctl gamemode ctf --yes --now >/dev/null || fail "back to ctf"
+sleep 3
+wait_up "after leaving the editor"
+docker exec "$NAME" lsdctl map load smoketest >/dev/null || fail "map load smoketest"
+sleep 2
+running=$(docker exec "$NAME" lsdctl exec 'exec local n = 0; for _ in pairs(map_layout.instances()) do n = n + 1 end; log("RUNNING|" .. n .. "|" .. tostring(commands.place == nil) .. "|")')
+echo "$running" | grep -q "RUNNING|1|true|" || fail "the layout does not run in ctf, or the editor stayed: $running"
+docker exec "$NAME" rm -f /data/maps/smoketest.vxl /data/maps/smoketest.editor.json
+echo "ok: ctf runs the saved map's door; the editor's commands are gone"
+
 
 # translations: a script's locales/fr.po, installed by the entrypoint as
 # scripts/locales/fr/<id>.po, is what the server answers in French with
