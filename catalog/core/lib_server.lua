@@ -38,6 +38,9 @@ getcfg("masterlist_remotes", {"66.135.15.57", "master.buildandshoot.com"},
 getcfg("map_rotation", nil,
 	"Maps to play, space separated, in the order given. Empty plays "
 		.."every .vxl in the map folder, in name order.");
+getcfg("map_random", false,
+	"Play the maps in a random order -- the first one too -- reshuffled "
+		.."each time round, never the same map twice in a row.");
 getcfg("fog", {r = 128, g = 232, b = 255},
 	"Fog colour, which in Ace of Spades is also the sky. Written "
 		.."(r, g, b). A map's own metadata overrides it per map.");
@@ -115,6 +118,10 @@ function mod.on_load()
 	-- applies rather than an empty rotation
 	if (q ~= nil) then
 		map_queue = q;
+	end
+	-- map_queue.lua's shuffle: at the first map and at every wrap
+	if (map_random == true) then
+		map_queue_shuffle = true;
 	end
 
 	log("lib_server: %q, %s, %d map(s)", tostring(masterlist_name),

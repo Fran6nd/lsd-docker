@@ -108,6 +108,8 @@ lsdctl map list
 lsdctl map add https://aos.party/view/864    # a map from aos.party, with its .txt
 lsdctl map add https://example.com/mesa.vxl  # any .vxl link, or a local file
 lsdctl map load Remus                # switch the live map now
+lsdctl map load random               # ...to a random one
+lsdctl set map_random True           # play the rotation in a random order
 lsdctl masterlist off                # unlist, live, nobody disconnected
 
 lsdctl restart                       # warns players; the container stays up

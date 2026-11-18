@@ -62,8 +62,16 @@ docker exec "$NAME" cp /data/maps/flat.vxl /tmp/Copy.vxl
 docker exec "$NAME" lsdctl map add /tmp/Copy.vxl | grep -q "added Copy.vxl" || fail "map add of a file"
 docker exec "$NAME" sh -c 'head -c 4096 /data/maps/flat.vxl > /tmp/Tiny.vxl'
 docker exec "$NAME" lsdctl map add /tmp/Tiny.vxl >/dev/null 2>&1 && fail "a file too small to be a map was added"
+# random maps: one now, and the whole rotation shuffled
+docker exec "$NAME" lsdctl map load random | grep -Eq "loading (flat|Copy)" || fail "map load random"
+docker exec "$NAME" lsdctl set map_random True --now >/dev/null || fail "set map_random"
+sleep 3
+wait_up "after map_random"
+docker exec "$NAME" lsdctl exec 'exec log("SHUF|" .. tostring(map_queue_shuffle) .. "|")' | grep -q "SHUF|true|" \
+	|| fail "map_random does not shuffle the rotation"
+docker exec "$NAME" lsdctl set map_random False --no-restart >/dev/null
 docker exec "$NAME" lsdctl map rm Copy >/dev/null || fail "map rm"
-echo "ok: map list points at aos.party; map add takes a map and refuses a non-map"
+echo "ok: map list points at aos.party; map add takes a map and refuses a non-map; random maps"
 
 docker exec "$NAME" lsdctl status
 docker exec "$NAME" lsdctl available >/dev/null

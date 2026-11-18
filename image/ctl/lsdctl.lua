@@ -1103,7 +1103,7 @@ local function where_to_find(sources)
 		table.concat(names, ", "), example);
 end
 
-command("map", "map list | add <page|url|source:id|file>... | rm <name>... | load <name> | generate <name> [height]",
+command("map", "map list | add <page|url|source:id|file>... | rm <name>... | load <name>|random | generate <name> [height]",
 	"the maps in rotation; `add` downloads (aos.party by default: lsdctl map add https://aos.party/view/864), `load` switches the live map",
 	function(args)
 		local sub = table.remove(args, 1) or "list";
@@ -1153,7 +1153,13 @@ command("map", "map list | add <page|url|source:id|file>... | rm <name>... | loa
 				say("removed %s", n);
 			end
 		elseif (sub == "load") then
-			local n = string.gsub(args[1] or die("map load <name>"), "%.vxl$", "");
+			local n = string.gsub(args[1] or die("map load <name>|random"), "%.vxl$", "");
+			if (n == "random") then
+				local names = map_names();
+				if (#names == 0) then die("no maps (lsdctl map list)"); end
+				math.randomseed(os.time());
+				n = names[math.random(#names)];
+			end
 			if (not exists(MAPS .. "/" .. n .. ".vxl")) then die("no map %s (lsdctl map list)", n); end
 			if (not console_up()) then die("the server is not running"); end
 			console({"loadmap " .. n}, 1);
@@ -1459,6 +1465,10 @@ masterlist_enabled = True
 # is built in; more sites that publish maps by id go here.
 # map_sources = [{name: 'example', view: 'https://example.org/map/%(id)', vxl: 'https://example.org/get/%(id).vxl', txt: 'https://example.org/get/%(id).txt'}]
 
+# Play the maps in a random order, the first one too; reshuffled each
+# time round, never the same map twice in a row.
+map_random = False
+
 # Maps to play, space separated, in order. Unset plays every .vxl in
 # /data/maps in name order (lsdctl map list).
 # map_rotation = "flat"
@@ -1605,6 +1615,8 @@ command("setup", "setup [--defaults]",
 				local line, err = add_map(input, sources);
 				say("  %s", line or err);
 			end
+			doc:set("map_random", ui:ask({key = "map_random", type = "boolean",
+				ask = "Play the maps in a random order"}, doc:get("map_random") == true));
 			local rot = doc:get("map_rotation");
 			local want = ui:ask({key = "map_rotation", type = "string",
 				ask = "Maps to play, in order, space separated ('all' for every map)"},
