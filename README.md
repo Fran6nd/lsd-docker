@@ -63,6 +63,27 @@ a listed server.
 Skipping `setup` is fine: a server started on an empty volume writes
 default settings, generates a flat map so it can boot, and runs ctf.
 
+## Quick LAN game
+
+A game for friends on your network, gone when it is over: no server to
+install, nothing left behind.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.sh | sh
+```
+
+```powershell
+irm https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.ps1 | iex
+```
+
+It asks for the game (ctf or babel) and the map (random, or a link or id
+from [aos.party](https://aos.party)), then prints the `aos://` address to
+join. A minute after the last player leaves it stops, and the container,
+its data and -- if the game downloaded it -- the image are removed.
+Ctrl-C stops it at once. Answers can be given ahead:
+`curl ... | sh -s -- babel random`. Without the scripts, the same game is
+`docker run --rm -it -p 32887:32887/udp ghcr.io/fran6nd/lsd-docker play`.
+
 ## Documentation
 
 - [Administering a server](docs/administer.md) -- `lsdctl`, settings,
