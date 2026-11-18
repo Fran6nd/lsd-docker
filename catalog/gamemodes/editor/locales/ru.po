@@ -217,6 +217,150 @@ msgctxt "command"
 msgid "Master lock: refuse every player block edit."
 msgstr "Общий замок: запретить игрокам любое изменение блоков."
 
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Select"
+msgstr "Выделение"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Corner 1"
+msgstr "Угол 1"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Start the selection at the block you aim at"
+msgstr "Начать выделение с блока под прицелом"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Corner 2"
+msgstr "Угол 2"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "End the selection at the block you aim at"
+msgstr "Закончить выделение на блоке под прицелом"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fill"
+msgstr "Заполнить"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fill the selection with your colour"
+msgstr "Заполнить выделение твоим цветом"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Deselect"
+msgstr "Снять выделение"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Remove"
+msgstr "Удалить"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Remove every block in the selection"
+msgstr "Удалить все блоки в выделении"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Paint"
+msgstr "Покрасить"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Paint the selection's blocks in your colour"
+msgstr "Покрасить блоки выделения в твой цвет"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Place"
+msgstr "Разместить"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Door, up"
+msgstr "Дверь, вверх"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes a door that opens upwards"
+msgstr "Выделение становится дверью, открывающейся вверх"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Door, aside"
+msgstr "Дверь, вбок"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes a door that slides aside"
+msgstr "Выделение становится дверью, отъезжающей вбок"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Mark here"
+msgstr "Отметить здесь"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Mark the block you aim at, e.g. an elevator's height"
+msgstr "Отметить блок под прицелом, например высоту лифта"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Delete"
+msgstr "Убрать"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Un-place a door or elevator: then aim at it and click"
+msgstr "Снять дверь или лифт: затем наведись и кликни"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Lift, down"
+msgstr "Лифт, вниз"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes an elevator that goes down"
+msgstr "Выделение становится лифтом, едущим вниз"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Lift, up"
+msgstr "Лифт, вверх"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes an elevator that goes up"
+msgstr "Выделение становится лифтом, едущим вверх"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Map"
+msgstr "Карта"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Undo"
+msgstr "Отменить"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Un-place the last door or elevator"
+msgstr "Снять последнюю дверь или лифт"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Save"
+msgstr "Сохранить"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Save the map and its layout"
+msgstr "Сохранить карту и её раскладку"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fly"
+msgstr "Полёт"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fly through everything, or stop"
+msgstr "Летать сквозь всё или перестать"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Components"
+msgstr "Компоненты"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Chunks"
+msgstr "Зоны"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Help"
+msgstr "Помощь"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "What can be placed, and how"
+msgstr "Что можно разместить и как"
+
 #: catalog/gamemodes/editor/editor/placement.lua
 msgid "editor: %(text)"
 msgstr "editor: %(text)"

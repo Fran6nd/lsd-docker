@@ -222,16 +222,31 @@ pie_menu = [
 ```
 
 The Edit Mode extension puts a player in edit mode with
-`/editmode [player] [on|off]` (the `editmode` cap), and the editor
-gamemode puts every builder in it when `editor_edit_mode = 'auto'`.
+`/editmode [player] [on|off]` (the `editmode` cap). The editor gamemode
+does not use it: building there works the same for every client.
 
 ### Building maps
 
 Building is a gamemode of its own: `lsd gamemode editor`. While it runs,
 the server is off the public lists (the address still works, to invite
-builders), and every player builds: terrain tools (`/sel`, `/selfill`,
-`/selrm`, `/selcpy`, ...), flight (`/noclip`), any block anywhere,
-unlimited blocks, no fall damage, and a gun that does not chew the map.
+builders), `time_limit` is paused, and every player builds: terrain
+tools (`/sel`, `/selfill`, `/selrm`, `/selcpy`, ...), flight (`/noclip`),
+any block anywhere, unlimited blocks, no fall damage, and a gun that does
+not chew the map.
+
+The tools are in the pie menu, ahead of the usual pies (the editor
+installs `pie_menu`):
+
+| pie | when aiming at | wedges |
+|---|---|---|
+| Select | a block | Corner 1, Corner 2 (where you aim), Fill, Remove, Paint, Deselect |
+| Place | a block | Door (up / aside), Lift (up / down), Mark here, Delete |
+| Map | anything | Undo, Save, Fly, Components, Chunks, Help |
+
+Select two corners, then Fill or Remove the box -- or Door or Lift, which
+take it as theirs; a lift then wants the height it travels to: aim there,
+Mark here. Every wedge is a command too, for clients without the pie
+menu.
 
 A map's **layout** -- what it holds besides terrain -- is placed here
 and runs in every gamemode, kept in `<map>.editor.json` beside the map:

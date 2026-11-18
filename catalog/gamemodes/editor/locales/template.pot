@@ -215,6 +215,150 @@ msgctxt "command"
 msgid "Master lock: refuse every player block edit."
 msgstr ""
 
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Select"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Corner 1"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Start the selection at the block you aim at"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Corner 2"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "End the selection at the block you aim at"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fill"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fill the selection with your colour"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Deselect"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Remove"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Remove every block in the selection"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Paint"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Paint the selection's blocks in your colour"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Place"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Door, up"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes a door that opens upwards"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Door, aside"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes a door that slides aside"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Mark here"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Mark the block you aim at, e.g. an elevator's height"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Delete"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Un-place a door or elevator: then aim at it and click"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Lift, down"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes an elevator that goes down"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Lift, up"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes an elevator that goes up"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Map"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Undo"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Un-place the last door or elevator"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Save"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Save the map and its layout"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fly"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fly through everything, or stop"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Components"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Chunks"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Help"
+msgstr ""
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "What can be placed, and how"
+msgstr ""
+
 #: catalog/gamemodes/editor/editor/placement.lua
 msgid "editor: %(text)"
 msgstr ""

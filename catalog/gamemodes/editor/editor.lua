@@ -11,15 +11,15 @@
 --     (noclip.lua), any block placement (unrestricted_blocks), no block
 --     or grenade shortage (infinite_blocks), no fall or water damage, and
 --     a gun that does not chew the map;
+--   * the tools are in the pie menu, first: select corners where you
+--     aim, fill, remove, paint, place doors and elevators, undo, save
+--     (editor/pies.lua);
 --   * the layout -- doors, elevators, permission chunks -- is placed with
---     /place and kept by map_layout, which runs it in every gamemode.
+--     /place and kept by map_layout, which runs it in every gamemode;
+--   * time_limit, when installed, is paused: a build does not end.
 --
--- The Edit Mode protocol extension (catalog/extensions/edit_mode) is
--- used when editor_edit_mode = "auto": a builder whose client speaks it
--- is put in its Edit Mode, so the client itself lifts its limits. "off",
--- the default, leaves it alone: no client speaks it today, and while
--- anybody is in its edit mode the extension benches every client that
--- does not.
+-- It does not use the Edit Mode protocol extension: building works the
+-- same for every client, through the base protocol and the tools above.
 --
 -- Placement itself -- marks, selections, the session per player -- is
 -- editor/placement.lua.
@@ -33,10 +33,7 @@ end
 
 local bit = require("bit");
 local P = require "editor.placement";
-
-getcfg("editor_edit_mode", "off",
-	"Put builders whose client speaks the Edit Mode extension in its edit "
-		.. "mode: auto, or off.");
+local PIES = require "editor.pies";
 
 -- Builders: every player while the editor runs. Map-wide policy (the
 -- default permission, the master lock) is an admin's.
@@ -49,6 +46,8 @@ local BORROWED = {
 	{script = "sel", cap = "sel"},
 	{script = "noclip", cap = "noclip"},
 };
+-- Stock scripts paused for the session, put back after if they were on.
+local PAUSED = {"time_limit"};
 
 local msg = {
 	welcome          = {en="This is the EDITOR: build freely, then /save. /place lists what can be placed."},
@@ -130,8 +129,14 @@ end
 --=============================== BUILDERS ===========================--
 
 local borrowed_ours = {};
+local paused_ours = {};
 
 local function borrow()
+	for _, name in ipairs(PAUSED) do
+		if (package.loaded[name] ~= nil and pcall(unload, name)) then
+			paused_ours[name] = true;
+		end
+	end
 	for _, b in ipairs(BORROWED) do
 		if (package.loaded[b.script] == nil) then
 			local ok, err = pcall(load, b.script);
@@ -149,12 +154,10 @@ local function give_back()
 		pcall(unload, name);
 	end
 	borrowed_ours = {};
-end
-
-local function edit_mode(pid, on)
-	if (editor_edit_mode == "auto" and edit_mode_set ~= nil) then
-		pcall(edit_mode_set, pid, on);
+	for name in pairs(paused_ours) do
+		pcall(load, name);
 	end
+	paused_ours = {};
 end
 
 local function make_builder(pid)
@@ -166,7 +169,6 @@ local function make_builder(pid)
 	for _, b in ipairs(BORROWED) do
 		if (not has_cap(pid, b.cap)) then grant_cap(pid, b.cap); end
 	end
-	edit_mode(pid, true);
 end
 
 function mod.after.on_join(pid, team, gun, name)
@@ -196,7 +198,7 @@ end
 -- it also works on water and on empty misses. And a gun never destroys
 -- blocks here: fly around armed without chewing the map. Not for a
 -- spectator, whose tool is whatever spawn_player left (the gun) and who
--- builds through the Edit Mode extension. Both run before map_layout's
+-- builds through the pie menu's tools. Both run before map_layout's
 -- guard (this loads later, so its late hook is asked first).
 function mod.late.on_block_action(pid, pos, type)
 	if (P.session[pid] ~= nil
@@ -239,10 +241,24 @@ function mod.on_mouse_input(pid, bits)
 	mod.next.on_mouse_input(pid, bits);
 end
 
+-- The tools go in the pie menu whenever there is one: added on load,
+-- and again if pie_menu comes after us (a hot load) or comes back.
+local pies_in = false;
+
+local function add_pies()
+	if (pie_menu_add ~= nil and not pies_in) then
+		pie_menu_add("editor", PIES, 10);
+		pies_in = true;
+	elseif (pie_menu_add == nil) then
+		pies_in = false;
+	end
+end
+
 function mod.after.tick()
 	for pid in pairs(P.awaiting) do
 		P.take_selection(pid);
 	end
+	add_pies();
 end
 
 --============================== COMMANDS ============================--
@@ -599,14 +615,8 @@ function mod.on_load()
 	listing_hide();
 	borrow();
 
-	-- Block Batch skips on_block_action, and so the guard there; this is
-	-- the same guard for it. Only "allow": a batch never takes a
-	-- component down.
-	if (editor_edit_mode == "auto" and edit_mode_listen_batch ~= nil) then
-		edit_mode_listen_batch("editor", function(pid, action, b)
-			return map_layout.may_edit(pid, b.x, b.y, b.z) == "allow";
-		end);
-	end
+	-- first, before the default layout's pies (PIE_MENU_BASE_ORDER)
+	add_pies();
 
 	-- a hot load: whoever is already here builds too
 	for i in piditer(PID_BROADCAST) do
@@ -616,12 +626,12 @@ end
 
 function mod.on_unload()
 	for i in piditer(PID_BROADCAST) do
-		edit_mode(i, false);
 		P.forget(i);
 	end
-	if (edit_mode_unlisten_batch ~= nil) then
-		pcall(edit_mode_unlisten_batch, "editor");
+	if (pie_menu_remove ~= nil) then
+		pie_menu_remove("editor");
 	end
+	pies_in = false;
 	give_back();
 	listing_show();
 end

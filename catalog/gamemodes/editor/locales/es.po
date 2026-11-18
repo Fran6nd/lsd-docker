@@ -217,6 +217,150 @@ msgctxt "command"
 msgid "Master lock: refuse every player block edit."
 msgstr "Bloqueo general: rechazar toda edición de bloques de los jugadores."
 
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Select"
+msgstr "Selección"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Corner 1"
+msgstr "Esquina 1"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Start the selection at the block you aim at"
+msgstr "Empezar la selección en el bloque apuntado"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Corner 2"
+msgstr "Esquina 2"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "End the selection at the block you aim at"
+msgstr "Terminar la selección en el bloque apuntado"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fill"
+msgstr "Rellenar"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fill the selection with your colour"
+msgstr "Rellenar la selección con tu color"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Deselect"
+msgstr "Deseleccionar"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Remove"
+msgstr "Quitar"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Remove every block in the selection"
+msgstr "Quitar todos los bloques de la selección"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Paint"
+msgstr "Pintar"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Paint the selection's blocks in your colour"
+msgstr "Pintar los bloques de la selección con tu color"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Place"
+msgstr "Colocar"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Door, up"
+msgstr "Puerta, arriba"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes a door that opens upwards"
+msgstr "La selección se convierte en una puerta que se abre hacia arriba"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Door, aside"
+msgstr "Puerta, lateral"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes a door that slides aside"
+msgstr "La selección se convierte en una puerta que se desliza a un lado"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Mark here"
+msgstr "Marcar aquí"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Mark the block you aim at, e.g. an elevator's height"
+msgstr "Marcar el bloque apuntado, p. ej. la altura de un ascensor"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Delete"
+msgstr "Eliminar"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Un-place a door or elevator: then aim at it and click"
+msgstr "Quitar una puerta o un ascensor: luego apúntalo y haz clic"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Lift, down"
+msgstr "Ascensor, abajo"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes an elevator that goes down"
+msgstr "La selección se convierte en un ascensor que baja"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Lift, up"
+msgstr "Ascensor, arriba"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes an elevator that goes up"
+msgstr "La selección se convierte en un ascensor que sube"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Map"
+msgstr "Mapa"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Undo"
+msgstr "Deshacer"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Un-place the last door or elevator"
+msgstr "Quitar la última puerta o ascensor"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Save"
+msgstr "Guardar"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Save the map and its layout"
+msgstr "Guardar el mapa y su disposición"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fly"
+msgstr "Volar"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fly through everything, or stop"
+msgstr "Volar a través de todo, o parar"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Components"
+msgstr "Componentes"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Chunks"
+msgstr "Zonas"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Help"
+msgstr "Ayuda"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "What can be placed, and how"
+msgstr "Qué se puede colocar y cómo"
+
 #: catalog/gamemodes/editor/editor/placement.lua
 msgid "editor: %(text)"
 msgstr "editor: %(text)"

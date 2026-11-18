@@ -105,6 +105,11 @@ docker exec "$NAME" test -s /data/maps/smoketest.vxl || fail "save wrote no .vxl
 docker exec "$NAME" grep -q '"kind": "door"' /data/maps/smoketest.editor.json \
 	|| fail "save wrote no layout with the door"
 echo "ok: the editor places a door and saves the map with its layout"
+# its tools are in the pie menu, first; time_limit is paused while it runs
+# (an empty slot can run no command, so the build skips that check)
+pies=$(docker exec "$NAME" lsdctl exec 'exec local h = pie_menu_hide_unavailable; pie_menu_hide_unavailable = false; local b = pie_menu_build(MAX_PLAYERS - 1) or ""; pie_menu_hide_unavailable = h; log("PIES|" .. tostring(b:find("/sel1 %b", 1, true) ~= nil) .. "|" .. tostring(b:find("/place door left", 1, true) ~= nil) .. "|" .. tostring(b:find("/selfill", 1, true) < (b:find("/ratio", 1, true) or 1e9)) .. "|" .. tostring(package.loaded.time_limit == nil) .. "|")')
+echo "$pies" | grep -q "PIES|true|true|true|true|" || fail "editor pies or time_limit: $pies"
+echo "ok: the editor's tools are in the pie menu, first; time_limit is paused"
 
 docker exec "$NAME" lsdctl gamemode ctf --yes --now >/dev/null || fail "back to ctf"
 sleep 3

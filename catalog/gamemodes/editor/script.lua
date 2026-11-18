@@ -4,6 +4,6 @@ return Gamemode {
 	title = "Editor",
 	summary = "Build a map and its doors, elevators and permissions; /save it.",
 	module = "editor",
-	requires = {"unrestricted_blocks", "infinite_blocks"},
-	settings = {editor_edit_mode = "off"},
+	-- the tools are in the pie menu
+	requires = {"unrestricted_blocks", "infinite_blocks", "pie_menu"},
 }

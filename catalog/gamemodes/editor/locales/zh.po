@@ -217,6 +217,150 @@ msgctxt "command"
 msgid "Master lock: refuse every player block edit."
 msgstr "总锁：拒绝所有玩家对方块的修改。"
 
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Select"
+msgstr "选择"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Corner 1"
+msgstr "角 1"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Start the selection at the block you aim at"
+msgstr "从瞄准的方块开始选区"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Corner 2"
+msgstr "角 2"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "End the selection at the block you aim at"
+msgstr "在瞄准的方块结束选区"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fill"
+msgstr "填充"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fill the selection with your colour"
+msgstr "用你的颜色填充选区"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Deselect"
+msgstr "取消选择"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Remove"
+msgstr "移除"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Remove every block in the selection"
+msgstr "移除选区内所有方块"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Paint"
+msgstr "上色"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Paint the selection's blocks in your colour"
+msgstr "用你的颜色给选区方块上色"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Place"
+msgstr "放置"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Door, up"
+msgstr "门，上开"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes a door that opens upwards"
+msgstr "选区变成向上打开的门"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Door, aside"
+msgstr "门，侧开"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes a door that slides aside"
+msgstr "选区变成向侧面滑开的门"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Mark here"
+msgstr "标记此处"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Mark the block you aim at, e.g. an elevator's height"
+msgstr "标记瞄准的方块，例如电梯的高度"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Delete"
+msgstr "删除"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Un-place a door or elevator: then aim at it and click"
+msgstr "撤除门或电梯：然后瞄准它并点击"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Lift, down"
+msgstr "电梯，向下"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes an elevator that goes down"
+msgstr "选区变成向下运行的电梯"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Lift, up"
+msgstr "电梯，向上"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "The selection becomes an elevator that goes up"
+msgstr "选区变成向上运行的电梯"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Map"
+msgstr "地图"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Undo"
+msgstr "撤销"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Un-place the last door or elevator"
+msgstr "撤除最后放置的门或电梯"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Save"
+msgstr "保存"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Save the map and its layout"
+msgstr "保存地图及其布局"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fly"
+msgstr "飞行"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Fly through everything, or stop"
+msgstr "穿越一切飞行，或停止"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Components"
+msgstr "组件"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Chunks"
+msgstr "区块"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "Help"
+msgstr "帮助"
+
+#: catalog/gamemodes/editor/editor/pies.lua
+msgid "What can be placed, and how"
+msgstr "可以放置什么以及如何放置"
+
 #: catalog/gamemodes/editor/editor/placement.lua
 msgid "editor: %(text)"
 msgstr "editor: %(text)"
