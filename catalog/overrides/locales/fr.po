@@ -10,38 +10,38 @@ msgstr ""
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
 msgid "Command not found."
-msgstr ""
+msgstr "Commande introuvable."
 
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
 msgid "Were you looking for /commands?"
-msgstr ""
+msgstr "Tu cherchais /commands ?"
 
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
 msgctxt "command"
 msgid "Print an alphabetically ordered list of all commands."
-msgstr ""
+msgstr "Afficher la liste alphabétique de toutes les commandes."
 
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
 msgctxt "command"
 msgid "Filter through the list of commands. Does not parse arguments."
-msgstr ""
+msgstr "Filtrer la liste des commandes. N'analyse pas les arguments."
 
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
 msgctxt "command"
 msgid "Display the invocation and description of a command."
-msgstr ""
+msgstr "Afficher l'utilisation et la description d'une commande."
 
 #: catalog/overrides/lib_l10n.lua
 msgid "usage: %(cmd)"
-msgstr ""
+msgstr "utilisation : %(cmd)"
 
 #: catalog/overrides/lib_l10n.lua
 msgid "usage: %(cmd) %(args)"
-msgstr ""
+msgstr "utilisation : %(cmd) %(args)"
 
 #: catalog/overrides/lib_l10n.lua
 msgid "Your language: %(lang). Available: %(list). Use /lang <code>, or /lang auto for your client's."
@@ -66,7 +66,7 @@ msgstr "%(lang) n'est pas un code de langue (en, fr, pt_br, ...)."
 #: catalog/overrides/lib_l10n.lua
 msgctxt "command"
 msgid "Show or choose the language the server speaks to you."
-msgstr ""
+msgstr "Voir ou choisir la langue dans laquelle le serveur te parle."
 
 #: catalog/overrides/lib_l10n.lua
 msgid "Language"
@@ -79,191 +79,191 @@ msgstr "Voir ou changer la langue du serveur"
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "Beginning selection."
-msgstr ""
+msgstr "Début de la sélection."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "Beginning selection start."
-msgstr ""
+msgstr "Début du point de départ de la sélection."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "Beginning selection end."
-msgstr ""
+msgstr "Début du point d'arrivée de la sélection."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "Selection started at {x=%(x), y=%(y), z=%(z)}."
-msgstr ""
+msgstr "Sélection commencée en {x=%(x), y=%(y), z=%(z)}."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "Selection ended at {x=%(x), y=%(y), z=%(z)}."
-msgstr ""
+msgstr "Sélection terminée en {x=%(x), y=%(y), z=%(z)}."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "Begin a selection first."
-msgstr ""
+msgstr "Commence d'abord une sélection."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "Start the selection first."
-msgstr ""
+msgstr "Pose d'abord le début de la sélection."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "End the selection first."
-msgstr ""
+msgstr "Pose d'abord la fin de la sélection."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "shape should be one of the following: cube, box, sphere, cylinderx, cylindery, cylinderz, fn"
-msgstr ""
+msgstr "la forme doit être l'une des suivantes : cube, box, sphere, cylinderx, cylindery, cylinderz, fn"
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "%(arg) should be one of the following: x, -x, +x, y, -y, +y, z, -z, +z"
-msgstr ""
+msgstr "%(arg) doit être l'un des suivants : x, -x, +x, y, -y, +y, z, -z, +z"
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "Swizzle must map all of x, y and z"
-msgstr ""
+msgstr "La permutation doit couvrir x, y et z"
 
 #: catalog/overrides/sel.lua
 msgid "Nothing that way to pick. Aim at a block."
-msgstr ""
+msgstr "Rien à choisir par là. Vise un bloc."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "Couldn't find any block in that cast. You're certain you're not looking at the sky?"
-msgstr ""
+msgstr "Aucun bloc trouvé dans cette direction. Tu es sûr de ne pas viser le ciel ?"
 
 #: catalog/overrides/sel.lua
 msgctxt "command"
 msgid "Select a box, by aiming at its corners or by naming them."
-msgstr ""
+msgstr "Sélectionner une boîte, en visant ses coins ou en les nommant."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Set the start of a selection."
-msgstr ""
+msgstr "Poser le début d'une sélection."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Raycast the start of a selection."
-msgstr ""
+msgstr "Viser le début d'une sélection."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Set the start of a selection to your head's position."
-msgstr ""
+msgstr "Poser le début d'une sélection à la position de ta tête."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Set the end of a selection."
-msgstr ""
+msgstr "Poser la fin d'une sélection."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Raycast the end of a selection."
-msgstr ""
+msgstr "Viser la fin d'une sélection."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Set the end of a selection to your head's position."
-msgstr ""
+msgstr "Poser la fin d'une sélection à la position de ta tête."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Stop a selection."
-msgstr ""
+msgstr "Arrêter une sélection."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Change selection shape."
-msgstr ""
+msgstr "Changer la forme de la sélection."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Change \"fn\" selection shape. Does not parse args."
-msgstr ""
+msgstr "Changer la forme de sélection \"fn\". N'analyse pas les arguments."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Change selection noise."
-msgstr ""
+msgstr "Changer le bruit de la sélection."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Fill and replace a box."
-msgstr ""
+msgstr "Remplir une boîte en remplaçant."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Clobber over everything in your selection to match the current shape."
-msgstr ""
+msgstr "Écraser tout le contenu de la sélection pour suivre la forme actuelle."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Fill and do not replace a box."
-msgstr ""
+msgstr "Remplir une boîte sans remplacer."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Destroy a box."
-msgstr ""
+msgstr "Détruire une boîte."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Set color of all blocks in a box."
-msgstr ""
+msgstr "Changer la couleur de tous les blocs d'une boîte."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Duplicate the selection in a direction a certain number of times."
-msgstr ""
+msgstr "Dupliquer la sélection dans une direction un certain nombre de fois."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Duplicate the selection in a direction a certain number of times, then select the duplicated area."
-msgstr ""
+msgstr "Dupliquer la sélection dans une direction un certain nombre de fois, puis sélectionner la zone dupliquée."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Move the selection, then select the moved area."
-msgstr ""
+msgstr "Déplacer la sélection, puis sélectionner la zone déplacée."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Move the selection dist blocks in the direction you're facing, then select the moved area."
-msgstr ""
+msgstr "Déplacer la sélection de dist blocs dans la direction où tu regardes, puis sélectionner la zone déplacée."
 
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Swizzle the dimensions of the selection around to flip and rotate."
-msgstr ""
+msgstr "Permuter les dimensions de la sélection pour la retourner et la faire pivoter."
 
 #: image/config.lua
 msgid "Use /kill to die."
@@ -291,363 +291,363 @@ msgstr "Bienvenue sur %(server), propulsé par [LSd]."
 
 #: lsd/scripts/afkick.lua
 msgid "%(name) was kicked: AFK"
-msgstr ""
+msgstr "%(name) a été expulsé : AFK"
 
 #: lsd/scripts/afkick.lua
 msgid "You will be automatically AFK-kicked in %(time) s"
-msgstr ""
+msgstr "Tu seras automatiquement expulsé pour inactivité dans %(time) s"
 
 #: lsd/scripts/apoc.lua
 msgid "%(originname)'s apocs have been given to %(destname)"
-msgstr ""
+msgstr "Les apocs de %(originname) ont été donnés à %(destname)"
 
 #: lsd/scripts/apoc.lua
 msgid "%(name) can now use /apoc. . ."
-msgstr ""
+msgstr "%(name) peut maintenant utiliser /apoc. . ."
 
 #: lsd/scripts/apoc.lua
 msgid "You need a %(needstreak) killstreak to use apoc! Current streak: %(curstreak)"
-msgstr ""
+msgstr "Il te faut une série de %(needstreak) éliminations pour utiliser apoc ! Série actuelle : %(curstreak)"
 
 #: lsd/scripts/apoc.lua
 msgid "Don't be so hasty!"
-msgstr ""
+msgstr "Pas si vite !"
 
 #: lsd/scripts/apoc.lua
 msgctxt "command"
 msgid "Attempt to summon an apoc."
-msgstr ""
+msgstr "Tenter d'invoquer un apoc."
 
 #: lsd/scripts/apoc.lua
 msgctxt "command"
 msgid "Bombs away!"
-msgstr ""
+msgstr "Bombes larguées !"
 
 #: lsd/scripts/arena.lua
 msgid "Starting round in %(time) s."
-msgstr ""
+msgstr "La manche commence dans %(time) s."
 
 #: lsd/scripts/auth.lua
 msgid "You need to login to run that command."
-msgstr ""
+msgstr "Tu dois te connecter pour lancer cette commande."
 
 #: lsd/scripts/auth.lua
 msgid "Don't make the password that long or you might not be able to change it! Try <= %(max) chars."
-msgstr ""
+msgstr "Ne fais pas un mot de passe aussi long, tu risquerais de ne plus pouvoir le changer ! Essaie <= %(max) caractères."
 
 #: lsd/scripts/auth.lua
 msgid "Can't register; are you sure that name isn't taken?"
-msgstr ""
+msgstr "Inscription impossible ; tu es sûr que ce nom n'est pas déjà pris ?"
 
 #: lsd/scripts/auth.lua
 msgid "User not found."
-msgstr ""
+msgstr "Utilisateur introuvable."
 
 #: lsd/scripts/auth.lua
 msgid "Try logging in again in %(timeleft) s."
-msgstr ""
+msgstr "Réessaie de te connecter dans %(timeleft) s."
 
 #: lsd/scripts/auth.lua
 msgid "Bad password or TOTP."
-msgstr ""
+msgstr "Mauvais mot de passe ou code TOTP."
 
 #: lsd/scripts/auth.lua
 msgid "algorithm should be one of the following: SHA1, SHA256, SHA512"
-msgstr ""
+msgstr "l'algorithme doit être l'un des suivants : SHA1, SHA256, SHA512"
 
 #: lsd/scripts/auth.lua
 msgid "Your password is too short and hard to remember. Try using a couple of actual, *random* words instead."
-msgstr ""
+msgstr "Ton mot de passe est trop court et difficile à retenir. Essaie plutôt quelques vrais mots, choisis *au hasard*."
 
 #: lsd/scripts/auth.lua
 msgid "Pass your code to /totpverify to set up TOTP."
-msgstr ""
+msgstr "Passe ton code à /totpverify pour configurer le TOTP."
 
 #: lsd/scripts/auth.lua
 msgid "Your account's TOTP configuration has been set."
-msgstr ""
+msgstr "La configuration TOTP de ton compte est en place."
 
 #: lsd/scripts/auth.lua
 msgid "Bad TOTP."
-msgstr ""
+msgstr "Mauvais code TOTP."
 
 #: lsd/scripts/auth.lua
 msgctxt "command"
 msgid "Create an account."
-msgstr ""
+msgstr "Créer un compte."
 
 #: lsd/scripts/auth.lua
 msgctxt "command"
 msgid "Setup TOTP for your account."
-msgstr ""
+msgstr "Configurer le TOTP de ton compte."
 
 #: lsd/scripts/auth.lua
 msgctxt "command"
 msgid "Remove TOTP from your account."
-msgstr ""
+msgstr "Retirer le TOTP de ton compte."
 
 #: lsd/scripts/auth.lua
 msgctxt "command"
 msgid "Finish setting up TOTP for your account."
-msgstr ""
+msgstr "Terminer la configuration du TOTP de ton compte."
 
 #: lsd/scripts/auth.lua
 msgctxt "command"
 msgid "Set an account's capabilities."
-msgstr ""
+msgstr "Définir les droits d'un compte."
 
 #: lsd/scripts/auth.lua
 msgctxt "command"
 msgid "Change your account's password."
-msgstr ""
+msgstr "Changer le mot de passe de ton compte."
 
 #: lsd/scripts/auth.lua
 msgctxt "command"
 msgid "Login to an account."
-msgstr ""
+msgstr "Se connecter à un compte."
 
 #: lsd/scripts/auth.lua
 msgctxt "command"
 msgid "Barge into an account."
-msgstr ""
+msgstr "Entrer de force dans un compte."
 
 #: lsd/scripts/auth.lua
 msgctxt "command"
 msgid "Log out of your account."
-msgstr ""
+msgstr "Se déconnecter de son compte."
 
 #: lsd/scripts/auth.lua
 msgctxt "command"
 msgid "Print your account name and groups."
-msgstr ""
+msgstr "Afficher le nom et les groupes de ton compte."
 
 #: lsd/scripts/babel.lua
 msgid ">:("
-msgstr ""
+msgstr ">:("
 
 #: lsd/scripts/babel.lua
 #: lsd/scripts/babel_protect.lua
 msgid "Can't do that there!"
-msgstr ""
+msgstr "Impossible de faire ça ici !"
 
 #: lsd/scripts/babel.lua
 #: lsd/scripts/ctf.lua
 #: lsd/scripts/onectf.lua
 msgid "You're not holding the intel!"
-msgstr ""
+msgstr "Tu n'as pas les renseignements !"
 
 #: lsd/scripts/babel.lua
 #: lsd/scripts/ctf.lua
 #: lsd/scripts/onectf.lua
 msgctxt "command"
 msgid "Drop the intel if you're holding it."
-msgstr ""
+msgstr "Lâcher les renseignements si tu les portes."
 
 #: lsd/scripts/babel_heaven.lua
 msgid "Cannot find image; try /heavenlist."
-msgstr ""
+msgstr "Image introuvable ; essaie /heavenlist."
 
 #: lsd/scripts/babel_heaven.lua
 msgid "You can list images with /heavenlist."
-msgstr ""
+msgstr "Tu peux lister les images avec /heavenlist."
 
 #: lsd/scripts/babel_heaven.lua
 msgid "You must wait %(timeuntil) s to paint over the platform again."
-msgstr ""
+msgstr "Tu dois attendre %(timeuntil) s avant de repeindre la plateforme."
 
 #: lsd/scripts/babel_heaven.lua
 msgctxt "command"
 msgid "Paint an image on the babel platform."
-msgstr ""
+msgstr "Peindre une image sur la plateforme de Babel."
 
 #: lsd/scripts/babel_heaven.lua
 msgctxt "command"
 msgid "Paint an image on the babel platform regardless of the timer's opinion."
-msgstr ""
+msgstr "Peindre une image sur la plateforme de Babel, quoi qu'en pense le minuteur."
 
 #: lsd/scripts/babel_heaven.lua
 msgctxt "command"
 msgid "List images available to paint on the babel platform."
-msgstr ""
+msgstr "Lister les images à peindre sur la plateforme de Babel."
 
 #: lsd/scripts/babel_unlocks.lua
 msgid "%(name) has placed %(blocks) blocks, /heaven unlocked!"
-msgstr ""
+msgstr "%(name) a posé %(blocks) blocs, /heaven débloqué !"
 
 #: lsd/scripts/babel_unlocks.lua
 msgid "%(name) has placed %(blocks) tower blocks."
-msgstr ""
+msgstr "%(name) a posé %(blocks) blocs de tour."
 
 #: lsd/scripts/babel_unlocks.lua
 msgid "Congratulations on placing 0 blocks today!"
-msgstr ""
+msgstr "Félicitations pour tes 0 blocs posés aujourd'hui !"
 
 #: lsd/scripts/babel_unlocks.lua
 msgid "You need a %(needstreak) killstreak and 1 capture to use apoc! Current streak: %(curstreak)"
-msgstr ""
+msgstr "Il te faut une série de %(needstreak) éliminations et 1 capture pour utiliser apoc ! Série actuelle : %(curstreak)"
 
 #: lsd/scripts/babel_unlocks.lua
 msgid "You have a %(streak) streak! Capture an intel for /apoc."
-msgstr ""
+msgstr "Tu as une série de %(streak) ! Capture des renseignements pour /apoc."
 
 #: lsd/scripts/babel_unlocks.lua
 msgctxt "command"
 msgid "Print the number of blocks placed by another player or yourself."
-msgstr ""
+msgstr "Afficher le nombre de blocs posés par un autre joueur ou par toi."
 
 #: lsd/scripts/bans.lua
 msgid "%(name) was banned"
-msgstr ""
+msgstr "%(name) a été banni"
 
 #: lsd/scripts/bans.lua
 msgid "#%(id): <%(name)>, %(addr), %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
-msgstr ""
+msgstr "#%(id) : <%(name)>, %(addr), %(start_date) -> %(end_date) par %(banner) : %(comment) (droits : %(caps))"
 
 #: lsd/scripts/bans.lua
 msgid "#%(id): <%(name)>, %(addr), expired, %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
-msgstr ""
+msgstr "#%(id) : <%(name)>, %(addr), expiré, %(start_date) -> %(end_date) par %(banner) : %(comment) (droits : %(caps))"
 
 #: lsd/scripts/bans.lua
 msgid "#%(id): <%(name)>, %(addr), revoked, %(start_date) -> %(end_date) by %(banner): %(comment) (caps: %(caps))"
-msgstr ""
+msgstr "#%(id) : <%(name)>, %(addr), révoqué, %(start_date) -> %(end_date) par %(banner) : %(comment) (droits : %(caps))"
 
 #: lsd/scripts/bans.lua
 msgid "Ban ID: #%(id)"
-msgstr ""
+msgstr "Numéro de bannissement : #%(id)"
 
 #: lsd/scripts/bans.lua
 msgid "Invalid ban ID."
-msgstr ""
+msgstr "Numéro de bannissement invalide."
 
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Ban a naughty player."
-msgstr ""
+msgstr "Bannir un joueur pénible."
 
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Ban a naughty player with custom badcaps."
-msgstr ""
+msgstr "Bannir un joueur pénible avec des restrictions sur mesure."
 
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Ban a naughty (nice?) player with custom caps."
-msgstr ""
+msgstr "Bannir un joueur pénible (sympa ?) avec des droits sur mesure."
 
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range."
-msgstr ""
+msgstr "Bannir une adresse IPv4 ou une plage CIDR pénible."
 
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range with custom badcaps."
-msgstr ""
+msgstr "Bannir une adresse IPv4 ou une plage CIDR pénible avec des restrictions sur mesure."
 
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Ban a naughty (nice?) IPv4 address or CIDR range with custom caps."
-msgstr ""
+msgstr "Bannir une adresse IPv4 ou une plage CIDR pénible (sympa ?) avec des droits sur mesure."
 
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Revoke a given ban ID."
-msgstr ""
+msgstr "Révoquer un bannissement par son numéro."
 
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Unrevoke a given ban ID."
-msgstr ""
+msgstr "Rétablir un bannissement révoqué par son numéro."
 
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Query all unexpired, unrevoked bans matching a given IPv4 address or CIDR range."
-msgstr ""
+msgstr "Chercher les bannissements en cours et non révoqués pour une adresse IPv4 ou une plage CIDR."
 
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Query all unexpired, unrevoked bans matching a given player name (case-insensitive glob)."
-msgstr ""
+msgstr "Chercher les bannissements en cours et non révoqués pour un nom de joueur (motif, sans casse)."
 
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Query all unexpired, unrevoked bans matching a given comment (case-insensitive glob)."
-msgstr ""
+msgstr "Chercher les bannissements en cours et non révoqués pour un commentaire (motif, sans casse)."
 
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Query all bans matching a given IPv4 address or CIDR range."
-msgstr ""
+msgstr "Chercher tous les bannissements pour une adresse IPv4 ou une plage CIDR."
 
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Query all bans matching a given player name (case-insensitive glob)."
-msgstr ""
+msgstr "Chercher tous les bannissements pour un nom de joueur (motif, sans casse)."
 
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Query all bans matching a given comment (case-insensitive glob)."
-msgstr ""
+msgstr "Chercher tous les bannissements pour un commentaire (motif, sans casse)."
 
 #: lsd/scripts/bans_aliases.lua
 msgctxt "command"
 msgid "Ban a naughty player for an hour."
-msgstr ""
+msgstr "Bannir un joueur pénible pour une heure."
 
 #: lsd/scripts/bans_aliases.lua
 msgctxt "command"
 msgid "Ban a naughty player for a day."
-msgstr ""
+msgstr "Bannir un joueur pénible pour un jour."
 
 #: lsd/scripts/bans_aliases.lua
 msgctxt "command"
 msgid "Ban a naughty player for 7 days."
-msgstr ""
+msgstr "Bannir un joueur pénible pour 7 jours."
 
 #: lsd/scripts/bans_aliases.lua
 msgctxt "command"
 msgid "Ban a naughty player for 30 days."
-msgstr ""
+msgstr "Bannir un joueur pénible pour 30 jours."
 
 #: lsd/scripts/bans_aliases.lua
 msgctxt "command"
 msgid "Ban a naughty player for 365 days."
-msgstr ""
+msgstr "Bannir un joueur pénible pour 365 jours."
 
 #: lsd/scripts/bans_aliases.lua
 msgctxt "command"
 msgid "Ban a naughty player for a really long time."
-msgstr ""
+msgstr "Bannir un joueur pénible pour très longtemps."
 
 #: lsd/scripts/bans_aliases.lua
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for an hour."
-msgstr ""
+msgstr "Bannir une adresse IPv4 ou une plage CIDR pénible pour une heure."
 
 #: lsd/scripts/bans_aliases.lua
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for a day."
-msgstr ""
+msgstr "Bannir une adresse IPv4 ou une plage CIDR pénible pour un jour."
 
 #: lsd/scripts/bans_aliases.lua
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for 7 days."
-msgstr ""
+msgstr "Bannir une adresse IPv4 ou une plage CIDR pénible pour 7 jours."
 
 #: lsd/scripts/bans_aliases.lua
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for 30 days."
-msgstr ""
+msgstr "Bannir une adresse IPv4 ou une plage CIDR pénible pour 30 jours."
 
 #: lsd/scripts/bans_aliases.lua
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for 365 days."
-msgstr ""
+msgstr "Bannir une adresse IPv4 ou une plage CIDR pénible pour 365 jours."
 
 #: lsd/scripts/bans_aliases.lua
 msgctxt "command"
 msgid "Ban a naughty IPv4 address or CIDR range for a really long time."
-msgstr ""
+msgstr "Bannir une adresse IPv4 ou une plage CIDR pénible pour très longtemps."
 
 #: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) attempted to connect but server was full"
@@ -687,341 +687,341 @@ msgstr ""
 
 #: lsd/scripts/caps.lua
 msgid "You need the %(cap) capability to run that command."
-msgstr ""
+msgstr "Il te faut le droit %(cap) pour lancer cette commande."
 
 #: lsd/scripts/command_admin.lua
 msgctxt "command"
 msgid "Send a message to staff. Does not parse arguments."
-msgstr ""
+msgstr "Envoyer un message à l'équipe d'administration. N'analyse pas les arguments."
 
 #: lsd/scripts/command_admin.lua
 msgctxt "command"
 msgid "Send a message to staff, but only staff can use it. Does not parse arguments."
-msgstr ""
+msgstr "Envoyer un message à l'équipe d'administration, réservé à celle-ci. N'analyse pas les arguments."
 
 #: lsd/scripts/command_an.lua
 msgid ", crap"
-msgstr ""
+msgstr ", invalide"
 
 #: lsd/scripts/command_an.lua
 msgid "%(player) hit %(hitplayer) (torso, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr ""
+msgstr "%(player) a touché %(hitplayer) (torse, %(dist) blocs, %(delta) ms%(iscrap))"
 
 #: lsd/scripts/command_an.lua
 msgid "%(player) hit %(hitplayer)  (head, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr ""
+msgstr "%(player) a touché %(hitplayer)  (tête, %(dist) blocs, %(delta) ms%(iscrap))"
 
 #: lsd/scripts/command_an.lua
 msgid "%(player) hit %(hitplayer)  (arms, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr ""
+msgstr "%(player) a touché %(hitplayer)  (bras, %(dist) blocs, %(delta) ms%(iscrap))"
 
 #: lsd/scripts/command_an.lua
 msgid "%(player) hit %(hitplayer)  (legs, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr ""
+msgstr "%(player) a touché %(hitplayer)  (jambes, %(dist) blocs, %(delta) ms%(iscrap))"
 
 #: lsd/scripts/command_an.lua
 msgid "%(player) hit %(hitplayer) (spade, %(dist) blocks, %(delta) ms%(iscrap))"
-msgstr ""
+msgstr "%(player) a touché %(hitplayer) (pelle, %(dist) blocs, %(delta) ms%(iscrap))"
 
 #: lsd/scripts/command_an.lua
 msgid "%(player) sent a hit packet with a crap length"
-msgstr ""
+msgstr "%(player) a envoyé un paquet de tir de longueur invalide"
 
 #: lsd/scripts/command_an.lua
 msgid "%(player) sent a hit packet with a crap type"
-msgstr ""
+msgstr "%(player) a envoyé un paquet de tir de type invalide"
 
 #: lsd/scripts/command_an.lua
 msgid "%(player) sent a hit packet with a crap target"
-msgstr ""
+msgstr "%(player) a envoyé un paquet de tir de cible invalide"
 
 #: lsd/scripts/command_an.lua
 msgid "Stopped analyzing."
-msgstr ""
+msgstr "Analyse arrêtée."
 
 #: lsd/scripts/command_an.lua
 msgid "Now analyzing %(player)."
-msgstr ""
+msgstr "Analyse de %(player) en cours."
 
 #: lsd/scripts/command_an.lua
 msgctxt "command"
 msgid "Dump out whatever hit packets a player sends."
-msgstr ""
+msgstr "Afficher tous les paquets de tir qu'envoie un joueur."
 
 #: lsd/scripts/command_caps.lua
 msgctxt "command"
 msgid "Give a player arbitrary caps."
-msgstr ""
+msgstr "Donner des droits quelconques à un joueur."
 
 #: lsd/scripts/command_caps.lua
 msgctxt "command"
 msgid "Remove arbitrary caps from a player."
-msgstr ""
+msgstr "Retirer des droits quelconques à un joueur."
 
 #: lsd/scripts/command_cli.lua
 msgid "%(name): not reported"
-msgstr ""
+msgstr "%(name) : non communiqué"
 
 #: lsd/scripts/command_cli.lua
 msgid "%(name): handshaked"
-msgstr ""
+msgstr "%(name) : poignée de main faite"
 
 #: lsd/scripts/command_cli.lua
 msgid "%(name): '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
-msgstr ""
+msgstr "%(name) : '%(char)' (%(client)) v%(major).%(minor).%(patch) : %(msg)"
 
 #: lsd/scripts/command_cli.lua
 msgid "%(name): (no handshake) '%(char)' (%(client)) v%(major).%(minor).%(patch): %(msg)"
-msgstr ""
+msgstr "%(name) : (sans poignée de main) '%(char)' (%(client)) v%(major).%(minor).%(patch) : %(msg)"
 
 #: lsd/scripts/command_cli.lua
 msgid "%(name): fakepid"
-msgstr ""
+msgstr "%(name) : fakepid"
 
 #: lsd/scripts/command_cli.lua
 msgctxt "command"
 msgid "Print whatever a player's client claims to be."
-msgstr ""
+msgstr "Afficher ce que le client d'un joueur prétend être."
 
 #: lsd/scripts/command_exec.lua
 msgctxt "command"
 msgid "Execute arbitrary lua. Does not parse arguments."
-msgstr ""
+msgstr "Exécuter du Lua quelconque. N'analyse pas les arguments."
 
 #: lsd/scripts/command_fog.lua
 msgid "You need the %(cap) capability to set the fog color."
-msgstr ""
+msgstr "Il te faut le droit %(cap) pour changer la couleur du brouillard."
 
 #: lsd/scripts/command_fog.lua
 msgid "The current fog color is {r=%(r), g=%(g), b=%(b)} (%(hex))."
-msgstr ""
+msgstr "La couleur actuelle du brouillard est {r=%(r), g=%(g), b=%(b)} (%(hex))."
 
 #: lsd/scripts/command_fog.lua
 msgctxt "command"
 msgid "Get or set the fog color."
-msgstr ""
+msgstr "Voir ou changer la couleur du brouillard."
 
 #: lsd/scripts/command_ignore.lua
 msgctxt "command"
 msgid "Silence a player."
-msgstr ""
+msgstr "Rendre un joueur muet."
 
 #: lsd/scripts/command_ip.lua
 msgid "%(name): %(addr)"
-msgstr ""
+msgstr "%(name) : %(addr)"
 
 #: lsd/scripts/command_ip.lua
 msgctxt "command"
 msgid "Print a player's IP address."
-msgstr ""
+msgstr "Afficher l'adresse IP d'un joueur."
 
 #: lsd/scripts/command_kick.lua
 msgid "%(name) was kicked"
-msgstr ""
+msgstr "%(name) a été expulsé"
 
 #: lsd/scripts/command_kick.lua
 msgctxt "command"
 msgid "Remove a silly player."
-msgstr ""
+msgstr "Retirer un joueur bête."
 
 #: lsd/scripts/command_kill.lua
 msgid "You can't kill yourself unless you're in-game."
-msgstr ""
+msgstr "Tu ne peux te tuer que si tu es en jeu."
 
 #: lsd/scripts/command_kill.lua
 msgid "You need the %(cap) capability to kill others."
-msgstr ""
+msgstr "Il te faut le droit %(cap) pour tuer les autres."
 
 #: lsd/scripts/command_kill.lua
 msgctxt "command"
 msgid "Kill another player or yourself."
-msgstr ""
+msgstr "Tuer un autre joueur ou toi-même."
 
 #: lsd/scripts/command_modutils.lua
 msgctxt "command"
 msgid "Unregister all the modules."
-msgstr ""
+msgstr "Désinscrire tous les modules."
 
 #: lsd/scripts/command_modutils.lua
 msgctxt "command"
 msgid "Reload all registered modules."
-msgstr ""
+msgstr "Recharger tous les modules inscrits."
 
 #: lsd/scripts/command_modutils.lua
 msgctxt "command"
 msgid "Crusty listing of all loaded modules."
-msgstr ""
+msgstr "Liste brute de tous les modules chargés."
 
 #: lsd/scripts/command_modutils.lua
 msgctxt "command"
 msgid "Dynamically load a module."
-msgstr ""
+msgstr "Charger un module à chaud."
 
 #: lsd/scripts/command_modutils.lua
 msgctxt "command"
 msgid "Dynamically unload a module."
-msgstr ""
+msgstr "Décharger un module à chaud."
 
 #: lsd/scripts/command_ping.lua
 msgid "%(name)'s round-trip time is %(rtt) ms."
-msgstr ""
+msgstr "Le temps aller-retour de %(name) est de %(rtt) ms."
 
 #: lsd/scripts/command_ping.lua
 msgid "You can only check your own round-trip time while in-game."
-msgstr ""
+msgstr "Tu ne peux vérifier ton propre temps aller-retour qu'en jeu."
 
 #: lsd/scripts/command_ping.lua
 msgctxt "command"
 msgid "Print a player's (or your) round-trip time."
-msgstr ""
+msgstr "Afficher le temps aller-retour d'un joueur (ou le tien)."
 
 #: lsd/scripts/command_pm.lua
 msgid "PM from %(name): %(msg)"
-msgstr ""
+msgstr "MP de %(name) : %(msg)"
 
 #: lsd/scripts/command_pm.lua
 msgctxt "command"
 msgid "Send a pseudoprivate message to someone."
-msgstr ""
+msgstr "Envoyer un message pseudo-privé à quelqu'un."
 
 #: lsd/scripts/command_ratio.lua
 msgid "You haven't even made one kill. No deaths though."
-msgstr ""
+msgstr "Tu n'as pas encore fait une seule élimination. Aucune mort non plus, cela dit."
 
 #: lsd/scripts/command_ratio.lua
 msgid "%(name): %(kills) kills, %(deaths) deaths, %(ratio) kills per life"
-msgstr ""
+msgstr "%(name) : %(kills) éliminations, %(deaths) morts, %(ratio) éliminations par vie"
 
 #: lsd/scripts/command_ratio.lua
 msgctxt "command"
 msgid "Print the kill-life ratio of another player or yourself."
-msgstr ""
+msgstr "Afficher le ratio éliminations par vie d'un autre joueur ou le tien."
 
 #: lsd/scripts/command_savemap.lua
 msgid "name must not contain '/' or '\\', or start with a '.'"
-msgstr ""
+msgstr "le nom ne doit pas contenir '/' ni '\\', ni commencer par un '.'"
 
 #: lsd/scripts/command_savemap.lua
 msgctxt "command"
 msgid "Write a VXL file with the current map's state."
-msgstr ""
+msgstr "Écrire un fichier VXL avec l'état actuel de la carte."
 
 #: lsd/scripts/command_say.lua
 msgctxt "command"
 msgid "Send a message to all players, displayed as if the server sent it. Does not parse arguments."
-msgstr ""
+msgstr "Envoyer un message à tous les joueurs, affiché comme venant du serveur. N'analyse pas les arguments."
 
 #: lsd/scripts/command_say.lua
 msgctxt "command"
 msgid "Send a message to all players, as if you sent it. Does not parse arguments."
-msgstr ""
+msgstr "Envoyer un message à tous les joueurs, comme venant de toi. N'analyse pas les arguments."
 
 #: lsd/scripts/command_secspec.lua
 msgctxt "command"
 msgid "Stick yourself into spectator without anybody else knowing."
-msgstr ""
+msgstr "Te mettre en spectateur sans que personne ne le sache."
 
 #: lsd/scripts/command_server.lua
 msgid "Unknown address"
-msgstr ""
+msgstr "Adresse inconnue"
 
 #: lsd/scripts/command_server.lua
 msgctxt "command"
 msgid "Print the server's address."
-msgstr ""
+msgstr "Afficher l'adresse du serveur."
 
 #: lsd/scripts/command_switch.lua
 msgid "team should be one of 1, 2, 256, -1, spec, spectator, %(firstteam), %(secondteam)."
-msgstr ""
+msgstr "l'équipe doit être l'une des suivantes : 1, 2, 256, -1, spec, spectator, %(firstteam), %(secondteam)."
 
 #: lsd/scripts/command_switch.lua
 msgctxt "command"
 msgid "Move a player (or you) to a different team."
-msgstr ""
+msgstr "Changer un joueur (ou toi) d'équipe."
 
 #: lsd/scripts/command_tp.lua
 msgid "You have gone nowhere successfully."
-msgstr ""
+msgstr "Tu n'es allé nulle part, avec succès."
 
 #: lsd/scripts/command_tp.lua
 msgctxt "command"
 msgid "Teleport one player (or you) to a different player."
-msgstr ""
+msgstr "Téléporter un joueur (ou toi) vers un autre joueur."
 
 #: lsd/scripts/command_ups.lua
 msgid "%(arg) should be one of {%(freqs)} (Hz)"
-msgstr ""
+msgstr "%(arg) doit être l'une de {%(freqs)} (Hz)"
 
 #: lsd/scripts/command_ups.lua
 msgid "Current update rate: %(freq) Hz"
-msgstr ""
+msgstr "Fréquence de mise à jour actuelle : %(freq) Hz"
 
 #: lsd/scripts/command_ups.lua
 msgctxt "command"
 msgid "Get/set the rate your client receives player position/orientation."
-msgstr ""
+msgstr "Voir ou changer la fréquence à laquelle ton client reçoit la position et l'orientation des joueurs."
 
 #: lsd/scripts/command_version.lua
 msgid "Running %(server_name) commit %(commit)"
-msgstr ""
+msgstr "%(server_name) en service, commit %(commit)"
 
 #: lsd/scripts/command_version.lua
 msgctxt "command"
 msgid "Print the server's version."
-msgstr ""
+msgstr "Afficher la version du serveur."
 
 #: lsd/scripts/command_who.lua
 msgctxt "command"
 msgid "Print all joined players."
-msgstr ""
+msgstr "Afficher tous les joueurs en jeu."
 
 #: lsd/scripts/commands.lua
 msgid "%(arg) should be a IPv4 address, optionally given in CIDR notation."
-msgstr ""
+msgstr "%(arg) doit être une adresse IPv4, éventuellement en notation CIDR."
 
 #: lsd/scripts/commands.lua
 msgid "%(arg) should be a time delta."
-msgstr ""
+msgstr "%(arg) doit être une durée."
 
 #: lsd/scripts/commands.lua
 msgid "%(arg) should be finite."
-msgstr ""
+msgstr "%(arg) doit être fini."
 
 #: lsd/scripts/commands.lua
 msgid "%(arg) should use at most one of the following units: s, min, h, d, w, month, y."
-msgstr ""
+msgstr "%(arg) doit utiliser au plus une des unités suivantes : s, min, h, d, w, month, y."
 
 #: lsd/scripts/commands.lua
 msgid "%(arg) should be between %(min) and %(max)"
-msgstr ""
+msgstr "%(arg) doit être entre %(min) et %(max)"
 
 #: lsd/scripts/commands.lua
 msgid "%(arg): Player not found."
-msgstr ""
+msgstr "%(arg) : joueur introuvable."
 
 #: lsd/scripts/commands.lua
 msgid "%(arg): Player not connected."
-msgstr ""
+msgstr "%(arg) : joueur non connecté."
 
 #: lsd/scripts/commands.lua
 msgid "%(arg): Ambiguous player."
-msgstr ""
+msgstr "%(arg) : joueur ambigu."
 
 #: lsd/scripts/commands.lua
 msgid "%(arg): Invalid player ID."
-msgstr ""
+msgstr "%(arg) : numéro de joueur invalide."
 
 #: lsd/scripts/commands.lua
 msgid "Unknown command"
-msgstr ""
+msgstr "Commande inconnue"
 
 #: lsd/scripts/commands.lua
 msgid "Some error occurred with that command :("
-msgstr ""
+msgstr "Une erreur est survenue avec cette commande :("
 
 #: lsd/scripts/commands.lua
 msgid "This command can only be run while in-game."
-msgstr ""
+msgstr "Cette commande ne peut être lancée qu'en jeu."
 
 #: lsd/scripts/dd.lua
 msgid "dd: prevented fast block placement from %(name) (#%(pid))"
@@ -1054,34 +1054,34 @@ msgstr ""
 #: lsd/scripts/disco.lua
 msgctxt "command"
 msgid "Toggle the disco party."
-msgstr ""
+msgstr "Lancer ou arrêter la soirée disco."
 
 #: lsd/scripts/emote.lua
 msgid "Cannot find image; try /emotelist."
-msgstr ""
+msgstr "Image introuvable ; essaie /emotelist."
 
 #: lsd/scripts/emote.lua
 msgid "You can list images with /emotelist."
-msgstr ""
+msgstr "Tu peux lister les images avec /emotelist."
 
 #: lsd/scripts/emote.lua
 msgid "You must wait %(timeuntil) s to paint an emote again."
-msgstr ""
+msgstr "Tu dois attendre %(timeuntil) s avant de peindre une autre émote."
 
 #: lsd/scripts/emote.lua
 msgctxt "command"
 msgid "Paint an image centered at your location."
-msgstr ""
+msgstr "Peindre une image centrée sur ta position."
 
 #: lsd/scripts/emote.lua
 msgctxt "command"
 msgid "List images available to paint on the ground."
-msgstr ""
+msgstr "Lister les images à peindre au sol."
 
 #: lsd/scripts/god.lua
 msgctxt "command"
 msgid "Prevent yourself from being damaged."
-msgstr ""
+msgstr "T'empêcher de subir des dégâts."
 
 #: lsd/scripts/if_websocket.lua
 msgid "ifwsock: got tcp connection %(addr) (#%(pid))"
@@ -1101,64 +1101,64 @@ msgstr ""
 
 #: lsd/scripts/irc_console.lua
 msgid "Unable to set nick. Make sure the user exists and the nick isn't already in use."
-msgstr ""
+msgstr "Impossible de définir le pseudo. Vérifie que l'utilisateur existe et que le pseudo n'est pas déjà utilisé."
 
 #: lsd/scripts/irc_console.lua
 msgid "Unable to remove nick. Make sure the user exists and has a linked nickname."
-msgstr ""
+msgstr "Impossible de retirer le pseudo. Vérifie que l'utilisateur existe et a un pseudo lié."
 
 #: lsd/scripts/irc_console.lua
 msgctxt "command"
 msgid "Link an auth account to an IRC nick."
-msgstr ""
+msgstr "Lier un compte à un pseudo IRC."
 
 #: lsd/scripts/irc_console.lua
 msgctxt "command"
 msgid "Unlink an auth account from IRC."
-msgstr ""
+msgstr "Délier un compte de son pseudo IRC."
 
 #: lsd/scripts/jp.lua
 msgctxt "command"
 msgid "Press sneak (V) to fly upwards."
-msgstr ""
+msgstr "Appuie sur discrétion (V) pour t'envoler."
 
 #: lsd/scripts/map_meta.lua
 msgid "Next up: %(name)"
-msgstr ""
+msgstr "Ensuite : %(name)"
 
 #: lsd/scripts/map_meta.lua
 msgid "Next up: %(name) by %(author)"
-msgstr ""
+msgstr "Ensuite : %(name) par %(author)"
 
 #: lsd/scripts/map_meta.lua
 msgctxt "command"
 msgid "Dump the current map's metadata."
-msgstr ""
+msgstr "Afficher les métadonnées de la carte actuelle."
 
 #: lsd/scripts/map_queue.lua
 msgctxt "command"
 msgid "List the default map queue."
-msgstr ""
+msgstr "Lister la file de cartes par défaut."
 
 #: lsd/scripts/map_queue.lua
 msgctxt "command"
 msgid "Append a map to the temporary map queue."
-msgstr ""
+msgstr "Ajouter une carte à la file temporaire."
 
 #: lsd/scripts/map_queue.lua
 msgctxt "command"
 msgid "Override the temporary map queue. Later maps get played first."
-msgstr ""
+msgstr "Remplacer la file temporaire. Les cartes données en dernier passent en premier."
 
 #: lsd/scripts/map_queue.lua
 msgctxt "command"
 msgid "Load the next queued map."
-msgstr ""
+msgstr "Charger la prochaine carte de la file."
 
 #: lsd/scripts/map_queue.lua
 msgctxt "command"
 msgid "Immediately load the map at the specified path."
-msgstr ""
+msgstr "Charger immédiatement la carte au chemin indiqué."
 
 #: lsd/scripts/masterlist.lua
 msgid "Connected to masterlist %(addr)"
@@ -1174,106 +1174,106 @@ msgstr ""
 
 #: lsd/scripts/medkit.lua
 msgid "The medkit cannot bring you back from the dead."
-msgstr ""
+msgstr "La trousse de soins ne peut pas te ramener d'entre les morts."
 
 #: lsd/scripts/medkit.lua
 msgid "You've already used all your medkits! Restock at the tent."
-msgstr ""
+msgstr "Tu as déjà utilisé toutes tes trousses de soins ! Ravitaille-toi à la tente."
 
 #: lsd/scripts/medkit.lua
 msgid "The medkit only heals physical wounds."
-msgstr ""
+msgstr "La trousse de soins ne soigne que les blessures physiques."
 
 #: lsd/scripts/noclip.lua
 msgctxt "command"
 msgid "Fly around."
-msgstr ""
+msgstr "Voler partout."
 
 #: lsd/scripts/profiler.lua
 msgctxt "command"
 msgid "Start profiling."
-msgstr ""
+msgstr "Démarrer le profilage."
 
 #: lsd/scripts/profiler.lua
 msgctxt "command"
 msgid "Stop profiling."
-msgstr ""
+msgstr "Arrêter le profilage."
 
 #: lsd/scripts/profiler.lua
 msgctxt "command"
 msgid "Dump profiler data to the console."
-msgstr ""
+msgstr "Écrire les données du profilage dans la console."
 
 #: lsd/scripts/sel.lua
 msgctxt "command"
 msgid "Select a box."
-msgstr ""
+msgstr "Sélectionner une boîte."
 
 #: lsd/scripts/setspawn.lua
 msgid "You'll now spawn at the default position."
-msgstr ""
+msgstr "Tu réapparaîtras désormais à la position par défaut."
 
 #: lsd/scripts/setspawn.lua
 msgid "You'll now spawn at {x=%(x), y=%(y), z=%(z)}."
-msgstr ""
+msgstr "Tu réapparaîtras désormais en {x=%(x), y=%(y), z=%(z)}."
 
 #: lsd/scripts/setspawn.lua
 msgctxt "command"
 msgid "Toggle respawning at your current position."
-msgstr ""
+msgstr "Activer ou désactiver la réapparition à ta position actuelle."
 
 #: lsd/scripts/team_balance.lua
 msgid "%(team) is unbalanced; switched to other team"
-msgstr ""
+msgstr "%(team) est déséquilibrée ; passage dans l'autre équipe"
 
 #: lsd/scripts/team_balance.lua
 msgid "%(team) is unbalanced; cannot switch"
-msgstr ""
+msgstr "%(team) est déséquilibrée ; changement impossible"
 
 #: lsd/scripts/time_limit.lua
 msgid "Remaining time extended to %(time)."
-msgstr ""
+msgstr "Temps restant prolongé à %(time)."
 
 #: lsd/scripts/time_limit.lua
 msgid "%(time) remaining."
-msgstr ""
+msgstr "%(time) restant."
 
 #: lsd/scripts/time_limit.lua
 msgid "You need the %(cap) capability to set the time limit."
-msgstr ""
+msgstr "Il te faut le droit %(cap) pour changer la limite de temps."
 
 #: lsd/scripts/time_limit.lua
 msgctxt "command"
 msgid "Print or set the time remaining until the game ends."
-msgstr ""
+msgstr "Voir ou changer le temps restant avant la fin de la partie."
 
 #: lsd/scripts/toggles.lua
 msgid "Added %(cap) to %(name)"
-msgstr ""
+msgstr "%(cap) ajouté à %(name)"
 
 #: lsd/scripts/toggles.lua
 msgid "Removed %(cap) from %(name)"
-msgstr ""
+msgstr "%(cap) retiré à %(name)"
 
 #: lsd/scripts/toggles.lua
 msgctxt "command"
 msgid "Prevent a player from directly altering the map."
-msgstr ""
+msgstr "Empêcher un joueur de modifier directement la carte."
 
 #: lsd/scripts/toggles.lua
 msgctxt "command"
 msgid "Prevent a player from directly damaging others."
-msgstr ""
+msgstr "Empêcher un joueur d'infliger directement des dégâts."
 
 #: lsd/scripts/toggles.lua
 msgctxt "command"
 msgid "Shut a noisy player up."
-msgstr ""
+msgstr "Faire taire un joueur bruyant."
 
 #: lsd/scripts/toggles.lua
 msgctxt "command"
 msgid "Shut a noisy /admin'er up."
-msgstr ""
+msgstr "Faire taire quelqu'un qui abuse de /admin."
 
 #: lsd/scripts/websock_console.lua
 msgid "wscon: got tcp connection (#%(pid))"

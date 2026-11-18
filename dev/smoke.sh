@@ -82,6 +82,12 @@ echo "$fr" | grep -q "L10N2|Tape /kill pour mourir.|Bienvenue sur S, propulsé p
 	|| fail "French settings text: $fr"
 echo "ok: settings text translated"
 
+# upstream LSd's own text: a message and a command's description
+fr=$(docker exec "$NAME" lsdctl exec 'exec log("L10N3|" .. l10n_get_str_lang("fr", {en = "Unknown command"}) .. "|" .. l10n_get_str_lang("fr", {en = "Print the server\x27s version.", ctx = "command"}) .. "|")')
+echo "$fr" | grep -q "L10N3|Commande inconnue|Afficher la version du serveur.|" \
+	|| fail "French for upstream LSd: $fr"
+echo "ok: upstream LSd's text translated"
+
 # the pie menu: commands put themselves in it (votekick, /lang), in the
 # player's language, through the scripts' own translations
 docker exec "$NAME" lsdctl install pie_menu --yes --now >/dev/null || fail "install pie_menu"

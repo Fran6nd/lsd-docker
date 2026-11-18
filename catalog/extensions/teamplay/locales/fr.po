@@ -9,36 +9,36 @@ msgstr ""
 
 #: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "Pinging is turned off on this server."
-msgstr ""
+msgstr "Les signalements sont désactivés sur ce serveur."
 
 #: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "You cannot ping while dead."
-msgstr ""
+msgstr "Tu ne peux pas signaler en étant mort."
 
 #: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "Too soon: wait a moment before pinging again."
-msgstr ""
+msgstr "Trop tôt : attends un peu avant de signaler à nouveau."
 
 #: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "That position is off the map."
-msgstr ""
+msgstr "Cette position est hors de la carte."
 
 #: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "You can only ping what you are looking at."
-msgstr ""
+msgstr "Tu ne peux signaler que ce que tu regardes."
 
 #: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "Unknown command"
-msgstr ""
+msgstr "Commande inconnue"
 
 #: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "Nothing to ping: /pingmark needs a position, three numbers, before the reason."
-msgstr ""
+msgstr "Rien à signaler : /pingmark veut une position, trois nombres, avant la raison."
 
 #: catalog/extensions/teamplay/lib_teamplay.lua
 msgctxt "command"
 msgid "Ping a position for your team."
-msgstr ""
+msgstr "Signaler une position à ton équipe."
 
 #: catalog/extensions/teamplay/lib_teamplay.lua
 msgid "Enemy"

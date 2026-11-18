@@ -9,39 +9,39 @@ msgstr ""
 
 #: catalog/tools/votekick/votekick.lua
 msgid "%(starter) started a votekick against %(target)! Type /y to vote (%(have)/%(need))."
-msgstr ""
+msgstr "%(starter) a lancé un vote d'exclusion contre %(target) ! Tape /y pour voter (%(have)/%(need))."
 
 #: catalog/tools/votekick/votekick.lua
 msgid "%(voter) voted to kick %(target) (%(have)/%(need))."
-msgstr ""
+msgstr "%(voter) a voté pour exclure %(target) (%(have)/%(need))."
 
 #: catalog/tools/votekick/votekick.lua
 msgid "%(target) was votekicked."
-msgstr ""
+msgstr "%(target) a été exclu par vote."
 
 #: catalog/tools/votekick/votekick.lua
 msgid "The votekick against %(target) failed."
-msgstr ""
+msgstr "Le vote d'exclusion contre %(target) a échoué."
 
 #: catalog/tools/votekick/votekick.lua
 msgid "You already voted."
-msgstr ""
+msgstr "Tu as déjà voté."
 
 #: catalog/tools/votekick/votekick.lua
 msgid "No votekick is in progress -- start one with /votekick <player>."
-msgstr ""
+msgstr "Aucun vote d'exclusion en cours -- lance-en un avec /votekick <joueur>."
 
 #: catalog/tools/votekick/votekick.lua
 msgid "Not enough players for a votekick."
-msgstr ""
+msgstr "Pas assez de joueurs pour un vote d'exclusion."
 
 #: catalog/tools/votekick/votekick.lua
 msgid "You can't votekick yourself."
-msgstr ""
+msgstr "Tu ne peux pas voter ta propre exclusion."
 
 #: catalog/tools/votekick/votekick.lua
 msgid "%(target) can't be votekicked."
-msgstr ""
+msgstr "%(target) ne peut pas être exclu par vote."
 
 #: catalog/tools/votekick/votekick.lua
 msgid "Vote kicked"
@@ -50,7 +50,7 @@ msgstr "Expulsé par vote"
 #: catalog/tools/votekick/votekick.lua
 msgctxt "command"
 msgid "Start (or add your voice to) a vote to kick a player."
-msgstr ""
+msgstr "Lancer (ou rejoindre) un vote pour exclure un joueur."
 
 #: catalog/tools/votekick/votekick.lua
 msgid "Vote kick"
@@ -63,4 +63,4 @@ msgstr "Lancer un vote pour exclure ce joueur"
 #: catalog/tools/votekick/votekick.lua
 msgctxt "command"
 msgid "Vote yes on the current votekick."
-msgstr ""
+msgstr "Voter oui au vote d'exclusion en cours."
