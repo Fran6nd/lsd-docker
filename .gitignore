@@ -4,7 +4,9 @@
 # patches exported for upstream (git -C lsd format-patch -1)
 /*.patch
 
-.claude/
+# local Claude Code state; the project's skills are shared
+.claude/*
+!.claude/skills/
 
 # dev/smoke.sh writes the server log here
 smoke.log
