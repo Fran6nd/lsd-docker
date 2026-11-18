@@ -4,6 +4,7 @@ How the server speaks each player's language, and how the translations
 are made: extracted from the scripts, drafted by machine translation,
 reviewed by people, and kept in step with the code.
 
+- [In short](#in-short)
 - [What players get](#what-players-get)
 - [Parity](#parity)
 - [The files](#the-files)
@@ -13,6 +14,74 @@ reviewed by people, and kept in step with the code.
 - [Writing translatable scripts](#writing-translatable-scripts)
 - [When LSd or a script changes](#when-lsd-or-a-script-changes)
 - [Tools reference](#tools-reference)
+
+## In short
+
+Every player reads the server in their own language: the one they chose
+with `/lang fr` (`/lang auto` to undo), else the locale their client
+reports, else `l10n_default_lang`. `fr_ca` falls back to `fr`, then the
+default, then English.
+
+Translations are for ZeroSpades 0.0.9 and above only: the client that
+sends its locale, speaks UTF-8 and draws the scripts translated into
+(accents, Cyrillic, Chinese). Every other client -- an older ZeroSpades, stock
+OpenSpades, BetterSpades, Voxlap -- reads `l10n_default_lang`, and `/lang`
+tells them what translations need. The gate is a setting, the client
+names and the oldest version of each (that version and above), matched
+in the version string a client reports:
+
+```
+l10n_clients = {ZeroSpades: '0.0.9'}
+```
+
+A script writes its messages in English, with LSd's `%(name)`
+placeholders, and every message is translated for each player it
+reaches, broadcasts included:
+
+```lua
+l10n_send_chat(PID_BROADCAST, {en = "%(name) was kicked"}, {name = n})
+server_msg(pid, l10n_msg({en = "Edit mode on."}))  -- server_msg, send_chat,
+kick_reason_set(pid, l10n_msg({en = "Vote kicked"}))  -- msg_send take one
+l10n_msgn({en = "%(n) bot", en_plural = "%(n) bots"}, count)
+```
+
+Translations live with the script, as gettext files:
+
+```
+catalog/tools/votekick/locales/
+├── template.pot   every message of the script, written by dev/l10n.lua
+└── fr.po          its French
+```
+
+The pre-commit hook keeps the templates and `.po` files in step with the
+code; `dev/l10n_mt.sh <lang>` drafts a new language by machine (below).
+
+The pie menu speaks the same way. Its default layout has pies with ids
+(`mark`, `chat`, `player`, `watching`), and a command puts itself in one
+by carrying a `pie` field -- its label goes in that script's template
+like any other message:
+
+```lua
+local cmd = {name = "votekick", ...,
+	pie = {pie = "player", slot = 1, args = "%p",
+		label = {en = "Vote kick"}, tooltip = {en = "Start a vote"}}}
+register_command(cmd, mod)        -- the wedge sends "/votekick %p"
+```
+
+`pie_menu_slice(name, {pie = ..., text = ..., label = ...})` does the
+same from any script. A slice takes the slot it asks for if free, else
+the first free one; a full pie continues in another just after it; a
+pie that is not there is created, from `pie = {id=, theme=, when=}` or
+the default layout's.
+
+Text an operator writes in the settings -- `motd` lines, `tips`,
+`kick_reason_texts`, `ext_policy_alert_text` -- may be plain text or a
+language map, and every player reads their own:
+
+```
+motd = [{en: 'Welcome to %(server)!', fr: 'Bienvenue sur %(server) !'}]
+tips = [{en: 'Type /lang to change language', fr: 'Tape /lang pour changer de langue'}]
+```
 
 ## What players get
 

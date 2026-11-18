@@ -817,7 +817,7 @@ command("local", "local",
 		end
 
 		say("");
-		say("* installed. Add one: README, \"Your own scripts\".");
+		say("* installed. Adding one: docs/catalog.md, \"Your own scripts\".");
 	end);
 
 command("available", "available [category] [--all]",
