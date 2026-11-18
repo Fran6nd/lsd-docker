@@ -3,7 +3,9 @@
 --
 --   luajit dev/l10n.lua            rewrite every template and .po
 --   luajit dev/l10n.lua --check    fail if any is out of date (CI)
---   luajit dev/l10n.lua --new fr   also start locales/fr.po everywhere
+--   luajit dev/l10n.lua --new fr [<path>...]
+--                                  also start locales/fr.po, in every
+--                                  entry or those under the paths
 --
 -- Every message a script can send is in its own Lua, written the way
 -- lib_l10n reads it: a table with en= (and maybe en_plural=, ctx=), or
@@ -292,7 +294,7 @@ end
 
 --================================ MAIN ==============================--
 
-local check, new_lang = false, nil;
+local check, new_lang, only = false, nil, {};
 local i = 1;
 while (arg[i]) do
 	if (arg[i] == "--check") then
@@ -300,8 +302,10 @@ while (arg[i]) do
 	elseif (arg[i] == "--new" and arg[i+1]) then
 		new_lang = P.norm_lang(arg[i+1]) or error("--new: not a language code", 0);
 		i = i + 1;
+	elseif (new_lang ~= nil and not string.find(arg[i], "^%-")) then
+		only[#only+1] = (string.gsub(arg[i], "/$", ""));
 	else
-		io.stderr:write("usage: luajit dev/l10n.lua [--check] [--new <lang>]\n");
+		io.stderr:write("usage: luajit dev/l10n.lua [--check] [--new <lang> [<path>...]]\n");
 		os.exit(2);
 	end
 	i = i + 1;
@@ -338,7 +342,13 @@ for _, e in ipairs(entries()) do
 			local l = string.match(f, "^(.+)%.po$");
 			if (l) then langs[l] = true; end
 		end
-		if (new_lang) then langs[new_lang] = true; end
+		local wanted = #only == 0;
+		for _, p in ipairs(only) do
+			if (e.dir == p or string.sub(e.dir, 1, #p + 1) == p .. "/") then
+				wanted = true;
+			end
+		end
+		if (new_lang and wanted) then langs[new_lang] = true; end
 
 		for l in pairs(langs) do
 			local path = loc .. "/" .. l .. ".po";

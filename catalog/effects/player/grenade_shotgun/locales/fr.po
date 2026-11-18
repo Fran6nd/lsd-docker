@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/effects/player/grenade_shotgun/shotgun_are_grenade_launchers.lua
+msgid "warning: here shotguns are grenade launchers."
+msgstr "attention : ici, les fusils à pompe sont des lance-grenades."
+
+#: catalog/effects/player/grenade_shotgun/shotgun_are_grenade_launchers.lua
+msgid "Spicy: every shotgun blast drops a grenade pellet -- mind the splash."
+msgstr "Épicé : chaque tir de fusil à pompe lâche une grenade -- gare aux éclats."

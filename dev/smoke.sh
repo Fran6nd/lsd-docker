@@ -69,6 +69,13 @@ for m in lib_player_effect rifle_is_a_rail_gun shotgun_are_grenade_launchers \
 done
 echo "ok: player and world effects load"
 
+# translations: a script's locales/fr.po, installed by the entrypoint as
+# scripts/locales/fr/<id>.po, is what the server answers in French with
+fr=$(docker exec "$NAME" lsdctl exec 'exec log("L10N|" .. l10n_get_str_lang("fr_ca", {en = "warning: here rifles are railguns."}) .. "|" .. l10n_get_str_lang("fr", {en = "Language set to %(lang)."}, {lang = "fr"}) .. "|")')
+echo "$fr" | grep -q "L10N|attention : ici, les fusils sont des railguns.|Langue réglée sur fr.|" \
+	|| fail "French from the scripts' catalogs: $fr"
+echo "ok: translations from per-script catalogs"
+
 docker exec "$NAME" lsdctl gamemode hostage --yes --now || fail "gamemode"
 sleep 3
 wait_up "after gamemode"

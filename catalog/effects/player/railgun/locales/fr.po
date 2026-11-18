@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/effects/player/railgun/rifle_is_a_rail_gun.lua
+msgid "warning: here rifles are railguns."
+msgstr "attention : ici, les fusils sont des railguns."
+
+#: catalog/effects/player/railgun/rifle_is_a_rail_gun.lua
+msgid "Spicy: rifles are railguns -- they pierce the whole map and leave a tracer."
+msgstr "Épicé : les fusils sont des railguns -- ils traversent toute la carte et laissent une traînée."

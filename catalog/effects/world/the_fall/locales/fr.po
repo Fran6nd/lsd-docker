@@ -1,0 +1,24 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/effects/world/the_fall/the_fall.lua
+msgid "You can't build in the Fall."
+msgstr "Impossible de construire dans la Chute."
+
+#: catalog/effects/world/the_fall/the_fall.lua
+msgid "You killed your way out. Back in the game."
+msgstr "Tu t'en es sorti en tuant. De retour dans la partie."
+
+#: catalog/effects/world/the_fall/the_fall.lua
+msgid "You're going into the Fall. Kill someone to get out."
+msgstr "Tu tombes dans la Chute. Tue quelqu'un pour en sortir."
+
+#: catalog/effects/world/the_fall/the_fall.lua
+msgid "warning: here your first death drops you into the Fall, and only a kill gets you out."
+msgstr "attention : ici, ta première mort te fait tomber dans la Chute, et seul un frag t'en sort."
