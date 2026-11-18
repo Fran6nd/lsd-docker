@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: es\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: catalog/effects/player/area_hurt/area_hurt.lua
+msgid "warning: here standing near an enemy hurts them, and them you."
+msgstr "atención: aquí, estar cerca de un enemigo le hace daño, y a ti también."
+
+#: catalog/effects/player/area_hurt/area_hurt.lua
+msgid "Keep your distance: enemies near you wear you down."
+msgstr "Mantén la distancia: los enemigos cercanos te desgastan."

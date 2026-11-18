@@ -1,0 +1,14 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/effects/player/area_heal/area_heal.lua
+msgid "warning: here teammates near each other heal one another."
+msgstr ""
+
+#: catalog/effects/player/area_heal/area_heal.lua
+msgid "Stick together: teammates near you heal you over time."
+msgstr ""

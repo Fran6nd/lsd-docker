@@ -69,6 +69,16 @@ for m in lib_player_effect rifle_is_a_rail_gun shotgun_are_grenade_launchers \
 done
 echo "ok: player and world effects load"
 
+# the triggered effects: medkit (upstream's, now a player effect under the
+# same id and commands), area_heal and area_hurt
+docker exec "$NAME" lsdctl install medkit area_heal area_hurt --yes --now >/dev/null \
+	|| fail "install triggered effects"
+sleep 3
+wait_up "after triggered effects"
+fx=$(docker exec "$NAME" lsdctl exec 'exec log("FX|" .. tostring(PlayerEffect.get("area_heal") ~= nil) .. "|" .. tostring(PlayerEffect.get("area_hurt") ~= nil) .. "|" .. tostring(commands.m and commands.m.desc) .. "|" .. tostring(PlayerEffect.get("medkit"):trigger(MAX_PLAYERS - 1)) .. "|")')
+echo "$fx" | grep -q "FX|true|true|Use a medkit.|nil|" || fail "triggered effects: $fx"
+echo "ok: medkit, area_heal and area_hurt load; a trigger for nobody does nothing"
+
 # translations: a script's locales/fr.po, installed by the entrypoint as
 # scripts/locales/fr/<id>.po, is what the server answers in French with
 fr=$(docker exec "$NAME" lsdctl exec 'exec log("L10N|" .. l10n_get_str_lang("fr_ca", {en = "warning: here rifles are railguns."}) .. "|" .. l10n_get_str_lang("fr", {en = "Language set to %(lang)."}, {lang = "fr"}) .. "|")')

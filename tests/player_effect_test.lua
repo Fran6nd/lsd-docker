@@ -11,6 +11,9 @@ package.path = "catalog/libs/player_effect/?.lua;"
 	.. "catalog/effects/player/railgun/?.lua;"
 	.. "catalog/effects/player/grenade_shotgun/?.lua;"
 	.. "catalog/effects/player/pinning_smg/?.lua;"
+	.. "catalog/effects/player/area_heal/?.lua;"
+	.. "catalog/effects/player/area_hurt/?.lua;"
+	.. "catalog/effects/player/medkit/?.lua;"
 	.. package.path;
 
 local failures, checks = 0, 0;
@@ -48,7 +51,26 @@ function shot_unlisten(name) listeners[name] = nil; end
 NOW = 10;
 function get_time() return NOW; end
 function pid_connected_table() return {default = nil}; end
-function get_position() return {x = 1, y = 2, z = 3}; end
+POS = {};
+function get_position(pid) return POS[pid] or {x = 1, y = 2, z = 3}; end
+HP = {};
+function get_hp(pid) return HP[pid] or 100; end
+function set_hp(pid, hp) HP[pid] = hp; end
+DAMAGED, MARKERS, CHAT, CMDS = {}, {}, {}, {};
+-- LSd's: set_hp(hp - amount), clamped at 0 and not above (main.c); and
+-- lib_damage_markers shows the amount to the damager, a negative one as
+-- a heal
+function damage_player(pid, amount, ktype, by)
+	DAMAGED[#DAMAGED+1] = {pid = pid, amount = amount, by = by};
+	HP[pid] = math.max(0, (HP[pid] or 100) - amount);
+	if (by ~= pid) then damage_markers_show(by, pid, amount); end
+end
+function damage_markers_show(viewer, target, amount)
+	MARKERS[#MARKERS+1] = {viewer = viewer, target = target, amount = amount};
+	return true;
+end
+function l10n_send_chat(pid, msg) CHAT[#CHAT+1] = {pid, msg.en}; end
+function register_command(cmd) CMDS[type(cmd.name) == "table" and cmd.name[1] or cmd.name] = cmd; end
 function get_orientation() return {x = 1, y = 0, z = 0}; end
 package.loaded.lib_bulk_destroy = true;
 
@@ -181,7 +203,7 @@ shot_listen = saved;
 
 print("\n5. every player effect in the catalog loads on the class");
 for _, m in ipairs({"rifle_is_a_rail_gun", "shotgun_are_grenade_launchers",
-                    "smg_is_incapacitating"}) do
+                    "smg_is_incapacitating", "area_heal", "area_hurt", "medkit"}) do
 	local ok2, emod = pcall(require, m);
 	check(ok2 and type(emod) == "table", m .. " builds", emod);
 	if (ok2) then
@@ -191,6 +213,89 @@ for _, m in ipairs({"rifle_is_a_rail_gun", "shotgun_are_grenade_launchers",
 		check(pcall(emod.on_unload), m .. " unloads");
 	end
 end
+
+print("\n6. effects with a trigger");
+check(not pcall(PE, {name = "x", warning = {en = "x"}}), "an effect is about a gun, or has a trigger");
+-- 0 and 1 on team 1, 2 on team 2; 0 at the origin, 1 three blocks off,
+-- 2 four blocks off
+POS = {[0] = {x = 0, y = 0, z = 0}, [1] = {x = 3, y = 0, z = 0}, [2] = {x = 0, y = 4, z = 0}};
+for _, m in ipairs({"area_heal", "area_hurt", "medkit"}) do
+	local emod = package.loaded[m];
+	emod.name = m;
+	emod.on_load();
+end
+local heal = PE.get("area_heal");
+local hurt = PE.get("area_hurt");
+local kit = PE.get("medkit");
+check(heal and hurt and kit, "all three are found by name");
+
+HP = {[0] = 100, [1] = 50, [2] = 50}; MARKERS = {};
+eq(heal:trigger(0), 1, "area_heal: the teammate in range is healed");
+eq(HP[1], 55, "by area_heal_amount");
+eq(HP[2], 50, "the enemy in range is not");
+eq(MARKERS[1] and MARKERS[1].amount, -5, "dealt as negative damage: the healer sees a heal marker");
+eq(MARKERS[1] and MARKERS[1].viewer, 0, "shown to the healer");
+eq(heal:trigger(0, {radius = 2}), 0, "a radius from the gamemode: nobody that close");
+heal:trigger(0, {amount = 100});
+eq(HP[1], 100, "never past full");
+MARKERS = {};
+eq(heal:trigger(0), 0, "nobody hurt: nobody healed");
+eq(#MARKERS, 0, "and no marker");
+
+HP = {[0] = 100, [1] = 100, [2] = 100}; DAMAGED = {};
+eq(hurt:trigger(0), 1, "area_hurt: the enemy in range is hit");
+eq(DAMAGED[1] and DAMAGED[1].pid, 2, "the enemy");
+eq(DAMAGED[1] and DAMAGED[1].by, 0, "dealt as the player, for the kill and the marker");
+eq(HP[1], 100, "the teammate is not");
+eq(hurt:trigger(0, {radius = 3}), 0, "a radius from the gamemode: the enemy is out of it");
+
+ALIVE[0] = false;
+eq(heal:trigger(0), nil, "a dead player triggers nothing");
+ALIVE[0] = true;
+
+print("\n6b. on its own, every <name>_every seconds");
+HP = {[0] = 100, [1] = 50, [2] = 50};
+area_heal_every, area_hurt_every, medkit_every = 2, 0, 0;
+heal.everyone = true;
+NOW = 100;
+pe_mod.after.tick();
+eq(HP[1], 50, "nothing on the first tick: the clock starts");
+NOW = 101;
+pe_mod.after.tick();
+eq(HP[1], 50, "nothing before the interval");
+NOW = 102;
+pe_mod.after.tick();
+eq(HP[1], 55, "the interval passed: everybody with it triggers it");
+heal.everyone = false;
+NOW = 104;
+pe_mod.after.tick();
+eq(HP[1], 55, "nobody has it: nothing");
+heal:give(1);
+HP[0], HP[1] = 50, 50;
+NOW = 106;
+pe_mod.after.tick();
+eq(HP[0], 55, "given to 1 alone: 1 heals those near 1");
+eq(HP[1], 50, "and nobody heals 1, who alone has it");
+area_heal_every = 0;
+heal.everyone = true;
+
+print("\n6c. the medkit");
+medkit_heal, medkit_quantity = 40, 1;
+HP = {[1] = 50}; CHAT = {};
+eq(kit:trigger(1), 40, "a kit gives medkit_heal back");
+eq(HP[1], 90, "up to 90");
+eq(kit:trigger(1), nil, "medkit_quantity a life: none left");
+check(CHAT[#CHAT] and CHAT[#CHAT][2]:find("used all your medkits", 1, true), "and is told");
+eq(kit:trigger(1, {free = true}), 10, "a gamemode's free kit still heals, to full");
+package.loaded.medkit.after.spawn_player(1);
+HP[1] = 30;
+CMDS.medkit.func(1);
+eq(HP[1], 70, "/m uses one after a respawn restocked it");
+kit.everyone = false;
+CHAT = {};
+CMDS.medkit.func(1);
+check(CHAT[1] and CHAT[1][2]:find("no medkit here", 1, true), "/m without the effect: told so");
+kit.everyone = true;
 
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures > 0 and 1 or 0);

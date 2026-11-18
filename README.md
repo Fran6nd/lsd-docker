@@ -161,7 +161,7 @@ next release.
 |---|---|---|---|
 | gamemodes | `Gamemode` | exactly one runs | ctf, onectf, arena, babel, ffa, hostage |
 | extensions | `Extension` | protocol extensions; the setup also asks what a client lacking one costs | every extension in the [AoS protocol registry](https://github.com/zerospades/aosprotocol): player_properties, damage_markers, teamplay, pie_menu, flashlight, daytime, edit_mode, player_limit, message_types, kick_reason (UTF-8 chat is built into LSd); plus silent_player |
-| effects/player | `PlayerEffect` | change what a player's own actions do; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg |
+| effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit |
 | effects/world | `WorldEffect` | change the map or the match for everybody; same | the_fall |
 | bots | `Bot` | server-side players | guards, battle_bots |
 | tools | `Tool` | everything else | world_editor, votekick, esp_demo, headless, time_limit, ... |
@@ -180,6 +180,26 @@ rail:give(pid, {death = true})                 -- until they die
 rail:give(pid, {map = true})                   -- until the map changes
 rail:take(pid)
 ```
+
+Some effects are set off rather than worn: `area_heal` heals the
+teammates around a player, `area_hurt` damages the enemies around them
+(the kill is theirs), `medkit` gives a player health back. A gamemode
+triggers them when it decides, with its own radius and amount or the
+settings':
+
+```lua
+PlayerEffect.get("area_heal"):trigger(pid, {radius = 10, amount = 30})
+PlayerEffect.get("area_hurt"):trigger(pid, {radius = 6, amount = 40})
+PlayerEffect.get("medkit"):trigger(pid, {free = true})
+```
+
+Heals are dealt as negative damage from the healer, so a player with the
+Damage Markers extension sees them float over each one healed, as damage
+floats over each one hit. On its own -- forced on, no gamemode -- such
+an effect fires by itself every `<id>_every` seconds for each player who
+has it: `area_heal_every = 2` and `area_hurt_every = 2` by default;
+`medkit` stays on `/m` (`medkit_every = 0`). A gamemode driving them
+itself sets `<id>_every = 0`.
 
 The flashlight's presets:
 

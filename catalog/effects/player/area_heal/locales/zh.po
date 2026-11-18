@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: catalog/effects/player/area_heal/area_heal.lua
+msgid "warning: here teammates near each other heal one another."
+msgstr "注意：在这里，彼此靠近的队友会互相治疗。"
+
+#: catalog/effects/player/area_heal/area_heal.lua
+msgid "Stick together: teammates near you heal you over time."
+msgstr "抱团行动：附近的队友会持续为你回血。"
