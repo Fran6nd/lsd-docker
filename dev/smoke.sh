@@ -121,6 +121,46 @@ sleep 3
 wait_up "after remove"
 echo "ok: set, remove"
 
+# a script of the operator's own, on the data volume: installed like any
+# other, translated by its own locales/, and still there after the
+# container is recreated from the image -- which is what an update does
+docker exec -i "$NAME" sh -c 'mkdir -p /data/catalog/tools/hello/locales &&
+	cat > /data/catalog/tools/hello/script.lua &&
+	printf "%s\n" \
+		"local mod = init_mod();" \
+		"local cmd = {name = \"hello\", desc = \"Say hello.\"};" \
+		"function cmd.func(pid)" \
+		"	l10n_send_chat(pid, {en = \"Hello, %(name)!\"}, {name = get_name(pid)});" \
+		"end" \
+		"register_command(cmd, mod);" \
+		"return mod;" > /data/catalog/tools/hello/hello.lua &&
+	printf "%s\n" \
+		"msgid \"\"" "msgstr \"\"" \
+		"\"Content-Type: text/plain; charset=UTF-8\\n\"" \
+		"\"Plural-Forms: nplurals=2; plural=(n > 1);\\n\"" "" \
+		"msgid \"Hello, %(name)!\"" "msgstr \"Bonjour, %(name) !\"" \
+		> /data/catalog/tools/hello/locales/fr.po' \
+	<<'MANIFEST' || fail "write a local script"
+return Tool {title = "Hello", summary = "Says hello.", module = "hello"}
+MANIFEST
+docker exec "$NAME" lsdctl available tools | grep -q "hello .*(yours)" || fail "local script not listed as yours"
+docker exec "$NAME" lsdctl install hello --yes --now >/dev/null || fail "install local script"
+sleep 3
+wait_up "after local script"
+local_ok() {
+	out=$(docker exec "$NAME" lsdctl exec 'exec log("HELLO|" .. tostring(commands.hello ~= nil) .. "|" .. l10n_get_str_lang("fr", {en = "Hello, %(name)!"}, {name = "Al"}) .. "|")')
+	echo "$out" | grep -q "HELLO|true|Bonjour, Al !|"
+}
+local_ok || fail "local script not loaded, or not translated"
+echo "ok: a local script loads, with its translations"
+
+docker rm -f "$NAME" >/dev/null
+docker run -d --name "$NAME" -v "$VOL:/data" "$IMAGE" >/dev/null
+wait_up "after recreating the container"
+local_ok || fail "local script lost when the container was recreated"
+docker exec "$NAME" lsdctl info hello | grep -q "yours: updates keep it" || fail "lsdctl info"
+echo "ok: it survives the container being recreated, as on update"
+
 if docker logs "$NAME" 2>&1 | grep -E 'failed to load|is installed but not in the catalog|stack traceback'; then
 	fail "errors in the server log"
 fi

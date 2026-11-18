@@ -702,6 +702,12 @@ command("gamemode", "gamemode [<id>] [--yes] [--no-restart]",
 		apply(flags);
 	end);
 
+-- An entry from the data volume's catalog: the operator's own, which an
+-- update of the image never touches.
+local function is_local(e)
+	return e.root == DATA .. "/catalog";
+end
+
 local function show_entries(entries, doc, mark_installed)
 	local last;
 	for _, e in ipairs(entries) do
@@ -717,8 +723,9 @@ local function show_entries(entries, doc, mark_installed)
 			end
 		end
 		local presets = e:preset_names();
-		say("  %s %-20s %s%s", mark, e.id, e.summary or "",
-			#presets > 0 and ("  [presets: " .. table.concat(presets, ", ") .. "]") or "");
+		say("  %s %-20s %s%s%s", mark, e.id, e.summary or "",
+			#presets > 0 and ("  [presets: " .. table.concat(presets, ", ") .. "]") or "",
+			is_local(e) and "  (yours)" or "");
 	end
 end
 
@@ -779,6 +786,12 @@ command("info", "info <script>", "what a script is, needs and asks",
 		local doc = open_doc(false);
 		say("%s -- %s", e.id, e:label());
 		say("  kind:      %s%s", e:kind(), e.upstream and " (upstream LSd)" or "");
+		if (is_local(e)) then
+			say("  source:    %s (yours: updates keep it)", e.dir);
+			if (e.replaces ~= nil) then
+				say("  replaces:  the image's %s, at %s", e.id, e.replaces.dir);
+			end
+		end
 		say("  summary:   %s", e.summary or "");
 		say("  modules:   %s", table.concat(e:load_modules(), ", "));
 		local deps = e:dependencies();

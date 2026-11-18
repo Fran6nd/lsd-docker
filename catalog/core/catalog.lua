@@ -512,8 +512,10 @@ function Catalog:_load(path, name, cdef, root, env, reader)
 	entry.root = root;
 
 	-- a later root (the operator's own) replaces an earlier one's entry
-	-- of the same id, which is how a fork of a catalog script is used
+	-- of the same id, which is how a fork of a catalog script is used;
+	-- what it replaced is kept, for lsdctl to say so
 	if (self.entries[entry.id] ~= nil) then
+		entry.replaces = self.entries[entry.id];
 		for i, e in ipairs(self.list) do
 			if (e.id == entry.id) then table.remove(self.list, i); break; end
 		end

@@ -224,9 +224,72 @@ The category decides where the modules load (`phase`), what every entry
 of the kind depends on, and what installing means. An entry for an
 upstream LSd module sets `upstream = true` and ships no files.
 
-Entries in `/data/catalog/<category>/<id>/` work the same way and win
-over the image's own of the same id, which is how a server runs its own
-or a modified script without building an image.
+### Your own scripts
+
+A server runs scripts of your own -- new ones, or your version of one
+of the image's -- without building an image, from its data volume:
+
+| Where | What | Updates |
+|---|---|---|
+| `/data/catalog/<category>/<id>/` | a catalog entry of your own: `script.lua` and its module(s), installed with `lsdctl install` like any other | kept |
+| `/data/scripts/` | loose Lua modules, copied over everything else at start: a patched copy of any module, by file name | kept |
+
+`lsd update` replaces the image and leaves `/data` alone, so both
+survive every update. An entry of yours with the id of one of the
+image's replaces it -- updates included -- until you remove yours.
+
+**Adding one.** Write the entry on your machine, as described above:
+
+```
+hello/
+├── script.lua        return Tool {title = "Hello", summary = "Says hello.", module = "hello"}
+├── hello.lua         the module
+└── locales/fr.po     optional: its translations (see TRANSLATIONS.md)
+```
+
+```lua
+-- hello.lua
+local mod = init_mod();
+local cmd = {name = "hello", desc = "Say hello."};
+function cmd.func(pid)
+	l10n_send_chat(pid, {en = "Hello, %(name)!"}, {name = get_name(pid)});
+end
+register_command(cmd, mod);
+return mod;
+```
+
+Copy it into the server's volume, and install it:
+
+```sh
+docker exec lsd mkdir -p /data/catalog/tools
+docker cp hello lsd:/data/catalog/tools/hello
+lsd available tools        # hello  Says hello.  (yours)
+lsd install hello          # restarts the server with it
+lsd info hello             # source: /data/catalog/tools/hello (yours: updates keep it)
+```
+
+Player and world effects go one level deeper, in
+`/data/catalog/effects/player/<id>/` and `/data/catalog/effects/world/<id>/`.
+
+**Changing it**: `docker cp` the new version over the old one, then
+`lsd restart`. **Removing it**: `lsd remove hello`, then delete the
+directory (`docker exec lsd rm -r /data/catalog/tools/hello`).
+
+**Working on scripts often?** Mount a directory of your machine as the
+catalog instead of copying, when creating the container:
+
+```sh
+docker run -d --name lsd --restart unless-stopped -p 32887:32887/udp \
+    -v lsd-data:/data -v "$PWD/my-scripts:/data/catalog" ghcr.io/fran6nd/lsd-docker
+```
+
+`my-scripts/` then holds `tools/hello/` and the like, edited in place;
+`lsd update` recreates the container with the same mounts.
+
+**Loose modules** in `/data/scripts/` need no manifest: `hello.lua`
+there replaces any `hello.lua` the image ships, for every script that
+loads it. They load only when something loads them, so they are for
+patching, not adding; a new script belongs in `/data/catalog`.
 
 ### Translations
 

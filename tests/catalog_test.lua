@@ -122,6 +122,23 @@ eq(rmods.lib_player_effect, "libs", "and brings lib_player_effect, as a library"
 eq(rmods.lib_shot_detect, "libs", "and its own requirements");
 cat.entries.rail_ctf = nil; table.remove(cat.list);
 
+print("\n3c. an operator's own catalog, as on the data volume");
+local both = C.open({"catalog", "tests/fixtures/local_catalog"}, reader);
+check(#both.errors == 0, "a second root loads", table.concat(both.errors, "; "));
+local hello = both:get("hello");
+check(hello ~= nil and hello.root == "tests/fixtures/local_catalog", "a new entry comes from it");
+check(hello and hello.replaces == nil, "and replaces nothing");
+local vk = both:get("votekick");
+eq(vk and vk.title, "Votekick (ours)", "an entry of the same id wins over the image's");
+eq(vk and vk.replaces and vk.replaces.dir, "catalog/tools/votekick", "and says what it replaced");
+local n = 0;
+for _, e in ipairs(both.list) do if (e.id == "votekick") then n = n + 1; end end
+eq(n, 1, "listed once");
+local lp = both:plan({"hello", "votekick"}, "ctf");
+local mods = {};
+for _, m in ipairs(lp.phases.tools) do mods[m] = true; end
+check(mods.hello and mods.votekick, "both plan to load");
+
 print("\n4. every gamemode, with every listed script, has a load order");
 local all = {};
 for _, e in ipairs(cat.list) do
