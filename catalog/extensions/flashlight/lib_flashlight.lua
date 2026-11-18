@@ -33,6 +33,12 @@
 --   flashlight_get_default()       -> the default beam, or nil when off
 --   flashlight_announce_default()  re-announce it after changing the
 --        flashlight_reach/cone/red/green/blue/flicker globals
+--   flashlight_private(pid, opts)  give them a beam only they see, opts
+--        as flashlight_config's; every other client is told it is
+--        dark, whatever flashlight_visibility says. nil ends it and
+--        they are back to their own beam. Lasts until Player Left.
+--        The nightvision player effect is what this is for.
+--   flashlight_get_private(pid)    -> that beam, or nil
 --   flashlight_listen_request(name, fn) / flashlight_unlisten_request
 --        fn(pid, want) for every light a client asks for. Return false
 --        to refuse it; the spec has a refused request simply not
@@ -288,6 +294,9 @@ end
 -- arriving already lit.
 local lit = pid_connected_table(false);
 local cfg = pid_connected_table();
+-- pid -> a beam drawn by their own client alone (flashlight_private).
+-- Over cfg rather than in it, so ending it gives cfg back untouched.
+local private = pid_connected_table();
 local asked_at = pid_connected_table(0);
 
 -- The blast effect's own state, beside cfg rather than in it: cfg is
@@ -429,7 +438,7 @@ end
 -- weaker: a bulb the server has set flickering does not steady itself
 -- because a grenade went off.
 local function effective(pid, now)
-	local w = cfg[pid] or default_config();
+	local w = private[pid] or cfg[pid] or default_config();
 	local f = shake_flicker(pid, now or get_time());
 
 	if (f > w.flicker) then
@@ -456,6 +465,9 @@ end
 
 -- target's beam as viewer is to draw it.
 local function beam_for(viewer, target, now)
+	if (private[target] ~= nil) then
+		return viewer == target and effective(target, now) or DARK;
+	end
 	if (visible(viewer, target)) then
 		return effective(target, now);
 	end
@@ -469,7 +481,7 @@ local function broadcast_beam(pid, now)
 
 	for i in piditer(PID_BROADCAST) do
 		if (negotiated(i)) then
-			send_config(i, pid, visible(i, pid) and w or DARK);
+			send_config(i, pid, beam_for(i, pid, now));
 		end
 	end
 
@@ -500,8 +512,8 @@ local function send_view(viewer, now)
 		send_config(viewer, DEFAULT_ID, default_config());
 	end
 	for i in piditer(PID_BROADCAST) do
-		if (has_own_beam(i)) then
-			send_config(viewer, i, effective(i, now));
+		if (has_own_beam(i) or private[i] ~= nil) then
+			send_config(viewer, i, beam_for(viewer, i, now));
 		end
 	end
 end
@@ -1031,6 +1043,46 @@ function flashlight_config(pid, opts)
 	return true;
 end
 
+-- A beam pid's own client draws and nobody else's: every other viewer
+-- is sent DARK for them, so their light and its glare are seen by them
+-- alone. Light State still tells everyone the light is on, as the spec
+-- requires; with no reach it lights nothing. nil ends it, and every
+-- viewer gets pid's ordinary beam back -- as a config of their own,
+-- pinned like a shaken one, since the clients now hold one.
+function flashlight_private(pid, opts)
+	if (not sane_pid(pid)) then
+		return false;
+	end
+
+	if (opts == nil) then
+		if (private[pid] == nil) then
+			return true;
+		end
+		private[pid] = nil;
+		if (cfg[pid] == nil) then
+			pinned[pid] = true;
+		end
+	else
+		local color = opts.color or {};
+		private[pid] = to_wire({reach = opts.reach, cone = opts.cone,
+			r = color.r, g = color.g, b = color.b, flicker = opts.flicker});
+	end
+
+	broadcast_beam(pid);
+
+	if (flashlight_debug) then
+		log("lib_flashlight: #%d's beam is %s", pid, private[pid] ~= nil
+			and ("private, " .. describe(private[pid])) or "public again");
+	end
+
+	return true;
+end
+
+function flashlight_get_private(pid)
+	local p = sane_pid(pid) and private[pid] or nil;
+	return p ~= nil and from_wire(p) or nil;
+end
+
 -- The beam every player without one of their own is drawn in, as it
 -- stands in the flashlight_* globals. A copy, like flashlight_get_config.
 function flashlight_get_default()
@@ -1117,6 +1169,7 @@ local EXPORTS = {
 	"flashlight_get", "flashlight_set",
 	"flashlight_get_config", "flashlight_config",
 	"flashlight_get_default", "flashlight_announce_default",
+	"flashlight_private", "flashlight_get_private",
 	"flashlight_listen_request", "flashlight_unlisten_request",
 };
 

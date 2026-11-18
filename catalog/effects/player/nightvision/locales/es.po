@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: es\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: catalog/effects/player/nightvision/nightvision.lua
+msgid "Press F for night vision: a green light only you can see."
+msgstr "Pulsa F para la visión nocturna: una luz verde que solo tú ves."
+
+#: catalog/effects/player/nightvision/nightvision.lua
+msgid "Dark in here? F turns on your night vision, and nobody sees it."
+msgstr "¿Está oscuro? F enciende tu visión nocturna, y nadie la ve."

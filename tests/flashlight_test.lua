@@ -109,5 +109,25 @@ check(config(2, 0) ~= nil and config(2, 0).reach > 0,
 	"and #2 is sent #0's");
 TEAM[2] = 2;
 
+print("\n4. a private beam (night vision) under visibility all");
+setup("all");
+sent = {};
+flashlight_private(0, {reach = 70, cone = 120, color = {r = 40, g = 255, b = 64}});
+check(config(0, 0) ~= nil and config(0, 0).g == 255 and config(0, 0).reach == 70,
+	"its carrier is sent the green beam");
+check(config(1, 0).reach == 0 and config(2, 0).reach == 0,
+	"everybody else is told it is dark");
+sent = {};
+ready(2);
+check(config(2, 0) ~= nil and config(2, 0).reach == 0,
+	"a client negotiating later is told it is dark too");
+check(flashlight_get_private(0).reach == 70, "flashlight_get_private answers it");
+sent = {};
+flashlight_private(0, nil);
+check(config(1, 0) ~= nil and config(1, 0).reach == 60,
+	"ended, the others get the ordinary beam back");
+check(config(0, 0).reach == 60 and flashlight_get_private(0) == nil,
+	"and so does its carrier");
+
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures > 0 and 1 or 0);

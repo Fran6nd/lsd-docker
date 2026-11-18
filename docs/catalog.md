@@ -4,7 +4,7 @@
 |---|---|---|---|
 | gamemodes | `Gamemode` | exactly one runs; every one runs the map's layout (map_layout) | ctf, onectf, arena, babel, ffa, hostage, editor |
 | extensions | `Extension` | protocol extensions; the setup also asks what a client lacking one costs | every extension in the [AoS protocol registry](https://github.com/zerospades/aosprotocol): player_properties, damage_markers, teamplay, pie_menu, flashlight, daytime, edit_mode, player_limit, message_types, kick_reason (UTF-8 chat is built into LSd); plus silent_player |
-| effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit |
+| effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit, nightvision |
 | effects/world | `WorldEffect` | change the map or the match for everybody; same | the_fall |
 | bots | `Bot` | server-side players | guards, battle_bots |
 | tools | `Tool` | everything else | votekick, esp_demo, headless, time_limit, ... |
@@ -43,6 +43,14 @@ an effect fires by itself every `<id>_every` seconds for each player who
 has it: `area_heal_every = 2` and `area_hurt_every = 2` by default;
 `medkit` stays on `/m` (`medkit_every = 0`). A gamemode driving them
 itself sets `<id>_every = 0`.
+
+`nightvision` lets a player who has it light a wide green beam with the F
+key that only their own client draws: every other client is told the
+beam is dark, so neither the light nor its glare gives them away. The
+flashlight extension draws it, so install that too. Players without
+night vision keep the ordinary flashlight, unless `nightvision_only`. A
+gamemode can switch it for them with
+`PlayerEffect.get("nightvision"):trigger(pid, {on = true})`.
 
 The flashlight's presets:
 
