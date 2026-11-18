@@ -7,7 +7,7 @@
 -- whether the server's ray found them or the client's own hit report
 -- did, and never twice for the one shot (see on_hit). "Enemy" means
 -- whoever the shooter was allowed to shoot, which is not always the
--- other team: see hostile().
+-- other team: see PlayerEffect:hostile().
 -- Shots leave a dashed tracer trail of blocks along the trajectory
 -- that are destroyed right after being placed, colored with the
 -- shooter's team color.
@@ -21,8 +21,20 @@
 -- Knowing that a shot happened at all is lib_shot_detect's job, not this one's
 -- -- it is the same problem the shotgun script has, and it is harder
 -- than it looks. Load lib_shot_detect before this.
-local mod = init_mod();
 require "lib_bulk_destroy";
+
+-- One railgun shot per bullet, whoever worked out that there was one.
+-- rig_range and the rest still apply; all that has moved out is the
+-- question of when. `shoot` is defined below, once the rail is.
+local shoot;
+
+local fx = PlayerEffect {
+	gun = PlayerEffect.GUN_RIFLE,
+	warning = "here rifles are railguns.",
+	tip = "Spicy: rifles are railguns -- they pierce the whole map and leave a tracer.",
+	on_shot = function(pid) shoot(pid); end,
+};
+local mod = fx.mod;
 
 getcfg("rig_range", 727);      -- max bullet travel: the map's space
                                -- diagonal, ceil sqrt(512^2+512^2+64^2)
@@ -36,13 +48,6 @@ getcfg("rig_trail_range", rig_range); -- how far the dashes reach (whole map)
 getcfg("rig_trail_life", 6);   -- ticks a dash stays up before destroy
                                -- (~100ms at 60Hz, to ride out jitter)
 
--- HitType as the client reports it (apidoc/src/get_defaults:13-20), and
--- the tool and gun this script is about
-local HIT_HEAD = 1;
-local HIT_SPADE = 4;
-local TOOL_GUN = 2;
-local GUN_RIFLE = 0;
-
 -- trail voxels waiting to be destroyed. one tick (~17ms at 60Hz) is
 -- shorter than a client's render frame, so a build and its destroy
 -- coalesce into the same frame and the dash never draws -- keep each
@@ -54,27 +59,6 @@ local pending = {};
 
 local function sign1(num)
 	return num < 0 and -1 or 1;
-end
-
--- Whom a rail may take. Not the team comparison it looks like, and that
--- is the whole point of asking through here: the_fall keeps bots in the
--- shaft that are on a real team server-side while every client is told
--- they are the enemy, so half of them read as the shooter's own
--- teammates. Comparing raw teams here meant a rail that visibly went
--- through one of them left it standing -- the hit fell out of both paths
--- below, down to the_fall's own damage rule, and did an ordinary rifle's
--- 49. Every other shot killed. That is what "sometimes it doesn't kill"
--- was.
---
--- Read live rather than captured on load: the_fall registers this after
--- us (config.lua loads the weapons first), and it is nil for good on an
--- instance not running it -- where nobody is disguised and the raw teams
--- really are the answer.
-local function hostile(shooter, target)
-	if (fall_is_hostile ~= nil) then
-		return fall_is_hostile(shooter, target);
-	end
-	return get_team(shooter) ~= get_team(target);
 end
 
 -- Everyone the current shot has already taken. Two sources decide who
@@ -110,7 +94,7 @@ end
 -- passes within rig_hit_radius of any sample
 local function rail_kill(pid, start, dir)
 	for i in piditer(PID_BROADCAST_EXCEPT(pid)) do
-		if (is_alive(i) and hostile(pid, i)) then
+		if (is_alive(i) and fx:hostile(pid, i)) then
 			local p = get_position(i);
 
 			for k=0,8 do
@@ -134,7 +118,7 @@ local function rail_kill(pid, start, dir)
 	end
 end
 
-local function shoot(pid)
+function shoot(pid)
 	local start = get_position(pid);
 	local dir = get_orientation(pid);
 	local team = get_team(pid);
@@ -203,10 +187,6 @@ local function shoot(pid)
 	bdestroy_finish();
 end
 
-function mod.after.on_join(pid)
-	server_msg(pid, "warning: here rifles are railguns.");
-end
-
 -- THE SECOND SOURCE. The server's ray is not the only word on who the
 -- rail went through, and it is not even the better-informed one. The
 -- client ran its own hit detection against the positions it had at the
@@ -234,13 +214,12 @@ end
 -- spade hits, anyone the shooter may not hurt, and anyone not holding a
 -- rifle.
 function mod.on_hit(pid, type, hitPlayer)
-	if (type ~= HIT_SPADE and is_alive(pid)
-	    and get_tool(pid) == TOOL_GUN and get_gun(pid) == GUN_RIFLE
-	    and hostile(pid, hitPlayer)) then
+	if (type ~= PlayerEffect.HIT_SPADE and fx:holding(pid)
+	    and fx:hostile(pid, hitPlayer)) then
 		-- a headshot stays a headshot in the feed; everything else the
 		-- rail does is a gun kill
 		rail_take(pid, hitPlayer, get_position(pid),
-			type == HIT_HEAD and 1 or 0);
+			type == PlayerEffect.HIT_HEAD and 1 or 0);
 		return;
 	end
 
@@ -261,55 +240,6 @@ function mod.tick()
 		for _,p in ipairs(table.remove(pending, 1)) do
 			send_block_action(PID_BROADCAST, p, 1, get_anon_pid());
 		end
-	end
-end
-
--- Advertise ourselves, rather than leaving it to whoever writes the
--- config. The script that changes a weapon is the thing that knows what
--- changed, so an instance gets the line by loading the script, and the
--- claim cannot drift from the code making it. tip_spam reads `tips` live
--- every tick, so appending is the whole of it; `tips` is nil on an
--- instance not running tip_spam, hence the guard. Taken out again on
--- unload, and taken out before being put in, so a reload leaves one.
-local TIP = "Spicy: rifles are railguns -- they pierce the whole map and leave a tracer.";
-
-local function untip()
-	if (tips == nil) then
-		return;
-	end
-	for i = #tips, 1, -1 do
-		if (tips[i] == TIP) then
-			table.remove(tips, i);
-		end
-	end
-end
-
--- One railgun shot per bullet, whoever worked out that there was one.
--- rig_range and the rest still apply; all that has moved out is the
--- question of when.
-function mod.on_load()
-	untip();
-	if (tips ~= nil) then
-		tips[#tips+1] = TIP;
-	end
-
-	if (shot_listen == nil) then
-		error("rifle_is_a_rail_gun needs lib_shot_detect loaded first "
-			.."(its script pulls lib_shot_detect in; check with: lsdctl status)", 0);
-	end
-
-	shot_listen("rifle_is_a_rail_gun", function(pid, gun)
-		if (gun == 0) then
-			shoot(pid);
-		end
-	end);
-end
-
-function mod.on_unload()
-	untip();
-
-	if (shot_unlisten ~= nil) then
-		shot_unlisten("rifle_is_a_rail_gun");
 	end
 end
 
