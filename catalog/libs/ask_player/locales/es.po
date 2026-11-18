@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: es\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: catalog/libs/ask_player/lib_ask_player.lua
+msgid "answer with /answer <number>"
+msgstr "responde con /answer <number>"
+
+#: catalog/libs/ask_player/lib_ask_player.lua
+msgid "That is not one of the answers."
+msgstr "Esa no es una de las respuestas."
+
+#: catalog/libs/ask_player/lib_ask_player.lua
+msgid "Nobody has asked you anything."
+msgstr "Nadie te ha preguntado nada."
+
+#: catalog/libs/ask_player/lib_ask_player.lua
+msgctxt "command"
+msgid "Answer the question the server has asked you."
+msgstr "Responder a la pregunta que te ha hecho el servidor."

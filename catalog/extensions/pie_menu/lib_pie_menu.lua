@@ -34,6 +34,13 @@
 --        first free one, else a new pie of the same theme after it; a
 --        pie not there is created. See REGISTERED SLICES
 --   pie_menu_remove(name)         take a contribution back out
+--   pie_menu_override(pid, pies)  show ONE player these pies, and only
+--        these, instead of the whole menu (a pie or a list, as
+--        pie_menu_add takes them); nil puts the menu back. For a script
+--        that needs the player's answer now (lib_ask_player): their
+--        menu is re-sent when it is set or cleared, it is cleared when
+--        they disconnect, and it applies in pie_menu_mode "server".
+--        Raises on a pie that could not be sent.
 --
 -- A COMMAND PUTS ITSELF IN THE MENU by carrying a pie field when it
 -- registers -- one slice, or a list:
@@ -886,6 +893,9 @@ local function place(pies, items)
 	return out;
 end
 
+-- pid -> the pies that player is shown instead of all_pies(), normalised
+local overrides = pid_connected_table();
+
 -- Every pie on offer, in order: by `order`, then in the order added,
 -- with the base pies at PIE_MENU_BASE_ORDER; then every registered
 -- slice placed, by `order`, then as registered.
@@ -1040,7 +1050,7 @@ local function build(pid, had)
 		return not pie_menu_hide_unavailable or command_ok(pid, s.text);
 	end
 
-	local pies = P.resolve(all_pies(), locale_of(pid), fallback_lang(),
+	local pies = P.resolve(overrides[pid] or all_pies(), locale_of(pid), fallback_lang(),
 		keep, pick);
 
 	-- Nothing to offer. A client that has never had a Menu of ours keeps
@@ -1118,6 +1128,11 @@ function mod.after.l10n_lang_changed(pid)
 	if (last ~= nil and last.lang ~= locale_of(pid)) then
 		send_menu(pid, true);
 	end
+end
+
+-- A leaver's override must not meet the next player in the slot.
+function mod.after.on_disconnect(pid)
+	overrides[pid] = nil;
 end
 
 --============================= INTAKE ===============================--
@@ -1251,6 +1266,31 @@ function pie_menu_remove(name)
 	return true;
 end
 
+-- One player's menu replaced by these pies, or given back (nil). Sent
+-- at once, so the player sees the change and not at the next refresh.
+function pie_menu_override(pid, pies)
+	if (pies == nil) then
+		overrides[pid] = nil;
+	else
+		if (type(pies) ~= "table") then
+			error("pie_menu_override: pies must be a pie or a list of pies", 2);
+		end
+		if (pies.slices ~= nil) then
+			pies = {pies};
+		end
+		local norm = {};
+		for i, v in ipairs(pies) do
+			local ok, pie = pcall(P.normalize_pie, v, "override pie " .. i);
+			if (not ok) then
+				error("pie_menu_override: " .. tostring(pie), 2);
+			end
+			norm[i] = pie;
+		end
+		overrides[pid] = norm;
+	end
+	return send_menu(pid, false);
+end
+
 function pie_menu_refresh(pid)
 	if (pid ~= nil) then
 		return send_menu(pid, false);
@@ -1307,7 +1347,7 @@ end
 -- send commands the server still has.
 local EXPORTS = {
 	"pie_menu_supported", "pie_menu_add", "pie_menu_slice", "pie_menu_remove",
-	"pie_menu_refresh", "pie_menu_build", "PIE_MENU_BASE_ORDER",
+	"pie_menu_refresh", "pie_menu_build", "pie_menu_override", "PIE_MENU_BASE_ORDER",
 };
 
 function mod.on_unload()
@@ -1321,6 +1361,7 @@ function mod.on_unload()
 
 	contributions = {};
 	registered = {};
+	overrides = pid_connected_table();
 
 	for _,name in ipairs(EXPORTS) do
 		_G[name] = nil;

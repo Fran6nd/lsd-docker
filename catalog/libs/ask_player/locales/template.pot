@@ -1,0 +1,23 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/libs/ask_player/lib_ask_player.lua
+msgid "answer with /answer <number>"
+msgstr ""
+
+#: catalog/libs/ask_player/lib_ask_player.lua
+msgid "That is not one of the answers."
+msgstr ""
+
+#: catalog/libs/ask_player/lib_ask_player.lua
+msgid "Nobody has asked you anything."
+msgstr ""
+
+#: catalog/libs/ask_player/lib_ask_player.lua
+msgctxt "command"
+msgid "Answer the question the server has asked you."
+msgstr ""

@@ -468,9 +468,35 @@ check(t["Thanks!"] == nil, "instead of the built-in menu");
 eq(string.byte(menu_to(0), 3), 2, "both good pies sent, the bad one skipped");
 check(t["/pingmark %h Attack"] == nil, "its /pingmark slices blanked without Teamplay");
 
+-- a per-player override
+mod = setup();
+commands.answer = {name = "answer"};
+ready(0);
+sent = {};
+pie_menu_override(0, {theme = "Ask?", when = "any", slices = {"/answer yes", "/answer no"}});
+local ob = menu_to(0);
+check(ob ~= nil and client_parse(ob) ~= nil, "an override re-sends the menu at once");
+local op = client_parse(ob);
+check(#op == 1 and op[1].theme == "Ask?" and op[1].contexts == P.ALL_CONTEXTS,
+	"and it is the only pie, in every context");
+check(pie_menu_build(0) == ob, "pie_menu_build gives the same");
+check(pie_menu_build(1) ~= ob, "another player keeps the normal menu");
+sent = {};
+pie_menu_refresh();
+check(#sent == 0, "a refresh keeps it");
+check(not pcall(pie_menu_override, 0, {when = "sky", slices = {{text = "\1"}}}),
+	"an override that could not be sent raises");
+sent = {};
+pie_menu_override(0, nil);
+check(menu_to(0) ~= nil and #client_parse(menu_to(0)) > 1,
+	"cleared, the normal menu is re-sent");
+pie_menu_override(0, {theme = "Ask?", when = "any", slices = {"/answer yes"}});
+mod.after.on_disconnect(0);
+check(pie_menu_build(0) ~= ob, "a disconnect clears it");
+
 -- unloading takes the API with it
 mod.on_unload();
-check(pie_menu_add == nil and pie_menu_supported == nil, "unload clears every global");
+check(pie_menu_add == nil and pie_menu_supported == nil and pie_menu_override == nil, "unload clears every global");
 
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures > 0 and 1 or 0);

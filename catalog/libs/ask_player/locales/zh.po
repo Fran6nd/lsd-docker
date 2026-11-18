@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: catalog/libs/ask_player/lib_ask_player.lua
+msgid "answer with /answer <number>"
+msgstr "用 /answer <编号> 作答"
+
+#: catalog/libs/ask_player/lib_ask_player.lua
+msgid "That is not one of the answers."
+msgstr "这不是可选的答案之一。"
+
+#: catalog/libs/ask_player/lib_ask_player.lua
+msgid "Nobody has asked you anything."
+msgstr "没有人向你提问。"
+
+#: catalog/libs/ask_player/lib_ask_player.lua
+msgctxt "command"
+msgid "Answer the question the server has asked you."
+msgstr "回答服务器向你提出的问题。"
