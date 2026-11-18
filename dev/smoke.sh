@@ -253,6 +253,31 @@ echo "$note" | grep -q "NOTE|lsd-docker 2999.1.1.1 is available" || fail "notice
 docker exec "$NAME" rm /data/rw/update-check
 echo "ok: update check, status and the admins' notice"
 
+# play: a casual game on a throwaway container. Offline here: a map that
+# cannot be had leaves the generated one. Nobody joins, so with play_wait
+# cut to a second it ends by itself -- and Docker takes the container
+# and its volume with it.
+PLAY=lsd-play-$$
+docker run --rm -d --name "$PLAY" "$IMAGE" play ctf nowhere:1 >/dev/null || fail "start play"
+i=0
+until docker exec "$PLAY" lsdctl status 2>/dev/null | grep -q 'server: *running'; do
+	i=$((i + 1)); [ $i -lt 60 ] || { docker logs "$PLAY" | tail -20 >&2; fail "play did not come up"; }
+	sleep 2
+done
+docker logs "$PLAY" 2>&1 | grep -q "playing a generated one" || fail "play did not fall back to a generated map"
+pv=$(docker inspect -f '{{range .Mounts}}{{.Name}}{{end}}' "$PLAY")
+state=$(docker exec "$PLAY" lsdctl exec 'exec log("PLAY|" .. tostring(play_mode) .. "|" .. tostring(masterlist_enabled) .. "|")')
+echo "$state" | grep -q "PLAY|true|false|" || fail "play mode: $state"
+# the server ends at once on this, taking the exec with it
+docker exec "$PLAY" lsdctl exec 'exec play_wait = 1' >/dev/null 2>&1 || true
+i=0
+while docker container inspect "$PLAY" >/dev/null 2>&1; do
+	i=$((i + 1)); [ $i -lt 30 ] || { docker rm -f "$PLAY" >/dev/null; fail "play did not end by itself"; }
+	sleep 1
+done
+[ -n "$pv" ] && docker volume inspect "$pv" >/dev/null 2>&1 && fail "play left its volume behind"
+echo "ok: play runs a game unlisted and ends by itself, leaving nothing behind"
+
 if docker logs "$NAME" 2>&1 | grep -E 'failed to load|is installed but not in the catalog|stack traceback'; then
 	fail "errors in the server log"
 fi

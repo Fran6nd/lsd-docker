@@ -115,10 +115,45 @@ serve() {
 	done
 }
 
+# A casual game on a throwaway container (docker run --rm, see play.sh):
+# lsdctl play sets it up -- the game, the map, unlisted -- then the
+# server runs once, without the restart loop, so when it ends the
+# container ends and Docker removes it with its volume. lib_play ends it
+# when the last player leaves. The terminal shows who comes and goes;
+# the whole log stays in the container, and goes with it.
+play() {
+	cd "$HOME_DIR"
+	prepare_data
+	su-exec lsd lsdctl init >/dev/null
+	su-exec lsd lsdctl play "$@" || exit $?
+	assemble_scripts
+	chown -R lsd:lsd scripts
+
+	log=/tmp/server.log
+	: > "$log"
+	tail -n 0 -f "$log" | grep -E 'joined as|disconnected|lib_play:' &
+	watcher=$!
+	su-exec lsd ./server -c config.lua -p "$(su-exec lsd lsdctl get port)" >"$log" 2>&1 &
+	child=$!
+	trap 'kill -TERM "$child" 2>/dev/null' TERM INT
+	rc=0
+	while kill -0 "$child" 2>/dev/null; do
+		wait "$child" || rc=$?
+	done
+	sleep 1
+	kill "$watcher" 2>/dev/null || true
+	echo "game over"
+	exit "$rc"
+}
+
 cmd=${1:-serve}
 case "$cmd" in
 serve)
 	serve
+	;;
+play)
+	shift
+	play "$@"
 	;;
 update|selfupdate)
 	shift

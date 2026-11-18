@@ -1203,7 +1203,9 @@ local function public_address()
 end
 
 local function print_addresses(doc)
-	local port = tostring(doc:get("port") or 32887);
+	-- the port players use: the host's, when it publishes the server's
+	-- on another one (play.sh picks a free one)
+	local port = os.getenv("LSD_HOST_PORT") or tostring(doc:get("port") or 32887);
 	local listed = doc:get("masterlist_enabled") ~= false;
 
 	say("Players connect with:");
@@ -1228,6 +1230,86 @@ local function print_addresses(doc)
 		say("   -e LSD_HOST_ADDRESSES=\"<host LAN IP>\", as install.sh does)");
 	end
 end
+
+--================================ PLAY ==============================--
+-- A casual game: `play` in the entrypoint runs this on a throwaway
+-- container (docker run --rm, nothing kept), then the server once.
+-- lib_play stops it when the last player leaves.
+
+-- Maps for "random", per game: well-known aos.party maps, each checked
+-- to download as a real map. Babel builds its platform on any map, so
+-- these are just the ones made for it.
+local PLAY_MAPS = {
+	ctf = {
+		{id = 589, name = "Hallway"}, {id = 772, name = "Normandie"},
+		{id = 732, name = "Mesa"}, {id = 1030, name = "Trenches"},
+		{id = 872, name = "Rocket Island"}, {id = 600, name = "Hiesville"},
+		{id = 820, name = "Pinpoint"}, {id = 320, name = "Crossfire"},
+	},
+	babel = {
+		{id = 1208, name = "Ha Long Babel"}, {id = 1211, name = "Island Babel"},
+		{id = 1219, name = "Matrix Babel"}, {id = 1233, name = "Nine-Eye Babel"},
+		{id = 1180, name = "Babelpocalypse"},
+	},
+};
+
+command("play", "play [ctf|babel] [random|<page|url|source:id>]",
+	"set up a casual game on a fresh container (the entrypoint's play runs it)",
+	function(args)
+		local words = parse_args(args, {});
+		local ui = make_ui(false);
+		local doc = open_doc(true);
+
+		local mode = words[1];
+		if (mode == nil) then
+			mode = ui:choose("Game", {
+				{value = "ctf", label = "ctf", hint = "capture the flag"},
+				{value = "babel", label = "babel", hint = "build a tower to the enemy's flag"},
+			}, "ctf");
+		end
+		if (PLAY_MAPS[mode] == nil) then
+			die("play: ctf or babel, not %s", tostring(mode));
+		end
+
+		local want = words[2];
+		if (want == nil) then
+			want = ui:ask({key = "map", type = "string",
+				ask = "Map: random, or an aos.party link or id"}, "random");
+		end
+		if (string.match(want, "^%d+$")) then
+			want = "aos.party:" .. want;
+		end
+
+		choose_gamemode(doc, mode, make_ui(true), {});
+		doc:set("masterlist_enabled", false);
+		doc:set("play_mode", true);
+
+		-- the map: the one asked for, or a random one of the list; a map
+		-- that cannot be had leaves the generated one, said plainly
+		local sources = map_sources(doc);
+		local line, err;
+		if (want == "random") then
+			math.randomseed(os.time());
+			local pick = PLAY_MAPS[mode][math.random(#PLAY_MAPS[mode])];
+			say("map: %s (random)", pick.name);
+			line, err = add_map("aos.party:" .. pick.id, sources);
+		else
+			line, err = add_map(want, sources);
+		end
+		if (line ~= nil) then
+			say("%s", line);
+			local name = string.match(line, "^added ([^ ]+)%.vxl");
+			doc:set("map_rotation", name);
+		else
+			say("could not get the map (%s): playing a generated one", tostring(err));
+		end
+
+		doc:save();
+		say("");
+		print_addresses(doc);
+		say("");
+		say("It stops by itself when the last player leaves. Ctrl-C stops it now.");
+	end);
 
 command("address", "address", "the aos:// addresses players connect with",
 	function()

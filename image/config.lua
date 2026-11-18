@@ -195,6 +195,12 @@ load "motd"
 load "tip_spam"
 -- tells admins, as they log in, of a newer lsd-docker image
 load "lib_update_notice"
+-- a casual game set up by `play`: it ends when its players have gone
+getcfg("play_mode", false,
+	"Set by play: the server stops when its last player leaves.")
+if (play_mode == true) then
+	load "lib_play"
+end
 
 --============================== SCRIPTS =============================--
 
