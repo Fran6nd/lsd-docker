@@ -8,6 +8,7 @@
 | effects/world | `WorldEffect` | change the map or the match for everybody; same | the_fall |
 | bots | `Bot` | server-side players | guards, battle_bots |
 | tools | `Tool` | everything else | votekick, rewards, esp_demo, headless, time_limit, ... |
+| demos | `Demo` | set a server up to show something off, not to run for good | demo_reward (every reward free and unlimited) |
 | libs | `Library` | what the others need; installed with them, not listed | ext, ext_policy, bot, shot_detect, player_effect, map_layout, callouts, blast, babel_protect, ask_player |
 
 A player effect forced on in setup is everybody's (`<id>_everyone = true`).

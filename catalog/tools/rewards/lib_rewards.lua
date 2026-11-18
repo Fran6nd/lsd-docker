@@ -61,6 +61,9 @@ getcfg("rewards_menu", {
 		label = {en = "Night vision"}},
 }, "What reward points buy: a list of {effect, cost, label, secs | charges | trigger, death, night}.");
 
+getcfg("rewards_free", false,
+	"Every reward free and unlimited, for trying them out (demos).");
+
 local MAX_WEDGES = 6;
 
 local points = pid_connected_table(0);
@@ -115,7 +118,7 @@ local function offered(e)
 end
 
 local function affordable(e, pid)
-	return offered(e) and points[pid] >= tonumber(e.cost);
+	return offered(e) and (rewards_free or points[pid] >= tonumber(e.cost));
 end
 
 --============================== EARNING =============================--
@@ -206,12 +209,14 @@ local function spend(pid, e, pos)
 		l10n_send_chat(pid, dead_msg);
 	elseif (e.night and not is_night()) then
 		l10n_send_chat(pid, night_msg, {what = what});
-	elseif (points[pid] < tonumber(e.cost)) then
+	elseif (not rewards_free and points[pid] < tonumber(e.cost)) then
 		l10n_send_chat(pid, poor_msg, {what = what, cost = e.cost, points = points[pid]});
 	elseif (not give(pid, e, fx, pos)) then
 		l10n_send_chat(pid, failed_msg, {what = what});
 	else
-		points[pid] = points[pid] - tonumber(e.cost);
+		if (not rewards_free) then
+			points[pid] = points[pid] - tonumber(e.cost);
+		end
 		l10n_send_chat(pid, got_msg, {what = what, points = points[pid]});
 		refresh(pid);
 	end

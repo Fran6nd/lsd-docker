@@ -44,6 +44,8 @@
 --   |  +- WorldEffect     changes the map or the match for everybody
 --   +- Bot                server-side players; needs the bot library
 --   +- Tool               everything else an operator adds
+--   +- Demo               a tool that sets a server up to show something
+--                         off (demos/: demo_reward)
 --
 -- THE SETTINGS FILE is where installed state lives. `scripts` lists the
 -- installed scripts, `gamemode` names the one that runs, and each
@@ -118,7 +120,7 @@ local SPEC = {
 function Script:new(spec)
 	if (rawget(self, "category") == nil and self.category == nil) then
 		error("abstract class: use Library, Extension, Gamemode, "
-			.. "PlayerEffect, WorldEffect, Bot or Tool", 2);
+			.. "PlayerEffect, WorldEffect, Bot, Tool or Demo", 2);
 	end
 
 	for k, v in pairs(spec) do
@@ -442,6 +444,13 @@ C.Tool = Script:extend({
 	phase = "tools",
 });
 
+-- A demo is a tool that sets a server up to show something off -- every
+-- reward free, say -- not one to run for good. It loads where tools do.
+C.Demo = Script:extend({
+	category = "demo",
+	phase = "tools",
+});
+
 -- Directory name -> class, which is also the order `available` shows.
 C.CATEGORIES = {
 	{dir = "gamemodes", class = C.Gamemode, title = "Gamemodes"},
@@ -450,6 +459,8 @@ C.CATEGORIES = {
 	{dir = "effects/world", class = C.WorldEffect, title = "World effects"},
 	{dir = "bots", class = C.Bot, title = "Bots"},
 	{dir = "tools", class = C.Tool, title = "Tools"},
+	-- tools that set a server up to show something off, not to run for good
+	{dir = "demos", class = C.Demo, title = "Demos"},
 	{dir = "libs", class = C.Library, title = "Libraries"},
 };
 
