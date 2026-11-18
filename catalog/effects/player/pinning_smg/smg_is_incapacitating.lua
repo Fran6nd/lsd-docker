@@ -46,13 +46,28 @@
 -- the two are not arguing; they only arrive about once a second anyway
 -- (apidoc/src/event:88), which is why the correction has to be sent
 -- rather than merely believed.
-local mod = init_mod();
 
--- Which gun this is about, and what a full one holds
--- (main.c:763,769 -- 30 rounds, 120 in reserve).
-local GUN_SMG = 1;
-local TOOL_GUN = 2;
-local HIT_SPADE = 4;
+-- pid -> {at=<where they were pinned>, until_=<when it lapses>}. A
+-- spawn table, so a respawn frees whoever was held: the man who comes
+-- back is not the man who was pinned.
+local frozen = pid_spawn_table();
+
+local fx = PlayerEffect {
+	gun = PlayerEffect.GUN_SMG,
+	warning = "here the smg pins what it hits and never reloads.",
+	tip = "Spicy: the SMG pins whoever it hits where they stand, and never reloads.",
+	-- a pin is only maintained from the tick below, so unloading frees
+	-- everybody by itself -- but the table is cleared anyway rather than
+	-- left holding names nothing will ever look at again
+	unload = function()
+		for i in piditer(PID_BROADCAST) do
+			frozen[i] = nil;
+		end
+	end,
+};
+local mod = fx.mod;
+
+-- What a full SMG holds (main.c:763,769 -- 30 rounds, 120 in reserve).
 local SMG_MAG = 30;
 local SMG_RESERVE = 120;
 
@@ -68,11 +83,6 @@ getcfg("smg_freeze_slip", 4);
 -- reload animation, and it is the round before that which keeps the gun
 -- speaking. Higher costs more packets -- one per refill, not per shot.
 getcfg("smg_refill_at", 10);
-
--- pid -> {at=<where they were pinned>, until_=<when it lapses>}. A
--- spawn table, so a respawn frees whoever was held: the man who comes
--- back is not the man who was pinned.
-local frozen = pid_spawn_table();
 
 --============================= THE PIN ==============================--
 
@@ -144,7 +154,7 @@ function mod.after.tick()
 		-- the magazine. Guarded on the gun rather than on what is in
 		-- hand: ammunition belongs to the gun, so a man who has switched
 		-- to his spade mid-fight comes back to a full one.
-		if (is_alive(pid) and get_gun(pid) == GUN_SMG) then
+		if (is_alive(pid) and get_gun(pid) == fx.gun) then
 			refill(pid);
 		end
 
@@ -176,72 +186,15 @@ end
 -- An after-hook: the damage is the engine's to do, and this only adds to
 -- it. It also means a hit that something earlier in the chain threw away
 -- -- dd.lua drops shots that come too fast -- never gets here, so a
--- refused bullet pins nobody.
--- Whom a burst may pin. the_fall's shaft bots are on a real team
--- server-side while every client is told they are the enemy, so half of
--- them read as the shooter's own teammates and comparing raw teams here
--- meant those never got pinned -- the same mistake the railgun was
--- making, and it reads in game as "the smg doesn't hold these ones".
--- Read live: the_fall registers this after us, and it is nil on an
--- instance without it, where the raw teams are the answer.
-local function hostile(shooter, target)
-	if (fall_is_hostile ~= nil) then
-		return fall_is_hostile(shooter, target);
-	end
-	return get_team(shooter) ~= get_team(target);
-end
-
+-- refused bullet pins nobody. Whom a burst may pin is fx:hostile's
+-- answer, not the raw teams -- the_fall's disguised bots must pin too.
 function mod.after.on_hit(pid, type, hitPlayer)
-	if (type == HIT_SPADE or not is_alive(pid) or not is_alive(hitPlayer)
-	    or get_tool(pid) ~= TOOL_GUN or get_gun(pid) ~= GUN_SMG
-	    or not hostile(pid, hitPlayer)) then
+	if (type == PlayerEffect.HIT_SPADE or not fx:holding(pid)
+	    or not is_alive(hitPlayer) or not fx:hostile(pid, hitPlayer)) then
 		return;
 	end
 
 	pin(hitPlayer, smg_freeze_secs);
-end
-
-function mod.after.on_join(pid)
-	server_msg(pid, "warning: here the smg pins what it hits and never reloads.");
-end
-
--- Advertise ourselves, rather than leaving it to whoever writes the
--- config. The script that changes a weapon is the thing that knows what
--- changed, so an instance gets the line by loading the script, and the
--- claim cannot drift from the code making it. tip_spam reads `tips` live
--- every tick, so appending is the whole of it; `tips` is nil on an
--- instance not running tip_spam, hence the guard. Taken out again on
--- unload, and taken out before being put in, so a reload leaves one.
-local TIP = "Spicy: the SMG pins whoever it hits where they stand, and never reloads.";
-
-local function untip()
-	if (tips == nil) then
-		return;
-	end
-	for i = #tips, 1, -1 do
-		if (tips[i] == TIP) then
-			table.remove(tips, i);
-		end
-	end
-end
-
-function mod.on_load()
-	untip();
-	if (tips ~= nil) then
-		tips[#tips+1] = TIP;
-	end
-
-end
-
-function mod.on_unload()
-	untip();
-
-	-- a pin is only maintained from the tick above, so unloading frees
-	-- everybody by itself -- but the table is cleared anyway rather than
-	-- left holding names nothing will ever look at again
-	for i in piditer(PID_BROADCAST) do
-		frozen[i] = nil;
-	end
 end
 
 return mod;
