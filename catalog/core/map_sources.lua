@@ -11,15 +11,20 @@
 --    vxl  = "https://aos.party/download/%(id)/vxl",  -- the map
 --    txt  = "https://aos.party/download/%(id)/txt"}  -- its metadata
 --
--- aos.party is built in; an operator adds more in the settings, as
+-- aos.party and hosting.dgd.cx are built in -- the second names a map by
+-- its file name, not a number, and is where a map is looked for when
+-- aos.party is down -- and an operator adds more in the settings, as
 -- `map_sources = [{name: ..., view: ..., vxl: ..., txt: ...}]`. `txt`
--- may be left out, for a site without metadata.
+-- may be left out, for a site without metadata. An id may hold spaces
+-- ("Rocket Island"): it is URL-encoded into the address.
 --
 -- WHAT MAY BE PASTED, and what it becomes (M.resolve):
 --
 --   https://aos.party/view/864          a source's page   -> vxl + txt
 --   https://aos.party/download/864/vxl  a source's map    -> vxl + txt
 --   aos.party:864                       name:id           -> vxl + txt
+--   https://hosting.dgd.cx/map-search?map=Normandie       -> vxl + txt
+--   hosting.dgd.cx:Rocket Island        an id with spaces -> vxl + txt
 --   https://example.org/maps/Foo.vxl    any other URL     -> that file
 --   /path/to/Foo.vxl                    a local file      -> that file
 --
@@ -33,6 +38,10 @@ M.BUILTIN = {
 	 view = "https://aos.party/view/%(id)",
 	 vxl = "https://aos.party/download/%(id)/vxl",
 	 txt = "https://aos.party/download/%(id)/txt"},
+	{name = "hosting.dgd.cx",
+	 view = "https://hosting.dgd.cx/map-search?map=%(id)",
+	 vxl = "https://hosting.dgd.cx/all_maps/allmaps/%(id).vxl",
+	 txt = "https://hosting.dgd.cx/all_maps/allmaps/%(id).txt"},
 };
 
 -- The smallest a real .vxl can be: 512x512 columns, each at least a
@@ -65,15 +74,31 @@ function M.sources(extra)
 	return out, bad;
 end
 
-local function fill(template, id)
-	return (string.gsub(template, "%%%(id%)", id));
+-- %XX escapes undone, and done: an id is kept plain, and encoded only
+-- where it goes into an address.
+local function unescape(s)
+	return (string.gsub(s, "%%(%x%x)", function(h) return string.char(tonumber(h, 16)); end));
 end
+local function escape(s)
+	return (string.gsub(s, "[^%w_.~-]", function(c) return string.format("%%%02X", string.byte(c)); end));
+end
+M.unescape = unescape;
+
+local function fill(template, id)
+	local e = escape(id);
+	return (string.gsub(template, "%%%(id%)", function() return e; end));
+end
+
+-- What an id may be: letters, digits, dash, underscore, dot -- and a
+-- space, written as one or as %20.
+local ID = "[%w_. -]+";
+local ID_IN_URL = "[%w_.%%-]+";
 
 -- A template as a pattern capturing the id: "%(id)" matches what an id
 -- can be, everything else literally.
 local function pattern(template)
 	local p = string.gsub(template, "[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0");
-	p = string.gsub(p, "%%%%%%%(id%%%)", "([%%w_-]+)");
+	p = string.gsub(p, "%%%%%%%(id%%%)", "(" .. string.gsub(ID_IN_URL, "%%", "%%%%") .. ")");
 	return "^" .. p .. "/?$";
 end
 
@@ -96,7 +121,7 @@ function M.resolve(input, sources)
 
 	for _, s in ipairs(sources) do
 		-- name:id
-		local id = string.match(input, "^" .. string.gsub(s.name, "%p", "%%%0") .. ":([%w_-]+)$");
+		local id = string.match(input, "^" .. string.gsub(s.name, "%p", "%%%0") .. ":(" .. ID .. ")$");
 		if (id ~= nil) then
 			return downloads(s, id);
 		end
@@ -105,7 +130,7 @@ function M.resolve(input, sources)
 			if (type(s[key]) == "string") then
 				id = string.match(input, pattern(s[key]));
 				if (id ~= nil) then
-					return downloads(s, id);
+					return downloads(s, unescape(id));
 				end
 			end
 		end
@@ -114,7 +139,7 @@ function M.resolve(input, sources)
 	if (string.match(input, "^https?://")) then
 		return {{url = input, kind = "any"}};
 	end
-	if (string.match(input, "^[%w_.-]+:[%w_-]+$")) then
+	if (string.match(input, "^[%w_.-]+:" .. ID .. "$")) then
 		return nil, "no map source called " .. string.match(input, "^([^:]+)");
 	end
 	return {{file = input}};
@@ -145,7 +170,7 @@ function M.safe_name(name)
 	if (type(name) ~= "string") then
 		return nil, "no name";
 	end
-	name = string.match(name, "([^/\\]+)$") or "";
+	name = string.match(unescape(name), "([^/\\]+)$") or "";
 	name = string.gsub(name, "[^%w%._-]", "_");
 	if (name == "" or string.sub(name, 1, 1) == ".") then
 		return nil, "no usable name";

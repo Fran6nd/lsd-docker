@@ -35,7 +35,7 @@ print("\n2. other sources");
 local extra = {{name = "maps.example", view = "https://maps.example/m/%(id)",
 	vxl = "https://maps.example/get/%(id).vxl"}};
 local S2, bad = M.sources(extra);
-eq(#S2, 2, "the operator's source joins the built-in one");
+eq(#S2, #M.BUILTIN + 1, "the operator's source joins the built-in ones");
 eq(#bad, 0, "and is well formed");
 local r = M.resolve("https://maps.example/m/castle-2", S2);
 eq(r and r[1].url, "https://maps.example/get/castle-2.vxl", "a page of another source");
@@ -45,7 +45,7 @@ eq(M.resolve("maps.example:castle-2", S2)[1].url, "https://maps.example/get/cast
 local _, bad2 = M.sources({{name = "broken", vxl = "https://x/no-id"}});
 eq(#bad2, 1, "a source without %(id) in its vxl is refused");
 local S3 = M.sources({{name = "aos.party", vxl = "https://mirror.example/%(id).vxl"}});
-eq(#S3, 1, "a source of the same name replaces the built-in");
+eq(#S3, #M.BUILTIN, "a source of the same name replaces the built-in");
 eq(M.resolve("aos.party:7", S3)[1].url, "https://mirror.example/7.vxl", "and is used");
 
 print("\n3. anything else");
@@ -68,6 +68,20 @@ check(M.safe_name("vxl") == nil, "a name without .vxl is refused");
 check(M.looks_like_vxl("\0>>\0", M.MIN_VXL), "a map's start, big enough");
 check(not M.looks_like_vxl("<!DOCTYPE html>", 3000000), "an HTML page is refused");
 check(not M.looks_like_vxl("\0>>\0", 1000), "too small is refused");
+
+print("\n3. hosting.dgd.cx: maps by file name, spaces and all");
+local S = M.sources();
+local p = M.resolve("hosting.dgd.cx:Normandie", S);
+eq(p and p[1].url, "https://hosting.dgd.cx/all_maps/allmaps/Normandie.vxl", "name:id, the map");
+eq(p and p[2].url, "https://hosting.dgd.cx/all_maps/allmaps/Normandie.txt", "and its .txt");
+p = M.resolve("hosting.dgd.cx:Rocket Island", S);
+eq(p and p[1].url, "https://hosting.dgd.cx/all_maps/allmaps/Rocket%20Island.vxl", "a space is URL-encoded");
+p = M.resolve("https://hosting.dgd.cx/map-search?map=Rocket%20Island", S);
+eq(p and p[1].url, "https://hosting.dgd.cx/all_maps/allmaps/Rocket%20Island.vxl", "its map page, pasted");
+p = M.resolve("https://hosting.dgd.cx/all_maps/allmaps/Ha%20Long%20Babel.vxl", S);
+eq(p and p[2] and p[2].url, "https://hosting.dgd.cx/all_maps/allmaps/Ha%20Long%20Babel.txt", "its download, pasted: the .txt comes too");
+eq(M.safe_name("Rocket%20Island.vxl"), "Rocket_Island.vxl", "an encoded name makes a plain file name");
+eq((M.resolve("aos.party:864", S))[1].url, "https://aos.party/download/864/vxl", "aos.party unchanged");
 
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures > 0 and 1 or 0);

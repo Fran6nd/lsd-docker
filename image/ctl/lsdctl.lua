@@ -1254,16 +1254,24 @@ end
 -- to download as a real map. Babel builds its platform on any map, so
 -- these are just the ones made for it.
 local PLAY_MAPS = {
+	-- id: aos.party's number; dgd: the same map's name on
+	-- hosting.dgd.cx, where it is fetched when aos.party fails
 	ctf = {
-		{id = 589, name = "Hallway"}, {id = 772, name = "Normandie"},
-		{id = 732, name = "Mesa"}, {id = 1030, name = "Trenches"},
-		{id = 872, name = "Rocket Island"}, {id = 600, name = "Hiesville"},
-		{id = 820, name = "Pinpoint"}, {id = 320, name = "Crossfire"},
+		{id = 589, dgd = "hallway", name = "Hallway"},
+		{id = 772, dgd = "Normandie", name = "Normandie"},
+		{id = 732, dgd = "Mesa", name = "Mesa"},
+		{id = 1030, dgd = "Trenches", name = "Trenches"},
+		{id = 872, dgd = "rocketisland", name = "Rocket Island"},
+		{id = 600, dgd = "Hiesville", name = "Hiesville"},
+		{id = 820, dgd = "Pinpoint", name = "Pinpoint"},
+		{id = 320, dgd = "crossfire", name = "Crossfire"},
 	},
 	babel = {
-		{id = 1208, name = "Ha Long Babel"}, {id = 1211, name = "Island Babel"},
-		{id = 1219, name = "Matrix Babel"}, {id = 1233, name = "Nine-Eye Babel"},
-		{id = 1180, name = "Babelpocalypse"},
+		{id = 1208, dgd = "Ha Long Babel", name = "Ha Long Babel"},
+		{id = 1211, dgd = "IslandBabel", name = "Island Babel"},
+		{id = 1219, dgd = "Matrix Babel", name = "Matrix Babel"},
+		{id = 1233, dgd = "Nine-Eye Babel", name = "Nine-Eye Babel"},
+		{id = 1180, dgd = "Babelpocalypse", name = "Babelpocalypse"},
 	},
 };
 -- team deathmatch plays on ctf's maps: two bases, a field between
@@ -1303,37 +1311,65 @@ local function ask_game_and_map(ui, mode, want, default)
 	return mode, want;
 end
 
+-- One listed map, from each source in turn: aos.party, then the same
+-- map on hosting.dgd.cx. The line add_map says, or nil and why.
+local function fetch_listed(m, sources)
+	local tries = {"aos.party:" .. m.id};
+	if (m.dgd ~= nil) then
+		tries[#tries+1] = "hosting.dgd.cx:" .. m.dgd;
+	end
+	local why;
+	for _, src in ipairs(tries) do
+		local line, err = add_map(src, sources);
+		if (line ~= nil) then
+			return line;
+		end
+		say("could not get %s from %s (%s)", m.name, string.match(src, "^[^:]+"), tostring(err));
+		why = err;
+	end
+	return nil, why;
+end
+
 -- Set the game up in doc and get its map(s). "random" is one map of the
--- game's list for a single game (play), or the whole list in a random
--- order for a server that keeps going (opts.rotation). A map that
--- cannot be had is said and skipped; with none at all, what is already
--- here plays (the generated flat one, at worst).
+-- game's list for a single game (play) -- and if it cannot be had from
+-- any source, the next of the list in a random order, until one can --
+-- or the whole list in a random order for a server that keeps going
+-- (opts.rotation). A map that cannot be had is said and skipped; with
+-- none at all, what is already here plays (the generated flat one, at
+-- worst).
 local function set_game_and_map(doc, mode, want, opts)
 	choose_gamemode(doc, mode, make_ui(true), {});
 
 	local sources = map_sources(doc);
-	local picks = {};
-	if (want ~= "random") then
-		picks[1] = {source = want};
-	elseif (opts.rotation) then
-		for _, m in ipairs(PLAY_MAPS[mode]) do
-			picks[#picks+1] = {source = "aos.party:" .. m.id, name = m.name};
-		end
-	else
-		math.randomseed(os.time());
-		local m = PLAY_MAPS[mode][math.random(#PLAY_MAPS[mode])];
-		say("map: %s (random)", m.name);
-		picks[1] = {source = "aos.party:" .. m.id, name = m.name};
+	local names = {};
+	local function got(line)
+		say("%s", line);
+		names[#names+1] = string.match(line, "^added ([^ ]+)%.vxl");
 	end
 
-	local names = {};
-	for _, p in ipairs(picks) do
-		local line, err = add_map(p.source, sources);
-		if (line ~= nil) then
-			say("%s", line);
-			names[#names+1] = string.match(line, "^added ([^ ]+)%.vxl");
-		else
-			say("could not get %s (%s)", p.name or p.source, tostring(err));
+	if (want ~= "random") then
+		local line, err = add_map(want, sources);
+		if (line ~= nil) then got(line); else say("could not get %s (%s)", want, tostring(err)); end
+	else
+		-- the list in a random order
+		math.randomseed(os.time());
+		local order = {};
+		for i, m in ipairs(PLAY_MAPS[mode]) do order[i] = m; end
+		for i = #order, 2, -1 do
+			local j = math.random(i);
+			order[i], order[j] = order[j], order[i];
+		end
+		for _, m in ipairs(order) do
+			if (not opts.rotation) then
+				say("map: %s (random)", m.name);
+			end
+			local line = fetch_listed(m, sources);
+			if (line ~= nil) then
+				got(line);
+				if (not opts.rotation) then
+					break; -- one is all a single game needs
+				end
+			end
 		end
 	end
 
