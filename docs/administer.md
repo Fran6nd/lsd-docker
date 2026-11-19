@@ -68,8 +68,11 @@ too (`lsdctl map add https://aos.party/download/864/vxl`), and so does
 its map page (`https://hosting.dgd.cx/map-search?map=Normandie`), or write
 `hosting.dgd.cx:Normandie` -- the map's file name, spaces and all
 (`hosting.dgd.cx:Rocket Island`). A random map, in `play` and the quick
-setup, comes from aos.party, else the same map from hosting.dgd.cx, else
-the next map of the list.
+setup, is picked from what the sites have: a source at random, its maps
+for the game (babel maps for babel, capture-the-flag maps for the rest),
+one of those at random -- and another, or the other source, when one
+fails. A source says how to list its maps in its own entry
+(`catalog/core/map_sources.lua`, `list`), so one of yours can too.
 Other sites that publish maps by id can be added beside them:
 
 ```

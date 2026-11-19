@@ -28,6 +28,20 @@
 --   https://example.org/maps/Foo.vxl    any other URL     -> that file
 --   /path/to/Foo.vxl                    a local file      -> that file
 --
+-- LISTING. A source may also say how to list its maps, for a random
+-- pick: `list`, a request (url, and method/body for a POST), filled in
+-- with %(query) and %(mode) from the kind of game asked for -- "ctf"
+-- (ctf, tdm, the bots modes: two bases, a field between) or "babel" --
+-- and `ids`, a Lua pattern capturing a map's id from the answer:
+--
+--   list = {url = "https://aos.party/?q=%(query)",
+--           ids = 'href="/view/(%d+)"',
+--           kinds = {ctf = {query = ""}, babel = {query = "babel"}}}
+--
+-- M.list_request(source, kind) builds the request, M.list_ids(source,
+-- text) reads the ids out of what came back. No map is named here: the
+-- sites say what they have.
+--
 -- A download's name comes from the server's Content-Disposition when it
 -- sends one (aos.party's /download/864/vxl is Remus.vxl), else from the
 -- URL; either way it is checked (M.safe_name) before it names a file.
@@ -37,11 +51,22 @@ M.BUILTIN = {
 	{name = "aos.party",
 	 view = "https://aos.party/view/%(id)",
 	 vxl = "https://aos.party/download/%(id)/vxl",
-	 txt = "https://aos.party/download/%(id)/txt"},
+	 txt = "https://aos.party/download/%(id)/txt",
+	 -- its search page; with no query, its newest maps
+	 list = {url = "https://aos.party/?q=%(query)",
+	         ids = 'href="/view/(%d+)"',
+	         kinds = {ctf = {query = ""}, babel = {query = "babel"}}}},
 	{name = "hosting.dgd.cx",
 	 view = "https://hosting.dgd.cx/map-search?map=%(id)",
 	 vxl = "https://hosting.dgd.cx/all_maps/allmaps/%(id).vxl",
-	 txt = "https://hosting.dgd.cx/all_maps/allmaps/%(id).txt"},
+	 txt = "https://hosting.dgd.cx/all_maps/allmaps/%(id).txt",
+	 -- its search API, every match in one answer; the maps it keeps
+	 -- elsewhere ("Hosting/...") are left out by the pattern
+	 list = {url = "https://hosting.dgd.cx/api/search_maps_detailed", method = "POST",
+	         content_type = "application/json",
+	         body = '{"query":"%(query)","game_mode":"%(mode)","page":0}',
+	         ids = '"file_name":"([^"/]+)%.vxl"',
+	         kinds = {ctf = {query = "", mode = "CTF"}, babel = {query = "babel", mode = ""}}}},
 };
 
 -- The smallest a real .vxl can be: 512x512 columns, each at least a
@@ -143,6 +168,41 @@ function M.resolve(input, sources)
 		return nil, "no map source called " .. string.match(input, "^([^:]+)");
 	end
 	return {{file = input}};
+end
+
+-- The request listing a source's maps for a kind of game ("ctf",
+-- "babel"): {url=, method=, body=, content_type=}, or nil when the
+-- source cannot list, or not that kind.
+function M.list_request(s, kind)
+	local l = type(s) == "table" and s.list;
+	local k = type(l) == "table" and type(l.kinds) == "table" and l.kinds[kind];
+	if (type(k) ~= "table" or type(l.url) ~= "string" or type(l.ids) ~= "string") then
+		return nil;
+	end
+	local function fill_in(t, enc)
+		return (string.gsub(t, "%%%((%w+)%)", function(key)
+			local v = tostring(k[key] or "");
+			return enc and escape(v) or (string.gsub(v, '["\\]', ""));
+		end));
+	end
+	return {url = fill_in(l.url, true), method = l.method or "GET",
+		body = l.body and fill_in(l.body, false), content_type = l.content_type};
+end
+
+-- The map ids in a listing's answer, each once, in order.
+function M.list_ids(s, text)
+	local out, seen = {}, {};
+	if (type(text) ~= "string" or type(s.list) ~= "table") then
+		return out;
+	end
+	for id in string.gmatch(text, s.list.ids) do
+		id = unescape(id);
+		if (not seen[id] and string.match(id, "^" .. ID .. "$")) then
+			seen[id] = true;
+			out[#out+1] = id;
+		end
+	end
+	return out;
 end
 
 -- The filename a Content-Disposition header gives, or nil.

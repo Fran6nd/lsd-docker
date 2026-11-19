@@ -1250,44 +1250,24 @@ end
 -- container (docker run --rm, nothing kept), then the server once.
 -- lib_play stops it when the last player leaves.
 
--- Maps for "random", per game: well-known aos.party maps, each checked
--- to download as a real map. Babel builds its platform on any map, so
--- these are just the ones made for it.
-local PLAY_MAPS = {
-	-- id: aos.party's number; dgd: the same map's name on
-	-- hosting.dgd.cx, where it is fetched when aos.party fails
-	ctf = {
-		{id = 589, dgd = "hallway", name = "Hallway"},
-		{id = 772, dgd = "Normandie", name = "Normandie"},
-		{id = 732, dgd = "Mesa", name = "Mesa"},
-		{id = 1030, dgd = "Trenches", name = "Trenches"},
-		{id = 872, dgd = "rocketisland", name = "Rocket Island"},
-		{id = 600, dgd = "Hiesville", name = "Hiesville"},
-		{id = 820, dgd = "Pinpoint", name = "Pinpoint"},
-		{id = 320, dgd = "crossfire", name = "Crossfire"},
-	},
-	babel = {
-		{id = 1208, dgd = "Ha Long Babel", name = "Ha Long Babel"},
-		{id = 1211, dgd = "IslandBabel", name = "Island Babel"},
-		{id = 1219, dgd = "Matrix Babel", name = "Matrix Babel"},
-		{id = 1233, dgd = "Nine-Eye Babel", name = "Nine-Eye Babel"},
-		{id = 1180, dgd = "Babelpocalypse", name = "Babelpocalypse"},
-	},
-};
--- team deathmatch plays on ctf's maps: two bases, a field between
-PLAY_MAPS.tdm = PLAY_MAPS.ctf;
-PLAY_MAPS.bots = PLAY_MAPS.ctf;
-PLAY_MAPS.bots_rewards = PLAY_MAPS.ctf;
-
 -- The games the short questions offer, the first the default. None of
 -- them holds a client back: bots by night only recommends Daytime.
+-- `maps` is the kind of map a random pick asks the map sources for
+-- (map_sources.lua, list): "ctf" -- two bases, a field between -- or
+-- "babel".
 local GAMES = {
-	{value = "tdm", label = "tdm", hint = "team deathmatch: every kill scores"},
-	{value = "ctf", label = "ctf", hint = "capture the flag"},
-	{value = "bots", label = "bots", hint = "team deathmatch with bots, day and night"},
-	{value = "bots_rewards", label = "bots_rewards", hint = "bots, with every reward free and unlimited"},
-	{value = "babel", label = "babel", hint = "build a tower to the enemy's flag"},
+	{value = "tdm", label = "tdm", hint = "team deathmatch: every kill scores", maps = "ctf"},
+	{value = "ctf", label = "ctf", hint = "capture the flag", maps = "ctf"},
+	{value = "bots", label = "bots", hint = "team deathmatch with bots, day and night", maps = "ctf"},
+	{value = "bots_rewards", label = "bots_rewards", hint = "bots, with every reward free and unlimited", maps = "ctf"},
+	{value = "babel", label = "babel", hint = "build a tower to the enemy's flag", maps = "babel"},
 };
+
+local function game(mode)
+	for _, g in ipairs(GAMES) do
+		if (g.value == mode) then return g; end
+	end
+end
 
 -- The game and the map, from the words given or asked: shared by play
 -- and the quick setup. Returns the gamemode id and the map wanted:
@@ -1296,14 +1276,14 @@ local function ask_game_and_map(ui, mode, want, default)
 	if (mode == nil) then
 		mode = ui:choose("Game", GAMES, default or GAMES[1].value);
 	end
-	if (PLAY_MAPS[mode] == nil) then
+	if (game(mode) == nil) then
 		local ids = {};
 		for _, g in ipairs(GAMES) do ids[#ids+1] = g.value; end
 		die("the game is one of %s, not %s", table.concat(ids, ", "), tostring(mode));
 	end
 	if (want == nil) then
 		want = ui:ask({key = "map", type = "string",
-			ask = "Map: random, or an aos.party link or id"}, "random");
+			ask = "Map: random, or a link or source:id (aos.party, hosting.dgd.cx)"}, "random");
 	end
 	if (string.match(want, "^%d+$")) then
 		want = "aos.party:" .. want;
@@ -1311,32 +1291,74 @@ local function ask_game_and_map(ui, mode, want, default)
 	return mode, want;
 end
 
--- One listed map, from each source in turn: aos.party, then the same
--- map on hosting.dgd.cx. The line add_map says, or nil and why.
-local function fetch_listed(m, sources)
-	local tries = {"aos.party:" .. m.id};
-	if (m.dgd ~= nil) then
-		tries[#tries+1] = "hosting.dgd.cx:" .. m.dgd;
-	end
-	local why;
-	for _, src in ipairs(tries) do
-		local line, err = add_map(src, sources);
-		if (line ~= nil) then
-			return line;
+-- What a source's listing answers: the text, or nil. A short timeout:
+-- a site that is down must not hold the game up.
+local function http_text(req)
+	local cmd = "curl -fsSL --proto '=http,https' --max-time 20";
+	if (req.method == "POST") then
+		cmd = cmd .. " -X POST";
+		if (req.content_type) then
+			cmd = cmd .. " -H " .. sh_quote("Content-Type: " .. req.content_type);
 		end
-		say("could not get %s from %s (%s)", m.name, string.match(src, "^[^:]+"), tostring(err));
-		why = err;
+		cmd = cmd .. " --data " .. sh_quote(req.body or "");
 	end
-	return nil, why;
+	local f = io.popen(cmd .. " " .. sh_quote(req.url) .. " 2>/dev/null");
+	if (f == nil) then return nil; end
+	local text = f:read("*a");
+	local ok = f:close();
+	return (ok and text ~= "") and text or nil;
 end
 
--- Set the game up in doc and get its map(s). "random" is one map of the
--- game's list for a single game (play) -- and if it cannot be had from
--- any source, the next of the list in a random order, until one can --
--- or the whole list in a random order for a server that keeps going
--- (opts.rotation). A map that cannot be had is said and skipped; with
--- none at all, what is already here plays (the generated flat one, at
--- worst).
+local function shuffled(t)
+	local out = {};
+	for i, v in ipairs(t) do out[i] = v; end
+	for i = #out, 2, -1 do
+		local j = math.random(i);
+		out[i], out[j] = out[j], out[i];
+	end
+	return out;
+end
+
+-- Up to `want` random maps of a kind ("ctf", "babel"), downloaded: the
+-- sources that can list, in a random order; from each, its maps of
+-- that kind in a random order, until enough have come down. A source
+-- that does not answer, or a map that does not download, is said and
+-- passed over -- MAX_TRIES downloads in all, so a bad day ends.
+local MAX_TRIES = 8;
+local function random_maps(kind, sources, want, got)
+	local tries, n = 0, 0;
+	for _, s in ipairs(shuffled(sources)) do
+		local req = MS.list_request(s, kind);
+		if (req ~= nil) then
+			local ids = MS.list_ids(s, http_text(req));
+			if (#ids == 0) then
+				say("%s lists no %s maps right now", s.name, kind);
+			end
+			for _, id in ipairs(shuffled(ids)) do
+				if (n >= want or tries >= MAX_TRIES) then return n; end
+				tries = tries + 1;
+				local line, err = add_map(s.name .. ":" .. id, sources);
+				if (line ~= nil) then
+					n = n + 1;
+					got(line);
+				else
+					say("could not get %s:%s (%s)", s.name, id, tostring(err));
+				end
+			end
+		end
+	end
+	return n;
+end
+
+-- How many maps a rotation set up by `random` holds.
+local ROTATION = 6;
+
+-- Set the game up in doc and get its map(s). "random" is a map picked
+-- at random from what the map sources list for the game (random_maps),
+-- one for a single game (play), ROTATION of them in a random order for
+-- a server that keeps going (opts.rotation). A map that cannot be had is
+-- said and skipped; with none at all, what is already here plays (the
+-- generated flat one, at worst).
 local function set_game_and_map(doc, mode, want, opts)
 	choose_gamemode(doc, mode, make_ui(true), {});
 
@@ -1351,26 +1373,9 @@ local function set_game_and_map(doc, mode, want, opts)
 		local line, err = add_map(want, sources);
 		if (line ~= nil) then got(line); else say("could not get %s (%s)", want, tostring(err)); end
 	else
-		-- the list in a random order
 		math.randomseed(os.time());
-		local order = {};
-		for i, m in ipairs(PLAY_MAPS[mode]) do order[i] = m; end
-		for i = #order, 2, -1 do
-			local j = math.random(i);
-			order[i], order[j] = order[j], order[i];
-		end
-		for _, m in ipairs(order) do
-			if (not opts.rotation) then
-				say("map: %s (random)", m.name);
-			end
-			local line = fetch_listed(m, sources);
-			if (line ~= nil) then
-				got(line);
-				if (not opts.rotation) then
-					break; -- one is all a single game needs
-				end
-			end
-		end
+		local g = game(mode);
+		random_maps(g and g.maps or "ctf", sources, opts.rotation and ROTATION or 1, got);
 	end
 
 	if (#names > 0) then
@@ -1784,7 +1789,7 @@ local function quick_setup(doc, ui, existing, flags)
 
 	local now = doc:get("gamemode");
 	local mode, want = ask_game_and_map(ui, nil, nil,
-		PLAY_MAPS[now or ""] and now or nil);
+		game(now or "") and now or nil);
 	if (not existing) then
 		install_ids(doc, default_scripts(), make_ui(true), {});
 	end

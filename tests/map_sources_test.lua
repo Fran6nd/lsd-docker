@@ -83,5 +83,24 @@ eq(p and p[2] and p[2].url, "https://hosting.dgd.cx/all_maps/allmaps/Ha%20Long%2
 eq(M.safe_name("Rocket%20Island.vxl"), "Rocket_Island.vxl", "an encoded name makes a plain file name");
 eq((M.resolve("aos.party:864", S))[1].url, "https://aos.party/download/864/vxl", "aos.party unchanged");
 
+print("\n4. listing a source's maps for a random pick");
+local aos, dgd;
+for _, src in ipairs(S) do
+	if (src.name == "aos.party") then aos = src; elseif (src.name == "hosting.dgd.cx") then dgd = src; end
+end
+local r = M.list_request(dgd, "ctf");
+eq(r and r.method, "POST", "hosting.dgd.cx lists by its search API");
+eq(r and r.body, '{"query":"","game_mode":"CTF","page":0}', "ctf maps: its CTF mode");
+eq(M.list_request(dgd, "babel").body, '{"query":"babel","game_mode":"","page":0}', "babel maps: by name");
+eq(M.list_request(aos, "babel").url, "https://aos.party/?q=babel", "aos.party by its search page");
+eq(M.list_request(aos, "parkour"), nil, "a kind a source does not list: nothing to ask");
+eq(M.list_request({name = "x", vxl = "https://x/%(id)"}, "ctf"), nil, "a source that cannot list: nothing to ask");
+local ids = M.list_ids(dgd, '{"maps":[{"file_name":"Normandie.vxl"},{"file_name":"Rocket Island.vxl"},'
+	.. '{"file_name":"Hosting/Babel/maps/x.vxl"},{"file_name":"Normandie.vxl"}]}');
+eq(table.concat(ids, "|"), "Normandie|Rocket Island", "its ids, each once, the maps kept elsewhere left out");
+ids = M.list_ids(aos, '<a href="/view/864">x</a><a href="/view/12">y</a><a href="/view/864">z</a>');
+eq(table.concat(ids, "|"), "864|12", "aos.party's map ids from its page");
+eq(#M.list_ids(dgd, nil), 0, "no answer: no ids");
+
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures > 0 and 1 or 0);
