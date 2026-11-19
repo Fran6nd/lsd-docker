@@ -52,6 +52,10 @@ local MIN_DROP = 4;   -- a dive needs at least this much height to be one
 -- crosshair: up, then over, then down onto it. The phase is kept on the
 -- blast: once diving it stays diving.
 local function waypoint(b, launch, t)
+	-- fired from the top level (or near it): nowhere higher to go
+	if (launch.z - TOP < MIN_DROP) then
+		return t;
+	end
 	local cruise = math.max(TOP, math.min(launch.z, t.z) - (tonumber(missile_loft) or 0));
 	if (b.diving or t.z - cruise < MIN_DROP) then
 		return t; -- diving, or no room above: straight at it

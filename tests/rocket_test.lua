@@ -39,6 +39,8 @@ end
 -- gives the air voxel before the hit, false the solid one hit (measured
 -- on a live server; the grenade shotgun relies on it too)
 function raycast(a, b, last)
+	-- and, as the server does, nothing at all from a start above the map
+	if (a.z < 0) then return nil; end
 	local before;
 	for i = 0, 400 do
 		local t = i / 400;
@@ -401,6 +403,24 @@ ORI[0] = {x = 0.99, y = 0, z = 0.1};
 local tb = mis:trigger(0, {});
 check(tb.guide(tb) ~= nil and tb.vox.z >= 3, "at the top of the map: no climb, it flies straight at the crosshair");
 GROUND = 50;
+blast_clear();
+
+print("\n6b''. from the top level (the eye above the map, z < 0)");
+reset();
+WALL_X = 400;
+POS[0] = {x = 100.5, y = 50.5, z = -1.25};
+do local dx, dz = 40, 51; local l = math.sqrt(dx*dx + dz*dz); ORI[0] = {x = dx / l, y = 0, z = dz / l}; end
+local top = blast_aim(0);
+check(top and top.z >= 50, "the aim is found, though the eye is above the map", top and (top.x .. "," .. top.z));
+ORI[0] = {x = 1, y = 0, z = 0};
+check(blast_aim(0) == nil, "aimed level from up there: nothing to hit");
+do local dx, dz = 40, 51; local l = math.sqrt(dx*dx + dz*dz); ORI[0] = {x = dx / l, y = 0, z = dz / l}; end
+local zb = mis:trigger(0, {});
+local zg = zb.guide(zb);
+check(zg and math.abs(zg.x - top.x) < 1e-6 and math.abs(zg.z - top.z) < 1e-6,
+	"the missile goes straight for it: no room to climb");
+for _ = 1, 200 do ticks(1); if (zb.done) then break; end end
+check(zb.done and craters > 0 and math.abs(zb.vox.x - top.x) <= 2, "and lands on it", zb.vox.x);
 blast_clear();
 
 print("\n6c. the grenade launcher: a real grenade, fused to go off where it lands");

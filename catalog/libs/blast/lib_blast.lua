@@ -257,6 +257,21 @@ function mod.impl.blast_aim(pid, range)
 		return nil;
 	end
 	range = tonumber(range) or AIM_RANGE;
+	-- Standing on the top level, the eye is above the map (z < 0), and a
+	-- raycast that starts out there finds nothing, whatever it points at:
+	-- start it where the aim comes into the map. Aimed up or level from
+	-- up there, there is nothing to hit.
+	if (from.z < 0) then
+		if (d.z <= 0.001) then
+			return nil;
+		end
+		local k = -from.z / d.z;
+		from = {x = from.x + d.x * k, y = from.y + d.y * k, z = 0};
+		range = range - k;
+		if (range <= 0) then
+			return nil;
+		end
+	end
 	-- `false`: the solid block hit. LSd's apidoc has the two the other
 	-- way round; the server answers `true` with the air voxel BEFORE the
 	-- hit (as the grenade shotgun relies on), which would aim a missile
