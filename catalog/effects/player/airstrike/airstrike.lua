@@ -76,7 +76,10 @@ local function warn_near(pos)
 end
 
 function strike(pid, opts)
-	local pos = opts.pos or aimed(pid);
+	-- a player under the crosshair first (%h only lands on blocks): the
+	-- bombs come down where they stand
+	local a = aimed(pid);
+	local pos = (a ~= nil and a.pid ~= nil) and a or opts.pos or a;
 	if (pos == nil) then
 		l10n_send_chat(pid, no_target_msg);
 		return nil;

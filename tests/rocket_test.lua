@@ -346,6 +346,46 @@ hurt = nil;
 for _, d in ipairs(dmg) do if (d.pid == 1) then hurt = d; end end
 check(hurt ~= nil and hurt.n > 0, "an explosion handed a point inside a block still reaches the man on top", hurt and hurt.n);
 
+print("\n5g. the aim sees players, not only blocks");
+reset();
+WALL_X = 130;
+POS[0] = {x = 100.5, y = 50.5, z = 30.5};
+ORI[0] = {x = 1, y = 0, z = 0};
+POS[1] = {x = 110.5, y = 50.5, z = 29.5};   -- in front of the wall, on the line
+local pa = blast_aim(0);
+check(pa and pa.pid == 1 and math.abs(pa.x - 110.5) < 1e-6, "a player on the aim line, before the wall, is the target", pa and pa.x);
+check(pa and pa.z >= 29.5 and pa.z <= 31.75, "the point is on his body");
+POS[1] = {x = 110.5, y = 53.5, z = 29.5};   -- three blocks to the side
+pa = blast_aim(0);
+check(pa and pa.pid == nil and math.floor(pa.x) == 130, "off the line: the wall");
+POS[1] = {x = 140.5, y = 50.5, z = 29.5};   -- behind the wall
+pa = blast_aim(0);
+check(pa and pa.pid == nil and math.floor(pa.x) == 130, "behind the wall: the wall");
+POS[1] = {x = 120.5, y = 50.5, z = 29.5}; POS[2] = {x = 110.5, y = 50.5, z = 29.8};
+pa = blast_aim(0);
+check(pa and pa.pid == 2, "two on the line: the nearer");
+POS[2] = {x = 300, y = 310, z = 30};
+ALIVE[1] = false;
+check(blast_aim(0).pid == nil, "a dead one is not a target");
+ALIVE[1] = true;
+POS[1] = {x = 110.5, y = 50.5, z = 29.5};
+-- a rocket fired from the pie at a block goes for the player under the crosshair
+local seen2;
+local rf = blast_fire;
+blast_fire = function(o, pos, dir, opts) seen2 = dir; return rf(o, pos, dir, opts); end
+local rk = dofile("catalog/effects/player/rocket/rocket.lua"); rk.on_load();
+PlayerEffect.get("rocket"):trigger(0, {pos = {x = 100.5, y = 80.5, z = 30.5}});
+check(seen2 and seen2.x > 0.9, "the rocket goes for the player under the crosshair, not the pie's block point",
+	seen2 and (seen2.x .. "," .. seen2.y));
+blast_fire = rf;
+blast_clear();
+-- top of the map, aiming level at a player up there
+reset();
+POS[0] = {x = 100.5, y = 50.5, z = -1.25}; POS[1] = {x = 115.5, y = 50.5, z = -1.25};
+ORI[0] = {x = 1, y = 0, z = 0};
+pa = blast_aim(0);
+check(pa and pa.pid == 1, "on the top level, a player aimed at level is found too");
+
 print("\n6. the rocket effect: charges, one a shot, a gap between");
 reset();
 WALL_X = 400;

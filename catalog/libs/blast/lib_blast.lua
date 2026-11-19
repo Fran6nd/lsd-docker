@@ -265,6 +265,37 @@ end
 
 local AIM_RANGE = 400;
 
+-- A player body, as aimed at: the eye down to the feet (2.25 below,
+-- z growing downward), and AIM_BODY blocks around that line -- a little
+-- more than the hitbox, since aiming a blast is not aiming a rifle.
+local AIM_BODY = 1.0;
+local BODY_DOWN = 2.25;
+
+-- The nearest living player but `pid` whose body the ray from `eye` along
+-- `d` passes through, nearer than `limit`: their pid and the point on
+-- their body the ray is closest to. The raycast sees blocks only.
+local function player_on_ray(pid, eye, d, limit)
+	local best, bt, bpt = nil, limit, nil;
+	for i in piditer(PID_BROADCAST) do
+		if (i ~= pid and is_alive(i)) then
+			local e = get_position(i);
+			-- where the ray passes nearest the body's middle
+			local cx, cy, cz = e.x, e.y, e.z + BODY_DOWN / 2;
+			local t = (cx - eye.x) * d.x + (cy - eye.y) * d.y + (cz - eye.z) * d.z;
+			if (t > 0 and t < bt) then
+				local qx, qy, qz = eye.x + d.x * t, eye.y + d.y * t, eye.z + d.z * t;
+				local hx, hy = qx - cx, qy - cy;
+				if (hx*hx + hy*hy <= AIM_BODY * AIM_BODY
+				    and qz >= e.z - AIM_BODY / 2 and qz <= e.z + BODY_DOWN + AIM_BODY / 2) then
+					best, bt = i, t;
+					bpt = {x = cx, y = cy, z = math.max(e.z, math.min(e.z + BODY_DOWN - 0.5, qz))};
+				end
+			end
+		end
+	end
+	return best, bpt;
+end
+
 function mod.impl.blast_aim(pid, range)
 	local from = get_position(pid);
 	local d = get_orientation(pid);
@@ -272,31 +303,44 @@ function mod.impl.blast_aim(pid, range)
 		return nil;
 	end
 	range = tonumber(range) or AIM_RANGE;
+	local eye = from;
+	local reach = range;
 	-- Standing on the top level, the eye is above the map (z < 0), and a
 	-- raycast that starts out there finds nothing, whatever it points at:
 	-- start it where the aim comes into the map. Aimed up or level from
-	-- up there, there is nothing to hit.
+	-- up there, there is no block to hit -- but there may be a player.
+	local cast = true;
 	if (from.z < 0) then
 		if (d.z <= 0.001) then
-			return nil;
-		end
-		local k = -from.z / d.z;
-		from = {x = from.x + d.x * k, y = from.y + d.y * k, z = 0};
-		range = range - k;
-		if (range <= 0) then
-			return nil;
+			cast = false;
+		else
+			local k = -from.z / d.z;
+			from = {x = from.x + d.x * k, y = from.y + d.y * k, z = 0};
+			range = range - k;
+			cast = range > 0;
 		end
 	end
 	-- `false`: the solid block hit. LSd's apidoc has the two the other
 	-- way round; the server answers `true` with the air voxel BEFORE the
 	-- hit (as the grenade shotgun relies on), which would aim a missile
 	-- at a point in mid-air in front of the wall.
-	local hit = raycast(from, {x = from.x + d.x * range,
-		y = from.y + d.y * range, z = from.z + d.z * range}, false);
-	if (hit == nil) then
-		return nil;
+	local hit = cast and raycast(from, {x = from.x + d.x * range,
+		y = from.y + d.y * range, z = from.z + d.z * range}, false) or nil;
+	local block, limit = nil, reach;
+	if (hit ~= nil) then
+		block = {x = hit.x + 0.5, y = hit.y + 0.5, z = hit.z + 0.5};
+		local bx, by, bz = block.x - eye.x, block.y - eye.y, block.z - eye.z;
+		limit = math.sqrt(bx*bx + by*by + bz*bz);
 	end
-	return {x = hit.x + 0.5, y = hit.y + 0.5, z = hit.z + 0.5};
+	-- a player in front of that block is what is aimed at: the raycast
+	-- sees blocks only, and a missile kept on a man would fly at the
+	-- wall behind him. The point is on his body; .pid says whose.
+	local who, at = player_on_ray(pid, eye, d, limit);
+	if (who ~= nil) then
+		at.pid = who;
+		return at;
+	end
+	return block;
 end
 
 function mod.impl.blast_fire(owner, pos, dir, o)

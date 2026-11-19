@@ -82,7 +82,9 @@ function launch(pid, opts)
 	local pos = get_position(pid);
 	local dir = get_orientation(pid);
 	-- a pie wedge's %h: start off toward that point
-	local t = opts.pos;
+	-- a player under the crosshair first: %h only lands on blocks
+	local a = blast_aim(pid);
+	local t = (a ~= nil and a.pid ~= nil) and a or opts.pos;
 	if (t ~= nil and tonumber(t.x) and tonumber(t.y) and tonumber(t.z)) then
 		local dx, dy, dz = t.x - pos.x, t.y - pos.y, t.z - pos.z;
 		local len = math.sqrt(dx*dx + dy*dy + dz*dz);

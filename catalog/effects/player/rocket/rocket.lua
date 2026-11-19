@@ -70,7 +70,10 @@ local last = pid_connected_table(0);
 function fire(pid, opts)
 	local pos = get_position(pid);
 	local dir = get_orientation(pid);
-	local t = opts.pos;
+	-- a player under the crosshair first: the pie's %h is the client's
+	-- point, which only ever lands on a block
+	local a = blast_aim ~= nil and blast_aim(pid) or nil;
+	local t = (a ~= nil and a.pid ~= nil) and a or opts.pos;
 	if (t ~= nil and tonumber(t.x) and tonumber(t.y) and tonumber(t.z)) then
 		local dx, dy, dz = t.x - pos.x, t.y - pos.y, t.z - pos.z;
 		local len = math.sqrt(dx*dx + dy*dy + dz*dz);
