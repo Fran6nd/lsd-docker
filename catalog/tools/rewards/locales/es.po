@@ -16,6 +16,10 @@ msgid "Rocket"
 msgstr "Cohete"
 
 #: catalog/tools/rewards/lib_rewards.lua
+msgid "Missile"
+msgstr "Misil"
+
+#: catalog/tools/rewards/lib_rewards.lua
 msgid "Airstrike"
 msgstr "Bombardeo aéreo"
 

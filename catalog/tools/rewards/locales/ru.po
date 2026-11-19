@@ -16,6 +16,10 @@ msgid "Rocket"
 msgstr "Ракета"
 
 #: catalog/tools/rewards/lib_rewards.lua
+msgid "Missile"
+msgstr "Управляемая ракета"
+
+#: catalog/tools/rewards/lib_rewards.lua
 msgid "Airstrike"
 msgstr "Авиаудар"
 

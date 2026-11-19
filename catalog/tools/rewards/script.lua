@@ -5,7 +5,7 @@ return Tool {
 	module = "lib_rewards",
 	-- what it sells, installed with it, so a default server offers
 	-- something; rewards_exclusive keeps them for whoever buys them
-	with = {"railgun", "rocket", "airstrike", "medkit", "area_heal", "nightvision"},
+	with = {"railgun", "rocket", "missile", "airstrike", "medkit", "area_heal", "nightvision"},
 	questions = {
 		{key = "rewards_kills", type = "number", default = 10, min = 1, max = 1000,
 			ask = "Kills for one reward point"},

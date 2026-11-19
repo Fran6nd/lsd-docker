@@ -52,6 +52,9 @@ getcfg("rewards_menu", {
 	-- fired at once, like the airstrike, at the point aimed at
 	{effect = "rocket", cost = 1, trigger = true, aim = true,
 		label = {en = "Rocket"}},
+	-- steered by the buyer's aim for as long as it flies
+	{effect = "missile", cost = 2, trigger = true, aim = true,
+		label = {en = "Missile"}},
 	{effect = "airstrike", cost = 2, trigger = true, aim = true,
 		label = {en = "Airstrike"}},
 	{effect = "medkit", cost = 1, trigger = true, opts = {free = true},
@@ -253,18 +256,24 @@ register_command(cmd, mod);
 
 --============================== THE PIE =============================--
 
-local function pie()
-	local slices = {};
+-- A pie holds six wedges; a longer menu goes on in a second pie, a
+-- third..., offered in the same contexts, right after the first. A pie
+-- left with nothing affordable on it is not sent at all.
+local function pies()
+	local out, slices = {}, nil;
 	for _, e in ipairs(menu()) do
-		if (#slices < MAX_WEDGES) then
-			slices[#slices+1] = {
-				text = "/reward " .. e.key .. (e.aim and " %h" or ""),
-				label = e.label,
-				show = function(pid) return affordable(e, pid); end,
-			};
+		if (slices == nil or #slices == MAX_WEDGES) then
+			slices = {};
+			out[#out+1] = {id = #out == 0 and "rewards" or ("rewards" .. (#out + 1)),
+				theme = {en = "Rewards"}, when = "alive", slices = slices};
 		end
+		slices[#slices+1] = {
+			text = "/reward " .. e.key .. (e.aim and " %h" or ""),
+			label = e.label,
+			show = function(pid) return affordable(e, pid); end,
+		};
 	end
-	return {id = "rewards", theme = {en = "Rewards"}, when = "alive", slices = slices};
+	return out;
 end
 
 local pie_in = false;
@@ -291,7 +300,7 @@ end
 function mod.after.tick()
 	if (pie_menu_add ~= nil and not pie_in) then
 		pie_in = true;
-		pie_menu_add("rewards", pie(), 30);
+		pie_menu_add("rewards", pies(), 30);
 	elseif (pie_menu_add == nil) then
 		pie_in = false;
 	end

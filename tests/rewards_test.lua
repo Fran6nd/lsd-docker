@@ -39,7 +39,7 @@ local function last() return chat[#chat]; end
 local cmd;
 function register_command(c) cmd = c; end
 local pie;
-function pie_menu_add(name, p) pie = p; end
+function pie_menu_add(name, p) pies = p; end
 function pie_menu_remove() pie = nil; end
 local refreshed = {};
 function pie_menu_refresh(pid) refreshed[#refreshed+1] = pid or "all"; end
@@ -63,6 +63,7 @@ local air = effect("airstrike", function(pid, o) triggered.air = o; return o.pos
 local kit = effect("medkit", function(pid, o) triggered.kit = o; if (triggered.full) then return nil; end return 40; end);
 local heal = effect("area_heal", function() end);
 local nv = effect("nightvision", function() end);
+local mis = effect("missile", function(pid, o) triggered.missile = o; return {}; end);
 check(rail.everyone and nv.everyone, "effects start out everybody's");
 
 local mod = dofile("catalog/tools/rewards/lib_rewards.lua");
@@ -72,17 +73,31 @@ check(not rail.everyone and not air.everyone and not nv.everyone,
 
 local function kill(killer, victim, kt) mod.after.kill(victim, kt or 0, killer); end
 local function run(...) cmd.func(0, {...}); end
-local function wedge(i) return pie.slices[i]; end
+-- the menu's wedges, every pie of it in order
+local function all_slices()
+	local out = {};
+	for _, p in ipairs(pies or {}) do
+		for _, s in ipairs(p.slices) do out[#out+1] = s; end
+	end
+	return out;
+end
+local function wedge(name)
+	for _, sl in ipairs(all_slices()) do
+		if (sl.text:match("^/reward (%S+)") == name) then return sl; end
+	end
+end
 local function visible()
 	local out = {};
-	for i, s in ipairs(pie.slices) do if (s.show(0)) then out[#out+1] = s.text; end end
+	for _, s in ipairs(all_slices()) do if (s.show(0)) then out[#out+1] = s.text; end end
 	return out;
 end
 
 --============================= EARNING ==============================--
 print("\n1. a point for every rewards_kills kills, across lives");
 mod.after.tick();
-check(pie ~= nil and pie.when == "alive" and #pie.slices == 6, "a pie of six wedges, for the living");
+check(pies ~= nil and #pies == 2 and pies[1].when == "alive" and #pies[1].slices == 6
+	and #pies[2].slices == 1 and pies[2].when == "alive" and pies[1].id ~= pies[2].id,
+	"seven rewards: a full pie of six for the living, the seventh on a second one");
 for i = 1, 9 do kill(0, 2); end
 check(#chat == 0, "nine kills: nothing yet");
 kill(0, 2);
@@ -125,7 +140,7 @@ L.reset();
 run();
 check(chat[1].m:find("you have") and chat[1].a.points == 3, "the list says the points held");
 local lines = 0; for _, c in ipairs(chat) do if (c.m:find("/reward %(name)", 1, true)) then lines = lines + 1; end end
-check(lines == 5, "and every reward on offer (night vision is not, by day)", lines);
+check(lines == 6, "and every reward on offer (night vision is not, by day)", lines);
 
 print("\n6. what each reward gives");
 for p in pairs({}) do end
@@ -140,6 +155,10 @@ run("rocket", "5", "6", "7");
 check(triggered.rocket ~= nil and triggered.rocket.pos.x == 5 and triggered.rocket.pos.z == 7,
 	"rocket: fired at once, at the point aimed at, like the airstrike");
 check(rocket:stacks(0) == 0, "no charges left on the gun");
+-- 1 left: a missile costs 2
+L.reset();
+run("missile", "8", "9", "10");
+check(triggered.missile == nil and last().m:find("costs"), "missile: two points, refused with one");
 -- 1 left; airstrike costs 2
 L.reset();
 run("airstrike", "10", "20", "30");
@@ -181,10 +200,10 @@ check(#visible() == 0, "no points, no wedge");
 mod.after.capture_intel(0);
 local v = visible();
 check(#v == 4 and v[1] == "/reward railgun", "one point: the 1-point rewards", #v);
-check(wedge(3).text == "/reward airstrike %h" and not wedge(3).show(0),
+check(wedge("airstrike").text == "/reward airstrike %h" and not wedge("airstrike").show(0),
 	"airstrike's wedge sends %h, and needs two");
 mod.after.capture_intel(0);
-check(wedge(3).show(0), "two points: it shows");
+check(wedge("airstrike").show(0), "two points: it shows");
 run("airstrike", "1", "2", "3");
 check(#visible() == 0, "spent: the wedges vanish");
 check(refreshed[#refreshed] == 0, "and the pie was refreshed");
@@ -203,7 +222,7 @@ for _, c in ipairs(chat) do if (c.a.name == "medkit") then listed = true; end en
 check(not listed, "and not in /reward");
 
 print("\n9. night vision: offered only at night");
-local nvwedge = wedge(6);
+local nvwedge = wedge("nightvision");
 check(nvwedge.text == "/reward nightvision", "its wedge");
 mod.after.capture_intel(0);
 check(not nvwedge.show(0), "by day: hidden");

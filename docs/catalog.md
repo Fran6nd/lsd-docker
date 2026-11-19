@@ -4,7 +4,7 @@
 |---|---|---|---|
 | gamemodes | `Gamemode` | exactly one runs; every one runs the map's layout (map_layout) | tdm, ctf, bots, onectf, arena, babel, ffa, hostage, editor |
 | extensions | `Extension` | protocol extensions; the setup also asks what a client lacking one costs | every extension in the [AoS protocol registry](https://github.com/zerospades/aosprotocol): player_properties, damage_markers, teamplay, pie_menu, flashlight, daytime, edit_mode, player_limit, message_types, kick_reason (UTF-8 chat is built into LSd); plus silent_player |
-| effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit, nightvision, rocket, airstrike |
+| effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit, nightvision, rocket, missile, airstrike |
 | effects/world | `WorldEffect` | change the map or the match for everybody; same | the_fall |
 | bots | `Bot` | server-side players | guards, battle_bots |
 | tools | `Tool` | everything else | votekick, rewards, esp_demo, headless, time_limit, ... |
@@ -106,14 +106,15 @@ it is affordable -- or with `/reward <name>`:
 | reward | cost | |
 |---|---|---|
 | Railgun | 1 | 30 s, or until death |
-| Rocket | 1 | fired at once where you aim: a streak of blocks that blows a crater |
-| Airstrike | 2 | where you aim: everyone is warned, then five bombs fall in a line |
+| Rocket | 1 | fired at once where you aim: a streak of blocks that blows a crater; one-shots a direct hit and anyone within 2 blocks |
+| Missile | 2 | a slower rocket that follows your aim, live: look where it should go |
+| Airstrike | 2 | where you aim: everyone is warned (across the screen near the target), then five bombs fall in a line, each one-shotting within 5 blocks |
 | Medkit | 1 | |
 | Area heal | 1 | 20 s |
 | Night vision | 1 | at night only |
 
 The list is the `rewards_menu` setting, and only installed effects are
-offered (rewards installs the six with it). With `rewards_exclusive`
+offered (rewards installs the seven with it). With `rewards_exclusive`
 (the default) an effect on the menu is held only by whoever bought it,
 even if it is otherwise on for everybody. Rocket and airstrike are
 ordinary effects too, built on the `blast` library: installed alone,

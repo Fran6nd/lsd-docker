@@ -16,6 +16,10 @@ msgid "Rocket"
 msgstr "火箭弹"
 
 #: catalog/tools/rewards/lib_rewards.lua
+msgid "Missile"
+msgstr "导弹"
+
+#: catalog/tools/rewards/lib_rewards.lua
 msgid "Airstrike"
 msgstr "空袭"
 
