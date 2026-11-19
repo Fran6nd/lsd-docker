@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: catalog/effects/player/grenade_launcher/grenade_launcher.lua
+msgid "warning: here grenades are fired from a launcher and explode on impact."
+msgstr "警告：本服务器的手榴弹由榴弹发射器发射，触地即爆。"
+
+#: catalog/effects/player/grenade_launcher/grenade_launcher.lua
+msgid "Spicy: a launched grenade goes off the moment it hits -- no bounce, no waiting."
+msgstr "辣味：发射的榴弹一碰到东西就爆炸——不弹跳，不等待。"

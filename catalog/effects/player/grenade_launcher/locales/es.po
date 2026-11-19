@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: es\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: catalog/effects/player/grenade_launcher/grenade_launcher.lua
+msgid "warning: here grenades are fired from a launcher and explode on impact."
+msgstr "aviso: aquí las granadas se disparan con lanzagranadas y explotan al impactar."
+
+#: catalog/effects/player/grenade_launcher/grenade_launcher.lua
+msgid "Spicy: a launched grenade goes off the moment it hits -- no bounce, no waiting."
+msgstr "Picante: una granada lanzada estalla en cuanto toca algo -- sin rebote, sin espera."

@@ -55,6 +55,8 @@ getcfg("rewards_menu", {
 	-- steered by the buyer's aim for as long as it flies
 	{effect = "missile", cost = 2, trigger = true, aim = true,
 		label = {en = "Missile"}},
+	{effect = "grenade_launcher", cost = 1, trigger = true,
+		label = {en = "Grenade launcher"}},
 	{effect = "airstrike", cost = 2, trigger = true, aim = true,
 		label = {en = "Airstrike"}},
 	{effect = "medkit", cost = 1, trigger = true, opts = {free = true},

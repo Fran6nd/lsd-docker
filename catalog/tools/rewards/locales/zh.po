@@ -20,6 +20,10 @@ msgid "Missile"
 msgstr "导弹"
 
 #: catalog/tools/rewards/lib_rewards.lua
+msgid "Grenade launcher"
+msgstr "榴弹发射器"
+
+#: catalog/tools/rewards/lib_rewards.lua
 msgid "Airstrike"
 msgstr "空袭"
 

@@ -341,6 +341,42 @@ check(mb.guide(mb) == nil, "its sender dead: it flies straight on");
 ALIVE[0] = true;
 blast_clear();
 
+print("\n6c. the grenade launcher: a real grenade, fused to go off where it lands");
+reset();
+-- the client's physics, near enough: gravity, and a "hit" on solid ground
+function simulate_grenade_physics(pos, vel, dt)
+	local v = {x = vel.x, y = vel.y, z = vel.z + dt};
+	local p = {x = pos.x + v.x * dt * 32, y = pos.y + v.y * dt * 32, z = pos.z + v.z * dt * 32};
+	return p, v, is_solid(p);
+end
+local GREN, SENT_GREN = {}, {};
+function register_grenade(pid, team, pos, vel, fuse) GREN[#GREN+1] = {pid = pid, team = team, pos = pos, vel = vel, fuse = fuse}; return #GREN - 1; end
+function send_grenade(to, pos, vel, fuse, from) SENT_GREN[#SENT_GREN+1] = {to = to, fuse = fuse, from = from}; end
+function PID_BROADCAST_EXCEPT(pid) return -100 - pid; end
+local glmod = dofile("catalog/effects/player/grenade_launcher/grenade_launcher.lua");
+glmod.on_load();
+local gl = PlayerEffect.get("grenade_launcher");
+ORI[0] = {x = 1, y = 0, z = 0};
+POS[0] = {x = 50.5, y = 50.5, z = 30.5};
+local fuse = gl:trigger(0, {});
+check(#GREN == 1 and GREN[1].pid == 0 and GREN[1].team == 1, "one grenade, the shooter's, on their team");
+check(GREN[1].vel.x > 1.5 and GREN[1].pos.x > 51, "fired hard along the aim, from in front of the eye");
+-- the same physics, run here: it should hit at the fuse, give or take a step
+local p, v, t, hit = {x = GREN[1].pos.x, y = GREN[1].pos.y, z = GREN[1].pos.z},
+	{x = GREN[1].vel.x, y = GREN[1].vel.y, z = GREN[1].vel.z}, 0, false;
+while (not hit and t < 6) do p, v, hit = simulate_grenade_physics(p, v, 1/60); if (not hit) then t = t + 1/60; end end
+check(hit and math.abs(fuse - t) < 1/60 + 1e-9, "fused for exactly its flight: it explodes as it lands", fuse .. " vs " .. t);
+check(fuse > 0 and fuse < 5, "a real flight, not an instant or the cap", fuse);
+local own, others;
+for _, g in ipairs(SENT_GREN) do
+	if (g.to == 0) then own = g; elseif (g.to == PID_BROADCAST_EXCEPT(0)) then others = g; end
+end
+check(others and others.from == 0 and others.fuse == fuse, "everyone else sees the shooter's grenade, same fuse");
+check(own and own.from == get_anon_pid(), "the shooter's own copy is anonymous: it costs none of their grenades");
+ORI[0] = {x = 0, y = 0, z = -1};   -- straight up, into the open sky
+GREN = {};
+check(gl:trigger(0, {}) <= grenade_launcher_max_fuse, "one that hits nothing goes off at the cap anyway");
+
 print("\n7. the airstrike: a warning, then bombs in a line across the target");
 reset();
 NOW = 500;

@@ -20,6 +20,10 @@ msgid "Missile"
 msgstr "Misil"
 
 #: catalog/tools/rewards/lib_rewards.lua
+msgid "Grenade launcher"
+msgstr "Lanzagranadas"
+
+#: catalog/tools/rewards/lib_rewards.lua
 msgid "Airstrike"
 msgstr "Bombardeo aéreo"
 

@@ -96,8 +96,8 @@ end
 print("\n1. a point for every rewards_kills kills, across lives");
 mod.after.tick();
 check(pies ~= nil and #pies == 2 and pies[1].when == "alive" and #pies[1].slices == 6
-	and #pies[2].slices == 1 and pies[2].when == "alive" and pies[1].id ~= pies[2].id,
-	"seven rewards: a full pie of six for the living, the seventh on a second one");
+	and #pies[2].slices == 2 and pies[2].when == "alive" and pies[1].id ~= pies[2].id,
+	"eight rewards: a full pie of six for the living, the rest on a second one");
 for i = 1, 9 do kill(0, 2); end
 check(#chat == 0, "nine kills: nothing yet");
 kill(0, 2);
