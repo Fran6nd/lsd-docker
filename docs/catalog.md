@@ -112,7 +112,7 @@ it is affordable -- or with `/reward <name>`:
 | Railgun | 1 | 30 s, or until death |
 | Rocket | 1 | fired at once where you aim: a streak of blocks that blows a crater; one-shots a direct hit and anyone within 2 blocks |
 | Missile | 2 | a slower rocket that follows your aim, live: look where it should go |
-| Grenade launcher | 1 | a real grenade fired hard along your aim, fused to explode the moment it lands |
+| Grenade launcher | 1 | a real grenade fired hard along your aim, exploding where you aim (up to 40 blocks), or on whatever it hits first |
 | Airstrike | 2 | where you aim: everyone is warned (across the screen near the target), then five bombs fall in a line, each one-shotting within 5 blocks |
 | Medkit | 1 | |
 | Area heal | 1 | 20 s |
@@ -121,7 +121,8 @@ it is affordable -- or with `/reward <name>`:
 The list is the `rewards_menu` setting, and only installed effects are
 offered (rewards installs the eight with it). With `rewards_exclusive`
 (the default) an effect on the menu is held only by whoever bought it,
-even if it is otherwise on for everybody. Rocket and airstrike are
+even if it is otherwise on for everybody. Every impact -- rocket, missile, bomb -- also plays a grenade explosion,
+the sound and the flash, for every client. Rocket and airstrike are
 ordinary effects too, built on the `blast` library: installed alone,
 they are everybody's.
 
