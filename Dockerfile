@@ -52,6 +52,11 @@ RUN wget -q -O lsqlite3.zip 'https://lua.sqlite.org/home/zip/lsqlite3_fsl09y.zip
 COPY lsd/ /build
 WORKDIR /build
 
+# Our changes to LSd's C, applied onto upstream's source (patches/lsd/README):
+# the build stops here if upstream moved under one.
+COPY patches/lsd/ /patches/
+RUN for p in /patches/*.patch; do patch -p1 --forward < "$p" || exit 1; done
+
 # The server stamps itself with the commit it was built from, for /version:
 # upstream's Makefile has `src/commit.h: .git` and runs `git rev-parse` into
 # that header. Neither half of it works here, for a reason on each side.

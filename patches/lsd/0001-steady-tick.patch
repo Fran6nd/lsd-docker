@@ -1,0 +1,54 @@
+diff --git a/src/main.c b/src/main.c
+index f2ec0ef..433a835 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -237,18 +237,47 @@ void close_lua(void);
+ 
+ #define PANICJMP_LUA() setjmp(lua_panicenv);
+ 
++/* The longest one wait for network events lasts. Waiting up to the next
++ * tick in one sleep relies on the OS waking us on time, and some do not:
++ * under a VM (Docker Desktop on macOS) a 16 ms sleep was measured waking
++ * 12 ms late at the median and 160 ms at worst, and every late tick was
++ * followed by a burst of catch-up ticks -- clients saw 10 updates a
++ * second, then 110. Waits of a millisecond or less keep the deadline
++ * within a millisecond or two there, and cost nothing measurable where
++ * the OS was punctual already. */
++#define TICK_NAP_NS ((clk)1000000)
++
++/* How far behind the tick schedule may fall before the missed ticks are
++ * dropped instead of run back to back: a burst of them is a burst of
++ * world updates, which is what a client sees as a server gone wrong. */
++#define MAX_TICKS_BEHIND 3
++
+ static void do_loop(struct State *st) {
+ 	ENetEvent event;
++	clk now;
+ 
+ 	PANICJMP_LUA();
+ 
+ 	/* TODO: service main host and masterlist host simultaniously? */
+-	while (enet_host_service(st->host, &event, to_ms(time_until(st->nextTickTime))) > 0) {
+-		handle_event(&event, st);
++	for (;;) {
++		clk left = (clk)time_until(st->nextTickTime);
++		int r = enet_host_service(st->host, &event,
++			to_ms(left < TICK_NAP_NS ? left : TICK_NAP_NS));
++
++		if (r > 0) {
++			handle_event(&event, st);
++			continue;
++		}
++		if (time_until(st->nextTickTime) == 0)
++			break;
+ 	}
+ 
+ 	masterlist_service(&st->ms);
+ 
++	now = get_time();
++	if (now > st->nextTickTime + MAX_TICKS_BEHIND * st->tickrate)
++		st->nextTickTime = now;
++
+ 	st->nextTickTime += st->tickrate;
+ 	st->f.tick(st);
+ }

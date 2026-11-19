@@ -1,0 +1,14 @@
+Our changes to LSd's C source, applied onto upstream's at image build
+time (Dockerfile). The lsd submodule itself stays upstream's: make a
+change in lsd/, `git -C lsd diff > patches/lsd/NNNN-name.patch`, then
+`git -C lsd checkout -- .`. dev/bump-lsd.sh checks every patch still
+applies to the new upstream.
+
+  0001-steady-tick.patch  the main loop waits for the next tick in naps
+                          of at most 1 ms instead of one sleep, and drops
+                          missed ticks past 3 behind instead of running
+                          them back to back: a steady 60 ticks a second
+                          where the OS wakes sleepers late (Docker
+                          Desktop's VM: 16 ms sleeps woke up to 160 ms
+                          late, clients saw 10 then 110 updates a
+                          second). Worth offering upstream.
