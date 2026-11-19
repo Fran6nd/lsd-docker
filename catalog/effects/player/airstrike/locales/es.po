@@ -26,3 +26,7 @@ msgstr "Apunta a algo para pedir un bombardeo aéreo sobre ello."
 #: catalog/effects/player/airstrike/airstrike.lua
 msgid "Airstrike!"
 msgstr "¡Bombardeo aéreo!"
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "AIRSTRIKE INCOMING -- TAKE COVER!"
+msgstr "¡ATAQUE AÉREO INMINENTE -- PONTE A CUBIERTO!"

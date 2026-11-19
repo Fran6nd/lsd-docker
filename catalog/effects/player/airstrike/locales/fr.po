@@ -26,3 +26,7 @@ msgstr "Vise quelque chose pour y appeler une frappe aérienne."
 #: catalog/effects/player/airstrike/airstrike.lua
 msgid "Airstrike!"
 msgstr "Frappe aérienne !"
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "AIRSTRIKE INCOMING -- TAKE COVER!"
+msgstr "FRAPPE AÉRIENNE IMMINENTE -- METS-TOI À COUVERT !"

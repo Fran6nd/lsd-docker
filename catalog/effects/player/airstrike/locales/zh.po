@@ -26,3 +26,7 @@ msgstr "瞄准某处，对其发动空袭。"
 #: catalog/effects/player/airstrike/airstrike.lua
 msgid "Airstrike!"
 msgstr "空袭！"
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "AIRSTRIKE INCOMING -- TAKE COVER!"
+msgstr "空袭来袭——快找掩护！"

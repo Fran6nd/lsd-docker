@@ -24,3 +24,7 @@ msgstr ""
 #: catalog/effects/player/airstrike/airstrike.lua
 msgid "Airstrike!"
 msgstr ""
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "AIRSTRIKE INCOMING -- TAKE COVER!"
+msgstr ""

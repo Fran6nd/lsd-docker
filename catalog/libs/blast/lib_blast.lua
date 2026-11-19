@@ -22,8 +22,15 @@
 --                   blast, 0.33 by default
 --        o.skip     steps drawn only after this many, so a rocket does
 --                   not paint the shooter's own screen (default 2)
---   blast_explode(owner, pos, radius, damage, hostile, self_ratio)
+--        o.kill_radius  blocks from the impact within which a hit is
+--                   lethal -- a direct hit always is (default 0)
+--        o.guide    function(b) -> a point, or nil: asked every tick,
+--                   the blast turns to fly straight at that point (a
+--                   missile following its owner's aim); nil flies on
+--   blast_explode(owner, pos, radius, damage, hostile, self_ratio, kill_radius)
 --        the explosion alone: the rocket's impact, usable without flying
+--   blast_aim(pid [, range]) -> the first block along pid's aim, as a
+--        point, or nil for the open sky
 --   blast_clear()   every trail block taken down, every blast dropped
 --
 -- THE TRAIL is not in the map. Each step the head is shown with
@@ -139,10 +146,14 @@ end
 
 -- Damage falls away linearly from the centre to twice the radius. The
 -- owner takes a share of it, teammates none, through-the-wall nothing.
-function mod.impl.blast_explode(owner, pos, radius, damage, hostile, self_ratio)
+-- Lethal: more than any health there is. damage_player clamps at 0.
+local LETHAL = 255;
+
+function mod.impl.blast_explode(owner, pos, radius, damage, hostile, self_ratio, kill_radius)
 	hostile = hostile or default_hostile;
 	self_ratio = self_ratio or 0.33;
-	local reach = radius * 2;
+	kill_radius = tonumber(kill_radius) or 0;
+	local reach = math.max(radius * 2, kill_radius);
 
 	crater(owner, pos, radius);
 
@@ -155,7 +166,10 @@ function mod.impl.blast_explode(owner, pos, radius, damage, hostile, self_ratio)
 			if (d < reach and exposed(pos, p)) then
 				local amount = damage * (1 - d / reach);
 				if (i == owner) then
+					-- never one-shot by one's own: the falloff, a share
 					amount = amount * self_ratio;
+				elseif (d <= kill_radius) then
+					amount = LETHAL;
 				end
 				amount = math.max(1, math.floor(amount));
 				-- the owner may be gone: then nobody gets the kill
@@ -168,9 +182,55 @@ end
 
 --============================== FLYING ==============================--
 
+local function sign(n) return n < 0 and -1 or 1; end
+
+-- (Re)start the voxel walk from a point, along a unit vector.
+local function aim_at(b, pos, dir)
+	b.vox = {x = math.floor(pos.x), y = math.floor(pos.y), z = math.floor(pos.z)};
+	b.step = {x = sign(dir.x), y = sign(dir.y), z = sign(dir.z)};
+	b.delta = {x = math.abs(1/dir.x), y = math.abs(1/dir.y), z = math.abs(1/dir.z)};
+	b.tmax = {
+		x = (b.vox.x - pos.x + math.max(b.step.x, 0)) / dir.x,
+		y = (b.vox.y - pos.y + math.max(b.step.y, 0)) / dir.y,
+		z = (b.vox.z - pos.z + math.max(b.step.z, 0)) / dir.z,
+	};
+end
+
+-- A guided blast: turn the head, at the centre of its voxel, to face
+-- the point its guide names.
+local function steer(b)
+	local ok, t = pcall(b.guide, b);
+	if (not ok or type(t) ~= "table" or tonumber(t.x) == nil) then
+		return;
+	end
+	local from = {x = b.vox.x + 0.5, y = b.vox.y + 0.5, z = b.vox.z + 0.5};
+	local dx, dy, dz = t.x - from.x, t.y - from.y, t.z - from.z;
+	local len = math.sqrt(dx*dx + dy*dy + dz*dz);
+	if (len < 0.5) then
+		return;
+	end
+	aim_at(b, from, {x = dx / len, y = dy / len, z = dz / len});
+end
+
+local AIM_RANGE = 400;
+
+function mod.impl.blast_aim(pid, range)
+	local from = get_position(pid);
+	local d = get_orientation(pid);
+	if (from == nil or d == nil or raycast == nil) then
+		return nil;
+	end
+	range = tonumber(range) or AIM_RANGE;
+	local hit = raycast(from, {x = from.x + d.x * range,
+		y = from.y + d.y * range, z = from.z + d.z * range}, true);
+	if (hit == nil) then
+		return nil;
+	end
+	return {x = hit.x + 0.5, y = hit.y + 0.5, z = hit.z + 0.5};
+end
+
 function mod.impl.blast_fire(owner, pos, dir, o)
 	o = o or {};
-	local sign = function(n) return n < 0 and -1 or 1; end
 	local b = {
 		owner = owner,
 		speed = tonumber(o.speed) or 2,
@@ -181,16 +241,11 @@ function mod.impl.blast_fire(owner, pos, dir, o)
 		skip = tonumber(o.skip) or 2,
 		self_ratio = o.self_ratio,
 		hostile = o.hostile or default_hostile,
+		kill_radius = tonumber(o.kill_radius) or 0,
+		guide = o.guide,
 		budget = 0, steps = 0, shown = {},
-		vox = {x = math.floor(pos.x), y = math.floor(pos.y), z = math.floor(pos.z)},
-		step = {x = sign(dir.x), y = sign(dir.y), z = sign(dir.z)},
-		delta = {x = math.abs(1/dir.x), y = math.abs(1/dir.y), z = math.abs(1/dir.z)},
 	};
-	b.tmax = {
-		x = (b.vox.x - pos.x + math.max(b.step.x, 0)) / dir.x,
-		y = (b.vox.y - pos.y + math.max(b.step.y, 0)) / dir.y,
-		z = (b.vox.z - pos.z + math.max(b.step.z, 0)) / dir.z,
-	};
+	aim_at(b, pos, dir);
 	flying[#flying+1] = b;
 	return b;
 end
@@ -231,7 +286,8 @@ local function finish(b, at)
 	end
 	b.shown = {};
 	if (at ~= nil) then
-		blast_explode(b.owner, at, b.radius, b.damage, b.hostile, b.self_ratio);
+		blast_explode(b.owner, at, b.radius, b.damage, b.hostile, b.self_ratio,
+			b.kill_radius);
 	end
 end
 
@@ -289,6 +345,9 @@ function mod.after.tick()
 	flying = {};
 	for _, b in ipairs(current) do
 		b.budget = b.budget + b.speed;
+		if (b.guide ~= nil and b.steps > 0) then
+			steer(b);
+		end
 		local going = true;
 		while (going and b.budget >= 1) do
 			b.budget = b.budget - 1;

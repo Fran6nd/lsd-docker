@@ -26,3 +26,7 @@ msgstr "Прицелься в цель, чтобы вызвать на неё а
 #: catalog/effects/player/airstrike/airstrike.lua
 msgid "Airstrike!"
 msgstr "Авиаудар!"
+
+#: catalog/effects/player/airstrike/airstrike.lua
+msgid "AIRSTRIKE INCOMING -- TAKE COVER!"
+msgstr "АВИАУДАР -- В УКРЫТИЕ!"

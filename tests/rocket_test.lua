@@ -234,6 +234,47 @@ local hurt1 = false;
 for _, d in ipairs(dmg) do if (d.pid == 1) then hurt1 = true; end end
 check(not hurt1, "no damage through a wall that stands");
 
+print("\n5b. one-shot inside kill_radius, falloff beyond; never the owner");
+reset();
+local c = {x = 60.5, y = 60.5, z = 30};
+POS[1] = {x = 62, y = 60.5, z = 29.5};   -- 1.5 blocks off
+POS[2] = {x = 63.5, y = 60.5, z = 29.5}; -- 3 blocks off
+POS[0] = {x = 61, y = 60.5, z = 29.5};   -- the owner, right there
+blast_explode(0, c, 3, 50, nil, nil, 2);
+local got = {};
+for _, d in ipairs(dmg) do got[d.pid] = d.n; end
+check(got[1] and got[1] >= 100, "within kill_radius (2): one shot", got[1]);
+check(got[2] and got[2] < 50, "beyond it: the falloff", got[2]);
+check(got[0] and got[0] < 50, "the owner is never one-shot by their own", got[0]);
+reset();
+POS[1] = {x = 120, y = 50.5, z = 30.5};
+blast_fire(0, {x = 100.5, y = 50.5, z = 30.5}, {x = 1, y = 0, z = 0}, {speed = 2, damage = 30, kill_radius = 2});
+WALL_X = 400; ticks(30);
+local hit;
+for _, d in ipairs(dmg) do if (d.pid == 1) then hit = d; end end
+check(hit and hit.n >= 100, "a direct hit kills even a weak blast", hit and hit.n);
+
+print("\n5c. a guided blast turns to follow the point its guide names");
+reset();
+WALL_X = 400;
+local goal = {x = 100.5, y = 80.5, z = 30.5};
+local gb = blast_fire(0, {x = 100.5, y = 50.5, z = 30.5}, {x = 1, y = 0, z = 0},
+	{speed = 1, range = 300, guide = function() return goal; end});
+ticks(2);
+local y0 = gb.vox.y;
+ticks(10);
+check(gb.vox.y > y0 + 5 and math.abs(gb.vox.x - 100) <= 2,
+	"fired along x, it flies to the guide's point along y", gb.vox.x .. "," .. gb.vox.y);
+goal = {x = 140.5, y = gb.vox.y + 0.5, z = 30.5};
+local x0 = gb.vox.x;
+ticks(10);
+check(gb.vox.x > x0 + 5, "and turns again when the point moves, in real time", gb.vox.x);
+reset();
+ORI[0] = {x = 1, y = 0, z = 0};
+WALL_X = 130;
+local a = blast_aim(0);
+check(a and math.floor(a.x) == 130, "blast_aim: the first block along the aim", a and a.x);
+
 print("\n6. the rocket effect: charges, one a shot, a gap between");
 reset();
 WALL_X = 400;
@@ -272,6 +313,24 @@ NOW = NOW + 1;
 check(shot(0), "while it is everybody's, every shot is a rocket");
 blast_fire = real_fire;
 
+print("\n6b. the missile: launched at once, steered by its sender's live aim");
+reset();
+WALL_X = 400;
+local mmod = dofile("catalog/effects/player/missile/missile.lua");
+mmod.on_load();
+local mis = PlayerEffect.get("missile");
+local mb = mis:trigger(0, {});
+check(mb ~= nil and mb.guide ~= nil and mb.kill_radius == 2, "a guided blast, one-shot within 2 blocks");
+check(math.abs(mb.speed - 1.2) < 1e-9, "slower than a rocket, to be steered");
+WALL_X = 130;
+ORI[0] = {x = 1, y = 0, z = 0};
+local g = mb.guide(mb);
+check(g and math.floor(g.x) == 130, "it heads for the block under its sender's crosshair", g and g.x);
+ALIVE[0] = false;
+check(mb.guide(mb) == nil, "its sender dead: it flies straight on");
+ALIVE[0] = true;
+blast_clear();
+
 print("\n7. the airstrike: a warning, then bombs in a line across the target");
 reset();
 NOW = 500;
@@ -283,11 +342,22 @@ local real = blast_fire;
 blast_fire = function(owner, pos, dir, o) fired[#fired+1] = {pos = pos, dir = dir, o = o}; return real(owner, pos, dir, o); end
 ORI[0] = {x = 0, y = 1, z = 0};
 local target = {x = 80.5, y = 70.5, z = 49.5};
+local saved = {POS[0], POS[1], POS[2]};
+POS[0] = {x = 200, y = 200, z = 30};   -- the caller, far off
+POS[1] = {x = 85, y = 72, z = 48};     -- an enemy by the target
 check(air:trigger(0, {pos = target}) == target, "trigger(pid, {pos}) answers the point");
+POS[0], POS[1], POS[2] = saved[1], saved[2], saved[3];
 check(#pings == 1 and pings[1].o.reason.en == "Airstrike!" and pings[1].pos == target,
 	"a Teamplay ping on the target for everyone");
-check(chat[#chat] and chat[#chat].to == PID_BROADCAST, "and a chat line to all");
-check(chat[#chat].text == "P0 called in an airstrike! Get out of there!", "naming the caller", chat[#chat].text);
+local all, big = nil, {};
+for _, c in ipairs(chat) do
+	if (c.to == PID_BROADCAST) then all = c; end
+	if (c.text == "AIRSTRIKE INCOMING -- TAKE COVER!") then big[c.to] = true; end
+end
+check(all ~= nil, "and a chat line to all");
+check(all and all.text == "P0 called in an airstrike! Get out of there!", "naming the caller", all and all.text);
+check(big[1] and not big[0] and not big[2],
+	"whoever is within airstrike_warn_radius of the target is warned across the screen; the far-off are not");
 amod.after.tick();
 check(#fired == 0, "nothing falls before the delay");
 NOW = NOW + 3.05;

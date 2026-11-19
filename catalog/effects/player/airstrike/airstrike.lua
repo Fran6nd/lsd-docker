@@ -36,6 +36,8 @@ getcfg("airstrike_damage", 100, "Damage at the centre of each bomb, falling off 
 getcfg("airstrike_spacing", 4, "Blocks between two bombs of a line.");
 getcfg("airstrike_stagger", 0.2, "Seconds between one bomb and the next.");
 getcfg("airstrike_speed", 1.5, "Blocks a bomb falls each tick.");
+getcfg("airstrike_kill_radius", 5, "Blocks from a bomb's impact within which it kills outright.");
+getcfg("airstrike_warn_radius", 40, "Players this close to the target get the warning across their screen.");
 
 local AIM_RANGE = 400;
 local MAP = 511;
@@ -46,17 +48,31 @@ local pending = {};
 local warn_msg = {en = "%(name) called in an airstrike! Get out of there!"};
 local no_target_msg = {en = "Aim at something to call an airstrike on it."};
 local ping_msg = {en = "Airstrike!"};
+local big_msg = {en = "AIRSTRIKE INCOMING -- TAKE COVER!"};
 
 -- The first block along the aim, as a point; nil for the open sky.
 local function aimed(pid)
-	local from = get_position(pid);
-	local d = get_orientation(pid);
-	local hit = raycast(from, {x = from.x + d.x * AIM_RANGE,
-		y = from.y + d.y * AIM_RANGE, z = from.z + d.z * AIM_RANGE}, true);
-	if (hit == nil) then
-		return nil;
+	return blast_aim(pid, AIM_RANGE);
+end
+
+-- Everybody near the target -- whichever side -- gets it across the
+-- middle of their screen (Message Types; plain system chat for a client
+-- without it): a chat line scrolls by unread in a firefight.
+local function warn_near(pos)
+	local r2 = airstrike_warn_radius * airstrike_warn_radius;
+	for i in piditer(PID_BROADCAST) do
+		local p = is_alive(i) and get_position(i);
+		if (p) then
+			local dx, dy = p.x - pos.x, p.y - pos.y;
+			if (dx*dx + dy*dy <= r2) then
+				if (msg_big ~= nil) then
+					msg_big(i, big_msg);
+				else
+					l10n_send_chat(i, big_msg);
+				end
+			end
+		end
 	end
-	return {x = hit.x + 0.5, y = hit.y + 0.5, z = hit.z + 0.5};
 end
 
 function strike(pid, opts)
@@ -93,6 +109,7 @@ function strike(pid, opts)
 			color = {b = 0, g = 0, r = 255}});
 	end
 	l10n_send_chat(PID_BROADCAST, warn_msg, {name = get_name(pid)});
+	warn_near(pos);
 	return pos;
 end
 
@@ -113,6 +130,7 @@ function mod.after.tick()
 				speed = airstrike_speed, range = 70, skip = 0, trail = 10,
 				radius = b.radius or airstrike_radius,
 				damage = b.damage or airstrike_damage,
+				kill_radius = airstrike_kill_radius,
 				hostile = function(a, t) return fx:hostile(a, t); end,
 			});
 		end

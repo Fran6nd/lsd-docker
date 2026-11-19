@@ -60,6 +60,7 @@ getcfg("rocket_speed", 2, "Blocks a rocket flies each tick.");
 getcfg("rocket_radius", 3, "Blocks of terrain destroyed around the impact; damage reaches twice as far.");
 getcfg("rocket_damage", 90, "Damage at the centre of an explosion, falling off with distance.");
 getcfg("rocket_range", 150, "Blocks a rocket flies before it is gone.");
+getcfg("rocket_kill_radius", 2, "Blocks from the impact within which a rocket kills outright; a direct hit always does.");
 getcfg("rocket_gap", 0.5, "Seconds between two rockets from one player's shots.");
 
 local last = pid_connected_table(0);
@@ -82,6 +83,7 @@ function fire(pid, opts)
 		range = tonumber(opts.range) or rocket_range,
 		radius = tonumber(opts.radius) or rocket_radius,
 		damage = tonumber(opts.damage) or rocket_damage,
+		kill_radius = tonumber(opts.kill_radius) or rocket_kill_radius,
 		hostile = function(a, b) return fx:hostile(a, b); end,
 	});
 end
