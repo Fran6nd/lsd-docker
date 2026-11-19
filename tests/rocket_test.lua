@@ -364,11 +364,43 @@ check(mb ~= nil and mb.guide ~= nil and mb.kill_radius == 2, "a guided blast, on
 check(math.abs(mb.speed - 1.2) < 1e-9, "slower than a rocket, to be steered");
 WALL_X = 130;
 ORI[0] = {x = 1, y = 0, z = 0};
+missile_loft = 0;
 local g = mb.guide(mb);
-check(g and math.floor(g.x) == 130, "it heads for the block under its sender's crosshair", g and g.x);
+check(g and math.floor(g.x) == 130, "no loft: it heads straight for the block under the crosshair", g and g.x);
+missile_loft = 12;
+mb.diving, mb.climbed = nil, nil;
+g = mb.guide(mb);
+check(g and g.z < POS[0].z - 8 and g.x < 130, "with loft: first up, above the shooter, toward the target", g and (g.x .. "," .. g.z));
 ALIVE[0] = false;
 check(mb.guide(mb) == nil, "its sender dead: it flies straight on");
 ALIVE[0] = true;
+blast_clear();
+
+print("\n6b'. a top attack: up, over, and down onto what the crosshair is on");
+reset();
+WALL_X = 400;
+POS[0] = {x = 100.5, y = 50.5, z = 45.5};
+do local dx, dz = 60, 4.6; local l = math.sqrt(dx*dx + dz*dz); ORI[0] = {x = dx / l, y = 0, z = dz / l}; end
+local aimpt = blast_aim(0);
+check(aimpt and aimpt.z >= 50 and aimpt.x > 150, "aimed at the ground 60 blocks out", aimpt and (aimpt.x .. "," .. aimpt.z));
+local jb = mis:trigger(0, {});
+check(jb.vox.z <= 45 and jb.tmax.z < jb.tmax.x, "it leaves upward, not along the ground");
+local minz, firstx = 99, nil;
+for _ = 1, 400 do
+	ticks(1);
+	minz = math.min(minz, jb.vox.z);
+	if (jb.done) then break; end
+end
+check(minz <= 45.5 - 10, "it climbed well above the shooter first", minz);
+check(jb.done and craters > 0, "and exploded");
+check(math.abs(jb.vox.x - aimpt.x) <= 3 and jb.vox.z >= 47, "on the target, coming down onto it", jb.vox.x .. "," .. jb.vox.z);
+reset();
+POS[0] = {x = 100.5, y = 50.5, z = 3.5};   -- the top of the map: no room above
+GROUND = 6;
+ORI[0] = {x = 0.99, y = 0, z = 0.1};
+local tb = mis:trigger(0, {});
+check(tb.guide(tb) ~= nil and tb.vox.z >= 3, "at the top of the map: no climb, it flies straight at the crosshair");
+GROUND = 50;
 blast_clear();
 
 print("\n6c. the grenade launcher: a real grenade, fused to go off where it lands");

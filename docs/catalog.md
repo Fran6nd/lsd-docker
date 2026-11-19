@@ -111,7 +111,7 @@ it is affordable -- or with `/reward <name>`:
 |---|---|---|
 | Railgun | 1 | 30 s, or until death |
 | Rocket | 1 | fired at once where you aim: a streak of blocks that blows a crater; one-shots a direct hit and anyone within 2 blocks |
-| Missile | 2 | a slower rocket that follows your aim, live: look where it should go |
+| Missile | 2 | a top-attack missile, like a Javelin: it pops up, cruises above, and dives onto what your crosshair is on, following your aim live |
 | Grenade launcher | 1 | a real grenade fired hard along your aim, exploding where you aim (up to 40 blocks), or on whatever it hits first |
 | Airstrike | 2 | where you aim: everyone is warned (across the screen near the target), then five bombs fall in a line, each one-shotting within 5 blocks |
 | Medkit | 1 | |
