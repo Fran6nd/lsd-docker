@@ -9,6 +9,7 @@ msgstr ""
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -19,6 +20,7 @@ msgstr "Órdenes"
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -29,6 +31,7 @@ msgstr "Enemigo aquí"
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -62,6 +65,7 @@ msgstr "¡Cuidado, detrás de ti!"
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
 #: catalog/libs/callouts/callouts/tdm.lua
@@ -87,6 +91,7 @@ msgstr "¡Cúbreme!"
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/hostage.lua
@@ -101,6 +106,7 @@ msgstr "Flanquear aquí"
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Hold here"
 msgstr "Aguantar aquí"
@@ -165,6 +171,7 @@ msgstr "Construir aquí"
 
 #: catalog/libs/callouts/callouts/babel.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -177,52 +184,62 @@ msgid "Defend the tower"
 msgstr "Defender la torre"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Push"
 msgstr "Avanzar"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Push, all together!"
 msgstr "¡Avancemos todos juntos!"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Hold this spot!"
 msgstr "¡Aguanta en este punto!"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Flank"
 msgstr "Flanquear"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Flank them this way!"
 msgstr "¡Flanquéalos por aquí!"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Need backup"
 msgstr "Necesito refuerzos"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "I need backup!"
 msgstr "¡Necesito refuerzos!"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Fall back"
 msgstr "Retirarse"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Fall back!"
 msgstr "¡Retírate!"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/hostage.lua
@@ -232,6 +249,7 @@ msgid "Defend"
 msgstr "Defender"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Go here"

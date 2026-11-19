@@ -1269,6 +1269,7 @@ local PLAY_MAPS = {
 -- team deathmatch plays on ctf's maps: two bases, a field between
 PLAY_MAPS.tdm = PLAY_MAPS.ctf;
 PLAY_MAPS.bots = PLAY_MAPS.ctf;
+PLAY_MAPS.bots_rewards = PLAY_MAPS.ctf;
 
 -- The games the short questions offer, the first the default. None of
 -- them holds a client back: bots by night only recommends Daytime.
@@ -1276,6 +1277,7 @@ local GAMES = {
 	{value = "tdm", label = "tdm", hint = "team deathmatch: every kill scores"},
 	{value = "ctf", label = "ctf", hint = "capture the flag"},
 	{value = "bots", label = "bots", hint = "team deathmatch with bots, day and night"},
+	{value = "bots_rewards", label = "bots_rewards", hint = "bots, with every reward free and unlimited"},
 	{value = "babel", label = "babel", hint = "build a tower to the enemy's flag"},
 };
 
@@ -1343,7 +1345,7 @@ local function set_game_and_map(doc, mode, want, opts)
 	end
 end
 
-command("play", "play [tdm|ctf|bots|babel] [random|<page|url|source:id>]",
+command("play", "play [tdm|ctf|bots|bots_rewards|babel] [random|<page|url|source:id>]",
 	"set up a casual game on a fresh container (the entrypoint's play runs it)",
 	function(args)
 		local words = parse_args(args, {});

@@ -304,6 +304,14 @@ check(index_of(bo, "bot_standard") ~= nil and index_of(bo, "lib_daytime") ~= nil
 check(index_of(bo, "bots") ~= nil and index_of(bo, "bots") < index_of(bo, "bot_standard"),
 	"the bots rider loads before the guards", table.concat(bo, " "));
 
+-- bots_rewards: the bots game with every reward free, all of it brought along
+local br = cat:plan({}, "bots_rewards");
+local bro = {};
+for _, p in ipairs(C.PHASES) do for _, m in ipairs(br.phases[p]) do bro[#bro+1] = m; end end
+check(index_of(bro, "lib_rewards") and index_of(bro, "demo_reward") and index_of(bro, "bot_standard")
+	and index_of(bro, "missile") and index_of(bro, "airstrike") and index_of(bro, "bots"),
+	"bots_rewards brings rewards, the demo, the guards, the effects and the bots rider", table.concat(bro, " "));
+
 -- a library left installed by another gamemode is not loaded
 local function loads(plan, m)
 	for _, p in ipairs(C.PHASES) do

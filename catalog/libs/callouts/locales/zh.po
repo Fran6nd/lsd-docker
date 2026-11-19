@@ -9,6 +9,7 @@ msgstr ""
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -19,6 +20,7 @@ msgstr "命令"
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -29,6 +31,7 @@ msgstr "敌人在这"
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -62,6 +65,7 @@ msgstr "注意你身后！"
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
 #: catalog/libs/callouts/callouts/tdm.lua
@@ -87,6 +91,7 @@ msgstr "掩护我！"
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/hostage.lua
@@ -101,6 +106,7 @@ msgstr "这里侧翼包抄"
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Hold here"
 msgstr "在这守住"
@@ -165,6 +171,7 @@ msgstr "这里建造"
 
 #: catalog/libs/callouts/callouts/babel.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -177,52 +184,62 @@ msgid "Defend the tower"
 msgstr "守塔"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Push"
 msgstr "推进"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Push, all together!"
 msgstr "一起推进！"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Hold this spot!"
 msgstr "守住这个位置！"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Flank"
 msgstr "侧翼包抄"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Flank them this way!"
 msgstr "从这边包抄他们！"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Need backup"
 msgstr "需要支援"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "I need backup!"
 msgstr "我需要支援！"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Fall back"
 msgstr "撤退"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Fall back!"
 msgstr "撤退！"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/hostage.lua
@@ -232,6 +249,7 @@ msgid "Defend"
 msgstr "防守"
 
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Go here"

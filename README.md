@@ -81,7 +81,7 @@ curl -fsSL https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.sh |
 irm https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.ps1 | iex
 ```
 
-It asks for the game (tdm, ctf, bots or babel) and the map (random, or a link or id
+It asks for the game (tdm, ctf, bots, bots_rewards -- every reward free -- or babel) and the map (random, or a link or id
 from [aos.party](https://aos.party)), then prints the `aos://` address to
 join. It is never listed publicly. A minute after the last player leaves it stops, and the container,
 its data and -- if the game downloaded it -- the image are removed.
