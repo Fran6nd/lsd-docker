@@ -37,7 +37,7 @@ local langs;      -- pid -> what get_client_ext_language says
 
 local function setup(settings)
 	sent, agreed, langs = {}, {[0] = {[0x31] = true}, [1] = {}}, {};
-	MAX_PLAYERS = 255; PID_BROADCAST = 255;
+	MAX_PLAYERS = 255; PID_BROADCAST = 0x20000000;   -- as state.h
 	pie_menu_mode, pie_menu, pie_menu_hide_unavailable = nil, nil, nil;
 	pie_menu_fallback_lang, pie_menu_debug = nil, nil;
 	can_see_command = nil;
@@ -423,16 +423,10 @@ commands.late = nil;
 pie_menu_refresh();
 
 print("\n7c. language through lib_l10n");
-local chosen = {};
-l10n_get_lang = function(pid) return chosen[pid] or "en"; end
-l10n_default_lang = "en";
-local FR = {Thanks = "Merci", ["Quick chat"] = "Messages", ["Vote kick"] = "Voter l'exclusion"};
-l10n_get_str_lang = function(lang, v)
-	local en = type(v) == "table" and v.en or v;
-	if (lang == "fr" and type(v) == "table" and v.fr) then return v.fr; end
-	return (lang == "fr" and FR[en]) or en;
-end
-chosen[0] = "fr";
+-- the real lib_l10n, with a French catalog (a stub here was more
+-- forgiving than the real one, which refuses what is not a string or map)
+local L = dofile("tests/support/l10n_env.lua").load{dir = "tests/fixtures/locales_pie"};
+l10n_set_lang(0, "fr");
 sent = {};
 mod.after.l10n_lang_changed(0);
 b = menu_to(0);
@@ -444,7 +438,7 @@ eq(texts(b)["Thanks!"] and "Thanks!", "Thanks!", "the text itself is not transla
 sent = {};
 mod.after.l10n_lang_changed(0);
 check(#sent == 0, "the same language again sends nothing");
-l10n_get_lang, l10n_get_str_lang, l10n_default_lang = nil, nil, nil;
+L.unload();
 
 -- incoming
 eq(mod.on_any_packet(0, "\113\0\0"), 0, "a Menu from a client is dropped");

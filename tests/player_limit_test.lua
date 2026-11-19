@@ -29,7 +29,7 @@ end
 local CONNECTED, BOTS, SPEAKS, REPLIED = {}, {}, {}, {};
 local NOW = 0;
 MAX_PLAYERS = 255;
-PID_BROADCAST = 1000;
+PID_BROADCAST = 0x20000000;   -- PID_SET_FLAG(1), as state.h
 function init_mod() return {impl={before={},after={},next={}}, late={before={},after={},next={}},
 	before={}, after={}, next={}, early={before={},after={},next={}}, xearly={before={},after={},next={}}}; end
 function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
@@ -44,7 +44,9 @@ function piditer(pid)
 		local n = 0;
 		return function() n = n + 1; return list[n]; end
 	end
-	local done = false;
+	-- as lua.c's do_piditer: only pids under MAX_PLAYERS, so a fake pid
+	-- (get_anon_pid, 255 and up) is never iterated
+	local done = pid >= MAX_PLAYERS;
 	return function() if (done) then return nil; end done = true; return pid; end
 end
 function bot_is_bot(pid) return BOTS[pid] == true; end

@@ -3,9 +3,9 @@
 package.path = "catalog/libs/callouts/?.lua;" .. package.path;
 
 local passed, failed = 0, 0;
-local function check(ok, what)
+local function check(ok, what, detail)
 	if (ok) then passed = passed + 1; print("  PASS " .. what);
-	else failed = failed + 1; print("  FAIL " .. what); end
+	else failed = failed + 1; print("  FAIL " .. what .. (detail and ("  (" .. tostring(detail) .. ")") or "")); end
 end
 
 --============================= STUBS ================================--
@@ -13,18 +13,21 @@ function init_mod() return {after = {}, before = {}, next = {}}; end
 function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
 function pid_connected_table(d) return setmetatable({}, {__index = function() return d; end}); end
 function log() end
-PID_BROADCAST = -1;
-function piditer() local i = -1; return function() i = i + 1; if (i < 3) then return i; end end; end
+MAX_PLAYERS = 32;
+PID_BROADCAST = 0x20000000;
 local teams = {[0] = 1, [1] = 1, [2] = 2};
 function get_team(pid) return teams[pid]; end
 local now = 100;
 function get_time() return now; end
-function l10n_msg(m) return m; end
-function l10n_str(_, m) return m.en; end
 
-local chat, said = {}, {};
-function send_chat(to, line, kind, from) chat[#chat+1] = {to = to, line = line, from = from}; end
-function l10n_send_chat(to, m) said[#said+1] = {to = to, m = m}; end
+-- the real lib_l10n: send_chat and l10n_send_chat deliver finished text,
+-- as players read it (and so does piditer: the players 0..2 are connected)
+local chat = {};
+local L = dofile("tests/support/l10n_env.lua").load{
+	send_chat = function(to, line, kind, from) chat[#chat+1] = {to = to, line = line, from = from}; end,
+};
+L.pids = {0, 1, 2};
+local said = L.chat;
 
 local added, sliced = {}, {};
 function pie_menu_add(name, pie, order) added[name] = pie; end
@@ -66,11 +69,11 @@ check(#requests == 1 and r.pid == 0 and r.pos.x == 10 and r.pos.z == 30
 check(#chat == 0, "and no chat");
 refuse = "sight";
 run("ping", "intel", "10", "20", "30");
-check(said[#said] and said[#said].m == TEAMPLAY_REFUSED.sight, "a refusal is said back");
+check(said[#said] and said[#said].m == TEAMPLAY_REFUSED.sight.en, "a refusal is said back");
 refuse = nil;
 local n = #requests;
 run("ping", "intel");
-check(#requests == n and said[#said].m.en == "Nothing to ping there.",
+check(#requests == n and said[#said].m == "Nothing to ping there.",
 	"no position: nothing sent, the player told");
 run("ping", "nope", "1", "2", "3");
 check(#requests == n, "an unknown ping key is ignored");
@@ -78,6 +81,7 @@ check(#requests == n, "an unknown ping key is ignored");
 print("\n3. a callout about a place: chat to the team, the marker checked");
 run("enemy", "1", "2", "3");
 check(#chat == 2 and chat[1].to == 0 and chat[2].to == 1, "said to the team only");
+check(chat[1].line == "Enemy here!", "as text the player reads", chat[1].line);
 check(#requests == n + 1 and requests[n + 1].reason.en == "Enemy here",
 	"its marker through teamplay_request_ping");
 local c = #chat;
@@ -101,5 +105,6 @@ mod = dofile("catalog/libs/callouts/lib_callouts.lua");
 mod.on_load();
 check(added.callouts ~= nil and sliced.callouts_pings == nil, "a callouts pie, no pings");
 
+L.clean(check);
 print(string.format("\n%d checks, %d failed", passed + failed, failed));
 os.exit(failed == 0 and 0 or 1);

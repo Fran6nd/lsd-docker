@@ -11,7 +11,8 @@ end
 --============================= STUBS ================================--
 function init_mod() return {after = {}, before = {}, next = {}}; end
 function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
-PID_BROADCAST = -1;
+MAX_PLAYERS = 32;
+PID_BROADCAST = 0x20000000;
 local now = 1000;
 function get_time() return now; end
 
@@ -20,8 +21,9 @@ local sky_sends = 0;
 function daytime_is_night() return night; end
 function daytime_set_night(on) night = on; sky_sends = sky_sends + 1; end
 
-local said = {};
-function l10n_send_chat(to, m) said[#said+1] = {to = to, m = m}; end
+-- the real lib_l10n: what the players read
+local L = dofile("tests/support/l10n_env.lua").load{};
+local said = L.chat;
 local listed;
 function masterlist_set_gamemode(g) listed = g; end
 
@@ -47,7 +49,7 @@ now = 1000 + 240;
 mod.after.tick();
 check(night == true, "at the end: night");
 check(#said == 1 and said[1].to == PID_BROADCAST
-	and said[1].m.en == "Night falls. Press F for your flashlight.",
+	and said[1].m == "Night falls. Press F for your flashlight.",
 	"everyone is told, with the flashlight hint");
 check(guard_flashlight == true, "the guards light their flashlights");
 
@@ -58,7 +60,7 @@ check(night == true and #said == 1, "a second before dawn: still night");
 now = 1240 + 180;
 mod.after.tick();
 check(night == false and guard_flashlight == false, "dawn: day, lights off");
-check(#said == 2 and said[2].m.en == "Dawn.", "dawn is announced");
+check(#said == 2 and said[2].m == "Dawn.", "dawn is announced");
 
 print("\n4. it goes round again, once per change");
 now = 1420 + 240;
@@ -84,5 +86,6 @@ now = 6000; mod.after.finish_map_load();
 now = 6010; mod.after.tick();
 check(night == true, "a changed setting shortens the next day");
 
+L.clean(check);
 print(string.format("\n%d passed, %d failed", passed, failed));
 os.exit(failed == 0 and 0 or 1);

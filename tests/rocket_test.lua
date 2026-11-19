@@ -17,7 +17,8 @@ local function check(ok, what, detail)
 end
 
 --============================= STUBS ================================--
-PID_BROADCAST = 255;
+MAX_PLAYERS = 32;
+PID_BROADCAST = 0x20000000;   -- PID_SET_FLAG(1), as state.h
 function init_mod() return {impl = {}, after = {}, before = {}, next = {}}; end
 function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
 function pid_connected_table(d) return setmetatable({}, {__index = function() return d; end}); end
@@ -81,8 +82,10 @@ function get_tool() return 2; end
 function get_gun() return 0; end
 local dmg = {};
 function damage_player(p, n, kt, by) dmg[#dmg+1] = {pid = p, n = n, kt = kt, by = by}; end
-local chat = {};
-function l10n_send_chat(to, m, args) chat[#chat+1] = {to = to, m = m, args = args}; end
+-- the real lib_l10n: send_chat lines are what the players read
+local L = dofile("tests/support/l10n_env.lua").load{};
+L.pids = {0, 1, 2, 3};
+local chat = L.chat;
 local listeners = {};
 function shot_listen(n, f) listeners[n] = f; end
 function shot_unlisten(n) listeners[n] = nil; end
@@ -95,7 +98,8 @@ for k, v in pairs(blast.impl) do _G[k] = v; end
 
 local function ticks(n) for _ = 1, n do blast.after.tick(); end end
 local function reset()
-	placed, removed, dmg, chat, pings, craters = {}, {}, {}, {}, {}, 0;
+	placed, removed, dmg, pings, craters = {}, {}, {}, {}, 0;
+	L.reset();
 	on_screen, solid, WALL_X, GROUND = {}, {}, nil, 50;
 	POS = {[0] = {x = 50.5, y = 50.5, z = 30.5}, [1] = {x = 300, y = 300, z = 30},
 		[2] = {x = 300, y = 310, z = 30}, [3] = {x = 300, y = 320, z = 30}};
@@ -256,6 +260,13 @@ NOW = NOW + 1;
 check(not shot(0), "out of charges: the guns are guns again");
 local n0 = launched;
 check(rocket:trigger(0) ~= nil and launched == n0 + 1, "trigger fires one free");
+local seen;
+blast_fire = function(o, pos, dir, opts) seen = dir; return real_fire(o, pos, dir, opts); end
+local eye = get_position(0);
+rocket:trigger(0, {pos = {x = eye.x, y = eye.y + 10, z = eye.z}});
+check(seen ~= nil and math.abs(seen.y - 1) < 1e-6 and math.abs(seen.x) < 1e-6,
+	"given a point (the pie's %h), it flies straight at it, whatever the facing");
+blast_fire = function(...) launched = launched + 1; return real_fire(...); end
 rocket.everyone = true;
 NOW = NOW + 1;
 check(shot(0), "while it is everybody's, every shot is a rocket");
@@ -276,6 +287,7 @@ check(air:trigger(0, {pos = target}) == target, "trigger(pid, {pos}) answers the
 check(#pings == 1 and pings[1].o.reason.en == "Airstrike!" and pings[1].pos == target,
 	"a Teamplay ping on the target for everyone");
 check(chat[#chat] and chat[#chat].to == PID_BROADCAST, "and a chat line to all");
+check(chat[#chat].text == "P0 called in an airstrike! Get out of there!", "naming the caller", chat[#chat].text);
 amod.after.tick();
 check(#fired == 0, "nothing falls before the delay");
 NOW = NOW + 3.05;
@@ -310,5 +322,6 @@ ORI[0] = {x = 0, y = 0, z = -1};
 check(air:trigger(0, {}) == nil, "aimed at the open sky: no strike");
 blast_fire = real;
 
+L.clean(check);
 print(string.format("\n%d checks, %d failed", passed + failed, failed));
 os.exit(failed == 0 and 0 or 1);

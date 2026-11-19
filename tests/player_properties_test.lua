@@ -30,7 +30,7 @@ end
 
 --============================ THE STUBS =============================--
 
-MAX_PLAYERS, PID_BROADCAST, SPECTATOR = 255, 255, 256;
+MAX_PLAYERS, PID_BROADCAST, SPECTATOR = 255, 0x20000000, 256;   -- as LSd
 function init_mod()
 	local function t() return {before = {}, after = {}, next = {}}; end
 	local m = t();

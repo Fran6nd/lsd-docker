@@ -15,7 +15,8 @@ local function check(ok, what, detail)
 end
 
 --============================= STUBS ================================--
-PID_BROADCAST = 255;
+MAX_PLAYERS = 32;
+PID_BROADCAST = 0x20000000;   -- PID_SET_FLAG(1), as state.h
 function init_mod() return {impl = {}, after = {}, before = {}, next = {}}; end
 function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
 function pid_connected_table(d) return setmetatable({}, {__index = function() return d; end}); end
@@ -29,9 +30,10 @@ function is_alive(p) return ALIVE[p]; end
 function is_connected() return true; end
 function get_name(p) return "P" .. p; end
 function piditer() local i = -1; return function() i = i + 1; if (i <= 2) then return i; end end; end
-function l10n_str(_, m) return m.en; end
-local chat = {};
-function l10n_send_chat(to, m, a) chat[#chat+1] = {to = to, m = m.en, a = a or {}}; end
+-- the real lib_l10n: what the player reads, not a stand-in for it
+local L = dofile("tests/support/l10n_env.lua").load{};
+L.pids = {0, 1, 2};
+local chat = L.chat;
 local function last() return chat[#chat]; end
 
 local cmd;
@@ -56,7 +58,7 @@ local function effect(name, trigger)
 	return fx;
 end
 local rail = effect("railgun");
-local rocket = effect("rocket", function() end);
+local rocket = effect("rocket", function(pid, o) triggered.rocket = o; return {}; end);
 local air = effect("airstrike", function(pid, o) triggered.air = o; return o.pos or {x = 1, y = 1, z = 1}; end);
 local kit = effect("medkit", function(pid, o) triggered.kit = o; if (triggered.full) then return nil; end return 40; end);
 local heal = effect("area_heal", function() end);
@@ -119,7 +121,7 @@ check(#chat == k, "but not tdm's winning capture, which is not one");
 
 --============================= SPENDING =============================--
 print("\n5. /reward lists, /reward <name> spends");
-chat = {};
+L.reset();
 run();
 check(chat[1].m:find("you have") and chat[1].a.points == 3, "the list says the points held");
 local lines = 0; for _, c in ipairs(chat) do if (c.m:find("/reward %(name)", 1, true)) then lines = lines + 1; end end
@@ -134,10 +136,12 @@ check(not rail:has(1), "and nobody else");
 local g = rail.grants[0][1];
 check(g.death == true and g.ends > get_time() and g.ends <= get_time() + 30, "for 30 s or until death");
 -- 2 points left
-run("rocket");
-check(rocket:stacks(0) == 3, "rockets: three charges");
+run("rocket", "5", "6", "7");
+check(triggered.rocket ~= nil and triggered.rocket.pos.x == 5 and triggered.rocket.pos.z == 7,
+	"rocket: fired at once, at the point aimed at, like the airstrike");
+check(rocket:stacks(0) == 0, "no charges left on the gun");
 -- 1 left; airstrike costs 2
-chat = {};
+L.reset();
 run("airstrike", "10", "20", "30");
 check(last().m:find("costs") and triggered.air == nil, "airstrike: refused for want of points");
 mod.after.capture_intel(0);
@@ -147,7 +151,7 @@ check(triggered.air ~= nil and triggered.air.pos.x == 10 and triggered.air.pos.z
 mod.after.capture_intel(0);
 local points_before = last();
 triggered.full = true;
-chat = {};
+L.reset();
 run("medkit");
 check(last().m:find("no point spent"), "a trigger that does nothing (full health) is not paid for");
 triggered.full = false;
@@ -192,7 +196,7 @@ local texts = visible();
 local has_kit = false;
 for _, t in ipairs(texts) do if (t:find("medkit")) then has_kit = true; end end
 check(not has_kit, "no medkit wedge");
-chat = {};
+L.reset();
 run();
 local listed = false;
 for _, c in ipairs(chat) do if (c.a.name == "medkit") then listed = true; end end
@@ -203,7 +207,7 @@ local nvwedge = wedge(6);
 check(nvwedge.text == "/reward nightvision", "its wedge");
 mod.after.capture_intel(0);
 check(not nvwedge.show(0), "by day: hidden");
-chat = {};
+L.reset();
 run("nightvision");
 check(last().m:find("only offered at night") and not nv:has(0), "by day: the command says it is for the night");
 night = true;
@@ -229,5 +233,6 @@ mod = dofile("catalog/tools/rewards/lib_rewards.lua");
 mod.on_load();
 check(rail.everyone, "rewards_exclusive = false: left as it was");
 
+L.clean(check);
 print(string.format("\n%d checks, %d failed", passed + failed, failed));
 os.exit(failed == 0 and 0 or 1);

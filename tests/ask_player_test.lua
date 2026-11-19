@@ -4,9 +4,9 @@
 --   luajit tests/ask_player_test.lua      (from the repository root)
 
 local passed, failed = 0, 0;
-local function check(ok, what)
+local function check(ok, what, detail)
 	if (ok) then passed = passed + 1; print("  PASS " .. what);
-	else failed = failed + 1; print("  FAIL " .. what); end
+	else failed = failed + 1; print("  FAIL " .. what .. (detail and ("  (" .. tostring(detail) .. ")") or "")); end
 end
 
 --============================= STUBS ================================--
@@ -15,11 +15,17 @@ function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
 function log() end
 local now = 100;
 function get_time() return now; end
-function l10n_str(_, m) return type(m) == "table" and m.en or m; end
+MAX_PLAYERS = 32;
+PID_BROADCAST = 0x20000000;
 
-local chat, said = {}, {};
-function server_msg(pid, line) chat[#chat+1] = {pid = pid, line = line}; end
-function l10n_send_chat(pid, m) said[#said+1] = {pid = pid, m = m}; end
+-- the real lib_l10n: server_msg and l10n_send_chat are what players read
+local chat = {};
+local L = dofile("tests/support/l10n_env.lua").load{
+	server_msg = function(pid, line, via_l10n)
+		if (not via_l10n) then chat[#chat+1] = {pid = pid, line = line}; end
+	end,
+};
+local said = L.chat;
 
 local override = {};
 local overrides = 0;
@@ -55,11 +61,11 @@ check(ask_player_open(1) == nil, "nobody else has one");
 print("\n2. a wrong answer re-states the choices");
 local c = #chat;
 answer(0, "7"); answer(0, "maybe"); answer(0, "1.5");
-check(#said == 3 and said[1].m.en == "That is not one of the answers.", "told it is wrong");
+check(#said == 3 and said[1].m == "That is not one of the answers.", "told it is wrong");
 check(#chat == c + 3 and chat[#chat].line:find("1) Yes", 1, true), "the choices said again");
 check(#got == 0 and ask_player_open(0) ~= nil, "and the question is still open");
 answer(2, "1");
-check(said[#said].m.en == "Nobody has asked you anything.", "no question open: told so");
+check(said[#said].m == "Nobody has asked you anything.", "no question open: told so");
 
 print("\n3. answering by number, and the menu comes back");
 answer(0, "2");
@@ -142,5 +148,6 @@ mod.on_unload();
 check(ask_player == nil and ask_player_open == nil and override[0] == nil,
 	"the globals go, the override with them");
 
+L.clean(check);
 print(string.format("\n%d checks, %d failed", passed + failed, failed));
 os.exit(failed == 0 and 0 or 1);

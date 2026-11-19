@@ -35,7 +35,7 @@ function pid_connected_table(default)
 end
 function register_command() end
 
-PID_BROADCAST = -1;
+PID_BROADCAST = 0x20000000;   -- PID_SET_FLAG(1), as state.h
 TEAMPLAY_FOREVER = math.huge;
 local TEAM = {[0] = 1, [1] = 2, [2] = 1, [3] = 2, [4] = 3};   -- 4: spectator
 function get_team(pid) return TEAM[pid]; end

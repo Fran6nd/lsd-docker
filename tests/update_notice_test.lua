@@ -35,11 +35,12 @@ function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
 function pid_connected_table() return {}; end
 function is_fakepid(pid) return pid >= 32; end
 function has_cap(pid, cap) return CAPS[pid] == "all" or CAPS[pid] == cap; end
-function server_msg(pid, m) sent[#sent+1] = {pid, tostring(m)}; end
-function l10n_msg(tab, args)
-	local s = string.gsub(tab.en, "%%%((%w+)%)", function(k) return tostring(args[k]); end);
-	return setmetatable({}, {__tostring = function() return s; end});
-end
+-- the real lib_l10n: server_msg hands each player the finished text
+MAX_PLAYERS = 32;
+PID_BROADCAST = 0x20000000;
+local L = dofile("tests/support/l10n_env.lua").load{
+	server_msg = function(pid, text) sent[#sent+1] = {pid, text}; end,
+};
 update_notice_file = FILE;
 
 local mod = dofile("catalog/core/lib_update_notice.lua");
@@ -88,5 +89,6 @@ mod.after.tick();
 eq(sent[3] and sent[3][1], 1, "a player made admin later is told then");
 
 os.remove(FILE);
+L.clean(check);
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures > 0 and 1 or 0);

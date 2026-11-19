@@ -29,7 +29,7 @@ local function setup(visibility)
 	for k in pairs(package.loaded) do
 		if (k == "lib_flashlight") then package.loaded[k] = nil; end
 	end
-	MAX_PLAYERS = 255; PID_BROADCAST = 255;
+	MAX_PLAYERS = 255; PID_BROADCAST = 0x20000000;   -- PID_SET_FLAG(1), as state.h
 	flashlight_visibility = visibility;
 	flashlight_colors = nil; flashlight_send_default = nil;
 	function init_mod() return {impl={before={},after={},next={}}, late={before={},after={},next={}},
@@ -37,7 +37,15 @@ local function setup(visibility)
 	function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
 	function log() end
 	function pid_connected_table(d) return setmetatable({}, {__index = function() return d; end}); end
-	function piditer() local i = 0; return function() i = i + 1; return PLAYERS[i]; end; end
+	-- as lua.c's piditer: a broadcast reaches the connected, a pid only itself
+	function piditer(pid)
+		local list = {};
+		for _, p in ipairs(PLAYERS) do
+			if (pid == PID_BROADCAST or pid == p) then list[#list+1] = p; end
+		end
+		local i = 0;
+		return function() i = i + 1; return list[i]; end;
+	end
 	function send_packet(pid, data) sent[#sent+1] = {to = pid, data = data}; end
 	function ext_supported() return 1; end
 	function ext_register(_, _, _, on_ready) ready = on_ready; end

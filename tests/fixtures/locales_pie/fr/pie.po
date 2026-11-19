@@ -1,0 +1,14 @@
+msgid ""
+msgstr ""
+"Language: fr\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Thanks"
+msgstr "Merci"
+
+msgid "Quick chat"
+msgstr "Messages"
+
+msgid "Vote kick"
+msgstr "Voter l'exclusion"

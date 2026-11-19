@@ -65,7 +65,7 @@ print("\n4. lib_l10n: who reads what");
 -- the stubbed server: 0 sent fr_FR, 1 sent pl, 2 sent nothing, 3 sent
 -- pt_br, all on ZeroSpades 0.0.9; 4 sent fr on stock OpenSpades, 5 fr
 -- on an older ZeroSpades
-MAX_PLAYERS = 32; PID_BROADCAST = 0x20000001;
+MAX_PLAYERS = 32; PID_BROADCAST = 0x20000000;
 local LANG = {[0] = "fr_FR", [1] = "pl", [2] = "", [3] = "pt_br", [4] = "fr", [5] = "fr"};
 local ZS = "Darwin 25.6.0 | ZeroSpades 0.0.9 b3432453 (arm64)";
 local MSG = {[0] = ZS, [1] = ZS, [2] = ZS, [3] = ZS,
@@ -188,6 +188,8 @@ eq(sent[1][2], "Al a été expulsé", "upstream's l10n_send_chat is translated")
 eq(l10n_get_str_pid(0, {en = "Bye"}), "Au revoir", "and l10n_get_str_pid");
 eq(l10n_str(0, {en = "Bye"}), "Au revoir", "l10n_str takes a script's {en = ...} too");
 eq(l10n_str(0, "plain"), "plain", "and a plain string as it is");
+eq(l10n_get_str_pid(0, {en = "%(name) was kicked"}, {name = {en = "Bye"}}), "Au revoir a été expulsé",
+	"an argument written {en = ...} is translated too, not printed as a table");
 logged = {};
 l10n_log({en = "Bye"});
 eq(logged[1], "Bye", "logs stay in the log language");
