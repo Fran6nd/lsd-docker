@@ -137,7 +137,7 @@ function A.players_in(a, pred, out)
 	out = out or {};
 	local n = 0;
 	for i in piditer(PID_BROADCAST) do
-		if (is_joined(i) and is_alive(i) and get_team(i) ~= 255) then
+		if (is_joined(i) and is_alive(i) and get_team(i) ~= SPECTATOR) then
 			local p = get_position(i);
 			if (A.contains(a, p.x, p.y, p.z) and (pred == nil or pred(i))) then
 				n = n + 1;
@@ -153,7 +153,7 @@ end
 -- triggers only ask "is anyone there", so this is the common path.
 function A.any_player_in(a, pred)
 	for i in piditer(PID_BROADCAST) do
-		if (is_joined(i) and is_alive(i) and get_team(i) ~= 255) then
+		if (is_joined(i) and is_alive(i) and get_team(i) ~= SPECTATOR) then
 			local p = get_position(i);
 			if (A.contains(a, p.x, p.y, p.z) and (pred == nil or pred(i))) then
 				return true;

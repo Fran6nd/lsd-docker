@@ -71,5 +71,27 @@ check(not areas.contains(areas.box(0, 0, 0, 4, 4, 4), 5, 2, 2), "and not its out
 check(areas.contains(areas.cylinder(10, 10, 3, 0, 20), 12, 10, 15), "a cylinder");
 check(not areas.contains(areas.sphere(0, 0, 0, 2), 2, 2, 2), "a sphere is round");
 
+print("\n4. who stands in an area");
+-- 0 and 1 play, 2 is a SPECTATOR (256 in LSd, not 255; the stub says it is
+-- alive so only the team can keep it out), 3 is out of the box
+SPECTATOR = 256;
+PID_BROADCAST = 0x20000000;
+local TEAMS = {[0] = 1, [1] = 2, [2] = SPECTATOR, [3] = 1};
+local POS = {[0] = {x = 2, y = 2, z = 2}, [1] = {x = 3, y = 3, z = 3},
+	[2] = {x = 1, y = 1, z = 1}, [3] = {x = 90, y = 90, z = 2}};
+function get_team(pid) return TEAMS[pid]; end
+function get_position(pid) return POS[pid]; end
+function is_joined() return true; end
+function is_alive() return true; end
+function piditer(b)
+	local i = -1;
+	return function() i = i + 1; if (i <= 3 and (b == PID_BROADCAST or b == i)) then return i; end end;
+end
+local box = areas.box(0, 0, 0, 9, 9, 9);
+local in_box = areas.players_in(box);
+eq(table.concat(in_box, ","), "0,1", "players_in: the players inside, not a spectator");
+check(areas.any_player_in(box, function(i) return i == 1; end), "any_player_in: a player");
+check(not areas.any_player_in(box, function(i) return i == 2; end), "but never a spectator");
+
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures > 0 and 1 or 0);

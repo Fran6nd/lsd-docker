@@ -170,7 +170,8 @@ function M.perm_at(x, y, z)
 	return c.perm, c;
 end
 
--- may this player edit this block? team 255 (spectators) never can
+-- may this player edit this block? (a SPECTATOR, team 256, is on neither
+-- team, so a block that names a team is not theirs)
 function M.can_write(pid, x, y, z)
 	local p = M.perm_at(x, y, z);
 
