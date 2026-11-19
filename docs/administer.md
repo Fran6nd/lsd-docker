@@ -64,7 +64,13 @@ it, and paste a map's page into `lsdctl map add` (or into the setup
 wizard, which asks for maps after the gamemode). Its download links work
 too (`lsdctl map add https://aos.party/download/864/vxl`), and so does
 `aos.party:864`; each brings the map's `.txt` (name, author) along.
-Other sites that publish maps by id can be added beside aos.party:
+[hosting.dgd.cx](https://hosting.dgd.cx/map-search) is built in too: paste
+its map page (`https://hosting.dgd.cx/map-search?map=Normandie`), or write
+`hosting.dgd.cx:Normandie` -- the map's file name, spaces and all
+(`hosting.dgd.cx:Rocket Island`). A random map, in `play` and the quick
+setup, comes from aos.party, else the same map from hosting.dgd.cx, else
+the next map of the list.
+Other sites that publish maps by id can be added beside them:
 
 ```
 map_sources = [{name: 'example', view: 'https://example.org/map/%(id)',

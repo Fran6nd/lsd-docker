@@ -82,7 +82,7 @@ irm https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.ps1 | iex
 ```
 
 It asks for the game (tdm, ctf, bots, bots_rewards -- every reward free -- or babel) and the map (random, or a link or id
-from [aos.party](https://aos.party)), then prints the `aos://` address to
+from [aos.party](https://aos.party) or [hosting.dgd.cx](https://hosting.dgd.cx/map-search)), then prints the `aos://` address to
 join. It is never listed publicly. A minute after the last player leaves it stops, and the container,
 its data and -- if the game downloaded it -- the image are removed.
 Ctrl-C stops it at once. Answers can be given ahead:
@@ -92,7 +92,8 @@ Ctrl-C stops it at once. Answers can be given ahead:
 ## Documentation
 
 - [Administering a server](docs/administer.md) -- `lsdctl`, settings,
-  maps (find them on [aos.party](https://aos.party)), updates
+  maps (find them on [aos.party](https://aos.party) or
+  [hosting.dgd.cx](https://hosting.dgd.cx/map-search)), updates
 - [The catalog](docs/catalog.md) -- gamemodes, extensions, effects,
   bots, tools; writing your own scripts, and keeping them across updates
 - [Building maps](docs/building-maps.md) -- the editor gamemode
