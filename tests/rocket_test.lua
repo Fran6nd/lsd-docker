@@ -39,8 +39,10 @@ end
 -- gives the air voxel before the hit, false the solid one hit (measured
 -- on a live server; the grenade shotgun relies on it too)
 function raycast(a, b, last)
-	-- and, as the server does, nothing at all from a start above the map
+	-- and, as the server does, nothing at all from a start above the map,
+	-- and the start's own voxel from a start inside a solid one
 	if (a.z < 0) then return nil; end
+	if (is_solid(a)) then return {x = math.floor(a.x), y = math.floor(a.y), z = math.floor(a.z)}; end
 	local before;
 	for i = 0, 400 do
 		local t = i / 400;
@@ -316,6 +318,33 @@ check(#SENT == 1 and SENT[1].to == PID_BROADCAST and SENT[1].fuse == 0 and SENT[
 	"a zero-fuse grenade to everyone, from nobody's stock");
 check(registered == 0, "never registered: it does no damage of its own");
 send_grenade, register_grenade = real_sg, reg0;
+
+print("\n5f. a blast on the ground or the water hurts whoever stands on it or swims above");
+reset();
+WALL_X = 400;
+-- an enemy standing on the ground (z 50), eye 2.25 above his feet
+POS[1] = {x = 103.5, y = 50.5, z = 47.75};
+blast_fire(0, {x = 100.5, y = 50.5, z = 40.5}, {x = 0, y = 0, z = 1}, {speed = 2, damage = 90, radius = 3});
+ticks(30);
+local hurt;
+for _, d in ipairs(dmg) do if (d.pid == 1) then hurt = d; end end
+check(hurt ~= nil and hurt.n > 0, "the enemy standing 3 blocks from the impact is hurt", hurt and hurt.n);
+reset();
+GROUND = 63;   -- the water's floor
+WALL_X = 400;
+POS[1] = {x = 101.5, y = 50.5, z = 61.0};   -- swimming right above it
+blast_fire(0, {x = 101.5, y = 50.5, z = 40.5}, {x = 0, y = 0, z = 1}, {speed = 2, damage = 90, radius = 3, kill_radius = 2});
+ticks(30);
+hurt = nil;
+for _, d in ipairs(dmg) do if (d.pid == 1) then hurt = d; end end
+check(hurt ~= nil and hurt.n >= 100, "a bomb into the water kills the swimmer right under it", hurt and hurt.n);
+GROUND = 50;
+reset();
+POS[1] = {x = 102.5, y = 50.5, z = 47.75};
+blast_explode(0, {x = 101.5, y = 50.5, z = 50.5}, 3, 90);   -- handed a point inside the ground
+hurt = nil;
+for _, d in ipairs(dmg) do if (d.pid == 1) then hurt = d; end end
+check(hurt ~= nil and hurt.n > 0, "an explosion handed a point inside a block still reaches the man on top", hurt and hurt.n);
 
 print("\n6. the rocket effect: charges, one a shot, a gap between");
 reset();

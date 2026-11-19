@@ -137,11 +137,26 @@ end
 
 -- Is the line from the blast to the player's body clear of blocks?
 -- A wall between them is cover; no raycast to ask, no cover.
+-- Nothing solid between the blast and the player. A raycast that starts
+-- inside a solid voxel answers that very voxel -- every victim would be
+-- behind a wall -- so a blast point inside one (an explosion handed in
+-- by a caller) is moved a block toward the victim first; the blasts
+-- that fly here already go off in the air on the surface.
 local function exposed(pos, p)
 	if (raycast == nil) then
 		return true;
 	end
-	return raycast(pos, {x = p.x, y = p.y, z = p.z + 0.5}, true) == nil;
+	local to = {x = p.x, y = p.y, z = p.z + 0.5};
+	local from = pos;
+	if (is_solid({x = math.floor(pos.x), y = math.floor(pos.y), z = math.floor(pos.z)})) then
+		local dx, dy, dz = to.x - pos.x, to.y - pos.y, to.z - pos.z;
+		local len = math.sqrt(dx*dx + dy*dy + dz*dz);
+		if (len <= 1) then
+			return true;
+		end
+		from = {x = pos.x + dx / len, y = pos.y + dy / len, z = pos.z + dz / len};
+	end
+	return raycast(from, to, true) == nil;
 end
 
 local function crater(owner, pos, radius)
@@ -349,6 +364,8 @@ end
 -- One voxel along the line. Answers false once the blast is over.
 local function advance(b)
 	local v, t, d, s = b.vox, b.tmax, b.delta, b.step;
+	-- the cell it is leaving: air, where it goes off if the next is solid
+	local was = {x = v.x + 0.5, y = v.y + 0.5, z = v.z + 0.5};
 	if (t.z <= t.x and t.z <= t.y) then
 		v.z = v.z + s.z; t.z = t.z + d.z;
 	elseif (t.x < t.y) then
@@ -367,7 +384,10 @@ local function advance(b)
 	end
 	local cell = {x = v.x, y = v.y, z = v.z};
 	if (v.z >= 0 and is_solid(cell)) then
-		finish(b, {x = v.x + 0.5, y = v.y + 0.5, z = v.z + 0.5});
+		-- on the surface, in the air it came through: inside the block,
+		-- nobody standing on it or swimming over it would be in its
+		-- line of sight (exposed), and it would hurt nobody
+		finish(b, was);
 		return false;
 	end
 	if (person_in(b, v)) then
