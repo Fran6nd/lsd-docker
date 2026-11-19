@@ -10,7 +10,7 @@ msgid "Railgun"
 msgstr ""
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "Rockets"
+msgid "Rocket"
 msgstr ""
 
 #: catalog/tools/rewards/lib_rewards.lua

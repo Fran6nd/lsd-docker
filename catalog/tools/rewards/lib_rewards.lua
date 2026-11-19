@@ -49,8 +49,9 @@ getcfg("rewards_exclusive", true,
 getcfg("rewards_menu", {
 	{effect = "railgun", cost = 1, secs = 30, death = true,
 		label = {en = "Railgun"}},
-	{effect = "rocket", cost = 1, charges = 3,
-		label = {en = "Rockets"}},
+	-- fired at once, like the airstrike, at the point aimed at
+	{effect = "rocket", cost = 1, trigger = true, aim = true,
+		label = {en = "Rocket"}},
 	{effect = "airstrike", cost = 2, trigger = true, aim = true,
 		label = {en = "Airstrike"}},
 	{effect = "medkit", cost = 1, trigger = true, opts = {free = true},

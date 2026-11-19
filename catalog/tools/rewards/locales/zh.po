@@ -12,7 +12,7 @@ msgid "Railgun"
 msgstr "轨道炮"
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "Rockets"
+msgid "Rocket"
 msgstr "火箭弹"
 
 #: catalog/tools/rewards/lib_rewards.lua

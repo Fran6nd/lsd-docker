@@ -12,8 +12,8 @@ msgid "Railgun"
 msgstr "Рейлган"
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "Rockets"
-msgstr "Ракеты"
+msgid "Rocket"
+msgstr "Ракета"
 
 #: catalog/tools/rewards/lib_rewards.lua
 msgid "Airstrike"

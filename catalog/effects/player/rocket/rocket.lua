@@ -64,9 +64,19 @@ getcfg("rocket_gap", 0.5, "Seconds between two rockets from one player's shots."
 
 local last = pid_connected_table(0);
 
+-- From the eye, along the aim -- or, given opts.pos (a pie wedge's %h,
+-- the point under the crosshair), straight at that point.
 function fire(pid, opts)
 	local pos = get_position(pid);
 	local dir = get_orientation(pid);
+	local t = opts.pos;
+	if (t ~= nil and tonumber(t.x) and tonumber(t.y) and tonumber(t.z)) then
+		local dx, dy, dz = t.x - pos.x, t.y - pos.y, t.z - pos.z;
+		local len = math.sqrt(dx*dx + dy*dy + dz*dz);
+		if (len > 0.01) then
+			dir = {x = dx / len, y = dy / len, z = dz / len};
+		end
+	end
 	return blast_fire(pid, pos, dir, {
 		speed = tonumber(opts.speed) or rocket_speed,
 		range = tonumber(opts.range) or rocket_range,

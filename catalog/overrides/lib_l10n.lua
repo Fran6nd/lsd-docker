@@ -215,10 +215,12 @@ local function args_in(m, lang)
 		return nil;
 	end
 	local out;
+	-- an argument that is itself a message, or a script's {en = ...},
+	-- is put in the same language rather than printed as "table: 0x..."
 	for k, v in pairs(args) do
-		if (l10n_is_msg(v)) then
+		if (l10n_is_msg(v) or l10n_is_map(v)) then
 			out = out or {};
-			out[k] = resolve(v, lang);
+			out[k] = resolve(l10n_is_msg(v) and v or l10n_msg(v), lang);
 		end
 	end
 	if (out == nil) then

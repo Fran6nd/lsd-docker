@@ -106,7 +106,7 @@ it is affordable -- or with `/reward <name>`:
 | reward | cost | |
 |---|---|---|
 | Railgun | 1 | 30 s, or until death |
-| Rockets | 1 | three shots of any gun fire a rocket: a streak of blocks that blows a crater |
+| Rocket | 1 | fired at once where you aim: a streak of blocks that blows a crater |
 | Airstrike | 2 | where you aim: everyone is warned, then five bombs fall in a line |
 | Medkit | 1 | |
 | Area heal | 1 | 20 s |
