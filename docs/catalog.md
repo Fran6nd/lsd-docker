@@ -172,6 +172,30 @@ The Edit Mode extension puts a player in edit mode with
 `/editmode [player] [on|off]` (the `editmode` cap). The editor gamemode
 does not use it: building there works the same for every client.
 
+## Protected blocks
+
+An effect or a bot that breaks blocks -- a rocket's crater, a railgun,
+the Fall's shaft, a guard digging through a wall -- is the server
+breaking them, which nothing guarding blocks against players sees. So
+they all go through one door, `PlayerEffect.break_blocks(owner, list,
+type)` (bots: `bot_dig_block(x, y, z, pid)`), which asks one gate,
+`may_break_block(owner, pos, type)`, for every block. A script that
+protects blocks joins the gate once and holds for every effect and
+bot there is:
+
+```lua
+function mod.may_break_block(owner, pos, type)
+	if (<pos is mine to guard>) then return false; end
+	local below = mod.next.may_break_block;
+	return below == nil or below(owner, pos, type);
+end
+```
+
+Babel does: its platform, and each team's tower area against that
+team (and against ownerless world effects). `tests/catalog_test.lua`
+refuses an effect or a bot, or a library one needs, that breaks a
+block without asking the gate.
+
 ## Writing a catalog entry
 
 An entry is a directory, `catalog/<category>/<id>/`:
