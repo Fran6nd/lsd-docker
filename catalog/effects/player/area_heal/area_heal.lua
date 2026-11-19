@@ -49,6 +49,11 @@ function heal(pid, opts)
 			if (gain > 0) then
 				damage_player(i, -gain, KILL_GUN, pid);
 				healed = healed + 1;
+			elseif (damage_markers_show ~= nil) then
+				-- already full: nothing to give, but the healer still sees
+				-- the heal float over them -- what it would give someone
+				-- with nothing left -- so the effect shows it is working
+				damage_markers_show(pid, i, -math.min(amount, FULL));
 			end
 		end
 	end
