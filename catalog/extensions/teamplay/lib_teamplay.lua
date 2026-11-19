@@ -266,8 +266,13 @@ getcfg("teamplay_ping_range", 128);
 -- Log every ping and every reason one was refused. For working out why a
 -- client's pings are not arriving; noisy, and off unless you are asking.
 getcfg("teamplay_ping_debug", false);
--- Longest ping/mark reason accepted or sent, in bytes.
-getcfg("teamplay_reason_max", 128);
+-- Longest ping/mark reason accepted or sent, in bytes. 64 because that is
+-- all ZeroSpades keeps: Teamplay::SanitizeReason (Sources/Client/
+-- Teamplay.cpp) cuts every Reason it receives to Teamplay::kMaxReasonBytes
+-- = 64 on a codepoint boundary, so a longer one is shown shortened
+-- whatever the server sent. The spec only says a client may cap; the
+-- client's cap is the one that counts.
+getcfg("teamplay_reason_max", 64);
 -- Relay a client's ping to the rest of its team automatically. Listeners
 -- see it either way; turn this off to decide distribution yourself.
 getcfg("teamplay_relay_pings", true);

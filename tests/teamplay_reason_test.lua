@@ -109,13 +109,19 @@ check(valid_utf8(utf8_truncate(string.rep("\xc3\xa0", 100), 129)),
 	"an odd cap over two-byte characters still yields valid UTF-8");
 
 print("\n4. clean_reason: validate, then cap");
+-- ZeroSpades keeps 64 bytes of a Reason (Teamplay::kMaxReasonBytes in
+-- Sources/Client/Teamplay.cpp SanitizeReason), so sending more is wasted
+check(teamplay_reason_max <= 64, "the default cap is no more than the client keeps",
+	teamplay_reason_max);
+eq(clean_reason(string.rep("a", 100)), string.rep("a", 64),
+	"a 100-byte reason goes out as the 64 the client would keep");
 teamplay_reason_max = 8;
 eq(clean_reason(nil), "", "no reason is the empty reason");
 eq(clean_reason("bad\xff"), "", "malformed is dropped, not forwarded");
 eq(clean_reason("1234567\xc3\xa0"), "1234567",
 	"valid but over the cap is shortened, not dropped");
 eq(clean_reason("flag"), "flag", "a short valid reason passes as is");
-teamplay_reason_max = 128;
+teamplay_reason_max = 64;
 
 print("\n5. /pingmark positions are base-10 numbers with '.'");
 eq(decimal("256"), 256, "an integer");
@@ -129,6 +135,16 @@ eq(decimal("256,5"), nil, "a comma is not the decimal point");
 eq(decimal("nan"), nil, "nan is not a number here");
 eq(decimal("%h"), nil, "an unexpanded %h");
 eq(decimal(nil), nil, "a missing argument");
+
+print("\n6. a reason is a message, read through the real lib_l10n");
+local reason_for = upvalue(teamplay_mark, "reason_for");
+eq(reason_for(0, "plain"), "plain", "plain text as it is (no lib_l10n)");
+eq(reason_for(0, {en = "Enemy here"}), "Enemy here", "a {en = ...} map without lib_l10n");
+dofile("tests/support/l10n_env.lua").load{};
+eq(reason_for(0, {en = "Enemy here"}), "Enemy here", "a {en = ...} map, not table: 0x...");
+eq(reason_for(0, l10n_msg({en = "%(who) here"}, {who = {en = "Enemy"}})), "Enemy here",
+	"a message with a map for an argument");
+eq(reason_for(0, "plain"), "plain", "plain text as it is");
 
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures > 0 and 1 or 0);

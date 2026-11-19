@@ -73,10 +73,10 @@ local PKT = 64 + EXT_ID;
 local SUB_SKY = 0;
 
 -- The two values of Time. 0 is night and "anything else" is day, so the
--- day value is a choice -- and it is noon, 720 minutes after midnight.
--- A client that already reads this field as minutes since midnight, as
--- the later version will (ZeroSpades 0.0.9 does), took the 1 sent here
--- before as 00:01 and drew the night by day; noon is day either way.
+-- day value is a choice -- and it is noon, 720 minutes after midnight:
+-- day to a v1 client (ZeroSpades reads `time == 0 ? Night : Day`,
+-- DaytimeWeather.cpp) and day to the later version, which reads this
+-- field as minutes since midnight and would take a 1 as 00:01.
 local TIME_NIGHT = 0;
 local TIME_DAY = 720;
 
