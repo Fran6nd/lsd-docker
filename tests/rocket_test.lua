@@ -35,13 +35,20 @@ local function key(p) return math.floor(p.x) .. "," .. math.floor(p.y) .. "," ..
 function is_solid(p)
 	return solid[key(p)] == true or p.z >= GROUND or (WALL_X ~= nil and p.x >= WALL_X);
 end
+-- as the SERVER answers, which is not as LSd's apidoc says: `last` true
+-- gives the air voxel before the hit, false the solid one hit (measured
+-- on a live server; the grenade shotgun relies on it too)
 function raycast(a, b, last)
+	local before;
 	for i = 0, 400 do
 		local t = i / 400;
 		local p = {x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t, z = a.z + (b.z - a.z) * t};
+		local v = {x = math.floor(p.x), y = math.floor(p.y), z = math.floor(p.z)};
 		if (p.z >= 0 and is_solid(p)) then
-			return {x = math.floor(p.x), y = math.floor(p.y), z = math.floor(p.z)};
+			if (last) then return before; end
+			return v;
 		end
+		before = v;
 	end
 end
 
@@ -285,6 +292,29 @@ WALL_X = 130;
 local a = blast_aim(0);
 check(a and math.floor(a.x) == 130, "blast_aim: the first block along the aim", a and a.x);
 
+print("\n5d. a guided blast that reaches its point in the air goes off there, not circling it");
+reset();
+WALL_X = 400;
+local airpt = {x = 120.5, y = 50.5, z = 30.5};
+local ab = blast_fire(0, {x = 100.5, y = 50.5, z = 30.5}, {x = 1, y = 0, z = 0},
+	{speed = 1, range = 300, guide = function() return airpt; end});
+ticks(30);
+check(ab.done and craters > 0 and ab.vox.x >= 119 and ab.vox.x <= 121, "exploded at the point", ab.vox.x);
+
+print("\n5e. every impact plays a grenade explosion for the clients, harmless");
+reset();
+local SENT = {};
+local real_sg = send_grenade;
+send_grenade = function(to, pos, vel, fuse, from) SENT[#SENT+1] = {to = to, pos = pos, fuse = fuse, from = from}; end
+local reg0 = register_grenade;
+local registered = 0;
+register_grenade = function(...) registered = registered + 1; end
+blast_explode(0, {x = 60.5, y = 60.5, z = 30}, 3, 50);
+check(#SENT == 1 and SENT[1].to == PID_BROADCAST and SENT[1].fuse == 0 and SENT[1].from == get_anon_pid(),
+	"a zero-fuse grenade to everyone, from nobody's stock");
+check(registered == 0, "never registered: it does no damage of its own");
+send_grenade, register_grenade = real_sg, reg0;
+
 print("\n6. the rocket effect: charges, one a shot, a gap between");
 reset();
 WALL_X = 400;
@@ -361,17 +391,31 @@ POS[0] = {x = 50.5, y = 50.5, z = 30.5};
 local fuse = gl:trigger(0, {});
 check(#GREN == 1 and GREN[1].pid == 0 and GREN[1].team == 1, "one grenade, the shooter's, on their team");
 check(GREN[1].vel.x > 1.5 and GREN[1].pos.x > 51, "fired hard along the aim, from in front of the eye");
--- the same physics, run here: it should hit at the fuse, give or take a step
-local p, v, t, hit = {x = GREN[1].pos.x, y = GREN[1].pos.y, z = GREN[1].pos.z},
-	{x = GREN[1].vel.x, y = GREN[1].vel.y, z = GREN[1].vel.z}, 0, false;
-while (not hit and t < 6) do p, v, hit = simulate_grenade_physics(p, v, 1/60); if (not hit) then t = t + 1/60; end end
-check(hit and math.abs(fuse - t) < 1/60 + 1e-9, "fused for exactly its flight: it explodes as it lands", fuse .. " vs " .. t);
-check(fuse > 0 and fuse < 5, "a real flight, not an instant or the cap", fuse);
+-- the same physics, run here
+local function fly(g, until_fn)
+	local p, v, t = {x = g.pos.x, y = g.pos.y, z = g.pos.z}, {x = g.vel.x, y = g.vel.y, z = g.vel.z}, 0;
+	while (t < 6) do
+		local hit; p, v, hit = simulate_grenade_physics(p, v, 1/60);
+		if (hit) then return t, p, true; end
+		t = t + 1/60;
+		if (until_fn(p)) then return t, p, false; end
+	end
+end
+local t40, p40 = fly(GREN[1], function(p) return math.abs(p.x - GREN[1].pos.x) >= 40; end);
+check(math.abs(fuse - t40) < 1/60 + 1e-9, "nothing aimed at within 40 blocks: it goes off 40 blocks out", fuse .. " vs " .. t40);
+-- a wall 20 blocks ahead, aimed at: it goes off by it, not at the landing
+reset();
+WALL_X = 75;
+GREN, SENT_GREN = {}, {};
+local f2 = gl:trigger(0, {});
+local t2, q2 = fly(GREN[1], function(p) return p.x >= 74; end);
+check(f2 > 0 and f2 <= t2 + 1/60 + 1e-9, "aimed at a wall in range: it goes off at the wall, where the crosshair is", f2 .. " vs " .. t2);
+WALL_X = nil;
 local own, others;
 for _, g in ipairs(SENT_GREN) do
 	if (g.to == 0) then own = g; elseif (g.to == PID_BROADCAST_EXCEPT(0)) then others = g; end
 end
-check(others and others.from == 0 and others.fuse == fuse, "everyone else sees the shooter's grenade, same fuse");
+check(others and others.from == 0 and others.fuse == f2, "everyone else sees the shooter's grenade, same fuse");
 check(own and own.from == get_anon_pid(), "the shooter's own copy is anonymous: it costs none of their grenades");
 ORI[0] = {x = 0, y = 0, z = -1};   -- straight up, into the open sky
 GREN = {};

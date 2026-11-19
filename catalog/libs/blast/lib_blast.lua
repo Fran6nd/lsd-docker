@@ -181,6 +181,14 @@ function mod.impl.blast_explode(owner, pos, radius, damage, hostile, self_ratio,
 
 	crater(owner, pos, radius);
 
+	-- the look and the sound of it: a grenade, fused to go off at once,
+	-- sent to the clients only -- never registered, so it hurts nobody
+	-- and breaks nothing more; the damage and the crater are ours. From
+	-- the anonymous pid, which costs nobody one of their own grenades.
+	if (send_grenade ~= nil) then
+		send_grenade(PID_BROADCAST, pos, {x = 0, y = 0, z = 0}, 0, anon());
+	end
+
 	for i in piditer(PID_BROADCAST) do
 		if (is_alive(i) and (i == owner or hostile(owner, i))) then
 			local p = get_position(i);
@@ -221,7 +229,10 @@ local function aim_at(b, pos, dir)
 end
 
 -- A guided blast: turn the head, at the centre of its voxel, to face
--- the point its guide names.
+-- the point its guide names. Answers true when the head is there
+-- already: a point in the air (a player, or a guide's own choosing) is
+-- reached rather than hit, and the blast goes off there instead of
+-- circling it, turning back every tick.
 local function steer(b)
 	local ok, t = pcall(b.guide, b);
 	if (not ok or type(t) ~= "table" or tonumber(t.x) == nil) then
@@ -230,10 +241,11 @@ local function steer(b)
 	local from = {x = b.vox.x + 0.5, y = b.vox.y + 0.5, z = b.vox.z + 0.5};
 	local dx, dy, dz = t.x - from.x, t.y - from.y, t.z - from.z;
 	local len = math.sqrt(dx*dx + dy*dy + dz*dz);
-	if (len < 0.5) then
-		return;
+	if (len < 1) then
+		return true;
 	end
 	aim_at(b, from, {x = dx / len, y = dy / len, z = dz / len});
+	return false;
 end
 
 local AIM_RANGE = 400;
@@ -245,8 +257,12 @@ function mod.impl.blast_aim(pid, range)
 		return nil;
 	end
 	range = tonumber(range) or AIM_RANGE;
+	-- `false`: the solid block hit. LSd's apidoc has the two the other
+	-- way round; the server answers `true` with the air voxel BEFORE the
+	-- hit (as the grenade shotgun relies on), which would aim a missile
+	-- at a point in mid-air in front of the wall.
 	local hit = raycast(from, {x = from.x + d.x * range,
-		y = from.y + d.y * range, z = from.z + d.z * range}, true);
+		y = from.y + d.y * range, z = from.z + d.z * range}, false);
 	if (hit == nil) then
 		return nil;
 	end
@@ -370,10 +386,10 @@ function mod.after.tick()
 	flying = {};
 	for _, b in ipairs(current) do
 		b.budget = b.budget + b.speed;
-		if (b.guide ~= nil and b.steps > 0) then
-			steer(b);
+		if (b.guide ~= nil and b.steps > 0 and steer(b)) then
+			finish(b, {x = b.vox.x + 0.5, y = b.vox.y + 0.5, z = b.vox.z + 0.5});
 		end
-		local going = true;
+		local going = not b.done;
 		while (going and b.budget >= 1) do
 			b.budget = b.budget - 1;
 			going = advance(b);
