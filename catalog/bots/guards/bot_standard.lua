@@ -36,6 +36,10 @@ getcfg("guard_grenade_safe_r", 16,
 	"No grenade when a hostage is this many blocks from the target.");
 getcfg("guard_lowhp", 30,
 	"A guard shouts for help in team chat below this HP.");
+getcfg("guard_scan", 0.2,
+	"Seconds between a guard's looks around for whom to fight; it aims and shoots every tick.");
+getcfg("guard_sight_range", 96,
+	"Blocks a guard sees: nobody farther is looked for.");
 getcfg("guard_flashlight", true,
 	"Guards keep their flashlight lit while alive, where lib_flashlight "
 	.."is loaded.");
@@ -187,8 +191,24 @@ local function guard_think(pid)
 		d.warned = false;
 	end
 
-	local enemy, dist = bot_nearest_player(pid,
-		{team=3-get_team(pid), visible=true, include_bots=true, reject=is_hostage});
+	-- Whom to fight is looked for guard_scan apart, not every tick: the
+	-- look is a line of sight per candidate, a raycast each, and a dozen
+	-- guards doing it 60 times a second was what made the server miss
+	-- its ticks (and its garbage, the collector's pauses). Each guard's
+	-- looks are spread over the interval by its pid, so they do not all
+	-- land on one tick. Between looks the guard keeps its target -- while
+	-- it lives and is still an enemy -- and aims and shoots every tick.
+	local foe = 3 - get_team(pid);
+	if (d.enemy ~= nil and not (is_alive(d.enemy) and get_team(d.enemy) == foe)) then
+		d.enemy, d.scan_at = nil, nil;
+	end
+	if (d.scan_at == nil or now >= d.scan_at) then
+		d.scan_at = now + guard_scan * (d.scan_at == nil and (1 + (pid % 12) / 12) or 1);
+		d.enemy = bot_nearest_player(pid, {team=foe, visible=true, include_bots=true,
+			reject=is_hostage, within=guard_sight_range});
+	end
+	local enemy = d.enemy;
+	local dist = enemy and bot_distance_to(pid, enemy);
 
 	if (enemy == nil) then
 		d.state = "roam";
@@ -241,11 +261,17 @@ local function count_guards(team)
 end
 
 -- top up to guard_count per team; a dead guard still counts (lib_bot
--- respawns it), so this never over-spawns
+-- respawns it), so this never over-spawns. Once a second is plenty.
+local next_count = 0;
 function mod.after.tick()
+	local now = get_time();
+	if (now < next_count) then
+		return;
+	end
+	next_count = now + 1;
 	for team=1,2 do
 		local n = count_guards(team);
-		if (n < guard_count) then
+		while (n < guard_count) do
 			bot_create{
 				team = team,
 				name = "Guard-"..get_team_name(team).."-"..n,
@@ -254,6 +280,7 @@ function mod.after.tick()
 				think = guard_think,
 				data = {guard=true},
 			};
+			n = n + 1;
 		end
 	end
 end

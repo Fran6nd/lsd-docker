@@ -460,14 +460,16 @@ function bot_nearest_player(pid, opts)
 	opts = opts or {};
 	local best, bestdist = nil, opts.within or math.huge;
 
+	-- Cheapest test first: a line of sight is a raycast across the map,
+	-- the costliest thing a bot does, so it is cast only for a candidate
+	-- nearer than the best so far -- never for one that could not win.
 	for i in piditer(PID_BROADCAST) do
 		if (i ~= pid and is_alive(i)
 		    and (opts.include_bots or bots[i] == nil)
 		    and (opts.team == nil or get_team(i) == opts.team)
-		    and (opts.reject == nil or not opts.reject(i))
-		    and (not opts.visible or bot_can_see(pid, i))) then
+		    and (opts.reject == nil or not opts.reject(i))) then
 			local d = bot_distance_to(pid, i);
-			if (d < bestdist) then
+			if (d < bestdist and (not opts.visible or bot_can_see(pid, i))) then
 				best, bestdist = i, d;
 			end
 		end
@@ -864,10 +866,17 @@ mod.xearly.after.on_disconnect = function(pid)
 end;
 mod.xearly.after.disconnect_now = advertise_humans;
 
+local next_advertise = 0;
+
 function mod.after.tick()
-	-- also each tick: cheap, and it heals the count if anything else
-	-- (a `lsdctl load masterlist`, say) recomputes it with bots in
-	advertise_humans();
+	-- also once a second: it heals the count if anything else (a
+	-- `lsdctl load masterlist`, say) recomputes it with bots in. Every
+	-- event that changes it already recomputes it at once (above).
+	local now = get_time();
+	if (now >= next_advertise) then
+		next_advertise = now + 1;
+		advertise_humans();
+	end
 
 	if (not ready) then
 		return;
