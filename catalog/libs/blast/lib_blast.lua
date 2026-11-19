@@ -113,7 +113,8 @@ local function exposed(pos, p)
 	return raycast(pos, {x = p.x, y = p.y, z = p.z + 0.5}, true) == nil;
 end
 
-local function crater(pos, radius)
+local function crater(owner, pos, radius)
+	local list = {};
 	local r = math.floor(radius / 2) * 2;
 	for dx = -r, r, 2 do
 		for dy = -r, r, 2 do
@@ -127,12 +128,13 @@ local function crater(pos, radius)
 				if (dx*dx + dy*dy + dz*dz <= radius*radius
 				    and x >= 0 and x <= MAP and y >= 0 and y <= MAP
 				    and z >= 0) then
-					bdestroy_block_action({x = x, y = y, z = z}, 3);
+					list[#list+1] = {x = x, y = y, z = z};
 				end
 			end
 		end
 	end
-	bdestroy_finish();
+	-- through the class's one door, so nothing protected is broken
+	PlayerEffect.break_blocks(owner, list, 3);
 end
 
 -- Damage falls away linearly from the centre to twice the radius. The
@@ -142,7 +144,7 @@ function mod.impl.blast_explode(owner, pos, radius, damage, hostile, self_ratio)
 	self_ratio = self_ratio or 0.33;
 	local reach = radius * 2;
 
-	crater(pos, radius);
+	crater(owner, pos, radius);
 
 	for i in piditer(PID_BROADCAST) do
 		if (is_alive(i) and (i == owner or hostile(owner, i))) then

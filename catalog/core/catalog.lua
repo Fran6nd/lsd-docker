@@ -430,6 +430,8 @@ C.PlayerEffect = C.Effect:extend({
 
 C.WorldEffect = C.Effect:extend({
 	category = "world_effect",
+	-- for PlayerEffect.break_blocks, the one way any effect breaks blocks
+	class_requires = {"player_effect"},
 });
 
 C.Bot = Script:extend({

@@ -89,7 +89,7 @@ local function dig_forward(pid, p)
 	-- leaves the feet's block standing
 	local cz = bot_body_center_z(pid);
 	for _, fz in ipairs({cz, cz-1, cz+1}) do
-		bot_dig_block(fx, fy, fz);
+		bot_dig_block(fx, fy, fz, pid);
 	end
 	bdestroy_finish();
 end

@@ -127,6 +127,9 @@ function shoot(pid)
 
 	-- a new shot owes nothing to the last one
 	struck[pid] = {};
+	-- the blocks it bores through, broken at the end through the class's
+	-- one door: what is protected (babel's towers, a layout's doors) stays
+	local broken = {};
 
 	local step = {x=sign1(dir.x), y=sign1(dir.y), z=sign1(dir.z)};
 	local delta = {x=math.abs(1/dir.x), y=math.abs(1/dir.y), z=math.abs(1/dir.z)};
@@ -154,9 +157,7 @@ function shoot(pid)
 		if (is_solid(vox)) then
 			-- the water-level floor still can't be broken, but
 			-- nothing stops the bullet anymore
-			if (vox.z < 62) then
-				bdestroy_block_action(vox, 1);
-			end
+			broken[#broken+1] = {x = vox.x, y = vox.y, z = vox.z};
 		elseif (traversed >= 2 and traversed <= rig_trail_range
 		        and traversed % rig_trail_step == 0) then
 			-- dashed tracer: spaced-out voxels only, so no two trail
@@ -185,7 +186,7 @@ function shoot(pid)
 		traversed = traversed + 1;
 	end
 
-	bdestroy_finish();
+	PlayerEffect.break_blocks(pid, broken, 1);
 end
 
 -- THE SECOND SOURCE. The server's ray is not the only word on who the

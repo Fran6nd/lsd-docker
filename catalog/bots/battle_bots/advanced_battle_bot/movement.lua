@@ -31,7 +31,7 @@ local function dig(pid, p)
 	local fx, fy = floor(p.x + o.x/h), floor(p.y + o.y/h);
 	local cz = bot_body_center_z(pid);
 	for _, z in ipairs({cz-1, cz, cz+1}) do
-		if (z < 62) then bot_dig_block(fx, fy, z); end
+		if (z < 62) then bot_dig_block(fx, fy, z, pid); end
 	end
 	bdestroy_finish();
 end

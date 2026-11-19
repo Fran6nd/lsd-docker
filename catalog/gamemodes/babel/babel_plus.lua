@@ -133,6 +133,41 @@ local function check(pid, now)
 	end
 end
 
+--======================= EFFECTS BREAK NOTHING =======================--
+-- A rocket's crater or a railgun is the server breaking blocks, which
+-- babel.lua and babel_protect never see: they guard what PLAYERS do.
+-- So the same rules again, at the gate every effect goes through
+-- (PlayerEffect.break_blocks): the platform is never broken, and a
+-- team's tower area is not broken by that team -- nor by the world's
+-- own effects, which have no team. A grenade (type 3) reaches one block
+-- around its centre, so it is kept that far off, as babel.lua does.
+local function near_box(pos, a, b, m)
+	return pos.x >= a.x - m and pos.x <= b.x + m and pos.y >= a.y - m and pos.y <= b.y + m;
+end
+
+function mod.may_break_block(owner, pos, type)
+	local m = (type == 3) and 1 or 0;
+	local ps = {x = 256 - babel_width/2, y = 256 - babel_height/2};
+	local pe = {x = 255 + babel_width/2, y = 255 + babel_height/2};
+	if (pos.z >= babel_z - m and pos.z <= babel_z + m and near_box(pos, ps, pe, m)) then
+		return false;
+	end
+	local mine = owner ~= nil and get_team(owner) or nil;
+	for team = 1, 2 do
+		if (mine == nil or mine == team) then
+			for _, zone in ipairs((babel_protect_zones or {})[team] or {}) do
+				if (near_box(pos, zone[1], zone[2], m)) then
+					return false;
+				end
+			end
+		end
+	end
+	-- the end of the chain is lib_player_effect's yes; a server with bots
+	-- and no effect has no lib_player_effect, and nothing below this
+	local below = mod.next.may_break_block;
+	return below == nil or below(owner, pos, type);
+end
+
 function mod.after.tick()
 	if (not babel_camp_marks or teamplay_mark == nil) then
 		return;

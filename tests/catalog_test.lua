@@ -176,6 +176,61 @@ for _, e in ipairs(cat:of_class(C.PlayerEffect)) do
 			m .. " is named by its catalog id, " .. e.id);
 	end
 end
+-- Effects break blocks only through PlayerEffect.break_blocks, which
+-- asks may_break_block -- the gate a gamemode's protections join
+-- (babel's platform and towers). An effect or a bot, or a library one
+-- needs, that broke blocks without asking it would slip past every one
+-- of them: the only code that breaks blocks itself is code that asks
+-- may_break_block first (PlayerEffect.break_blocks, bot_dig_block).
+do
+	local FORBIDDEN = {
+		{"bdestroy_block_action%s*%(", "bdestroy_block_action"},
+		{"[^%w_.:]block_action%s*%(", "block_action"},
+		{"[^%w_.:]block_line%s*%(", "block_line"},
+		{"set_solid%s*%(", "set_solid"},
+	};
+	local function lua_files(dir)
+		local out = {};
+		for f in io.popen("find '" .. dir .. "' -name '*.lua' ! -name script.lua | sort"):lines() do
+			out[#out+1] = f;
+		end
+		return out;
+	end
+	local function offence(path)
+		local f = io.open(path);
+		local src = f:read("*a"); f:close();
+		src = src:gsub("%-%-%[%[.-%]%]", ""):gsub("%-%-[^\n]*", "");
+		if (src:find("may_break_block%s*%(")) then
+			return nil;
+		end
+		for _, fb in ipairs(FORBIDDEN) do
+			if (("\n" .. src):find(fb[1])) then return fb[2]; end
+		end
+	end
+	local seen = {};
+	local scanned = {};
+	for _, e in ipairs(cat:of_class(C.Effect)) do scanned[#scanned+1] = e; end
+	for _, e in ipairs(cat:of_class(C.Bot)) do scanned[#scanned+1] = e; end
+	for _, e in ipairs(scanned) do
+		local dirs = {e};
+		for _, d in ipairs(cat:closure({e.id})) do
+			if (d:is_a(C.Library) and d.id ~= "player_effect") then dirs[#dirs+1] = d; end
+		end
+		for _, d in ipairs(dirs) do
+			for _, path in ipairs(lua_files(d.dir)) do
+				if (not seen[path]) then
+					seen[path] = true;
+					local bad = offence(path);
+					check(bad == nil, path .. " breaks no block without asking may_break_block",
+						bad and ("calls " .. bad));
+				end
+			end
+		end
+	end
+	check(seen["catalog/libs/bot/lib_bot.lua"] and seen["catalog/libs/blast/lib_blast.lua"],
+		"the effects' and bots' sources were read, their libraries too");
+end
+
 -- what a gamemode requires is how it plays with an effect; a manifest
 -- for a mode that does exists only here
 local mode = C.Gamemode({id = "rail_ctf", base = "ctf", requires = {"railgun"}});

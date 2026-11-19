@@ -31,7 +31,7 @@ function getcfg(key, default)
 	if (_G[key] == nil) then _G[key] = default; end
 end
 
-PID_BROADCAST = -1;
+PID_BROADCAST = 0x20000000;   -- PID_SET_FLAG(1), as state.h
 TEAMPLAY_FOREVER = math.huge;
 -- 0, 1: team 1; 2, 3: team 2 (3 has no Teamplay); 4: spectator
 local TEAM = {[0] = 1, [1] = 1, [2] = 2, [3] = 2, [4] = 3};
@@ -181,6 +181,25 @@ POS[2] = {x = 200, y = 255, z = 30};
 run(60);
 eq(count("mark"), 0, "nothing marked");
 babel_camp_marks = true;
+
+print("\nN. effects break nothing babel protects (may_break_block)");
+babel_width, babel_height, babel_z = 100, 32, 1;
+mod.next.may_break_block = function() return true; end
+local may = mod.may_break_block;
+-- platform: x 206..305, y 240..271, at z 1
+check(not may(0, {x = 250, y = 250, z = 1}, 1), "the platform: not a railgun");
+check(not may(2, {x = 250, y = 250, z = 2}, 3), "nor a crater one block under it");
+check(may(0, {x = 250, y = 250, z = 4}, 3), "a crater further off the platform: yes");
+-- team 1's tower area x 128..225, team 2's x 287..383 (y 240..271)
+check(not may(0, {x = 150, y = 250, z = 40}, 1), "team 1 breaks nothing in its own tower area");
+check(may(2, {x = 150, y = 250, z = 40}, 1), "team 2 breaks team 1's tower: that is the game");
+check(not may(0, {x = 127, y = 250, z = 40}, 3), "a crater one block outside one's own area still reaches it");
+check(may(0, {x = 126, y = 250, z = 40}, 3), "two blocks out, it does not");
+check(not may(nil, {x = 150, y = 250, z = 40}, 3) and not may(nil, {x = 300, y = 250, z = 40}, 3),
+	"the world's own effects break neither team's area");
+check(may(nil, {x = 50, y = 50, z = 40}, 3), "and anything outside them");
+mod.next.may_break_block = function() return false; end
+check(not may(0, {x = 50, y = 50, z = 40}, 1), "and what another script protects stays protected (the chain goes on)");
 
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures == 0 and 0 or 1);

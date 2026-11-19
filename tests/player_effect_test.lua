@@ -35,11 +35,11 @@ local GUN = {[0] = 0, [1] = 1, [2] = 0};
 local ALIVE = {[0] = true, [1] = true, [2] = true};
 local said, listeners = {}, {};
 
-PID_BROADCAST = 255;
+MAX_PLAYERS = 32;
+PID_BROADCAST = 0x20000000;   -- PID_SET_FLAG(1), as state.h
 function init_mod() return {impl={before={},after={},next={}}, late={before={},after={},next={}},
 	before={}, after={}, next={}, early={before={},after={},next={}}, xearly={before={},after={},next={}}}; end
 function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
-function server_msg(pid, msg) said[#said+1] = {pid, msg}; end
 function is_alive(pid) return ALIVE[pid]; end
 function get_team(pid) return TEAM[pid]; end
 function get_tool(pid) return TOOL[pid]; end
@@ -69,7 +69,12 @@ function damage_markers_show(viewer, target, amount)
 	MARKERS[#MARKERS+1] = {viewer = viewer, target = target, amount = amount};
 	return true;
 end
-function l10n_send_chat(pid, msg) CHAT[#CHAT+1] = {pid, msg.en}; end
+-- the real lib_l10n: server_msg and l10n_send_chat deliver finished text
+local L = dofile("tests/support/l10n_env.lua").load{
+	server_msg = function(pid, text, via_l10n)
+		if (via_l10n) then CHAT[#CHAT+1] = {pid, text}; else said[#said+1] = {pid, text}; end
+	end,
+};
 function register_command(cmd) CMDS[type(cmd.name) == "table" and cmd.name[1] or cmd.name] = cmd; end
 function get_orientation() return {x = 1, y = 0, z = 0}; end
 package.loaded.lib_bulk_destroy = true;
@@ -100,7 +105,7 @@ mod.name = "odd_rifles";
 mod.on_load();
 mod.on_load(); -- a reload
 eq(#tips, 2, "the tip is added once, however often it loads");
-eq(tips[2], "Spicy: odd rifles.", "and it is this effect's tip");
+eq(l10n_str(0, tips[2]), "Spicy: odd rifles.", "and it is this effect's tip");
 eq(loads, 2, "the effect's own load runs after the class's");
 check(listeners.odd_rifles ~= nil, "shots are heard under the module's name");
 listeners.odd_rifles(0, PE.GUN_RIFLE);
@@ -238,9 +243,13 @@ eq(MARKERS[1] and MARKERS[1].viewer, 0, "shown to the healer");
 eq(heal:trigger(0, {radius = 2}), 0, "a radius from the gamemode: nobody that close");
 heal:trigger(0, {amount = 100});
 eq(HP[1], 100, "never past full");
-MARKERS = {};
+MARKERS = {}; DAMAGED = {};
 eq(heal:trigger(0), 0, "nobody hurt: nobody healed");
-eq(#MARKERS, 0, "and no marker");
+eq(#DAMAGED, 0, "nothing dealt");
+eq(#MARKERS, 1, "but the healer still sees one marker: the effect is working");
+eq(MARKERS[1] and MARKERS[1].target, 1, "over the teammate in range, not the enemy");
+eq(MARKERS[1] and MARKERS[1].amount, -5, "the heal they would get with nothing left");
+eq(HP[1], 100, "and their health is unchanged");
 
 HP = {[0] = 100, [1] = 100, [2] = 100}; DAMAGED = {};
 eq(hurt:trigger(0), 1, "area_hurt: the enemy in range is hit");
@@ -297,5 +306,27 @@ CMDS.medkit.func(1);
 check(CHAT[1] and CHAT[1][2]:find("no medkit here", 1, true), "/m without the effect: told so");
 kit.everyone = true;
 
+print("\nN. effects break blocks through one door, which asks the gate");
+local BROKE, FINISHED, ASKED = {}, 0, {};
+function bdestroy_block_action(p, t) BROKE[#BROKE+1] = {p = p, t = t}; end
+function bdestroy_finish() FINISHED = FINISHED + 1; end
+function may_break_block(owner, pos, t)
+	ASKED[#ASKED+1] = {owner = owner, t = t};
+	return pos.x ~= 13;   -- a script protects x = 13
+end
+local n = PE.break_blocks(0, {{x = 10.7, y = 5, z = 20}, {x = 13, y = 5, z = 20},
+	{x = 11, y = 5, z = 62}, {x = -1, y = 5, z = 20}}, 3);
+eq(n, 1, "only what may be broken is broken");
+eq(BROKE[1] and BROKE[1].p.x, 10, "at whole-block coordinates");
+eq(BROKE[1] and BROKE[1].t, 3, "with the type asked for");
+eq(#ASKED, 2, "the gate is asked about every block on the map above the floor");
+eq(ASKED[1] and ASKED[1].owner, 0, "on behalf of the effect's owner");
+eq(FINISHED, 1, "the bulk destroy is finished once");
+BROKE, FINISHED = {}, 0;
+eq(PE.break_blocks(nil, {{x = 13, y = 5, z = 20}}, 1), 0, "a refused block alone: nothing broken");
+eq(FINISHED, 0, "and nothing to finish");
+may_break_block = nil;
+
+L.clean(check);
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures > 0 and 1 or 0);

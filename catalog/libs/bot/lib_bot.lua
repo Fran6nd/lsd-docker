@@ -37,7 +37,9 @@
 --   bot_teleport(pid, pos)
 --   bot_heal(pid)
 --   bot_distance_to(pid, pos_or_pid) -> dist
---   bot_solid(x, y, z) / bot_dig_block(x, y, z)  -- off-map safe
+--   bot_solid(x, y, z) / bot_dig_block(x, y, z, pid)  -- off-map safe;
+--        a dig asks may_break_block (lib_player_effect) first, as
+--        the bot `pid`, so what a gamemode protects stays
 --   bot_body_center_z(pid) -> z      -- middle of the 3-block body
 --   bot_nearest_player(pid, {team=, within=, include_bots=, visible=, reject=}) -> pid, dist | nil
 --
@@ -408,8 +410,14 @@ end
 
 -- Same guard for a cell a bot wants to dig: silently skip anything off
 -- the map rather than letting bdestroy_block_action raise.
-function bot_dig_block(x, y, z)
+-- A bot digging is the server breaking a block, which nothing guarding
+-- blocks against players sees: so it asks the same gate every effect
+-- does, as the bot, and babel's towers stand.
+function bot_dig_block(x, y, z, pid)
 	if (not bot_solid(x, y, z)) then return false; end
+	if (may_break_block ~= nil and not may_break_block(pid, {x=x, y=y, z=z}, 1)) then
+		return false;
+	end
 	bdestroy_block_action({x=x, y=y, z=z}, 1);
 	return true;
 end

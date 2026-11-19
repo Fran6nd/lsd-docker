@@ -147,6 +147,7 @@ end
 -- bottom. block_action_rm (via bdestroy_block_action) no-ops on air, so
 -- a column that's already clear costs nothing but the scan.
 local function clear_hole()
+	local list = {};
 	local lo_x = math.max(0,   math.floor(CX - R));
 	local hi_x = math.min(511, math.ceil (CX + R));
 	local lo_y = math.max(0,   math.floor(CY - R));
@@ -155,12 +156,14 @@ local function clear_hole()
 		for y = lo_y, hi_y do
 			if (in_zone(x + 0.5, y + 0.5)) then
 				for z = 0, DIG_Z_BOTTOM do
-					bdestroy_block_action({x=x, y=y, z=z}, 3);
+					list[#list+1] = {x=x, y=y, z=z};
 				end
 			end
 		end
 	end
-	bdestroy_finish();
+	-- the world's own digging, through the effects' one door: nothing
+	-- a gamemode protects is carved
+	PlayerEffect.break_blocks(nil, list, 3);
 end
 
 local function is_faller(pid)

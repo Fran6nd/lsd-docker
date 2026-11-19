@@ -388,6 +388,56 @@ end
 
 local mod = init_mod();
 
+--========================== BREAKING BLOCKS ==========================--
+--
+-- An effect that breaks blocks -- a rocket's crater, a railgun boring
+-- through walls, the Fall's shaft -- breaks them as the server, not as
+-- a player, so nothing that guards blocks against players sees it:
+-- babel's platform, each team's tower area, a door of the map's layout.
+-- So no effect breaks a block itself. There is one door:
+--
+--   PlayerEffect.break_blocks(owner, list, type)  -> how many broken
+--        owner   the player whose effect it is, or nil for the world's
+--        list    positions {x, y, z}
+--        type    1: that block; 3: the 3x3x3 around it, a grenade's
+--
+-- and behind it one gate, a hook chain every script that protects
+-- blocks joins, once, for every effect there is and will be:
+--
+--   function mod.may_break_block(owner, pos, type)
+--       if (<pos is mine to guard>) then return false; end
+--       return mod.next.may_break_block(owner, pos, type);
+--   end
+--
+-- tests/catalog_test.lua refuses an effect, or a library an effect
+-- uses, that breaks blocks any other way.
+function mod.impl.may_break_block(owner, pos, type)
+	return true;
+end
+
+-- The water-level floor (z 62 and below) is the engine's to keep.
+local BOTTOM = 61;
+
+function PlayerEffect.break_blocks(owner, list, type)
+	if (bdestroy_block_action == nil) then
+		require "lib_bulk_destroy";
+	end
+	local n = 0;
+	for _, p in ipairs(list) do
+		local q = {x = math.floor(p.x), y = math.floor(p.y), z = math.floor(p.z)};
+		if (q.x >= 0 and q.x <= 511 and q.y >= 0 and q.y <= 511
+		    and q.z >= 0 and q.z <= BOTTOM
+		    and (may_break_block or mod.impl.may_break_block)(owner, q, type)) then
+			bdestroy_block_action(q, type);
+			n = n + 1;
+		end
+	end
+	if (n > 0) then
+		bdestroy_finish();
+	end
+	return n;
+end
+
 -- The timer behind <name>_every, for every loaded effect with a trigger:
 -- here rather than in each effect, so an effect's own tick hook is its
 -- own. Each effect keeps its own clock.
