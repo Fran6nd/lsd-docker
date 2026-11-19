@@ -60,13 +60,17 @@ local MAP = 511;
 local FLOOR = 60;        -- lowest z a 3x3x3 crater is centred on: the
                          -- water-level floor below it is not ours to break
 
--- the head's colours in turn: white-hot to red, so the streak flickers
-local COLORS = {
-	{r = 255, g = 235, b = 120},
-	{r = 255, g = 160, b = 30},
-	{r = 255, g = 90,  b = 10},
-	{r = 210, g = 40,  b = 0},
-};
+-- THE TRAIL COSTS PACKETS, and they are reliable: a block shown is a
+-- build and, later, a destroy, to every player -- plus a colour, when
+-- the anonymous pid's colour has to change first. A streak drawn too
+-- densely queues so many of them that the crater's own packets, sent
+-- after, reach clients a second or two late: the blast seems to wait
+-- after the impact. So one colour for all of it, sent only when it is
+-- not already the anonymous pid's, and a block every TRAIL_EVERY cells
+-- -- as the railgun's dashes -- not every other one.
+local COLOR = {r = 255, g = 120, b = 20};
+local TRAIL_EVERY = 3;
+local sent_color = nil;
 
 local tick_no = 0;
 local flying = {};  -- blasts in flight
@@ -92,8 +96,28 @@ end
 
 local function show(p, color)
 	lit[key(p.x, p.y, p.z)] = true;
-	send_set_block_color(PID_BROADCAST, color, anon());
+	-- another script may have changed the anonymous colour since, which
+	-- the hooks below notice: then ours is sent again
+	if (sent_color ~= color) then
+		send_set_block_color(PID_BROADCAST, color, anon());
+		sent_color = color;
+	end
 	send_block_action(PID_BROADCAST, p, 0, anon());
+end
+
+-- Whoever else changes the anonymous pid's colour -- the railgun's
+-- tracer, map_layout, the_fall -- makes ours stale. Our own sends pass
+-- through here too, and show() records its colour after them.
+function mod.after.send_set_block_color(pid, color, from)
+	if (from == anon()) then
+		sent_color = nil;
+	end
+end
+
+function mod.after.set_block_color(pid, color)
+	if (pid == anon()) then
+		sent_color = nil;
+	end
 end
 
 local function hide(p)
@@ -321,9 +345,10 @@ local function advance(b)
 	end
 
 	-- drawn into air only, and not on the shooter's own nose
-	if (b.steps > b.skip and v.z >= 0 and not touches_lit(cell)) then
+	if (b.steps > b.skip and v.z >= 0 and b.steps % TRAIL_EVERY == 0
+	    and not touches_lit(cell)) then
 		cell.at = tick_no;
-		show(cell, COLORS[b.steps % #COLORS + 1]);
+		show(cell, COLOR);
 		b.shown[#b.shown+1] = cell;
 	end
 	return true;
@@ -372,7 +397,7 @@ end
 
 -- the clients reload the map, trail and all
 function mod.after.load_map()
-	flying, dying, lit = {}, {}, {};
+	flying, dying, lit, sent_color = {}, {}, {}, nil;
 end
 
 function mod.on_unload()

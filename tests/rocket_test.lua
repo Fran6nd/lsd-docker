@@ -48,7 +48,8 @@ end
 -- what the clients are told
 local placed, removed, craters = {}, {}, 0;
 local on_screen = {};
-function send_set_block_color() end
+COLORS_SENT = 0;
+function send_set_block_color() COLORS_SENT = COLORS_SENT + 1; end
 function send_block_action(_, p, t)
 	if (t == 0) then
 		placed[#placed+1] = {x = p.x, y = p.y, z = p.z, solid_then = is_solid(p)};
@@ -163,6 +164,15 @@ blast_fire(0, {x = 100.5, y = 50.5, z = 30.5}, {x = 1, y = 0, z = 0}, {speed = 2
 ticks(6);
 local n = 0; for _ in pairs(on_screen) do n = n + 1; end
 check(n >= 2, "a straight rocket still shows a streak, every other block", n);
+
+print("\n1d. the trail is cheap: packets queued behind it would delay the blast");
+reset();
+WALL_X = 160;   -- 60 cells of flight
+COLORS_SENT = 0;
+blast_fire(0, {x = 100.5, y = 50.5, z = 30.5}, {x = 1, y = 0, z = 0}, {speed = 2});
+ticks(40);
+check(COLORS_SENT <= 1, "one colour for the whole flight", COLORS_SENT);
+check(#placed <= 60 / 3 + 1, "a block every third cell at most", #placed);
 
 print("\n1c. an impact on the ground (z 62) still digs a crater");
 reset();
