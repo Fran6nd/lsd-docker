@@ -3,7 +3,8 @@
 #
 # Rebuilds lsd-docker:demo from what is checked out and starts the demo
 # again on it. Its volume is kept: the settings, the maps, the scripts
-# installed -- and random mode is switched on, whatever the volume said,
+# installed -- and random mode is switched on (vote_map installed with
+# it), whatever the volume said,
 # so every next map (/va, a round's end) is a new random one from the
 # web. Players are disconnected; they reconnect to the same address.
 #
@@ -25,6 +26,8 @@ docker build -q -t "$IMAGE" . >/dev/null
 
 docker rm -f "$NAME" >/dev/null 2>&1 || true
 docker run --rm -v "$NAME:/data" "$IMAGE" set map_web_random true >/dev/null
+# random mode is vote_map's: a demo set up before it gets it now
+docker run --rm -v "$NAME:/data" "$IMAGE" install vote_map --yes --no-restart >/dev/null
 docker run -d --name "$NAME" --restart unless-stopped \
 	-p "$PORT:32887/udp" -v "$NAME:/data" "$IMAGE" >/dev/null
 
