@@ -321,6 +321,7 @@ local function loads(plan, m)
 end
 check(loads(cat:plan({"babel_protect", "babel", "votekick"}, "babel"), "babel_protect"),
 	"babel loads babel_protect");
+check(loads(cat:plan({}, "babel"), "infinite_blocks"), "babel brings infinite blocks: a tower is built, not rationed");
 local left = cat:plan({"babel_protect", "babel", "votekick"}, "bots");
 check(not loads(left, "babel_protect") and loads(left, "votekick"),
 	"switched to bots, babel's babel_protect is not loaded; installed tools are");
