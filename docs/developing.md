@@ -7,6 +7,9 @@ dev/test.sh                 # Lua tests
 dev/test.sh --image         # and build + smoke-test the image (docker)
 dev/bump-lsd.sh             # move the lsd submodule to upstream master
 dev/release.sh              # version, tag and push; CI publishes the image
+dev/demo-new.sh             # a demo server of the working tree to play on (bots_rewards, random maps)
+dev/demo-refresh.sh         # the demo rebuilt from the working tree, its volume kept
+dev/demo-clean.sh           # the demo gone: container, volume, image
 ```
 
 | path | |
