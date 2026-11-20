@@ -56,36 +56,23 @@ mod.on_load();
 check(added.callouts ~= nil, "the callouts pie is added");
 local pings = sliced.callouts_pings;
 check(pings ~= nil and #pings == 6, "six ping wedges");
-check(pings[2].pie.id == "mark" and pings[2].text == "/callout ping intel %h",
-	"into the Mark pie, sending /callout ping <key> %h");
+check(pings[2].pie.id == "mark" and type(pings[2].text) == "table"
+	and pings[2].text.en == "/pingmark %h Intel here",
+	"into the Mark pie, as Teamplay's own /pingmark %h <reason>");
 check(pings[1].show(0) == true and pings[1].show(1) == false,
 	"shown only to a client with Teamplay");
 
-print("\n2. a ping goes through Teamplay's rules, with its label as reason");
-run("ping", "intel", "10", "20", "30");
-local r = requests[#requests];
-check(#requests == 1 and r.pid == 0 and r.pos.x == 10 and r.pos.z == 30
-	and r.reason.en == "Intel here", "teamplay_request_ping(pid, pos, label)");
-check(#chat == 0, "and no chat");
-refuse = "sight";
-run("ping", "intel", "10", "20", "30");
-check(said[#said] and said[#said].m == TEAMPLAY_REFUSED.sight.en, "a refusal is said back");
-refuse = nil;
+print("\n2. a callout is words only: no position, no ping");
 local n = #requests;
-run("ping", "intel");
-check(#requests == n and said[#said].m == "Nothing to ping there.",
-	"no position: nothing sent, the player told");
-run("ping", "nope", "1", "2", "3");
-check(#requests == n, "an unknown ping key is ignored");
-
-print("\n3. a callout about a place: chat to the team, the marker checked");
-run("enemy", "1", "2", "3");
+run("enemy");
 check(#chat == 2 and chat[1].to == 0 and chat[2].to == 1, "said to the team only");
 check(chat[1].line == "Enemy here!", "as text the player reads", chat[1].line);
-check(#requests == n + 1 and requests[n + 1].reason.en == "Enemy here",
-	"its marker through teamplay_request_ping");
+check(#requests == n, "and nothing pinged");
+for _, sl in ipairs(added.callouts.slices) do
+	check(not string.find(sl.text, "%h", 1, true), "the callout wedge " .. sl.text .. " sends no position");
+end
 local c = #chat;
-run("enemy", "1", "2", "3");
+run("enemy");
 check(#chat == c, "callouts_gap holds the next one back");
 
 print("\n4. a gamemode without pings of its own gets the default ones");
@@ -95,7 +82,7 @@ package.loaded["callouts.ctf"] = nil;
 mod = dofile("catalog/libs/callouts/lib_callouts.lua");
 mod.on_load();
 check(added.callouts == nil, "no callouts pie");
-check(sliced.callouts_pings ~= nil and sliced.callouts_pings[1].text == "/callout ping enemy %h",
+check(sliced.callouts_pings ~= nil and sliced.callouts_pings[1].text.en == "/pingmark %h Enemy",
 	"the default pings");
 
 print("\n5. ffa: pings = {} means none");

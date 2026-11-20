@@ -426,10 +426,6 @@ msgid "Has the intel"
 msgstr ""
 
 #: catalog/libs/callouts/lib_callouts.lua
-msgid "Nothing to ping there."
-msgstr ""
-
-#: catalog/libs/callouts/lib_callouts.lua
 msgctxt "command"
 msgid "Say a gamemode callout to your team (the pie menu sends these)."
 msgstr ""

@@ -2,7 +2,7 @@
 return {
 	theme = {en = "Orders"},
 	callouts = {
-		{key = "enemy", label = {en = "Enemy here"}, ping = true,
+		{key = "enemy", label = {en = "Enemy here"},
 			say = {en = "Enemy here!"}},
 		{key = "cover", label = {en = "I have intel"},
 			say = {en = "I have their intel -- cover me!"}},
@@ -10,7 +10,7 @@ return {
 			say = {en = "They took our intel -- get it back!"}},
 		{key = "defend", label = {en = "Defend base"},
 			say = {en = "Defend our base!"}},
-		{key = "sniper", label = {en = "Sniper"}, ping = true,
+		{key = "sniper", label = {en = "Sniper"},
 			say = {en = "Sniper there!"}},
 		{key = "push", label = {en = "Push"},
 			say = {en = "Push forward, go for their intel!"}},

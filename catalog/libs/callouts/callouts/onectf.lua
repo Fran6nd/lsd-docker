@@ -2,7 +2,7 @@
 return {
 	theme = {en = "Orders"},
 	callouts = {
-		{key = "enemy", label = {en = "Enemy here"}, ping = true,
+		{key = "enemy", label = {en = "Enemy here"},
 			say = {en = "Enemy here!"}},
 		{key = "grab", label = {en = "Grab intel"},
 			say = {en = "Grab the intel!"}},
@@ -12,7 +12,7 @@ return {
 			say = {en = "I have the intel -- cover me!"}},
 		{key = "defend", label = {en = "Defend base"},
 			say = {en = "Defend our base!"}},
-		{key = "sniper", label = {en = "Sniper"}, ping = true,
+		{key = "sniper", label = {en = "Sniper"},
 			say = {en = "Sniper there!"}},
 	},
 	-- the Mark pie, for players whose client shows Teamplay pings

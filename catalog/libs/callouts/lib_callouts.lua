@@ -7,24 +7,24 @@
 -- of callouts (callouts/<gamemode>.lua), placed before the generic pies,
 -- and every wedge is one command:
 --
---   /callout <key> [x y z]
+--   /callout <key>
 --
 -- which says the callout to the player's team, as the player's own team
 -- chat -- in each teammate's language, which a wedge's text could not
--- be -- and, for a callout about a place, drops a Teamplay ping where
--- the player aims (%h), labelled, for teammates whose client shows
--- pings. A free-for-all says its callouts to everybody.
+-- be. A free-for-all says its callouts to everybody. A callout is words
+-- only: a place is pinged, never called out.
 --
 -- PINGS are the other half: a wedge in the pie menu's Mark pie (aiming
 -- at a block or an enemy) per ping, offered only to players whose client
 -- speaks Teamplay -- nobody else would see the marker. Each one is
+-- Teamplay's own command, as its specification has it:
 --
---   /callout ping <key> x y z
+--   /pingmark <x> <y> <z> [reason...]      sent as /pingmark %h <reason>
 --
--- and goes through teamplay_request_ping, the rules a client's own Ping
--- packet is held to: alive, in sight, on the map, not too often. Its
--- label is the marker's reason, in each teammate's language. A gamemode
--- that lists no pings gets callouts/default.lua's (Enemy, Attack...).
+-- under the rules a client's own Ping packet is held to. The reason is
+-- the ping's label in the language of whoever pings (the wedge's text is
+-- a language map, picked per player). A gamemode that lists no pings
+-- gets callouts/default.lua's (Enemy, Attack...).
 --
 -- The gamemode is the one running (the `gamemode` setting); a mode with
 -- no callouts file gets no callouts, and the default pings. Every Gamemode requires this library, so
@@ -37,7 +37,7 @@
 --     global = false,                  -- true: said to everybody (ffa)
 --     callouts = {                     -- six at most, slice 1 the top
 --       {key = "digger", label = {en = "Digger!"},
---        say = {en = "We have a digger here!"}, ping = true},
+--        say = {en = "We have a digger here!"}},
 --       ...
 --     },
 --     pings = {                        -- the Mark pie, six at most
@@ -68,9 +68,8 @@ getcfg("callouts_event_secs", 10,
 -- the callouts of the gamemode running, by key; nil if it has none
 local set = nil;
 local by_key = {};
--- its pings (or the default ones), by key
+-- its pings, or the default ones
 local pings = {};
-local ping_by_key = {};
 
 local function load(name)
 	local ok, s = pcall(require, "callouts." .. name);
@@ -78,7 +77,7 @@ local function load(name)
 end
 
 local function load_set()
-	set, by_key, pings, ping_by_key = nil, {}, {}, {};
+	set, by_key, pings = nil, {}, {};
 	local name = tostring(gamemode or "");
 	if (string.match(name, "^[%w_]+$") and name ~= "default") then
 		set = load(name);
@@ -90,18 +89,13 @@ local function load_set()
 		by_key[c.key] = c;
 	end
 	pings = set and set.pings or (load("default") or {}).pings or {};
-	for _, p in ipairs(pings) do
-		ping_by_key[p.key] = p;
-	end
 end
 
--- The pie: a wedge per callout; one about a place sends where the
--- player aims (%h, filled in by the client).
+-- The pie: a wedge per callout.
 local function pie()
 	local slices = {};
 	for i, c in ipairs(set.callouts) do
-		slices[i] = {text = "/callout " .. c.key .. (c.ping and " %h" or ""),
-			label = c.label, tooltip = c.say};
+		slices[i] = {text = "/callout " .. c.key, label = c.label, tooltip = c.say};
 	end
 	return {id = "callouts", theme = set.theme, when = "alive", slices = slices};
 end
@@ -114,10 +108,22 @@ local function can_ping(pid)
 	return teamplay_supported ~= nil and teamplay_supported(pid) == true;
 end
 
+-- /pingmark %h <reason>, the reason in each language there is: the
+-- pie menu gives every player the text of their own.
+local function ping_text(p)
+	local t = {en = "/pingmark %h " .. p.label.en};
+	if (l10n_languages ~= nil and l10n_get_str_lang ~= nil) then
+		for _, lang in ipairs(l10n_languages()) do
+			t[lang] = "/pingmark %h " .. l10n_get_str_lang(lang, p.label);
+		end
+	end
+	return t;
+end
+
 local function ping_slices()
 	local out = {};
 	for i, p in ipairs(pings) do
-		out[i] = {pie = MARK, slot = i, text = "/callout ping " .. p.key .. " %h",
+		out[i] = {pie = MARK, slot = i, text = ping_text(p),
 			label = p.label, tooltip = p.tooltip, show = can_ping};
 	end
 	return out;
@@ -220,39 +226,10 @@ local function is_person(i)
 	return not (bot_is_bot ~= nil and bot_is_bot(i));
 end
 
-local function position(argv, from)
-	local x, y, z = tonumber(argv[from]), tonumber(argv[from+1]), tonumber(argv[from+2]);
-	if (x and y and z) then
-		return {x = x, y = y, z = z};
-	end
-end
 
--- /callout ping <key> x y z: Teamplay's to accept or refuse
-local NO_PING = {en = "Nothing to ping there."};
-
-local function ping(pid, argv)
-	local p = argv[2] and ping_by_key[string.lower(argv[2])];
-	local pos = position(argv, 3);
-	if (p == nil or teamplay_request_ping == nil) then
-		return;
-	end
-	if (pos == nil) then
-		l10n_send_chat(pid, NO_PING);
-		return;
-	end
-	local why = teamplay_request_ping(pid, pos, p.label);
-	if (why ~= nil and TEAMPLAY_REFUSED ~= nil and TEAMPLAY_REFUSED[why] ~= nil) then
-		l10n_send_chat(pid, TEAMPLAY_REFUSED[why]);
-	end
-end
-
-local cmd = {name = "callout", usage = "<key> [x y z] | ping <key> x y z",
+local cmd = {name = "callout", usage = "<key>",
 	desc = "Say a gamemode callout to your team (the pie menu sends these)."};
 function cmd.func(pid, argv)
-	if (argv[1] ~= nil and string.lower(argv[1]) == "ping") then
-		ping(pid, argv);
-		return;
-	end
 	local c = argv[1] and by_key[string.lower(argv[1])];
 	if (c == nil) then
 		return;
@@ -266,7 +243,6 @@ function cmd.func(pid, argv)
 
 	local team = get_team(pid);
 	local everybody = set.global == true;
-	local pos = c.ping and position(argv, 2) or nil;
 
 	-- the player's own chat, team or global, in each reader's language
 	local line = l10n_msg(c.say);
@@ -274,12 +250,6 @@ function cmd.func(pid, argv)
 		if (is_person(i) and (everybody or get_team(i) == team)) then
 			send_chat(i, line, everybody and 0 or 1, pid);
 		end
-	end
-	-- and the marker, for the teammates who can see one: under
-	-- Teamplay's rules, so a typed /callout cannot ping what the
-	-- player is not looking at. Refused, the chat line is enough.
-	if (pos ~= nil and teamplay_request_ping ~= nil) then
-		teamplay_request_ping(pid, pos, c.label);
 	end
 end
 register_command(cmd, mod);

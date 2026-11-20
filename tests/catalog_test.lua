@@ -118,7 +118,7 @@ do
 				return false;
 			end
 			keys[p.key] = true;
-			slices[i] = {text = "/callout ping " .. p.key .. " %h", label = p.label};
+			slices[i] = {text = "/pingmark %h " .. p.label.en, label = p.label};
 		end
 		return #pings == 0 or pcall(pm.normalize_pie,
 			{theme = "Mark", when = "block enemy", slices = slices}, where);
@@ -133,7 +133,7 @@ do
 			local set = dofile("catalog/libs/callouts/callouts/" .. g.id .. ".lua");
 			local slices, keys, ok_keys = {}, {}, true;
 			for i, c in ipairs(set.callouts) do
-				slices[i] = {text = "/callout " .. c.key .. (c.ping and " %h" or ""),
+				slices[i] = {text = "/callout " .. c.key,
 					label = c.label, tooltip = c.say};
 				if (keys[c.key] or type(c.say) ~= "table" or type(c.say.en) ~= "string") then
 					ok_keys = false;

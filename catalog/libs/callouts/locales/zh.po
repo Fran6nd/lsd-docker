@@ -428,10 +428,6 @@ msgid "Has the intel"
 msgstr "持有情报"
 
 #: catalog/libs/callouts/lib_callouts.lua
-msgid "Nothing to ping there."
-msgstr "那里无可标记。"
-
-#: catalog/libs/callouts/lib_callouts.lua
 msgctxt "command"
 msgid "Say a gamemode callout to your team (the pie menu sends these)."
 msgstr "向队友喊出模式呼叫"

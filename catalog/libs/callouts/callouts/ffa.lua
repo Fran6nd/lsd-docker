@@ -8,7 +8,7 @@ return {
 		{key = "truce", label = {en = "Truce?"}, say = {en = "Truce?"}},
 		{key = "come", label = {en = "Come on"}, say = {en = "Come at me!"}},
 		{key = "ouch", label = {en = "Ouch"}, say = {en = "Ouch!"}},
-		{key = "camper", label = {en = "Camper"}, ping = true,
+		{key = "camper", label = {en = "Camper"},
 			say = {en = "Camper over there!"}},
 	},
 	-- no team to ping for

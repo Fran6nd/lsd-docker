@@ -193,11 +193,11 @@ pie=$(docker exec "$NAME" lsdctl exec 'exec local g = l10n_client_ok; l10n_clien
 echo "$pie" | grep -q "PIE|true|true|true|" || fail "pie menu registrations: $pie"
 echo "ok: commands register into the pie menu, translated"
 # the gamemode's callouts: their pie first, its wedges /callout
-co=$(docker exec "$NAME" lsdctl exec 'exec local h = pie_menu_hide_unavailable; pie_menu_hide_unavailable = false; local b = pie_menu_build(MAX_PLAYERS - 1) or ""; pie_menu_hide_unavailable = h; log("CO|" .. tostring(commands.callout ~= nil) .. "|" .. tostring(b:find("/callout enemy %h", 1, true) ~= nil) .. "|" .. tostring((b:find("/callout", 1, true) or 1e9) < (b:find("Thanks!", 1, true) or 0)) .. "|")')
+co=$(docker exec "$NAME" lsdctl exec 'exec local h = pie_menu_hide_unavailable; pie_menu_hide_unavailable = false; local b = pie_menu_build(MAX_PLAYERS - 1) or ""; pie_menu_hide_unavailable = h; log("CO|" .. tostring(commands.callout ~= nil) .. "|" .. tostring(b:find("/callout enemy", 1, true) ~= nil) .. "|" .. tostring((b:find("/callout", 1, true) or 1e9) < (b:find("Thanks!", 1, true) or 0)) .. "|")')
 echo "$co" | grep -q "CO|true|true|true|" || fail "ctf callouts: $co"
 echo "ok: ctf has its callouts pie, first"
 # and its pings in the Mark pie, for a client with Teamplay only
-pg=$(docker exec "$NAME" lsdctl exec 'exec local h = pie_menu_hide_unavailable; pie_menu_hide_unavailable = false; local t = teamplay_supported; local id = MAX_PLAYERS - 1; teamplay_supported = function() return true end; local b = pie_menu_build(id) or ""; teamplay_supported = function() return false end; local n = pie_menu_build(id) or ""; teamplay_supported = t; pie_menu_hide_unavailable = h; log("PG|" .. tostring(b:find("/callout ping intel %h", 1, true) ~= nil) .. "|" .. tostring(n:find("/callout ping", 1, true) ~= nil) .. "|")')
+pg=$(docker exec "$NAME" lsdctl exec 'exec local h = pie_menu_hide_unavailable; pie_menu_hide_unavailable = false; local t = teamplay_supported; local id = MAX_PLAYERS - 1; teamplay_supported = function() return true end; local b = pie_menu_build(id) or ""; teamplay_supported = function() return false end; local n = pie_menu_build(id) or ""; teamplay_supported = t; pie_menu_hide_unavailable = h; log("PG|" .. tostring(b:find("/pingmark %h Intel here", 1, true) ~= nil) .. "|" .. tostring(n:find("/pingmark", 1, true) ~= nil) .. "|")')
 echo "$pg" | grep -q "PG|true|false|" || fail "ctf pings: $pg"
 echo "ok: ctf pings are in the Mark pie, for Teamplay clients only"
 

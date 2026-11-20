@@ -2,13 +2,13 @@
 return {
 	theme = {en = "Orders"},
 	callouts = {
-		{key = "enemy", label = {en = "Enemy here"}, ping = true,
+		{key = "enemy", label = {en = "Enemy here"},
 			say = {en = "Enemy here!"}},
 		{key = "push", label = {en = "Push"},
 			say = {en = "Push, all together!"}},
-		{key = "hold", label = {en = "Hold here"}, ping = true,
+		{key = "hold", label = {en = "Hold here"},
 			say = {en = "Hold this spot!"}},
-		{key = "flank", label = {en = "Flank"}, ping = true,
+		{key = "flank", label = {en = "Flank"},
 			say = {en = "Flank them this way!"}},
 		{key = "backup", label = {en = "Need backup"},
 			say = {en = "I need backup!"}},
