@@ -1,0 +1,45 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "%(name) wants the next map: type /va to agree (%(have)/%(need))."
+msgstr "%(name) veut passer à la carte suivante : tape /va pour être d'accord (%(have)/%(need))."
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "%(name) wants the next map (%(have)/%(need))."
+msgstr "%(name) veut passer à la carte suivante (%(have)/%(need))."
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "You already voted for the next map."
+msgstr "Tu as déjà voté pour la carte suivante."
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "The vote carried: on to the next map."
+msgstr "Le vote est passé : place à la carte suivante."
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "Fetching a new map from the web..."
+msgstr "Recherche d'une nouvelle carte sur le web..."
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "No new map could be had: on to the next one here."
+msgstr "Aucune nouvelle carte n'a pu être obtenue : place à la suivante d'ici."
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "The vote for the next map failed."
+msgstr "Le vote pour la carte suivante a échoué."
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "A new map is already on its way."
+msgstr "Une nouvelle carte est déjà en route."
+
+#: catalog/tools/vote_map/vote_map.lua
+msgctxt "command"
+msgid "Vote to move on to the next map (a new one from the web where maps are random)."
+msgstr "Voter pour passer à la carte suivante (une nouvelle du web quand les cartes sont aléatoires)."

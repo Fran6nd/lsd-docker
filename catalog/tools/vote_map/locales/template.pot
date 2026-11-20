@@ -1,0 +1,43 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "%(name) wants the next map: type /va to agree (%(have)/%(need))."
+msgstr ""
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "%(name) wants the next map (%(have)/%(need))."
+msgstr ""
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "You already voted for the next map."
+msgstr ""
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "The vote carried: on to the next map."
+msgstr ""
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "Fetching a new map from the web..."
+msgstr ""
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "No new map could be had: on to the next one here."
+msgstr ""
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "The vote for the next map failed."
+msgstr ""
+
+#: catalog/tools/vote_map/vote_map.lua
+msgid "A new map is already on its way."
+msgstr ""
+
+#: catalog/tools/vote_map/vote_map.lua
+msgctxt "command"
+msgid "Vote to move on to the next map (a new one from the web where maps are random)."
+msgstr ""

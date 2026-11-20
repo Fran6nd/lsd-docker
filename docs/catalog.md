@@ -7,7 +7,7 @@
 | effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit, nightvision, rocket, missile, grenade_launcher, airstrike |
 | effects/world | `WorldEffect` | change the map or the match for everybody; same | the_fall |
 | bots | `Bot` | server-side players | guards, battle_bots |
-| tools | `Tool` | everything else | votekick, rewards, esp_demo, headless, time_limit, ... |
+| tools | `Tool` | everything else | votekick, vote_map, rewards, esp_demo, headless, time_limit, ... |
 | demos | `Demo` | set a server up to show something off, not to run for good | demo_reward (every reward free and unlimited) |
 | libs | `Library` | what the others need; installed with them, not listed | ext, ext_policy, bot, shot_detect, player_effect, map_layout, callouts, blast, babel_protect, ask_player |
 
@@ -125,6 +125,19 @@ even if it is otherwise on for everybody. Every impact -- rocket, missile, bomb 
 the sound and the flash, for every client. Rocket and airstrike are
 ordinary effects too, built on the `blast` library: installed alone,
 they are everybody's.
+
+## Voting the map on (/va)
+
+On by default. `/va` starts a vote to move on to the next map, and
+`/va` again agrees; a majority of the people playing carries it
+(`vote_map_ratio`), one player alone at once. On a server whose maps
+were picked at random (`play ... random`, the quick setup's random
+rotation: `map_web_random`) the next map is a new random one from the
+web, from what the map sources list for the game; elsewhere, the
+rotation's next. The server may not run programs (its sandbox), so it
+asks the container's entrypoint with a file and loads what comes back,
+playing on meanwhile; with nothing in `vote_map_fetch_secs` (60), the
+rotation's next.
 
 ## Asking a player (ask_player)
 

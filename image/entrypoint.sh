@@ -64,6 +64,26 @@ assemble_scripts() {
 	cp -R "$DATA/scripts/." scripts/
 }
 
+# /va's new map from the web. The server may not run programs (its
+# sandbox forbids fork and exec), so it asks with a file: rw/map_request,
+# holding the gamemode. This fetches a random map for that game with
+# lsdctl and answers in rw/map_result -- what lsdctl said, "added
+# <name>.vxl ..." -- which the server (vote_map) reads and loads. Polled
+# once a second; a game without vote_map never writes the request.
+map_helper() {
+	su-exec lsd sh -c '
+		req="$1/rw/map_request"; res="$1/rw/map_result"
+		while :; do
+			if [ -f "$req" ]; then
+				mode=$(head -c 64 "$req"); rm -f "$req"
+				case "$mode" in *[!A-Za-z0-9_]*|"") mode= ;; esac
+				lsdctl map web-random $mode > "$res.part" 2>&1 || true
+				mv -f "$res.part" "$res"
+			fi
+			sleep 1
+		done' map_helper "$DATA" &
+}
+
 serve() {
 	cd "$HOME_DIR"
 	prepare_data
@@ -81,6 +101,7 @@ serve() {
 		su-exec lsd lsdctl update-check --quiet >/dev/null 2>&1 || true
 		sleep 21600
 	done ) &
+	map_helper
 
 	fails=0
 	while :; do
@@ -131,8 +152,9 @@ play() {
 
 	log=/tmp/server.log
 	: > "$log"
-	tail -n 0 -f "$log" | grep -E 'joined as|disconnected|lib_play:' &
+	tail -n 0 -f "$log" | grep -E 'joined as|disconnected|lib_play:|vote_map:' &
 	watcher=$!
+	map_helper
 	su-exec lsd ./server -c config.lua -p "$(su-exec lsd lsdctl get port)" >"$log" 2>&1 &
 	child=$!
 	trap 'kill -TERM "$child" 2>/dev/null' TERM INT

@@ -124,7 +124,7 @@ end
 
 -- What a new server runs: every protocol extension -- each at its own
 -- policy, which is never "required", so no client is turned away -- and
--- votekick, time_limit and rewards.
+-- votekick, time_limit, rewards and vote_map.
 local function default_scripts()
 	local ids = {};
 	for _, e in ipairs(cat():of_class(catalog.Extension)) do
@@ -133,6 +133,7 @@ local function default_scripts()
 	ids[#ids+1] = "votekick";
 	ids[#ids+1] = "time_limit";
 	ids[#ids+1] = "rewards";
+	ids[#ids+1] = "vote_map";
 	return ids;
 end
 
@@ -1117,7 +1118,10 @@ local function where_to_find(sources)
 		table.concat(names, ", "), example);
 end
 
-command("map", "map list | add <page|url|source:id|file>... | rm <name>... | load <name>|random | generate <name> [height]",
+-- defined with the games, below; the map command's web-random needs them
+local game, random_maps;
+
+command("map", "map list | add <page|url|source:id|file>... | rm <name>... | load <name>|random | generate <name> [height] | web-random [gamemode]",
 	"the maps in rotation; `add` downloads (aos.party by default: lsdctl map add https://aos.party/view/864), `load` switches the live map",
 	function(args)
 		local sub = table.remove(args, 1) or "list";
@@ -1178,6 +1182,18 @@ command("map", "map list | add <page|url|source:id|file>... | rm <name>... | loa
 			if (not console_up()) then die("the server is not running"); end
 			console({"loadmap " .. n}, 1);
 			say("loading %s", n);
+		elseif (sub == "web-random") then
+			-- a random map for the game, from what the map sources list,
+			-- downloaded but not loaded: /va's, which loads it (the server
+			-- asks the entrypoint for it, being forbidden to run programs)
+			local doc = open_doc(false);
+			local g = game(args[1] or doc:get("gamemode") or "");
+			math.randomseed(os.time());
+			local n = random_maps(g and g.maps or "ctf", map_sources(doc), 1,
+				function(line) say("%s", line); end);
+			if (n == 0) then
+				die("no map could be had");
+			end
 		elseif (sub == "generate") then
 			local n = args[1] or die("map generate <name> [height]");
 			if (not string.match(n, "^[%w_%-]+$")) then die("%q is not a map name", n); end
@@ -1263,7 +1279,7 @@ local GAMES = {
 	{value = "babel", label = "babel", hint = "build a tower to the enemy's flag", maps = "babel"},
 };
 
-local function game(mode)
+function game(mode)
 	for _, g in ipairs(GAMES) do
 		if (g.value == mode) then return g; end
 	end
@@ -1325,7 +1341,7 @@ end
 -- that does not answer, or a map that does not download, is said and
 -- passed over -- MAX_TRIES downloads in all, so a bad day ends.
 local MAX_TRIES = 8;
-local function random_maps(kind, sources, want, got)
+function random_maps(kind, sources, want, got)
 	local tries, n = 0, 0;
 	for _, s in ipairs(shuffled(sources)) do
 		local req = MS.list_request(s, kind);
@@ -1378,6 +1394,8 @@ local function set_game_and_map(doc, mode, want, opts)
 		random_maps(g and g.maps or "ctf", sources, opts.rotation and ROTATION or 1, got);
 	end
 
+	-- random mode: /va fetches the next map from the web as well
+	doc:set("map_web_random", want == "random");
 	if (#names > 0) then
 		doc:set("map_rotation", table.concat(names, " "));
 		doc:set("map_random", opts.rotation == true and want == "random");
