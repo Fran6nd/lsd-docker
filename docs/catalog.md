@@ -134,7 +134,10 @@ On by default. `/va` starts a vote to move on to the next map, and
 were picked at random (`play ... random`, the quick setup's random
 rotation: `map_web_random`) the next map is a new random one from the
 web, from what the map sources list for the game; elsewhere, the
-rotation's next. The server may not run programs (its sandbox), so it
+rotation's next. In random mode every map change is one from the web,
+the end of a round and the time limit too; the map being played goes
+on until the new one is here (only the first map, at start, comes from
+the rotation). The server may not run programs (its sandbox), so it
 asks the container's entrypoint with a file and loads what comes back,
 playing on meanwhile; with nothing in `vote_map_fetch_secs` (60), the
 rotation's next.

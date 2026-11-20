@@ -23,7 +23,6 @@ function get_name(i) return "P" .. i; end
 local cmds = {};
 function register_command(c) for _, n in ipairs(c.name) do cmds[n] = c; end end
 local advanced, loaded = 0, {};
-function advance_map() advanced = advanced + 1; end
 function load_map(n) loaded[#loaded+1] = n; end
 gamemode = "babel";
 
@@ -35,6 +34,9 @@ os.getenv = function(k) if (k == "LSD_DATA") then return DATA; end return real_g
 local L = dofile("tests/support/l10n_env.lua").load{};
 L.pids = {0, 1, 2};
 local mod = dofile("catalog/tools/vote_map/vote_map.lua");
+-- the hook chain as LSd links it: advance_map is ours, then map_queue's
+mod.next.advance_map = function() advanced = advanced + 1; end
+function advance_map() return mod.advance_map(); end
 local function va(pid) cmds.va.func(pid, {}); end
 local function last() return L.chat[#L.chat] and L.chat[#L.chat].text or ""; end
 local function exists(p) local f = io.open(p); if (f) then f:close(); return true; end return false; end
@@ -43,6 +45,14 @@ local function spit(p, s) local f = io.open(p, "w"); f:write(s); f:close(); end
 local function tick(secs) NOW = NOW + (secs or 1); mod.after.tick(); end
 
 --============================= CHECKS ===============================--
+print("\n0. the first map, at start, is the rotation's even in random mode");
+map_web_random = true;
+advance_map();
+check(advanced == 1, "a server cannot wait for the web before it has a map at all");
+map_web_random = false;
+advanced = 0;
+mod.after.load_map();   -- the first map is playing
+
 print("\n1. a majority carries it; until then it waits");
 map_web_random = false;
 va(0);
@@ -78,6 +88,16 @@ spit(DATA .. "/rw/map_result", "added babel_arena.vxl from hosting.dgd.cx, with 
 tick();
 check(loaded[1] == "babel_arena", "the answer's map is loaded", loaded[1]);
 check(not exists(DATA .. "/rw/map_result"), "and the answer is cleared");
+
+print("\n4b. random mode: every map change is a new map from the web, a round's end too");
+os.remove(DATA .. "/rw/map_request");
+advance_map();   -- as map_queue does at a game's end, or time_limit
+check(exists(DATA .. "/rw/map_request") and advanced == 2, "the end of a round asks the web too, not the rotation");
+advance_map();
+check(advanced == 2, "a second change while one is on its way is that one");
+spit(DATA .. "/rw/map_result", "added Iceland.vxl from hosting.dgd.cx\n");
+tick();
+check(loaded[2] == "Iceland", "and it is loaded when it comes", loaded[2]);
 
 print("\n5. no map from the web: the rotation's next");
 os.remove(DATA .. "/rw/map_request");

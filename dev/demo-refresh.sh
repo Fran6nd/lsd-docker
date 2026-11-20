@@ -3,8 +3,9 @@
 #
 # Rebuilds lsd-docker:demo from what is checked out and starts the demo
 # again on it. Its volume is kept: the settings, the maps, the scripts
-# installed. Players are disconnected; they reconnect to the same
-# address.
+# installed -- and random mode is switched on, whatever the volume said,
+# so every next map (/va, a round's end) is a new random one from the
+# web. Players are disconnected; they reconnect to the same address.
 #
 # LSD_DEMO_NAME (lsd-demo) and LSD_DEMO_PORT (32887) as dev/demo-new.sh.
 set -eu
@@ -23,6 +24,7 @@ echo "building $IMAGE from the working tree..."
 docker build -q -t "$IMAGE" . >/dev/null
 
 docker rm -f "$NAME" >/dev/null 2>&1 || true
+docker run --rm -v "$NAME:/data" "$IMAGE" set map_web_random true >/dev/null
 docker run -d --name "$NAME" --restart unless-stopped \
 	-p "$PORT:32887/udp" -v "$NAME:/data" "$IMAGE" >/dev/null
 

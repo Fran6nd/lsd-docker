@@ -13,6 +13,12 @@
 -- map sources list for the game -- not a map seen before. Elsewhere it
 -- is the rotation's next (map_queue's advance_map).
 --
+-- In random mode that holds for EVERY map change, not only /va's: the
+-- end of a round, the time limit, an admin's /advance all go through
+-- advance_map, which this hooks. The map being played goes on until the
+-- new one is here. The first map, at start, is left to the rotation:
+-- a server cannot wait for the web before it has a map at all.
+--
 -- The web is not the server's to reach: its sandbox forbids starting a
 -- program, so it cannot run the download itself. It asks the container's
 -- entrypoint with a file -- rw/map_request, holding the gamemode -- and
@@ -70,15 +76,13 @@ local function write(path, s)
 	return true;
 end
 
+-- the rotation's next: map_queue's advance_map, past our hook below
 local function next_here()
-	advance_map();
+	mod.next.advance_map();
 end
 
-local function next_map()
-	if (map_web_random ~= true) then
-		next_here();
-		return;
-	end
+-- a new map from the web: asked of the entrypoint, loaded when it comes
+local function from_the_web()
 	os.remove(RESULT);
 	if (not write(REQUEST, tostring(gamemode or ""))) then
 		log("vote_map: cannot write %s; the rotation's next instead", REQUEST);
@@ -88,6 +92,22 @@ local function next_map()
 	l10n_send_chat(PID_BROADCAST, fetching_msg);
 	local now = get_time();
 	fetch = {deadline = now + vote_map_fetch_secs, next_look = now + 1};
+end
+
+-- Every map change. Random mode, once a map is playing: from the web --
+-- one at a time, a second change while one is on its way being that one.
+local playing = false;
+function mod.advance_map()
+	if (map_web_random ~= true or not playing) then
+		return mod.next.advance_map();
+	end
+	if (fetch == nil) then
+		from_the_web();
+	end
+end
+
+local function next_map()
+	advance_map();
 end
 
 local function cast(pid)
@@ -163,9 +183,11 @@ function mod.after.tick()
 	end
 end
 
--- a vote is for this map: a new one starts afresh
+-- a vote is for this map: a new one starts afresh. The first map
+-- loaded, the server is playing: map changes may wait for the web now.
 function mod.after.load_map()
 	vote = nil;
+	playing = true;
 end
 
 return mod;
