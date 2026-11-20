@@ -73,6 +73,11 @@
 --      {text = "gg", global = true},  -- to everyone, not just the team
 --    }}
 --
+-- From Lua, a slice may also carry show = function(pid) -> offered to
+-- this player?, and its label may be a function(pid) answering what
+-- that player reads (a string or a message: "Rocket x3"), asked each
+-- time their menu is built -- pie_menu_refresh(pid) when it changes.
+--
 -- `when` is a string of names ("block sky", "teammate,enemy") or a list
 -- of them, or a bitmask number from Lua. Theme, label, tooltip and text
 -- are each a string or a map of locale -> string, {en = "Thanks", fr =
@@ -415,7 +420,10 @@ local function norm_slice(v, where)
 
 	local s = {
 		text = norm_text(v.text, true, where .. " text"),
-		label = norm_text(v.label, false, where .. " label"),
+		-- a label may be a function of the player, answering a string
+		-- or a message (an inventory's "Rocket x3"): resolved when that
+		-- player's menu is built
+		label = type(v.label) == "function" and v.label or norm_text(v.label, false, where .. " label"),
 		tooltip = norm_text(v.tooltip, false, where .. " tooltip"),
 		global = v.global == true,
 		show = v.show,
@@ -1050,8 +1058,20 @@ local function build(pid, had)
 		return not pie_menu_hide_unavailable or command_ok(pid, s.text);
 	end
 
+	-- a label that is a function is this player's: asked here
+	local function pick_for(v, lang, fallback, field)
+		if (type(v) == "function") then
+			local ok, r = pcall(v, pid);
+			if (not ok) then
+				log("lib_pie_menu: a label() raised for #%d: %s", pid, tostring(r));
+				r = "";
+			end
+			v = r or "";
+		end
+		return pick(v, lang, fallback, field);
+	end
 	local pies = P.resolve(overrides[pid] or all_pies(), locale_of(pid), fallback_lang(),
-		keep, pick);
+		keep, pick_for);
 
 	-- Nothing to offer. A client that has never had a Menu of ours keeps
 	-- its own, which beats replacing it with nothing; one that has had

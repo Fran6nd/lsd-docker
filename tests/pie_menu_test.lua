@@ -364,6 +364,18 @@ pie_menu_add("shown", only);
 check(texts(pie_menu_build(0))["hi"] ~= nil, "show() offers a slice to whom it answers true");
 check(pie_menu_build(1) == nil or texts(pie_menu_build(1))["hi"] == nil, "and to nobody else");
 pie_menu_remove("shown");
+-- a label that is a function of the player: asked as their menu is built
+local counts = {[0] = 3, [1] = 1};
+pie_menu_add("counted", {theme = "Stuff", when = "sky", slices = {
+	{text = "hi", label = function(pid) return "Rocket x" .. tostring(counts[pid]); end}}});
+eq(texts(pie_menu_build(0))["hi"], "Rocket x3", "a label function: what that player reads");
+eq(texts(pie_menu_build(1))["hi"], "Rocket x1", "each player their own");
+counts[0] = 5;
+eq(texts(pie_menu_build(0))["hi"], "Rocket x5", "asked again at every build");
+pie_menu_add("counted", {theme = "Stuff", when = "sky", slices = {
+	{text = "hi", label = function() error("boom"); end}}});
+check(pie_menu_build(0) ~= nil, "a label function that raises spoils nothing else");
+pie_menu_remove("counted");
 
 print("\n7b. registering actions into pies");
 local function pie_of(b, theme)
