@@ -112,7 +112,13 @@ function launch(pid, opts)
 		guide = function(b)
 			if (is_connected(pid) and is_alive(pid)) then
 				local t = blast_aim(pid);
-				return t and waypoint(b, pos, t);
+				if (t == nil) then
+					-- aimed at the open sky: it goes where they look, up
+					-- and out of the map, rather than flying on unseen
+					local e, d = get_position(pid), get_orientation(pid);
+					return {x = e.x + d.x * 400, y = e.y + d.y * 400, z = e.z + d.z * 400};
+				end
+				return waypoint(b, pos, t);
 			end
 		end,
 	});

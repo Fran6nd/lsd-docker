@@ -474,6 +474,20 @@ check(tb.guide(tb) ~= nil and tb.vox.z >= 3, "at the top of the map: no climb, i
 GROUND = 50;
 blast_clear();
 
+print("\n6b3. aimed at the sky, the missile heads up there and is gone above the map");
+reset();
+WALL_X = nil;
+POS[0] = {x = 100.5, y = 50.5, z = 30.5};
+do local l = math.sqrt(1 + 4); ORI[0] = {x = 1 / l, y = 0, z = -2 / l}; end   -- up into the sky
+local sb = mis:trigger(0, {});
+local sg = sb.guide(sb);
+check(sg and sg.z < POS[0].z - 100, "nothing under the crosshair: it heads where the aim goes, up", sg and sg.z);
+for _ = 1, 400 do ticks(1); if (sb.done) then break; end end
+check(sb.done and sb.vox.z < 0 and craters == 0, "out of the top of the map: gone, without exploding", sb.vox.z);
+local up = blast_fire(0, {x = 100.5, y = 50.5, z = 30.5}, {x = 0, y = 0, z = -1}, {speed = 2, range = 300});
+for _ = 1, 100 do ticks(1); if (up.done) then break; end end
+check(up.done and up.steps < 60 and craters == 0, "any blast flown up out of the map is gone, not flying on unseen", up.steps);
+
 print("\n6b''. from the top level (the eye above the map, z < 0)");
 reset();
 WALL_X = 400;

@@ -57,6 +57,7 @@ getcfg("blast_trail", 6,
 local MIN_AGE = 2;       -- ticks a trail block stays up at least
 local KILL_GRENADE = 3;  -- KillType, protocol.h
 local MAP = 511;
+local SKY = 8;     -- blocks above the top of the map a blast is gone
 local FLOOR = 60;        -- lowest z a 3x3x3 crater is centred on: the
                          -- water-level floor below it is not ours to break
 
@@ -419,10 +420,11 @@ local function advance(b)
 	end
 	b.steps = b.steps + 1;
 
-	-- off the map sideways or below: gone. Above it (a bomb starts at
-	-- z 0) is not off the map.
+	-- off the map sideways or below: gone; and above it, once well clear
+	-- of the top (a bomb starts just inside it, at z 0.5, and a shot from
+	-- the top level starts a little above): gone, unseen, unexploded.
 	if (v.x < 0 or v.x > MAP or v.y < 0 or v.y > MAP or v.z > 63
-	    or b.steps > b.range) then
+	    or v.z < -SKY or b.steps > b.range) then
 		finish(b);
 		return false;
 	end
