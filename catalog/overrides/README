@@ -15,6 +15,13 @@ Upstream LSd modules, patched. Copied over upstream's at every start.
                context). Re-apply onto upstream's after a bump.
   motd.lua     Each motd line in the player's language: a line may be
                a language map, and %(server) is the server's name.
+  boundary_damage.lua
+               A map's boundary_damage written over several lines (as
+               many on the web are) was read as empty, and its tick
+               compared positions with nil every tick -- the error ended
+               each tick, stopping every script after it (bots, blasts).
+               Reads the block whole; an incomplete one is none. Report
+               upstream (lib_pyscrape's get_ext reads one line only).
 
 Each one is a whole file, so after `dev/bump-lsd.sh` re-apply the patch
 onto upstream's new copy (git -C lsd diff OLD..NEW -- scripts/<file>).
