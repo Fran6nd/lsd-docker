@@ -376,6 +376,15 @@ pie_menu_add("counted", {theme = "Stuff", when = "sky", slices = {
 	{text = "hi", label = function() error("boom"); end}}});
 check(pie_menu_build(0) ~= nil, "a label function that raises spoils nothing else");
 pie_menu_remove("counted");
+-- a wedge's non-ASCII text comes back as chat with the Menu's UTF-8 marker
+local got;
+mod.xearly.next.on_chat = function(pid, msg, kind) got = {pid, msg, kind}; end
+mod.xearly.on_chat(0, "\255/pingmark 71.00 257.92 55.69 D\195\169fendre", 1);
+eq(got and got[2], "/pingmark 71.00 257.92 55.69 D\195\169fendre",
+	"the 0xFF in front of a wedge's UTF-8 text is stripped: the command is a command");
+eq(got and got[3], 1, "the chat type is kept");
+mod.xearly.on_chat(0, "/pingmark 1 2 3 Sniper", 1);
+eq(got[2], "/pingmark 1 2 3 Sniper", "a plain line passes as it is");
 
 print("\n7b. registering actions into pies");
 local function pie_of(b, theme)

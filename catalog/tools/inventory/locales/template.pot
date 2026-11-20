@@ -1,0 +1,27 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/tools/inventory/lib_inventory.lua
+msgid "Your inventory is empty."
+msgstr ""
+
+#: catalog/tools/inventory/lib_inventory.lua
+msgid "Your inventory -- use one with /inv <number>, or the pie menu:"
+msgstr ""
+
+#: catalog/tools/inventory/lib_inventory.lua
+msgid "You have none of that."
+msgstr ""
+
+#: catalog/tools/inventory/lib_inventory.lua
+msgid "Inventory"
+msgstr ""
+
+#: catalog/tools/inventory/lib_inventory.lua
+msgctxt "command"
+msgid "Your inventory: /inv lists it, /inv <number|name> uses one."
+msgstr ""

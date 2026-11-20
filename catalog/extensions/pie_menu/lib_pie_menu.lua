@@ -944,6 +944,19 @@ local function all_pies()
 	return place(out, items);
 end
 
+-- A wedge's text comes back as the player's chat -- and a text holding
+-- anything but ASCII ("/pingmark %h Défendre", "Merci !") was sent in the
+-- Menu with the 0xFF that marks a UTF-8 string, which ZeroSpades sends
+-- back still in front: "\255/pingmark ...". Not a /command then, and a
+-- stray character in chat. It is stripped first thing, before commands
+-- or chat see the line; what follows is UTF-8 already.
+function mod.xearly.on_chat(pid, msg, kind)
+	if (type(msg) == "string" and string.byte(msg, 1) == 0xFF) then
+		msg = string.sub(msg, 2);
+	end
+	return mod.xearly.next.on_chat(pid, msg, kind);
+end
+
 -- Can this player run what this text sends? Plain chat always; a
 -- /command only when the server has it, when it is not an extension's
 -- command the client lacks, and when caps.lua lets them see it.
