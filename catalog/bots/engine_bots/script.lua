@@ -6,6 +6,10 @@ return Bot {
 	questions = {
 		{key = "engine_bots_count", type = "number", default = 6, min = 0, max = 100,
 			ask = "Engine bots per team"},
+		{key = "engine_bots_team1", type = "number", default = -1, min = -1, max = 100,
+			ask = "Engine bots on team 1 only (-1: the count above)"},
+		{key = "engine_bots_team2", type = "number", default = -1, min = -1, max = 100,
+			ask = "Engine bots on team 2 only (-1: the count above)"},
 		{key = "engine_bots_level", type = "number", default = 5, min = 1, max = 10,
 			ask = "Engine bots' skill level (1 to 10)"},
 		{key = "engine_bots_level_spread", type = "number", default = 2, min = 0, max = 9,

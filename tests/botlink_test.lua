@@ -918,6 +918,22 @@ disconnect(victim, 0);
 step(130);
 local cnt = 0; for i = 0, 31 do if (P[i] and P[i].conn and bot_get(i) and bot_get(i).data.botlink) then cnt = cnt + 1; end end
 check(cnt >= 6 + 1, "a bot lost is topped up (the earlier ones of the first section remain)", cnt);
+-- one team its own count; a count lowered live takes the surplus out
+local function ours_on(team)
+	local n = 0;
+	for i = 0, 31 do
+		if (P[i] and P[i].conn and bot_get(i) and bot_get(i).data.botlink and i ~= pid and P[i].team == team) then n = n + 1; end
+	end
+	return n;
+end
+local base1, base2 = ours_on(1) - 3, ours_on(2) - 3;   -- what the earlier sections left
+engine_bots_team1, engine_bots_team2 = 0, 1;
+step(130);
+check(ours_on(1) - base1 == 0 and ours_on(2) - base2 == 1, "team 1 none, team 2 one: the surplus left",
+	(ours_on(1) - base1) .. "/" .. (ours_on(2) - base2));
+engine_bots_team1, engine_bots_team2 = -1, -1;
+step(130);
+check(ours_on(1) - base1 == 3 and ours_on(2) - base2 == 3, "-1: back to the count for both");
 for i = 0, 31 do if (P[i] and P[i].conn and bot_get(i) and bot_get(i).data.botlink) then P[i].bot = true; end end
 
 --========================= 12. THE SHUTDOWN =========================--

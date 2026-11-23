@@ -3,10 +3,15 @@
 --
 -- Nothing here but how many: each bot's behaviour is the engine's, through
 -- lib_botlink. Levels are drawn around engine_bots_level, each bot its own
--- seed. Topped up once a second, as the guards are; a dead bot still counts.
+-- seed. Brought to the count once a second, as the guards are -- topped
+-- up, and taken down when the count is lowered live; a dead bot still
+-- counts. One team may have its own count (engine_bots_team1/_team2):
+-- a single bot on one side to try things against, a fleet on the other.
 local mod = init_mod();
 
 getcfg("engine_bots_count", 6, "Engine bots kept alive per team.");
+getcfg("engine_bots_team1", -1, "Engine bots on team 1 (blue), when not engine_bots_count; -1: that count.");
+getcfg("engine_bots_team2", -1, "Engine bots on team 2 (green), when not engine_bots_count; -1: that count.");
 getcfg("engine_bots_level", 5, "Skill level (1 to 10) the engine bots are drawn around.");
 getcfg("engine_bots_level_spread", 2, "How far a bot's level may fall from that, either way.");
 
@@ -18,6 +23,15 @@ local function count(team)
 		if (t == team) then n = n + 1; end
 	end
 	return n;
+end
+
+-- how many a team should have
+local function wanted(team)
+	local own = tonumber(team == 1 and engine_bots_team1 or engine_bots_team2);
+	if (own ~= nil and own >= 0) then
+		return math.floor(own);
+	end
+	return math.max(0, math.floor(tonumber(engine_bots_count) or 0));
 end
 
 local function draw_level()
@@ -38,13 +52,24 @@ function mod.after.tick()
 	end
 
 	for team = 1, 2 do
-		local n = count(team);
-		while (n < engine_bots_count) do
+		local n, want = count(team), wanted(team);
+		while (n < want) do
 			local pid = botlink_add{team = team, level = draw_level(),
 				seed = math.random(1, 2147483646)};
 			if (pid == nil) then break; end
 			mine[pid] = team;
 			n = n + 1;
+		end
+		-- the count was lowered: the surplus leaves
+		if (n > want) then
+			for pid, t in pairs(mine) do
+				if (n <= want) then break; end
+				if (t == team) then
+					botlink_remove(pid);
+					mine[pid] = nil;
+					n = n - 1;
+				end
+			end
 		end
 	end
 end
