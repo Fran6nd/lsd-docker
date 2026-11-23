@@ -55,7 +55,9 @@
  * with none above 0, pick fails.
  *
  * THE TEXT. One node a line, children indented under their parent by
- * one tab more (or two spaces). `#` starts a comment. Several trees in
+ * one step more: a tab, or two or four spaces -- whichever the text's
+ * first indented line uses, and the same all through (a mix, or a line
+ * off the step, is an error). `#` starts a comment. Several trees in
  * one text, each begun by `tree <name>:` at no indent; a text with no
  * such line is one tree named "main".
  *
