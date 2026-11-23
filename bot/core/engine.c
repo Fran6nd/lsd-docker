@@ -1,0 +1,1574 @@
+/* engine.c -- engine.h: all the bots of one server
+ * Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
+ *
+ * brain.h says how a think goes (decide / plan / act). This file holds
+ * what is shared, applies what the server says, and runs that loop.
+ *
+ * SETTINGS (BL_EV_SET, "key=value"; for everybody, or one bot where
+ * marked *):
+ *   tree=<name>            * the tree to run ("default" when unset). A
+ *                            value of several lines is the TEXT of trees
+ *                            (bt.h), compiled beside the built-in ones;
+ *                            the first tree in it is the one run.
+ *   cull=voxlap|openspades   the server's floating-block personality
+ *   archetypes=camper:2,pusher:3,...   the mix characters are drawn from
+ *   sight, fov, notice, memory, relay, board, noise_secs   the senses
+ *   night.sight=0|1          the three rows of night sight (senses.h) hold
+ *                            (0: a night world is seen as by day)
+ *   night.cone=<degrees>     a lamp's cone, the whole angle (90)
+ *   night.reach=<voxels>     and how far it lights (60)
+ *   night.far=<voxels>       how far night vision sees a lit lamp (192)
+ *   night_vision=0|1       * the bot sees by night as by day (senses.h)
+ *   edit=none|dig|build|all  * what a route may do to the map (none)
+ *   spend=<n>                blocks a route may use (50)
+ *   water=lethal|safe
+ *   zone=x0 y0 x1 y1 [nodig] [nobuild]   a rectangle where routes do not
+ *                            edit (both, when neither is said); zone=clear
+ *   protect=x y z            a voxel the server will refuse to change
+ *   ping_takers=<n>          how many bots answer one ping (2)
+ *   ping_radius=<voxels>     and from how far (40; aosbot's numbers)
+ *   item.<name>=<count>    * what a bot holds ("inf": without end)
+ *   item.<name>.tree=<text>  the item's own decision (below)
+ *   item.<name>.guide=<secs> how long the aim stays on the man it was
+ *                            used on (a guided thing follows the aim)
+ *   extra.<name>.tree=<text> a script's addition to every bot (below)
+ *   anything else            is kept, for a tree's `if setting <key>`.
+ *
+ * THE ITEMS TREE. The engine knows no item by name. Whoever defines an
+ * item sends, with it, a fragment of tree saying when a bot should use
+ * it; the engine writes one tree from all of them,
+ *
+ *     tree items:
+ *     select
+ *         seq
+ *             if has_item medkit
+ *             <the medkit's fragment>
+ *         seq
+ *             if has_item missile
+ *             <the missile's fragment>
+ *         ...
+ *
+ * and compiles it with the trees it was given, so any of them may say
+ * `tree items` where using something fits. A SELECT, not a pick: a pick
+ * ticks its one best option and fails with it, so a bot holding a medkit
+ * it does not need would never get to its missile; and a trait that
+ * weighs every option alike weighs nothing. Greed acts where it can be
+ * seen: in how soon a bot uses the next thing (skill_misc.c, use). The
+ * fragment is re-indented to the trees' own step. One that does not
+ * compile is said (level 2, the item and the line in ITS text) and left
+ * out; the rest stand. With no item the tree is one leaf that fails.
+ *
+ * THE EXTRAS TREE, for what a server's script adds to every bot's
+ * behaviour without being an item -- NIGHT AND LAMPS first of all: the
+ * engine's own trees know only day and no flashlight, and a server with
+ * no night script gets plain day bots. A script sends
+ * extra.<name>.tree=<text>, and the engine writes
+ *
+ *     tree extras:
+ *     seq
+ *         always
+ *             seq
+ *                 <the first fragment, in name order>
+ *         always
+ *             seq
+ *                 <the next>
+ *         ...
+ *
+ * each ticked at every decision whatever the others answer (a tree says
+ * `tree extras` in its "_also" part). Same rules: re-indented, left out
+ * and said if it does not compile, withdrawn by an empty value; with
+ * none the tree is one leaf that succeeds. Keep an extra to actions
+ * that end at once: one that stays RUNNING holds up those after it.
+ *
+ * WHAT IS ALLOCATED, AND WHEN. bc_engine_new: the map (2 MiB), the cull
+ * scratch (7 MiB), the move table, the searches (5.5 MiB each, 2 to 4),
+ * the bots. A tree text arriving (bc_engine_trees, tree=, item.*.tree=)
+ * allocates the compiled forest and each bot's place in it -- at that
+ * event, never in a think.
+ */
+#include <math.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "brain.h"
+#include "vocab.h"
+
+static const double DECIDE_PERIOD = 0.05;       /* about 20 a second */
+enum { SEARCH_NODES = 131072 };
+
+static const char FALLBACK_TREES[] =
+	"tree default:\n"
+	"pick every=1\n"
+	"\toption none enemy_visible x3\n"
+	"\t\tdo fight\n"
+	"\toption none always\n"
+	"\t\tdo roam\n";
+
+/* ====================================================================== */
+/* small things                                                           */
+
+void bc_engine_log(bc_engine *e, int level, const char *fmt, ...)
+{
+	char line[400];
+	va_list ap;
+
+	if (!e->host.log)
+		return;
+	va_start(ap, fmt);
+	vsnprintf(line, sizeof line, fmt, ap);
+	va_end(ap);
+	e->host.log(e->host.ctx, level, line);
+}
+
+const bc_engine_stats *bc_engine_stats_get(const bc_engine *e) { return &e->stats; }
+
+bc_bot *bc_engine_bot(bc_engine *e, int pid)
+{
+	if (pid < 0 || pid >= BL_MAX_PLAYERS || e->by_pid[pid] < 0)
+		return NULL;
+	return &e->bots[e->by_pid[pid]];
+}
+
+const char *bc_engine_setting(const bc_engine *e, const char *key)
+{
+	int i;
+
+	for (i = 0; i < e->nsettings; i++)
+		if (!strcmp(e->settings[i].key, key))
+			return e->settings[i].val;
+	return NULL;
+}
+
+void bc_engine_search_release(bc_engine *e, bc_bot *b)
+{
+	if (b->mv.search >= 0 && b->mv.search < e->nsearch)
+		e->search_owner[b->mv.search] = -1;
+	b->mv.search = -1;
+}
+
+static float bot_random(void *bot)
+{
+	return bc_rng_float(&((bc_bot *)bot)->rng);
+}
+
+static void bot_ctx(bc_bot *b, bt_ctx *c, float dt)
+{
+	c->bot = b;
+	c->weights = b->persona.trait;
+	c->n_weights = BC_T_COUNT;
+	c->dt = dt;
+	c->random = bot_random;
+}
+
+static char *dup_text(const char *s)
+{
+	size_t n = strlen(s) + 1;
+	char *d = malloc(n);
+
+	if (d) memcpy(d, s, n);
+	return d;
+}
+
+/* ====================================================================== */
+/* trees                                                                  */
+
+/* the indent step a tree text uses: its first indented line's */
+static void indent_of(const char *text, char *unit, size_t cap)
+{
+	const char *p = text;
+
+	strcpy(unit, "\t");
+	while (p && *p) {
+		const char *eol = strchr(p, '\n');
+		size_t n = 0;
+
+		if (*p == '\t')
+			return;
+		while (p[n] == ' ') n++;
+		if (n > 0 && p[n] != '\n' && p[n] != '\r' && p[n] != '#' && p[n] != 0) {
+			if (n >= cap) n = cap - 1;
+			memset(unit, ' ', n);
+			unit[n] = 0;
+			return;
+		}
+		p = eol ? eol + 1 : NULL;
+	}
+}
+
+static void put(char **out, size_t *len, size_t *cap, const char *s, size_t n)
+{
+	if (*len + n + 1 > *cap) {
+		size_t nc = (*cap + n + 1) * 2;
+		char *t = realloc(*out, nc);
+
+		if (!t) return;
+		*out = t;
+		*cap = nc;
+	}
+	memcpy(*out + *len, s, n);
+	*len += n;
+	(*out)[*len] = 0;
+}
+
+/* One item's fragment, re-indented to `unit` and set `depth` steps in. */
+static void put_fragment(char **out, size_t *len, size_t *cap, const char *frag,
+                         const char *unit, int depth)
+{
+	char own[16];
+	size_t ownlen;
+	const char *p = frag;
+
+	indent_of(frag, own, sizeof own);
+	ownlen = strlen(own);
+	while (p && *p) {
+		const char *eol = strchr(p, '\n');
+		size_t n = eol ? (size_t)(eol - p) : strlen(p), lead = 0, d, i;
+
+		while (lead < n && (p[lead] == ' ' || p[lead] == '\t')) lead++;
+		while (n > lead && (p[n - 1] == '\r' || p[n - 1] == ' ')) n--;
+		if (n > lead) {
+			d = own[0] == '\t' ? lead : lead / ownlen;
+			for (i = 0; i < d + (size_t)depth; i++)
+				put(out, len, cap, unit, strlen(unit));
+			put(out, len, cap, p + lead, n - lead);
+			put(out, len, cap, "\n", 1);
+		}
+		p = eol ? eol + 1 : NULL;
+	}
+}
+
+/* The next definition of a kind after `prev` in name order, or -1. */
+static int next_def(const bc_engine *e, int extra, int prev)
+{
+	int i, best = -1;
+
+	for (i = 0; i < e->nidefs; i++) {
+		const bc_itemdef *d = &e->idefs[i];
+
+		if (!d->tree || d->extra != extra)
+			continue;
+		if (prev >= 0 && strcmp(d->name, e->idefs[prev].name) <= 0)
+			continue;
+		if (best < 0 || strcmp(d->name, e->idefs[best].name) < 0)
+			best = i;
+	}
+	return best;
+}
+
+static int count_lines(const char *s)
+{
+	int n = 0;
+
+	for (; *s; s++)
+		if (*s == '\n') n++;
+	return n;
+}
+
+/* `base` and the two trees the engine writes, "items" and "extras"
+ * (each unless `base` has one of its own), holding definition `only`
+ * alone (-1: every one that is ok). `at` (or NULL) gets the line of the
+ * text where `only`'s fragment begins. malloc'd. */
+static char *with_generated(const bc_engine *e, const char *base, int only, int *at)
+{
+	char unit[16], line[96];
+	char *out = NULL;
+	size_t len = 0, cap = 0;
+	int i, extra;
+
+	put(&out, &len, &cap, base, strlen(base));
+	if (len && out[len - 1] != '\n')
+		put(&out, &len, &cap, "\n", 1);
+	if (!out)
+		return NULL;
+	indent_of(base, unit, sizeof unit);
+	for (extra = 0; extra < 2; extra++) {
+		if (strstr(base, extra ? "tree extras:" : "tree items:"))
+			continue;
+		put(&out, &len, &cap, extra ? "tree extras:\nseq\n" : "tree items:\nselect\n", extra ? 17 : 19);
+		for (i = next_def(e, extra, -1); i >= 0; i = next_def(e, extra, i)) {
+			const bc_itemdef *d = &e->idefs[i];
+
+			if (only >= 0 ? i != only : !d->ok)
+				continue;
+			if (extra) {
+				/* each on its own, whatever the others answer */
+				snprintf(line, sizeof line, "%salways\n%s%sseq\n", unit, unit, unit);
+				put(&out, &len, &cap, line, strlen(line));
+			} else {
+				/* at once a failure for a bot that holds none */
+				snprintf(line, sizeof line, "%sseq\n%s%sif has_item %s\n", unit, unit, unit, d->name);
+				put(&out, &len, &cap, line, strlen(line));
+			}
+			if (at && i == only)
+				*at = count_lines(out) + 1;
+			put_fragment(&out, &len, &cap, d->tree, unit, extra ? 3 : 2);
+		}
+		/* so the tree is never empty: items fails, extras succeeds */
+		snprintf(line, sizeof line, "%s%s has_item -\n", unit, extra ? "unless" : "if");
+		put(&out, &len, &cap, line, strlen(line));
+	}
+	return out;
+}
+
+/* Which fragments compile, each tried alone with `base`. */
+static void check_items(bc_engine *e, const char *base)
+{
+	char err[200];
+	int i;
+
+	for (i = 0; i < e->nidefs; i++) {
+		bc_itemdef *d = &e->idefs[i];
+		const char *what = d->extra ? "extra" : "item";
+		char *text;
+		bt_forest *f;
+		int first = 1;
+
+		d->ok = 0;
+		if (!d->tree)
+			continue;
+		text = with_generated(e, base, i, &first);
+		if (!text)
+			continue;
+		f = bt_compile(e->vocab, text, err, sizeof err);
+		if (f) {
+			d->ok = 1;
+			bt_forest_free(f);
+		} else if (!d->said) {
+			int line = 0, at = 0;
+
+			d->said = 1;
+
+			/* its line in the fragment, not in the text made round it */
+			if (sscanf(err, "line %d:%n", &line, &at) == 1 && at > 0 && line >= first)
+				bc_engine_log(e, 2, "%s %s: its tree is left out: line %d:%s",
+				              what, d->name, line - first + 1, err + at);
+			else
+				bc_engine_log(e, 2, "%s %s: its tree is left out: %s", what, d->name, err);
+		}
+		free(text);
+	}
+}
+
+static bt_forest *compile_all(bc_engine *e, const char *base, char *err, size_t err_size)
+{
+	bt_forest *f, *g;
+	char *text;
+	char err2[200];
+	int i;
+
+	/* first with an items tree that holds nothing: a mistake found now is
+	 * the trees' own, and its line is the line in `base` */
+	for (i = 0; i < e->nidefs; i++)
+		e->idefs[i].ok = 0;
+	text = with_generated(e, base, -1, NULL);
+	if (!text)
+		return NULL;
+	f = bt_compile(e->vocab, text, err, err_size);
+	free(text);
+	if (!f)
+		return NULL;
+	check_items(e, base);
+	text = with_generated(e, base, -1, NULL);
+	if (!text)
+		return f;
+	g = bt_compile(e->vocab, text, err2, sizeof err2);
+	free(text);
+	if (!g) {
+		bc_engine_log(e, 2, "the items and extras do not compile with these trees: %s", err2);
+		return f;
+	}
+	bt_forest_free(f);
+	return g;
+}
+
+/* Leave the tree cleanly: every action RUNNING is told to stop. */
+static void bot_leave_tree(bc_bot *b)
+{
+	bt_ctx c;
+
+	if (b->forest && b->bt) {
+		bot_ctx(b, &c, 0.0f);
+		bt_reset(b->forest, b->bt, &c);
+	}
+	b->forest = NULL;
+	b->lamp = BC_LAMP_OFF;      /* whoever lit it may be gone with the old trees */
+}
+
+/* Point a bot at the tree its settings name, in the forest that has it. */
+static void bot_bind(bc_engine *e, bc_bot *b)
+{
+	const char *name = b->tree_name[0] ? b->tree_name : e->tree_name[0] ? e->tree_name : "default";
+	const bt_forest *fs[3], *f = NULL;
+	char also[BT_NAME_MAX + 8];
+	int i, tree = -1;
+	size_t need;
+
+	fs[0] = e->custom; fs[1] = e->builtin; fs[2] = e->fallback;
+	for (i = 0; i < 3 && tree < 0; i++)
+		if (fs[i] && (tree = bt_forest_find(fs[i], name)) >= 0) f = fs[i];
+	for (i = 1; i < 3 && tree < 0; i++)
+		if (fs[i] && (tree = bt_forest_find(fs[i], "default")) >= 0) {
+			f = fs[i];
+			name = "default";
+		}
+	if (tree < 0)
+		return;
+	if (f == b->forest && tree == b->tree)
+		return;
+	bot_leave_tree(b);
+	need = bt_state_size(f);
+	if (need > b->bt_size) {
+		void *m = realloc(b->bt, need);
+
+		if (!m) return;
+		b->bt = m;
+		b->bt_size = need;
+	}
+	bt_state_init(b->bt, f);
+	b->forest = f;
+	b->tree = tree;
+	snprintf(also, sizeof also, "%s_also", name);
+	b->tree_also = strlen(also) < BT_NAME_MAX ? bt_forest_find(f, also) : -1;
+}
+
+static void bind_all(bc_engine *e)
+{
+	int i;
+
+	for (i = 0; i < e->max_bots; i++)
+		if (e->bots[i].used)
+			bot_bind(e, &e->bots[i]);
+}
+
+/* Put a new forest in a slot: the bots in the old one leave it first. */
+static void swap_forest(bc_engine *e, bt_forest **slot, bt_forest *f)
+{
+	int i;
+
+	for (i = 0; i < e->max_bots; i++)
+		if (e->bots[i].used && e->bots[i].forest == *slot)
+			bot_leave_tree(&e->bots[i]);
+	if (*slot)
+		bt_forest_free(*slot);
+	*slot = f;
+	bind_all(e);
+}
+
+int bc_engine_trees(bc_engine *e, const char *text, char *err, size_t err_size)
+{
+	bt_forest *f;
+	char *copy;
+
+	if (err && err_size) err[0] = 0;
+	if (!text)
+		return 0;
+	f = compile_all(e, text, err, err_size);
+	if (!f)
+		return 0;               /* and the engine is as it was */
+	copy = dup_text(text);
+	if (!copy) {
+		bt_forest_free(f);
+		return 0;
+	}
+	free(e->base_text);
+	e->base_text = copy;
+	swap_forest(e, &e->builtin, f);
+	return 1;
+}
+
+/* The item fragments changed: both forests again. */
+static void recompile(bc_engine *e)
+{
+	char err[200];
+	bt_forest *f;
+
+	if (e->base_text) {
+		f = compile_all(e, e->base_text, err, sizeof err);
+		if (f) swap_forest(e, &e->builtin, f);
+	} else {
+		f = compile_all(e, FALLBACK_TREES, err, sizeof err);
+		if (f) swap_forest(e, &e->fallback, f);
+	}
+	if (e->custom_text) {
+		f = compile_all(e, e->custom_text, err, sizeof err);
+		if (f) swap_forest(e, &e->custom, f);
+	}
+}
+
+/* ====================================================================== */
+/* new, free, map                                                         */
+
+bc_engine *bc_engine_new(const bc_engine_host *host, int max_bots)
+{
+	bc_engine *e;
+	char err[200];
+	int i;
+
+	if (max_bots < 1) max_bots = 1;
+	if (max_bots > BL_MAX_PLAYERS) max_bots = BL_MAX_PLAYERS;
+	e = calloc(1, sizeof *e);
+	if (!e)
+		return NULL;
+	if (host) e->host = *host;
+	e->max_bots = max_bots;
+	e->bots = calloc((size_t)max_bots, sizeof *e->bots);
+	e->map = malloc(sizeof *e->map);
+	e->cull = malloc(sizeof *e->cull);
+	e->moves = malloc(sizeof *e->moves);
+	e->vocab = bt_vocab_new();
+	e->nsearch = max_bots / 8;
+	if (e->nsearch < 2) e->nsearch = 2;
+	if (e->nsearch > BC_SEARCH_MAX) e->nsearch = BC_SEARCH_MAX;
+	for (i = 0; i < e->nsearch; i++) {
+		e->search_mem[i] = malloc(bc_nav_search_size(SEARCH_NODES));
+		e->search_owner[i] = -1;
+	}
+	if (!e->bots || !e->map || !e->cull || !e->moves || !e->vocab) {
+		bc_engine_free(e);
+		return NULL;
+	}
+	for (i = 0; i < e->nsearch; i++) {
+		if (!e->search_mem[i]) {
+			bc_engine_free(e);
+			return NULL;
+		}
+		e->search[i] = bc_nav_search_init(e->search_mem[i], SEARCH_NODES);
+	}
+	for (i = 0; i < BL_MAX_PLAYERS; i++)
+		e->by_pid[i] = -1;
+	for (i = 0; i < max_bots; i++) {
+		e->bots[i].e = e;
+		e->bots[i].mv.search = -1;
+	}
+	/* the moves, measured on the map-to-be as a scratch */
+	bc_map_clear(e->map);
+	bc_nav_moves_measure(e->moves, e->map);
+	bc_map_clear(e->map);
+	bc_cull_init(e->cull);
+	bc_nav_fail_clear(&e->fail);
+	bc_nav_protect_clear(&e->protect);
+	bc_board_clear(&e->board);
+	bc_sense_cfg_default(&e->sense);
+	e->cull_personality = BC_CULL_OPENSPADES;
+	e->spend = 50;
+	e->ping_takers = 2;
+	e->ping_radius = 40.0f;
+	e->hot_at[0] = e->hot_at[1] = -1e9;
+	for (i = 0; i < BC_DANGER_MAX; i++)
+		e->danger_at[0][i] = e->danger_at[1][i] = -1e9;
+	if (!bc_vocab_register(e->vocab))
+		bc_engine_log(e, 2, "the vocabulary did not all fit");
+	e->fallback = compile_all(e, FALLBACK_TREES, err, sizeof err);
+	if (!e->fallback)
+		bc_engine_log(e, 2, "the fallback tree does not compile: %s", err);
+	return e;
+}
+
+void bc_engine_free(bc_engine *e)
+{
+	int i;
+
+	if (!e)
+		return;
+	if (e->bots)
+		for (i = 0; i < e->max_bots; i++) {
+			if (e->bots[i].used)
+				bot_leave_tree(&e->bots[i]);
+			free(e->bots[i].bt);
+		}
+	if (e->builtin) bt_forest_free(e->builtin);
+	if (e->custom) bt_forest_free(e->custom);
+	if (e->fallback) bt_forest_free(e->fallback);
+	if (e->vocab) bt_vocab_free(e->vocab);
+	for (i = 0; i < BC_SEARCH_MAX; i++)
+		free(e->search_mem[i]);
+	for (i = 0; i < BC_ITEMDEFS_MAX; i++)
+		free(e->idefs[i].tree);
+	free(e->base_text);
+	free(e->custom_text);
+	free(e->bots);
+	free(e->map);
+	free(e->cull);
+	free(e->moves);
+	free(e);
+}
+
+int bc_engine_bots(const bc_engine *e)
+{
+	int i, n = 0;
+
+	for (i = 0; i < e->max_bots; i++)
+		n += e->bots[i].used;
+	return n;
+}
+
+/* A bot's routes and plans are void (a new map, a death). */
+static void bot_forget_route(bc_bot *b)
+{
+	bc_mover_reset(b);
+	b->wish.move = BC_MOVE_NONE;
+	b->roam.valid = 0;
+	b->cover.valid = 0;
+}
+
+int bc_engine_map(bc_engine *e, const uint8_t *vxl, size_t bytes, uint32_t map_seq)
+{
+	int i, ok = bc_map_load_vxl(e->map, vxl, bytes);
+
+	e->map->cull_personality = e->cull_personality;
+	e->have_map = ok;
+	e->map_seq = map_seq;
+	/* what was learned of the last map goes */
+	bc_nav_fail_clear(&e->fail);
+	bc_nav_protect_clear(&e->protect);
+	bc_board_clear(&e->board);
+	e->hot_at[0] = e->hot_at[1] = -1e9;
+	memset(e->nades, 0, sizeof e->nades);
+	for (i = 0; i < BC_DANGER_MAX; i++)
+		e->danger_at[0][i] = e->danger_at[1][i] = -1e9;
+	for (i = 0; i < e->max_bots; i++)
+		if (e->bots[i].used) {
+			bot_forget_route(&e->bots[i]);
+			bc_senses_reset(&e->bots[i].senses);
+		}
+	if (!ok)
+		bc_engine_log(e, 2, "map %u is not a map: the bots stand until the next", (unsigned)map_seq);
+	else
+		bc_engine_log(e, 1, "map %u loaded", (unsigned)map_seq);
+	return ok;
+}
+
+/* ====================================================================== */
+/* bots                                                                   */
+
+static void roll_persona(bc_engine *e, bc_bot *b)
+{
+	bc_rng r;
+
+	/* its own stream, so the character is the seed's and the mix's and
+	 * can be drawn again when the mix arrives after the bot */
+	bc_rng_seed(&r, b->seed, 0x70657273);
+	bc_persona_roll(&b->persona, &r, e->have_archetypes ? e->archetypes : NULL, b->level);
+}
+
+static void bot_new_life(bc_bot *b, const bl_player *p)
+{
+	bc_aim_v3 ori;
+	bt_ctx c;
+
+	b->life = p->life;
+	b->alive = 1;
+	bc_senses_reset(&b->senses);
+	bot_forget_route(b);
+	memset(&b->fight, 0, sizeof b->fight);
+	b->fight.target = -1;
+	b->fight.engage_frac = 0.8f;
+	b->fight.kill_at = -1e9;
+	if (b->forest && b->bt) {
+		bot_ctx(b, &c, 0.0f);
+		bt_reset(b->forest, b->bt, &c);
+	}
+	memset(&b->wish, 0, sizeof b->wish);
+	b->wish.fire_pid = b->wish.look_pid = -1;
+	b->wish.tool = BL_TOOL_GUN;
+	memset(&b->inv, 0, sizeof b->inv);
+	memset(&b->nade, 0, sizeof b->nade);
+	memset(&b->hold, 0, sizeof b->hold);
+	memset(&b->evade, 0, sizeof b->evade);
+	memset(&b->guide, 0, sizeof b->guide);
+	memset(&b->ping, 0, sizeof b->ping);
+	b->follow.leader = -1;
+	b->follow.pick_at = 0.0;
+	b->cover.since = -1e9;
+	b->lamp = BC_LAMP_OFF;
+	b->hit = 0;
+	b->keys_prev = 0;
+	b->reload_pulse = 0;
+	b->use_at = 0.0;
+	b->anchor = p->pos;
+	b->anchor_at = b->e->now;
+	/* this life's manner (aosbot's style_* draws) */
+	b->style_dodge = bc_rng_range(&b->rng, 0.7f, 1.3f);
+	b->style_engage = bc_rng_range(&b->rng, 0.5f, 1.0f);
+	b->style_crouch = bc_rng_range(&b->rng, 0.7f, 1.3f);
+	b->station_bearing = bc_rng_range(&b->rng, 0.0f, 6.2831853f);
+	b->sweep_phase = bc_rng_range(&b->rng, 0.0f, 6.2831853f);
+	b->flank_side = bc_rng_float(&b->rng) < 0.5f ? -1 : 1;
+	ori.x = p->ori.x; ori.y = p->ori.y; ori.z = p->ori.z;
+	if (!b->aim.init)
+		bc_aim_init(&b->aim, &b->rng, b->level, ori);
+	else
+		bc_aim_snap(&b->aim, ori);      /* a new body faces the way it is put */
+}
+
+static void bot_died(bc_bot *b)
+{
+	bt_ctx c;
+
+	b->alive = 0;
+	bot_forget_route(b);
+	if (b->forest && b->bt) {
+		bot_ctx(b, &c, 0.0f);
+		bt_reset(b->forest, b->bt, &c);
+	}
+	b->fight.target = -1;
+}
+
+static void ev_bot(bc_engine *e, int pid, const bl_ev_bot *ev)
+{
+	bc_bot *b = bc_engine_bot(e, pid);
+	int i;
+
+	if (b && b->seed == ev->seed && b->level == ev->level && b->gun == ev->gun)
+		return;                 /* told again (a new map, an engine back) */
+	if (!b) {
+		for (i = 0; i < e->max_bots && e->bots[i].used; i++)
+			;
+		if (i == e->max_bots) {
+			bc_engine_log(e, 2, "bot #%d: no room (%d bots)", pid, e->max_bots);
+			return;
+		}
+		b = &e->bots[i];
+		e->by_pid[pid] = (int16_t)i;
+	} else {
+		bot_leave_tree(b);
+		bc_engine_search_release(e, b);
+	}
+	{
+		bt_state *bt = b->bt;
+		size_t bt_size = b->bt_size;
+		int idx = (int)(b - e->bots);
+
+		memset(b, 0, sizeof *b);
+		b->bt = bt;
+		b->bt_size = bt_size;
+		b->e = e;
+		b->used = 1;
+		b->pid = (uint8_t)pid;
+		b->level = ev->level < 1 ? 1 : ev->level > 10 ? 10 : ev->level;
+		b->gun = ev->gun;
+		b->seed = ev->seed;
+		b->edit = -1;
+		b->mv.search = -1;
+		b->fight.target = -1;
+		b->follow.leader = -1;
+		/* decisions staggered across the bots */
+		b->decide_acc = DECIDE_PERIOD * (double)(idx % 4) / 4.0;
+	}
+	bc_rng_seed(&b->rng, b->seed, 0x62726169);
+	roll_persona(e, b);
+	bot_bind(e, b);
+	bc_engine_log(e, 1, "bot #%d: %s, level %d", pid, bc_archetype_name(b->persona.archetype), b->level);
+}
+
+static void ev_unbot(bc_engine *e, int pid)
+{
+	bc_bot *b = bc_engine_bot(e, pid);
+
+	if (!b)
+		return;
+	bot_leave_tree(b);
+	bc_engine_search_release(e, b);
+	b->used = 0;
+	b->alive = 0;
+	e->by_pid[pid] = -1;
+}
+
+/* ====================================================================== */
+/* settings                                                               */
+
+static void keep_setting(bc_engine *e, const char *key, const char *val)
+{
+	int i;
+
+	if (strlen(key) >= sizeof e->settings[0].key)
+		return;
+	for (i = 0; i < e->nsettings && strcmp(e->settings[i].key, key); i++)
+		;
+	if (i == e->nsettings) {
+		if (i == BC_SETTINGS_MAX)
+			return;
+		e->nsettings++;
+		strcpy(e->settings[i].key, key);
+	}
+	snprintf(e->settings[i].val, sizeof e->settings[i].val, "%s", val);
+}
+
+static void set_item(bc_engine *e, bc_bot *only, const char *key, const char *val, int extra)
+{
+	char name[16];
+	const char *dot = strchr(key, '.');
+	size_t n = dot ? (size_t)(dot - key) : strlen(key);
+	bc_itemdef *d = NULL;
+	int i;
+
+	if (n == 0 || n >= sizeof name)
+		return;
+	memcpy(name, key, n);
+	name[n] = 0;
+	if (!dot && extra)
+		return;
+	if (!dot) {
+		/* a count */
+		int count = !strcmp(val, "inf") ? -1 : atoi(val);
+
+		for (i = 0; i < e->max_bots; i++) {
+			bc_bot *b = &e->bots[i];
+			bc_item *it;
+
+			if (!b->used || (only && b != only))
+				continue;
+			it = bc_item_find(b, name, count != 0);
+			if (it) it->count = count;
+		}
+		return;
+	}
+	for (i = 0; i < e->nidefs; i++)
+		if (!strcmp(e->idefs[i].name, name) && e->idefs[i].extra == extra) d = &e->idefs[i];
+	if (!d) {
+		if (e->nidefs == BC_ITEMDEFS_MAX) {
+			bc_engine_log(e, 2, "%s: too many items and extras (%d)", name, BC_ITEMDEFS_MAX);
+			return;
+		}
+		d = &e->idefs[e->nidefs++];
+		memset(d, 0, sizeof *d);
+		strcpy(d->name, name);
+		d->extra = (uint8_t)extra;
+	}
+	if (!strcmp(dot, ".guide")) {
+		d->guide = (float)atof(val);
+	} else if (!strcmp(dot, ".tree")) {
+		if (d->tree && !strcmp(d->tree, val))
+			return;
+		free(d->tree);
+		d->tree = val[0] ? dup_text(val) : NULL;
+		d->said = 0;
+		recompile(e);
+	}
+}
+
+static void set_tree(bc_engine *e, bc_bot *b, const char *val)
+{
+	char name[BT_NAME_MAX] = "";
+
+	if (strchr(val, '\n')) {
+		/* the text of trees: the first one in it is the one run */
+		const char *h = strncmp(val, "tree ", 5) ? strstr(val, "\ntree ") : val;
+		char err[200];
+		bt_forest *f = compile_all(e, val, err, sizeof err);
+
+		if (!f) {
+			bc_engine_log(e, 2, "tree= does not compile, the old one stays: %s", err);
+			return;
+		}
+		free(e->custom_text);
+		e->custom_text = dup_text(val);
+		strcpy(name, "main");
+		if (h) {
+			size_t n;
+
+			h += h == val ? 5 : 6;
+			n = strcspn(h, ":\n");
+			if (n > 0 && n < sizeof name) {
+				memcpy(name, h, n);
+				name[n] = 0;
+			}
+		}
+		if (b) strcpy(b->tree_name, name);
+		else strcpy(e->tree_name, name);
+		swap_forest(e, &e->custom, f);
+		return;
+	}
+	if (strlen(val) < sizeof name)
+		strcpy(name, val);
+	if (b) strcpy(b->tree_name, name);
+	else strcpy(e->tree_name, name);
+	bind_all(e);
+	if (name[0] && !(e->custom && bt_forest_find(e->custom, name) >= 0) &&
+	    !(e->builtin && bt_forest_find(e->builtin, name) >= 0))
+		bc_engine_log(e, 1, "tree=%s: no tree of that name, the bots run \"default\"", name);
+}
+
+static void ev_set(bc_engine *e, int pid, const char *text)
+{
+	char key[64];
+	const char *eq = strchr(text, '='), *val;
+	bc_bot *b = pid == BL_NO_PLAYER ? NULL : bc_engine_bot(e, pid);
+	size_t n;
+	int i;
+
+	if (!eq || eq == text || (size_t)(eq - text) >= sizeof key)
+		return;
+	if (pid != BL_NO_PLAYER && !b)
+		return;
+	n = (size_t)(eq - text);
+	memcpy(key, text, n);
+	key[n] = 0;
+	val = eq + 1;
+
+	if (!strncmp(key, "item.", 5)) {
+		set_item(e, b, key + 5, val, 0);
+		return;
+	}
+	if (!strncmp(key, "extra.", 6)) {
+		if (!b) set_item(e, NULL, key + 6, val, 1);
+		return;
+	}
+	if (!strcmp(key, "tree")) {
+		set_tree(e, b, val);
+		return;
+	}
+	if (!strcmp(key, "edit")) {
+		int v = !strcmp(val, "dig") ? 1 : !strcmp(val, "build") ? 2 : !strcmp(val, "all") ? 3 : 0;
+
+		if (b) b->edit = (int8_t)v;
+		else { e->may_dig = v & 1; e->may_build = (v >> 1) & 1; }
+		return;
+	}
+	if (!strcmp(key, "night_vision")) {
+		for (i = 0; i < e->max_bots; i++)
+			if (e->bots[i].used && (!b || b == &e->bots[i]))
+				e->bots[i].night_vision = atoi(val) != 0;
+		return;
+	}
+	if (b)
+		return;                 /* the rest are for everybody */
+	if (!strcmp(key, "cull")) {
+		e->cull_personality = !strcmp(val, "voxlap") ? BC_CULL_VOXLAP : BC_CULL_OPENSPADES;
+		e->map->cull_personality = e->cull_personality;
+	} else if (!strcmp(key, "archetypes")) {
+		float w[BC_A_COUNT];
+
+		if (!bc_archetype_weights(val, w)) {
+			bc_engine_log(e, 2, "archetypes=%s: a name nobody knows", val);
+			return;
+		}
+		memcpy(e->archetypes, w, sizeof w);
+		e->have_archetypes = val[0] != 0;
+		for (i = 0; i < e->max_bots; i++)
+			if (e->bots[i].used) roll_persona(e, &e->bots[i]);
+	} else if (bc_sense_cfg_set(&e->sense, key, (float)atof(val))) {
+		;
+	} else if (!strcmp(key, "spend")) {
+		e->spend = atoi(val);
+	} else if (!strcmp(key, "water")) {
+		e->water_lethal = !strcmp(val, "lethal");
+	} else if (!strcmp(key, "ping_takers")) {
+		e->ping_takers = atoi(val);
+	} else if (!strcmp(key, "ping_radius")) {
+		e->ping_radius = (float)atof(val);
+	} else if (!strcmp(key, "zone")) {
+		int x0, y0, x1, y1;
+
+		if (!strcmp(val, "clear")) {
+			e->nzones = 0;
+		} else if (sscanf(val, "%d %d %d %d", &x0, &y0, &x1, &y1) == 4 && e->nzones < BC_ZONES_MAX) {
+			bc_nav_zone *z = &e->zones[e->nzones++];
+			int nd = strstr(val, "nodig") != NULL, nb = strstr(val, "nobuild") != NULL;
+
+			memset(z, 0, sizeof *z);
+			z->x0 = (int16_t)(x0 < x1 ? x0 : x1); z->x1 = (int16_t)(x0 < x1 ? x1 : x0);
+			z->y0 = (int16_t)(y0 < y1 ? y0 : y1); z->y1 = (int16_t)(y0 < y1 ? y1 : y0);
+			z->no_dig = (uint8_t)(nd || !nb);
+			z->no_build = (uint8_t)(nb || !nd);
+		}
+	} else if (!strcmp(key, "protect")) {
+		int x, y, z;
+
+		if (sscanf(val, "%d %d %d", &x, &y, &z) == 3)
+			bc_nav_protect_add(&e->protect, x, y, z);
+	} else if (!bc_engine_setting(e, key)) {
+		/* not the engine's: a gamemode's own, for its tree to read */
+		bc_engine_log(e, 1, "setting %s: not one the engine knows; kept for a tree's `if setting %s`", key, key);
+	}
+	keep_setting(e, key, val);
+}
+
+/* ====================================================================== */
+/* events                                                                 */
+
+static void noise_for_all(bc_engine *e, int kind, bl_vec3 pos, int by)
+{
+	int i;
+
+	if (!e->have_world)
+		return;
+	for (i = 0; i < e->max_bots; i++) {
+		bc_bot *b = &e->bots[i];
+
+		if (b->used && b->alive)
+			bc_senses_hear(&b->senses, &e->sense, &e->w, b->pid, b->level, kind, pos, by, e->now);
+	}
+}
+
+/* The map changed inside a box: routes through it are looked at again
+ * (the follower does that on any change), and one that crossed a
+ * COLLAPSE is planned again at once -- the follower checks the steps,
+ * not that the ground a step lands on is still held up from below. */
+static void map_changed(bc_engine *e, const bc_map_change *c)
+{
+	int i, k;
+
+	if (c->collapsed <= 0)
+		return;
+	{
+		bl_vec3 at;
+
+		at.x = 0.5f * (float)(c->x0 + c->x1) + 0.5f;
+		at.y = 0.5f * (float)(c->y0 + c->y1) + 0.5f;
+		at.z = 0.5f * (float)(c->z0 + c->z1) + 0.5f;
+		noise_for_all(e, BL_S_BLAST, at, BL_NO_PLAYER);     /* a collapse is heard */
+	}
+	for (i = 0; i < e->max_bots; i++) {
+		bc_bot *b = &e->bots[i];
+
+		if (!b->used || !b->mv.has_route)
+			continue;
+		for (k = b->mv.follow.step < 0 ? 0 : b->mv.follow.step; k < b->mv.route.n; k++) {
+			const bc_nav_node *n = &b->mv.route.steps[k].to;
+
+			if (n->x >= c->x0 - 1 && n->x <= c->x1 + 1 && n->y >= c->y0 - 1 && n->y <= c->y1 + 1 &&
+			    n->z >= c->z0 - 1 && n->z <= c->z1 + 4) {
+				b->mv.has_route = 0;
+				if (b->mv.state == BC_MV_FOLLOWING) {
+					b->mv.state = BC_MV_PLANNING;
+					b->mv.plan_since = e->now;
+					b->mv.again = 1;
+					e->stats.replans++;
+				}
+				break;
+			}
+		}
+	}
+}
+
+static void ev_ping(bc_engine *e, int by, const bl_ev_ping *ev)
+{
+	char reason[65];
+	int team, kind, taken = 0, round;
+	bc_ping *pg;
+
+	if (by == BL_NO_PLAYER || !e->have_world)
+		return;
+	team = e->w.players[by].team;
+	memcpy(reason, ev->reason, 64);
+	reason[64] = 0;
+	kind = bc_ping_kind(reason);
+	if (kind == BC_PING_NONE || team < 1 || team > 2)
+		return;
+	pg = bc_board_ping(&e->board, team, by, ev->pos, kind, e->now,
+	                   kind == BC_PING_ENEMY ? 15.0 : kind == BC_PING_HELP ? 30.0 : 20.0);
+	if (!pg)
+		return;
+	/* The nearest few answer, not everybody (aosbot: 2 within 40), and
+	 * a bot is "nearer" the keener it is on teamwork; one with little
+	 * of it does not answer at all, and one busy with a ping stays on it. */
+	for (round = 0; round < e->ping_takers; round++) {
+		bc_bot *best = NULL;
+		float bd = 1e30f;
+		int i;
+
+		for (i = 0; i < e->max_bots; i++) {
+			bc_bot *b = &e->bots[i];
+			const bl_player *p;
+			float dx, dy, d, tw;
+
+			if (!b->used || !b->alive || b->pid == by)
+				continue;
+			p = &e->w.players[b->pid];
+			tw = b->persona.trait[BC_T_TEAMWORK];
+			if (p->team != team || tw < 0.7f || (b->ping.taken && e->now < b->ping.until))
+				continue;
+			dx = p->pos.x - ev->pos.x; dy = p->pos.y - ev->pos.y;
+			d = sqrtf(dx * dx + dy * dy);
+			if (d > e->ping_radius)
+				continue;
+			d /= tw;
+			if (d < bd) { bd = d; best = b; }
+		}
+		if (!best)
+			break;
+		best->ping.taken = pg->id;
+		best->ping.pos = ev->pos;
+		best->ping.kind = (uint8_t)kind;
+		best->ping.by = (uint8_t)by;
+		best->ping.until = pg->until;
+		best->jolt = 1;
+		taken++;
+	}
+	pg->takers = (uint8_t)taken;
+}
+
+void bc_engine_event(bc_engine *e, const bl_record *rec)
+{
+	const void *pl = rec + 1;
+	size_t n = rec->size >= sizeof *rec ? rec->size - sizeof *rec : 0;
+	int pid = rec->pid;
+
+	switch (rec->type) {
+	case BL_EV_BLOCK: {
+		bl_ev_block ev;
+		bc_map_change c;
+
+		if (n < sizeof ev || !e->have_map) break;
+		memcpy(&ev, pl, sizeof ev);
+		bc_map_change_init(&c, e->chg_cells, BC_CHANGE_CELLS);
+		bc_map_apply(e->map, e->cull, ev.action, ev.x, ev.y, ev.z, &c);
+		map_changed(e, &c);
+		break;
+	}
+	case BL_EV_LINE: {
+		bl_ev_line ev;
+
+		if (n < sizeof ev || !e->have_map) break;
+		memcpy(&ev, pl, sizeof ev);
+		if (bc_map_in(ev.x1, ev.y1, ev.z1) && bc_map_in(ev.x2, ev.y2, ev.z2))
+			bc_map_line(e->map, ev.x1, ev.y1, ev.z1, ev.x2, ev.y2, ev.z2, NULL);
+		break;
+	}
+	case BL_EV_KILL: {
+		int team, i, old = 0;
+
+		if (pid == BL_NO_PLAYER || !e->have_world) break;
+		team = e->w.players[pid].team;
+		if (team < 1 || team > 2) break;
+		/* where a team's man died is a place its routes shy from (aosbot) */
+		for (i = 1; i < BC_DANGER_MAX; i++)
+			if (e->danger_at[team - 1][i] < e->danger_at[team - 1][old]) old = i;
+		e->danger[team - 1][old].x = e->w.players[pid].pos.x;
+		e->danger[team - 1][old].y = e->w.players[pid].pos.y;
+		e->danger[team - 1][old].radius = 9.0f;
+		e->danger[team - 1][old].weight = 3.0f;
+		e->danger_at[team - 1][old] = e->now;
+		e->board.spot[2 - team][pid].at = e->board.spot[2 - team][pid].since = -1e9;
+		break;
+	}
+	case BL_EV_HURT: {
+		bl_ev_hurt ev;
+		bc_bot *b = bc_engine_bot(e, pid);
+
+		if (n < sizeof ev || !b || !b->alive || !e->have_world) break;
+		memcpy(&ev, pl, sizeof ev);
+		bc_senses_hurt(&b->senses, &b->rng, &e->w, pid, b->level, ev.from, ev.by, e->now);
+		b->hit = 1;
+		b->hit_from = ev.from;
+		b->hit_from_valid = b->senses.threat.valid && b->senses.threat.at == e->now;
+		if (b->senses.n_visible == 0)
+			b->jolt = 1;            /* hit from nowhere */
+		break;
+	}
+	case BL_EV_SOUND: {
+		bl_ev_sound ev;
+
+		if (n < sizeof ev) break;
+		memcpy(&ev, pl, sizeof ev);
+		noise_for_all(e, ev.kind, ev.pos, pid);
+		break;
+	}
+	case BL_EV_GRENADE: {
+		bl_ev_grenade ev;
+		int i, slot = 0;
+
+		if (n < sizeof ev || pid == BL_NO_PLAYER || !e->have_world) break;
+		memcpy(&ev, pl, sizeof ev);
+		for (i = 0; i < BC_GRENADES_MAX; i++)
+			if (!e->nades[i].valid || e->nades[i].at < e->now) { slot = i; break; }
+		e->nades[slot].burst = bc_grenade_fly(e->have_map ? e->map : NULL, ev.pos, ev.vel, ev.fuse);
+		e->nades[slot].born = e->now;
+		e->nades[slot].at = e->now + (double)ev.fuse;
+		e->nades[slot].team = e->w.players[pid].team;
+		e->nades[slot].valid = 1;
+		break;
+	}
+	case BL_EV_PING: {
+		bl_ev_ping ev;
+
+		if (n < sizeof ev) break;
+		memcpy(&ev, pl, sizeof ev);
+		ev_ping(e, pid, &ev);
+		break;
+	}
+	case BL_EV_BOT: {
+		bl_ev_bot ev;
+
+		if (n < sizeof ev || pid == BL_NO_PLAYER) break;
+		memcpy(&ev, pl, sizeof ev);
+		ev_bot(e, pid, &ev);
+		break;
+	}
+	case BL_EV_UNBOT:
+		ev_unbot(e, pid);
+		break;
+	case BL_EV_SET: {
+		char text[BL_RECORD_MAX];
+
+		if (n == 0 || n >= sizeof text) break;
+		memcpy(text, pl, n);
+		text[n] = 0;
+		ev_set(e, pid, text);
+		break;
+	}
+	case BL_EV_ORDER: {
+		bl_ev_order ev;
+		bc_bot *b = bc_engine_bot(e, pid);
+
+		if (n < sizeof ev || !b) break;
+		memcpy(&ev, pl, sizeof ev);
+		b->order.order = ev.order;
+		b->order.target = ev.target;
+		b->order.pos = ev.pos;
+		b->order.until = ev.secs > 0.0f ? e->now + (double)ev.secs : -1.0;
+		b->jolt = 1;
+		break;
+	}
+	default:
+		break;
+	}
+}
+
+/* ====================================================================== */
+/* the think                                                              */
+
+static void decide(bc_engine *e, bc_bot *b, float dt)
+{
+	const bl_player *me = bc_me(b);
+	bt_ctx c;
+
+	bc_senses_see(&b->senses, &e->sense, e->map, &e->w, b->pid, b->night_vision, e->now, &e->board);
+	if (b->senses.nearest >= 0 && me->team >= 1 && me->team <= 2) {
+		e->hot[me->team - 1] = b->senses.k[b->senses.nearest].pos;
+		e->hot_at[me->team - 1] = e->now;
+	}
+	bc_fight_select(b);
+	if (b->ping.taken && e->now >= b->ping.until)
+		b->ping.taken = 0;
+	{
+		int nade = bc_grenade_threat(b, NULL) >= 25.0f;
+
+		if ((b->senses.alert == BC_ALERT_ENGAGED && b->was_alert != BC_ALERT_ENGAGED) ||
+		    (nade && !b->was_nade))
+			b->jolt = 1;
+		b->was_alert = b->senses.alert;
+		b->was_nade = (uint8_t)nade;
+	}
+
+	/* the wishes are stated anew by whatever the tree runs */
+	b->wish.move = BC_MOVE_NONE;
+	b->wish.look = BC_LOOK_AHEAD;
+	b->wish.tool = BL_TOOL_GUN;
+	b->wish.fire_pid = b->wish.look_pid = -1;
+	b->wish.crouch = b->wish.sneak = b->wish.jump = b->wish.sprint = 0;
+	b->wish.mx = b->wish.my = 0.0f;
+
+	if (b->forest && b->bt) {
+		if (b->jolt) {
+			bot_ctx(b, &c, 0.0f);
+			bt_reset(b->forest, b->bt, &c);
+		}
+		b->jolt = 0;
+		if (b->tree_also >= 0) {
+			bot_ctx(b, &c, 0.0f);
+			bt_tick(b->forest, b->tree_also, b->bt, &c);
+		}
+		bot_ctx(b, &c, dt);
+		bt_tick(b->forest, b->tree, b->bt, &c);
+	}
+	e->stats.decisions++;
+}
+
+/* The follower's keys, meant for its own facing, as the nearest keys for
+ * the facing the head really has. */
+static uint8_t remap_keys(uint8_t keys, bc_v3 from, bl_vec3 to, int aiming)
+{
+	float fl = sqrtf(from.x * from.x + from.y * from.y), fx, fy, f, r, mx, my, l;
+	uint8_t k;
+
+	f = (float)((keys & BL_K_FORWARD) != 0) - (float)((keys & BL_K_BACK) != 0);
+	r = (float)((keys & BL_K_RIGHT) != 0) - (float)((keys & BL_K_LEFT) != 0);
+	if (fl < 1e-4f || (f == 0.0f && r == 0.0f))
+		return (uint8_t)(keys & (BL_K_JUMP | BL_K_CROUCH | BL_K_SNEAK));
+	fx = from.x / fl; fy = from.y / fl;
+	mx = fx * f - fy * r;
+	my = fy * f + fx * r;
+	l = sqrtf(mx * mx + my * my);
+	k = bc_keys_toward(mx / l, my / l, to, 0);
+	k |= (uint8_t)(keys & (BL_K_JUMP | BL_K_CROUCH | BL_K_SNEAK));
+	if (!aiming && (keys & BL_K_SPRINT) && k == (BL_K_FORWARD | (keys & (BL_K_JUMP | BL_K_CROUCH | BL_K_SNEAK))) &&
+	    f > 0.0f && r == 0.0f)
+		k |= BL_K_SPRINT;
+	return k;
+}
+
+static void act(bc_engine *e, bc_bot *b, float dt)
+{
+	const bl_player *me = bc_me(b);
+	bc_body body;
+	bc_nav_cmd cmd;
+	bc_aim_out out;
+	bc_aim_events ev;
+	bc_aim_v3 eye, cur;
+	bl_vec3 ori, look_at = b->wish.look_at;
+	uint8_t keys = 0, mouse = 0, flags = BL_I_VALID, tool = b->wish.tool;
+	int nav, precise = 0, look = b->wish.look, look_pid = b->wish.look_pid, on_target = 0;
+	float dist = 1e9f, dx, dy, dz;
+
+	memset(&out, 0, sizeof out);
+	bc_body_of(me, &body);
+
+	/* --- the route */
+	nav = bc_mover_act(b, &body, &cmd);
+	if (nav) {
+		int kind = cmd.step >= 0 && cmd.step < b->mv.route.n ? b->mv.route.steps[cmd.step].kind : 0;
+
+		precise = cmd.edit != BC_NAV_EDIT_NONE ||
+		          !(kind == BC_NAV_WALK || kind == BC_NAV_SPRINT || kind == BC_NAV_CROUCH);
+	}
+
+	/* --- an item's aim, kept on its man for the time it asked */
+	if (e->now < b->guide.until) {
+		int g = b->guide.pid;
+
+		if (g >= 0 && e->w.players[g].state != BL_ALIVE) {
+			b->guide.until = 0.0;
+		} else if (g >= 0 && b->senses.k[g].visible) {
+			look = BC_LOOK_TARGET;
+			look_pid = g;
+		} else {
+			look = BC_LOOK_POINT;
+			look_at = g >= 0 ? b->senses.k[g].pos : b->guide.at;
+		}
+	}
+	if (look == BC_LOOK_TARGET && (look_pid < 0 || e->w.players[look_pid].state != BL_ALIVE))
+		look = BC_LOOK_AHEAD;
+
+	/* --- the head */
+	eye.x = me->pos.x; eye.y = me->pos.y; eye.z = me->pos.z;
+	cur = b->aim.ori;
+	ev.hit = b->hit;
+	ev.hit_from.x = b->hit_from.x; ev.hit_from.y = b->hit_from.y; ev.hit_from.z = b->hit_from.z;
+	ev.hit_from_valid = b->hit_from_valid;
+	b->hit = 0;
+	if (nav && (precise || look == BC_LOOK_AHEAD)) {
+		bc_aim_v3 o;
+		float l = sqrtf(cmd.ori.x * cmd.ori.x + cmd.ori.y * cmd.ori.y + cmd.ori.z * cmd.ori.z);
+
+		if (l > 1e-4f) { o.x = cmd.ori.x / l; o.y = cmd.ori.y / l; o.z = cmd.ori.z / l; }
+		else o = cur;
+		bc_aim_snap(&b->aim, o);
+		b->aim.ori = o;
+		ori.x = o.x; ori.y = o.y; ori.z = o.z;
+		keys = cmd.keys;
+	} else {
+		int firing = e->now < b->fight.burst_until;
+
+		if (look == BC_LOOK_TARGET) {
+			const bl_player *t = &e->w.players[look_pid];
+			bc_aim_target tg;
+
+			tg.pos.x = t->pos.x; tg.pos.y = t->pos.y; tg.pos.z = t->pos.z;
+			tg.vel.x = t->vel.x * 32.0f; tg.vel.y = t->vel.y * 32.0f; tg.vel.z = t->vel.z * 32.0f;
+			tg.crouched = (t->flags & BL_F_CROUCH) != 0;
+			tg.airborne = (t->flags & BL_F_AIRBORNE) != 0;
+			tg.id = look_pid;
+			bc_aim_step(&b->aim, &b->rng, dt, eye, cur, &tg, &ev, firing, &out);
+			on_target = out.on_target;
+			dx = t->pos.x - me->pos.x; dy = t->pos.y - me->pos.y; dz = t->pos.z - me->pos.z;
+			dist = sqrtf(dx * dx + dy * dy + dz * dz);
+		} else if (look == BC_LOOK_POINT) {
+			bc_aim_v3 pt;
+
+			pt.x = look_at.x; pt.y = look_at.y; pt.z = look_at.z;
+			bc_aim_step_point(&b->aim, &b->rng, dt, eye, cur, pt, &ev, 0, &out);
+		} else {
+			bc_aim_step(&b->aim, &b->rng, dt, eye, cur, NULL, &ev, 0, &out);
+		}
+		ori.x = out.ori.x; ori.y = out.ori.y; ori.z = out.ori.z;
+		if (nav) {
+			keys = remap_keys(cmd.keys, cmd.ori, ori, look == BC_LOOK_TARGET);
+		} else if (b->wish.move == BC_MOVE_FREE) {
+			keys = bc_keys_toward(b->wish.mx, b->wish.my, ori, b->keys_prev);
+			if (b->wish.sprint && keys == BL_K_FORWARD)
+				keys |= BL_K_SPRINT;
+		} else if (!body.airborne && bc_body_speed(&body) > 3.0f) {
+			/* stand means stop: letting go coasts two voxels */
+			float s = bc_body_speed(&body) / 32.0f;
+
+			keys = bc_keys_toward(-body.vel.x / s, -body.vel.y / s, ori, 0);
+		}
+		if (!nav) {
+			/* crouch only changes on the ground, and only up where
+			 * there is room (body.h) */
+			int want = b->wish.crouch;
+
+			if (body.airborne) want = (body.keys & BC_K_CROUCH) != 0;
+			else if (!want && (body.keys & BC_K_CROUCH) && !bc_body_can_stand(&body, e->map)) want = 1;
+			if (want) keys |= BL_K_CROUCH;
+			if (b->wish.sneak) keys |= BL_K_SNEAK;
+			if (b->wish.jump && !body.airborne) keys |= BL_K_JUMP;
+		}
+	}
+	b->wish.jump = 0;
+	b->keys_prev = keys;
+
+	/* --- the tool, the trigger */
+	if (nav && cmd.edit != BC_NAV_EDIT_NONE)
+		tool = b->mv.edit_tool;
+	else if (e->now < b->mv.tool_grace && b->wish.fire_pid < 0 && b->mv.edit_tool != BL_TOOL_GUN &&
+	         b->wish.move == BC_MOVE_GOTO)
+		tool = b->mv.edit_tool;
+	if ((b->out.keys & BL_K_SPRINT) && !(keys & BL_K_SPRINT))
+		b->fight.fire_block_until = e->now + 0.28;      /* aosbot kGunUpSec */
+	if (tool == b->wish.tool && look == BC_LOOK_TARGET && look_pid == b->wish.fire_pid)
+		mouse = bc_fight_trigger(b, on_target, dist);
+	if (bc_reload_act(b) || b->reload_pulse) {
+		flags |= BL_I_RELOAD;
+		if (b->reload_pulse && e->now >= b->fight.reloading_until)
+			b->fight.reloading_until = e->now + (double)bc_gun(me->gun)->reload_secs;
+		b->reload_pulse = 0;
+	}
+	if (e->w.night && b->lamp != BC_LAMP_OFF)
+		flags |= BL_I_LAMP;         /* never by day; and never unless a tree lit it */
+
+	/* --- held in one place with keys down? (the follower has its own
+	 * contract; this is the net under everything else) */
+	dx = me->pos.x - b->anchor.x; dy = me->pos.y - b->anchor.y; dz = me->pos.z - b->anchor.z;
+	if (dx * dx + dy * dy + dz * dz > 0.75f * 0.75f || !(keys & 15) ||
+	    (nav && cmd.edit != BC_NAV_EDIT_NONE)) {
+		b->anchor = me->pos;
+		b->anchor_at = e->now;
+	} else if (e->now - b->anchor_at > 2.5) {
+		b->stuck++;
+		e->stats.stuck++;
+		b->anchor_at = e->now;
+		b->roam.valid = 0;
+		b->cover.valid = 0;
+		b->fight.strafe_dir = -b->fight.strafe_dir;
+		b->fight.strafe_until = e->now + 0.8;
+		if (b->mv.state == BC_MV_FOLLOWING || b->mv.has_route) {
+			b->mv.has_route = 0;
+			b->mv.state = BC_MV_PLANNING;
+			b->mv.plan_since = e->now;
+			b->mv.braking = 1;
+			b->mv.again = 1;
+		}
+		bc_engine_log(e, 0, "bot #%d: held at %.1f %.1f %.1f with keys down, letting go",
+		              b->pid, (double)me->pos.x, (double)me->pos.y, (double)me->pos.z);
+	}
+
+	b->out.life = me->life;
+	b->out.keys = keys;
+	b->out.mouse = mouse;
+	b->out.tool = tool;
+	b->out.flags = flags;
+	b->out.ori = ori;
+	b->aim_out = out;
+}
+
+void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
+                     float dt, int budget)
+{
+	int i, fresh;
+	float dtw;
+
+	if (!(dt >= 0.0f)) dt = 0.0f;
+	if (dt > 0.25f) dt = 0.25f;
+	e->now += (double)dt;
+	e->stats.thinks++;
+	e->stats.last_expansions = 0;
+
+	e->world_dt += dt;
+	fresh = !e->have_world || world->tick != e->last_tick;
+	if (!fresh) {
+		/* nothing new is known: the same intents stand */
+		for (i = 0; i < e->max_bots; i++)
+			if (e->bots[i].used && (world->players[e->bots[i].pid].flags & BL_F_BOT))
+				intents[e->bots[i].pid] = e->bots[i].out;
+		return;
+	}
+	memcpy(&e->w, world, sizeof e->w);
+	e->last_tick = world->tick;
+	e->have_world = 1;
+	e->budget_left = budget > 0 ? budget : 0;
+	dtw = e->world_dt > 0.25f ? 0.25f : e->world_dt;
+	e->world_dt = 0.0f;
+
+	/* DECIDE */
+	for (i = 0; i < e->max_bots; i++) {
+		bc_bot *b = &e->bots[i];
+		const bl_player *p;
+
+		if (!b->used)
+			continue;
+		p = &e->w.players[b->pid];
+		b->decide_dt += dtw;
+		if (!(p->flags & BL_F_BOT) || p->state != BL_ALIVE || !e->have_map ||
+		    e->w.map_seq != e->map_seq) {
+			/* dead, in limbo, or no map: it thinks nothing */
+			if (b->alive)
+				bot_died(b);
+			memset(&b->out, 0, sizeof b->out);
+			b->out.life = p->life;
+			b->out.flags = BL_I_VALID;
+			b->out.ori.x = 1.0f;
+			b->out.tool = BL_TOOL_GUN;
+			continue;
+		}
+		if (!b->alive || p->life != b->life)
+			bot_new_life(b, p);
+		b->decide_acc += (double)dtw;
+		if (b->decide_acc >= DECIDE_PERIOD) {
+			b->decide_acc -= DECIDE_PERIOD;
+			if (b->decide_acc > DECIDE_PERIOD)
+				b->decide_acc = 0.0;
+		} else {
+			continue;
+		}
+		decide(e, b, b->decide_dt);
+		b->decide_dt = 0.0f;
+	}
+
+	/* PLAN */
+	if (e->have_map)
+		bc_movers_plan(e);
+
+	/* ACT */
+	for (i = 0; i < e->max_bots; i++) {
+		bc_bot *b = &e->bots[i];
+
+		if (!b->used || !(e->w.players[b->pid].flags & BL_F_BOT))
+			continue;
+		if (b->alive)
+			act(e, b, dtw);
+		intents[b->pid] = b->out;
+	}
+}
+
+size_t bc_engine_describe(const bc_engine *e, int pid, char *out, size_t out_size)
+{
+	const bc_bot *b;
+	char tree[160] = "", route[64] = "no route";
+	int n;
+
+	if (pid < 0 || pid >= BL_MAX_PLAYERS || e->by_pid[pid] < 0 || !out || !out_size)
+		return 0;
+	b = &e->bots[e->by_pid[pid]];
+	if (b->forest && b->bt)
+		bt_describe(b->forest, b->bt, tree, sizeof tree);
+	if (b->mv.has_route) {
+		int s = b->mv.follow.step < 0 ? 0 : b->mv.follow.step;
+
+		snprintf(route, sizeof route, "route %d/%d %s", s, (int)b->mv.route.n,
+		         s < b->mv.route.n ? bc_nav_kind_name(b->mv.route.steps[s].kind) : "end");
+	} else if (b->mv.state == BC_MV_PLANNING && b->wish.move == BC_MOVE_GOTO) {
+		snprintf(route, sizeof route, "planning");
+	}
+	n = snprintf(out, out_size, "%s L%d | %s | %s | sees %d%s",
+	             bc_archetype_name(b->persona.archetype), b->level,
+	             !b->alive ? "dead" : tree[0] ? tree : "idle", route, b->senses.n_visible,
+	             b->senses.alert == BC_ALERT_SUSPICIOUS ? " suspicious" : "");
+	if (n < 0)
+		return 0;
+	return (size_t)n < out_size ? (size_t)n : out_size - 1;
+}

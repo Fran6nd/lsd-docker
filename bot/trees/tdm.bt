@@ -1,0 +1,62 @@
+# tdm.bt -- team deathmatch: find the other team and fight it.
+#
+# One weighed choice, made again every second and a half. What each option
+# is worth is its score (the situation, 0..1) x the bot's own weight for
+# the trait named x the factor: so a careful bot breaks off where a pusher
+# fights on, one bot answers a ping and another keeps hunting. Words:
+# core/vocab.h. An option's score must be 0 when its action cannot be done.
+
+tree tdm:
+select
+	pick every=1.5 sticky=0.3 noise=0.15
+		option none grenade_near x50          # a grenade at its feet: run
+			do evade
+		option none has_order x20             # the server said so
+			do obey
+		option caution hurt_in_fight x1.4     # hurt: out of his sight -- the careful sooner
+			do retreat
+		option aggression enemy_visible       # the point of the game
+			do fight
+		option greed grenade_worth x0.8       # a group, a far man, one behind a wall
+			do throw_grenade
+		option teamwork ping_called x0.6      # a team-mate called
+			tree tdm_answer
+		option curiosity search x0.7          # a noise, a man lost, a hit, a told sighting
+			do investigate
+		option teamwork alone x0.35           # stay with the others, or not: by character
+			do follow mate
+		option none always x0.25              # nothing known: go and find them
+			do roam
+	limit 1
+		do roam
+
+tree tdm_answer:
+select
+	seq
+		if ping_called help                   # he wants company: stay by him
+		do follow caller
+	do go_to ping 4                           # anything else is a place: go there
+
+# Beside the above, at every decision.
+tree tdm_also:
+seq
+	always
+		tree extras                           # what the server's scripts add (night and lamps, if it has them)
+	always
+		tree items                            # a medkit when hurt, a rocket at a group: each item's own rule
+	always
+		tree tdm_callouts
+
+# Tell the team -- once: `ping` fails when the team has such a ping there,
+# and a bot low on teamwork lets the occasion pass.
+tree tdm_callouts:
+select
+	seq
+		if spotted_new                        # enemies the team did not know of
+		do ping enemy Enemy
+	seq
+		if sniped                             # hit from far away
+		do ping threat Sniper
+	seq
+		if losing
+		do ping self Need help

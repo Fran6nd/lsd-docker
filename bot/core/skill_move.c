@@ -1,0 +1,613 @@
+/* skill_move.c -- Going somewhere: one goal, the shared planner, the follower
+ * Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
+ *
+ * See skills.h (who owns the head) and nav.h (what the follower
+ * promises). What this file adds to nav:
+ *
+ *  - ONE GOAL A BOT. A skill asks to be somewhere (bc_move_to); asking
+ *    again for the same place costs nothing. A new place means a new
+ *    plan, and while that waits its turn the old route is walked on if
+ *    it leads nearly there (a chase), else the bot brakes.
+ *  - THE SEARCHES ARE LENT. The engine has a few (6 MiB each); a bot
+ *    holds one only while its plan runs. Who gets expansions first is
+ *    who has waited longest (bc_movers_plan).
+ *  - WHAT THE FOLLOWER SAYS IS OBEYED AS nav.h PRESCRIBES: a failed step
+ *    goes in the shared failure memory (30 s) and the route is planned
+ *    again from where the body is; a refused edit protects the voxel,
+ *    and twice refused the bot stops editing for a minute (aosbot gave
+ *    up digging after a run of refusals: each one costs three seconds);
+ *    a stale route or a body off it are planned again.
+ *  - EDITS GO THROUGH THE SERVER'S CHECKS (lib_botlink do_block): the
+ *    spade in hand to dig and the blocks to build, within 5 of the eye,
+ *    never faster than it allows (0.25 s a dig, 0.1 s a block, 0.5 s a
+ *    line) -- and slower by level, aosbot's cadence: a dig every 0.70 s
+ *    at level 1 down to 0.30, a block every 0.85 down to 0.55. A straight
+ *    run of single-block bridge steps whose far end touches something
+ *    goes as ONE line (the server wants both ends attached).
+ *  - A goal that cannot be reached is left alone for 5 s (aosbot): the
+ *    search that proves it is the most expensive there is.
+ *  - NEVER A LOOP (nav.h). Another route to the SAME goal is started with
+ *    bc_nav_follow_again, so the follower can count what it has reported
+ *    for that goal; when it answers GIVE_UP the goal FAILS, and is
+ *    remembered as given up for 20 s (the last four such goals), so the
+ *    tree picks something else and does not come straight back.
+ */
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "brain.h"
+
+static const double FAIL_TTL = 30.0;
+static const double UNREACHABLE_SECS = 5.0;
+static const double GIVE_UP_SECS = 20.0;
+
+void bc_body_of(const bl_player *p, bc_body *body)
+{
+	memset(body, 0, sizeof *body);
+	body->pos.x = p->pos.x; body->pos.y = p->pos.y; body->pos.z = p->pos.z;
+	body->vel.x = p->vel.x; body->vel.y = p->vel.y; body->vel.z = p->vel.z;
+	body->keys = p->keys;
+	if (p->flags & BL_F_CROUCH) body->keys |= BC_K_CROUCH;
+	else body->keys &= (uint8_t)~BC_K_CROUCH;
+	body->airborne = (p->flags & BL_F_AIRBORNE) != 0;
+	body->wade = (p->flags & BL_F_WADING) != 0;
+	body->scoped = (p->flags & BL_F_SCOPED) != 0 && p->tool == BL_TOOL_GUN;
+}
+
+void bc_mover_reset(bc_bot *b)
+{
+	bc_engine_search_release(b->e, b);
+	b->mv.state = BC_MV_IDLE;
+	b->mv.has_route = 0;
+	b->mv.goal_set = 0;
+	b->mv.again = 0;
+	b->mv.gave_n = 0;
+	memset(b->mv.gave_until, 0, sizeof b->mv.gave_until);
+	b->mv.partial_tries = b->mv.restarts = 0;
+	b->mv.braking = 0;
+	b->mv.refusals = 0;
+	b->mv.retry_at = b->mv.edit_at = b->mv.noedit_until = b->mv.tool_grace = 0.0;
+	b->mv.edit_tool = BL_TOOL_GUN;
+	b->mv.search = -1;
+	memset(&b->mv.cmd, 0, sizeof b->mv.cmd);
+}
+
+void bc_move_stop(bc_bot *b)
+{
+	/* The route is kept: a skill that is asked again next decision (a
+	 * pick that chose the same thing) goes on without a new plan. It is
+	 * dropped by the next different goal. */
+	b->wish.move = BC_MOVE_NONE;
+}
+
+static void replan(bc_bot *b, int brake)
+{
+	bc_engine *e = b->e;
+
+	bc_engine_search_release(e, b);
+	b->mv.state = BC_MV_PLANNING;
+	b->mv.plan_since = e->now;
+	b->mv.has_route = 0;
+	b->mv.braking = (uint8_t)brake;
+	b->mv.again = 1;
+	e->stats.replans++;
+}
+
+int bc_move_to(bc_bot *b, bl_vec3 pos, float radius)
+{
+	bc_engine *e = b->e;
+	bc_mover *mv = &b->mv;
+	bc_nav_node n;
+	int r = (int)(radius + 0.5f);
+
+	b->wish.move = BC_MOVE_GOTO;
+	b->wish.goal = pos;
+	b->wish.radius = radius;
+	if (!e->have_map)
+		return BC_MV_FAILED;
+	if (!bc_nav_snap(e->map, (int)floorf(pos.x), (int)floorf(pos.y),
+	                 (int)floorf(pos.z + 2.25f + 0.5f), 3, &n))
+		return BC_MV_FAILED;
+	if (mv->goal_set && mv->goal.x == n.x && mv->goal.y == n.y && mv->goal.z == n.z &&
+	    mv->radius == r) {
+		if (mv->state == BC_MV_FAILED && e->now >= mv->retry_at) {
+			mv->state = BC_MV_PLANNING;
+			mv->plan_since = e->now;
+			mv->partial_tries = 0;
+		} else if (mv->state == BC_MV_IDLE) {
+			mv->state = BC_MV_PLANNING;
+			mv->plan_since = e->now;
+		}
+		return mv->state;
+	}
+	/* a new place */
+	{
+		int dx = mv->goal.x - n.x, dy = mv->goal.y - n.y, i;
+		int near = mv->goal_set && dx * dx + dy * dy <= 12 * 12;
+
+		for (i = 0; i < 4; i++)
+			if (e->now < mv->gave_until[i] && abs(mv->gave[i].x - n.x) <= 2 &&
+			    abs(mv->gave[i].y - n.y) <= 2 && abs(mv->gave[i].z - n.z) <= 2) {
+				bc_engine_search_release(e, b);
+				mv->goal = n;
+				mv->radius = (int16_t)r;
+				mv->goal_set = 1;
+				mv->has_route = 0;
+				mv->state = BC_MV_FAILED;
+				mv->retry_at = mv->gave_until[i];
+				return BC_MV_FAILED;
+			}
+
+		bc_engine_search_release(e, b);
+		if (!near)
+			mv->has_route = 0;
+		mv->goal = n;
+		mv->radius = (int16_t)r;
+		mv->goal_set = 1;
+		mv->state = BC_MV_PLANNING;
+		mv->plan_since = e->now;
+		mv->partial_tries = mv->restarts = 0;
+		mv->braking = 0;
+		mv->again = 0;
+	}
+	return mv->state;
+}
+
+/* --- PLAN -------------------------------------------------------------- */
+
+static void fill_policy(bc_bot *b)
+{
+	bc_engine *e = b->e;
+	const bl_player *me = bc_me(b);
+	const bc_level_row *lv = bc_level(b->level);
+	bc_nav_policy *p = &b->mv.pol;
+	int dig = e->may_dig, build = e->may_build, i, n = 0, team = me->team;
+
+	bc_nav_policy_default(p);
+	if (b->edit >= 0) {
+		dig = b->edit & 1;
+		build = (b->edit >> 1) & 1;
+	}
+	if (e->now < b->mv.noedit_until)
+		dig = build = 0;
+	p->may_dig = (uint8_t)dig;
+	p->may_build = (uint8_t)build;
+	p->water_lethal = e->water_lethal;
+	p->blocks = (uint8_t)(me->blocks < e->spend ? me->blocks : e->spend);
+	/* aosbot's cadences (Dig.cpp), never under the server's */
+	p->dig_secs = 0.70f - 0.40f * lv->dig;
+	p->build_secs = 0.85f - 0.30f * lv->dig;
+	p->zones = e->zones;
+	p->nzones = e->nzones;
+	p->protect = &e->protect;
+	p->fail = &e->fail;
+	p->now = e->now;
+	if (team >= 1 && team <= 2)
+		for (i = 0; i < BC_DANGER_MAX; i++)
+			if (e->now - e->danger_at[team - 1][i] < 35.0)   /* aosbot: 35 s */
+				b->mv.danger[n++] = e->danger[team - 1][i];
+	p->danger = b->mv.danger;
+	p->ndanger = n;
+}
+
+static void plan_done(bc_bot *b, int st)
+{
+	bc_engine *e = b->e;
+	bc_mover *mv = &b->mv;
+	int n = bc_nav_plan_route(e->search[mv->search], &mv->route);
+
+	e->stats.plans++;
+	bc_engine_search_release(e, b);
+	if (st == BC_NAV_DONE) {
+		if (n == 0) {
+			mv->state = BC_MV_ARRIVED;
+			mv->has_route = 0;
+			return;
+		}
+	} else {
+		e->stats.plan_fails++;
+		if (n == 0 || mv->partial_tries >= 2) {
+			mv->state = BC_MV_FAILED;
+			mv->has_route = 0;
+			mv->retry_at = e->now + UNREACHABLE_SECS;
+			return;
+		}
+		mv->partial_tries++;
+	}
+	if (mv->again)
+		bc_nav_follow_again(&mv->follow, &mv->route);
+	else
+		bc_nav_follow_begin(&mv->follow, &mv->route);
+	mv->again = 1;          /* any further route to this goal is "another" */
+	mv->state = BC_MV_FOLLOWING;
+	mv->has_route = 1;
+}
+
+void bc_movers_plan(bc_engine *e)
+{
+	int order[BL_MAX_PLAYERS], n = 0, i, j, active = 0, pass;
+
+	for (i = 0; i < e->max_bots; i++) {
+		bc_bot *b = &e->bots[i];
+
+		if (b->used && b->alive && b->mv.state == BC_MV_PLANNING && b->wish.move == BC_MOVE_GOTO)
+			order[n++] = i;
+		else if (b->used && b->mv.search >= 0)
+			bc_engine_search_release(e, b);      /* nobody is waiting for it */
+	}
+	/* longest wait first */
+	for (i = 1; i < n; i++) {
+		int v = order[i];
+
+		for (j = i; j > 0 && e->bots[order[j - 1]].mv.plan_since > e->bots[v].mv.plan_since; j--)
+			order[j] = order[j - 1];
+		order[j] = v;
+	}
+	/* lend the searches */
+	for (i = 0; i < n; i++) {
+		bc_bot *b = &e->bots[order[i]];
+		bc_mover *mv = &b->mv;
+		bc_body body;
+		bc_nav_node cur;
+		int s;
+
+		if (mv->search >= 0) {
+			if (e->map->rev != mv->plan_rev && mv->restarts < 2) {
+				mv->restarts++;
+				bc_engine_search_release(e, b);     /* the map moved under it */
+			} else {
+				active++;
+				continue;
+			}
+		}
+		for (s = 0; s < e->nsearch && e->search_owner[s] >= 0; s++)
+			;
+		if (s == e->nsearch)
+			continue;
+		bc_body_of(bc_me(b), &body);
+		if (mv->braking && bc_body_speed(&body) > 1.5f)
+			continue;
+		if (!bc_nav_node_of_body(e->map, &body, &cur))
+			continue;                           /* in the air: next think */
+		fill_policy(b);
+		if (!bc_nav_plan_begin(e->search[s], e->moves, e->map, &mv->pol, cur, mv->goal, mv->radius)) {
+			mv->state = BC_MV_FAILED;
+			mv->retry_at = e->now + 0.5;
+			continue;
+		}
+		e->search_owner[s] = order[i];
+		mv->search = (int8_t)s;
+		mv->plan_rev = e->map->rev;
+		mv->expansions = 0;
+		active++;
+	}
+	/* share the budget: an even share each, longest wait first; what the
+	 * quick ones leave goes round again */
+	for (pass = 0; pass < 2 && active > 0 && e->budget_left > 0; pass++) {
+		int share = e->budget_left / active;
+
+		if (share < 64) share = e->budget_left;
+		for (i = 0; i < n && e->budget_left > 0; i++) {
+			bc_bot *b = &e->bots[order[i]];
+			bc_mover *mv = &b->mv;
+			uint32_t before, used;
+			int st, give;
+
+			if (mv->search < 0 || mv->state != BC_MV_PLANNING)
+				continue;
+			give = share < e->budget_left ? share : e->budget_left;
+			before = bc_nav_plan_expansions(e->search[mv->search]);
+			st = bc_nav_plan_step(e->search[mv->search], give);
+			used = bc_nav_plan_expansions(e->search[mv->search]) - before;
+			if (used == 0) used = 1;
+			mv->expansions += used;
+			e->budget_left -= (int)used;
+			e->stats.expansions += used;
+			e->stats.last_expansions += used;
+			if (st != BC_NAV_MORE) {
+				plan_done(b, st);
+				active--;
+			}
+		}
+	}
+}
+
+/* --- ACT --------------------------------------------------------------- */
+
+static int solid_neighbour(const bc_map *m, int x, int y, int z)
+{
+	return bc_map_solid(m, x - 1, y, z) || bc_map_solid(m, x + 1, y, z) ||
+	       bc_map_solid(m, x, y - 1, z) || bc_map_solid(m, x, y + 1, z) ||
+	       (z > 0 && bc_map_solid(m, x, y, z - 1)) || bc_map_solid(m, x, y, z + 1);
+}
+
+static void send_block(bc_bot *b, int x, int y, int z, int action)
+{
+	bl_ac_block a;
+
+	memset(&a, 0, sizeof a);
+	a.x = (int16_t)x; a.y = (int16_t)y; a.z = (int16_t)z;
+	a.action = (uint8_t)action;
+	if (b->e->host.action)
+		b->e->host.action(b->e->host.ctx, BL_AC_BLOCK, b->pid, &a, sizeof a);
+	b->e->stats.edits++;
+}
+
+/* A bridge's steps ahead that make one straight line from (x, y, z). */
+static int try_line(bc_bot *b, const bc_nav_cmd *cmd)
+{
+	bc_engine *e = b->e;
+	const bc_mover *mv = &b->mv;
+	const bl_player *me = bc_me(b);
+	bc_nav_node vox[8], last, first;
+	uint8_t op[8];
+	int i, n = 1, dx = 0, dy = 0, dz = 0;
+
+	first.x = last.x = cmd->ex; first.y = last.y = cmd->ey; first.z = last.z = cmd->ez;
+	for (i = cmd->step + 1; i < mv->route.n && n < 8 && n < me->blocks; i++) {
+		int k, ex, ey, ez;
+
+		if (mv->route.steps[i].kind != BC_NAV_BUILD)
+			break;
+		k = bc_nav_step_edits(&mv->route, i, e->moves, e->map, vox, op);
+		if (k != 1 || op[0] != BC_BLOCK_BUILD)
+			break;
+		ex = vox[0].x - last.x; ey = vox[0].y - last.y; ez = vox[0].z - last.z;
+		if (abs(ex) + abs(ey) + abs(ez) != 1)
+			break;
+		if (n == 1) { dx = ex; dy = ey; dz = ez; }
+		else if (ex != dx || ey != dy || ez != dz) break;
+		last = vox[0];
+		n++;
+	}
+	if (n < 2 || !solid_neighbour(e->map, last.x, last.y, last.z) ||
+	    !solid_neighbour(e->map, first.x, first.y, first.z))
+		return 0;
+	{
+		bl_ac_line a;
+
+		a.x1 = first.x; a.y1 = first.y; a.z1 = first.z;
+		a.x2 = last.x; a.y2 = last.y; a.z2 = last.z;
+		if (e->host.action)
+			e->host.action(e->host.ctx, BL_AC_LINE, b->pid, &a, sizeof a);
+		e->stats.edits++;
+	}
+	return 1;
+}
+
+static void do_edit(bc_bot *b, const bc_nav_cmd *cmd)
+{
+	bc_engine *e = b->e;
+	bc_mover *mv = &b->mv;
+	const bl_player *me = bc_me(b);
+	int tool = cmd->edit == BC_NAV_EDIT_DIG ? BL_TOOL_SPADE : BL_TOOL_BLOCK;
+
+	mv->edit_tool = (uint8_t)tool;
+	mv->tool_grace = e->now + 1.0;          /* aosbot kToolGraceSec */
+	if (me->tool != tool || e->now < mv->edit_at)
+		return;
+	if (cmd->edit == BC_NAV_EDIT_DIG) {
+		send_block(b, cmd->ex, cmd->ey, cmd->ez, BL_B_DESTROY);
+		mv->edit_at = e->now + (double)(mv->pol.dig_secs < 0.26f ? 0.26f : mv->pol.dig_secs);
+	} else if (try_line(b, cmd)) {
+		mv->edit_at = e->now + (double)(mv->pol.build_secs < 0.52f ? 0.52f : mv->pol.build_secs);
+	} else {
+		send_block(b, cmd->ex, cmd->ey, cmd->ez, BL_B_BUILD);
+		mv->edit_at = e->now + (double)mv->pol.build_secs;
+	}
+}
+
+int bc_mover_act(bc_bot *b, const bc_body *body, bc_nav_cmd *cmd)
+{
+	bc_engine *e = b->e;
+	bc_mover *mv = &b->mv;
+	int st;
+
+	memset(cmd, 0, sizeof *cmd);
+	if (b->wish.move != BC_MOVE_GOTO || !mv->has_route || !e->have_map)
+		return 0;
+	mv->pol.now = e->now;
+	st = bc_nav_follow_tick(&mv->follow, &mv->route, e->moves, e->map, body, &mv->pol, cmd);
+	mv->last_status = st;
+	mv->cmd = *cmd;
+	switch (st) {
+	case BC_NAV_FOLLOWING:
+		if (cmd->edit != BC_NAV_EDIT_NONE)
+			do_edit(b, cmd);
+		return 1;
+	case BC_NAV_ARRIVED:
+		mv->has_route = 0;
+		if (mv->state == BC_MV_FOLLOWING) {
+			if (mv->route.partial)
+				replan(b, 0);
+			else
+				mv->state = BC_MV_ARRIVED;
+		}
+		return 0;
+	case BC_NAV_STEP_FAILED: {
+		bc_nav_node from, to;
+		int kind;
+
+		if (bc_nav_follow_failed(&mv->follow, &mv->route, &from, &to, &kind))
+			bc_nav_fail_note(&e->fail, from, to, kind, e->now, FAIL_TTL);
+		if (cmd->why == BC_NAV_WHY_EDIT_REFUSED) {
+			bc_nav_protect_add(&e->protect, mv->follow.edit_vox.x, mv->follow.edit_vox.y,
+			                   mv->follow.edit_vox.z);
+			if (++mv->refusals >= 2) {
+				mv->noedit_until = e->now + 60.0;
+				mv->refusals = 0;
+			}
+		}
+		if (mv->state == BC_MV_FOLLOWING)
+			replan(b, 1);
+		else
+			mv->has_route = 0;
+		return 0;
+	}
+	case BC_NAV_GIVE_UP:
+		/* the follower has said the same thing from the same place too
+		 * often: this goal is not being got to. Not again for a while. */
+		mv->has_route = 0;
+		mv->state = BC_MV_FAILED;
+		mv->retry_at = e->now + GIVE_UP_SECS;
+		mv->gave[mv->gave_n & 3] = mv->goal;
+		mv->gave_until[mv->gave_n & 3] = mv->retry_at;
+		mv->gave_n++;
+		bc_engine_search_release(e, b);
+		bc_engine_log(e, 0, "bot #%d: gave up on %d %d %d", b->pid, mv->goal.x, mv->goal.y, mv->goal.z);
+		return 0;
+	default:        /* stale, or off the route */
+		if (mv->state == BC_MV_FOLLOWING)
+			replan(b, st == BC_NAV_OFF_ROUTE);
+		else {
+			mv->has_route = 0;
+			mv->braking = 1;
+		}
+		return 0;
+	}
+}
+
+uint8_t bc_keys_toward(float mx, float my, bl_vec3 ori, uint8_t prev)
+{
+	float fl = sqrtf(ori.x * ori.x + ori.y * ori.y), fx, fy, f, r;
+	uint8_t k = 0;
+
+	if (fl < 1e-4f || (mx == 0.0f && my == 0.0f))
+		return 0;
+	fx = ori.x / fl;
+	fy = ori.y / fl;
+	f = mx * fx + my * fy;
+	r = mx * -fy + my * fx;       /* right of east is south: y grows south */
+	if (f > ((prev & BL_K_FORWARD) ? 0.15f : 0.35f)) k |= BL_K_FORWARD;
+	else if (f < -((prev & BL_K_BACK) ? 0.15f : 0.35f)) k |= BL_K_BACK;
+	if (r > ((prev & BL_K_RIGHT) ? 0.15f : 0.35f)) k |= BL_K_RIGHT;
+	else if (r < -((prev & BL_K_LEFT) ? 0.15f : 0.35f)) k |= BL_K_LEFT;
+	return k;
+}
+
+int bc_walk_safe(const bc_bot *b, float mx, float my)
+{
+	const bc_engine *e = b->e;
+	const bl_player *me = bc_me(b);
+	bc_body body;
+	bc_v3 ori;
+	uint8_t keys;
+	float z0;
+	int i;
+
+	if (!e->have_map)
+		return 1;
+	bc_body_of(me, &body);
+	if (body.airborne)
+		return 1;
+	ori.x = me->ori.x; ori.y = me->ori.y; ori.z = 0.0f;
+	keys = (uint8_t)(bc_keys_toward(mx, my, me->ori, 0) | (body.keys & BC_K_CROUCH));
+	z0 = bc_body_feet(&body);
+	for (i = 0; i < 20; i++)
+		bc_body_step(&body, e->map, keys, ori, BC_BODY_DT);
+	for (i = 0; i < 14; i++)
+		bc_body_step(&body, e->map, (uint8_t)(keys & BC_K_CROUCH), ori, BC_BODY_DT);
+	if (bc_body_feet(&body) > z0 + 1.3f)
+		return 0;
+	if (body.wade && !(me->flags & BL_F_WADING))
+		return 0;
+	return 1;
+}
+
+int bc_find_cover(bc_bot *b, bl_vec3 threat, bl_vec3 *out)
+{
+	static const float radii[4] = { 5.0f, 9.0f, 14.0f, 20.0f };
+	const bc_engine *e = b->e;
+	const bl_player *me = bc_me(b);
+	float tx = me->pos.x - threat.x, ty = me->pos.y - threat.y;
+	float tl = sqrtf(tx * tx + ty * ty), best = 1e30f;
+	int footz = (int)floorf(me->pos.z + 2.75f), r, a, found = 0;
+
+	if (!e->have_map)
+		return 0;
+	if (tl > 1e-3f) { tx /= tl; ty /= tl; }
+	for (r = 0; r < 4; r++) {
+		for (a = 0; a < 16; a++) {
+			float ang = (float)a * (6.2831853f / 16.0f);
+			float cx = cosf(ang), cy = sinf(ang), cost;
+			bc_nav_node n;
+			bl_vec3 eye;
+
+			if (!bc_nav_snap(e->map, (int)floorf(me->pos.x + cx * radii[r]),
+			                 (int)floorf(me->pos.y + cy * radii[r]), footz, 1, &n))
+				continue;
+			if (bc_map_is_water(e->map, n.x, n.y) || abs(n.z - footz) > 4)
+				continue;
+			eye.x = (float)n.x + 0.5f; eye.y = (float)n.y + 0.5f; eye.z = (float)n.z - 2.25f;
+			if (bc_sight_body(e->map, threat, eye, 0))
+				continue;
+			/* near is good; towards him is bad */
+			cost = radii[r] - 6.0f * (cx * tx + cy * ty);
+			if (cost < best) {
+				best = cost;
+				*out = eye;
+				found = 1;
+			}
+		}
+	}
+	return found;
+}
+
+int bc_roam_goal(bc_bot *b, bl_vec3 *out)
+{
+	bc_engine *e = b->e;
+	const bl_player *me = bc_me(b);
+	int team = me->team, other = team == 1 ? 2 : 1, tries, have = 0;
+	bl_vec3 base = me->pos;
+
+	if (!e->have_map)
+		return 0;
+	if (team >= 1 && team <= 2) {
+		if (e->now - e->hot_at[team - 1] < 60.0) {
+			base = e->hot[team - 1];
+			have = 1;
+		} else if (e->w.tent[other - 1].present) {
+			base = e->w.tent[other - 1].pos;
+			have = 1;
+		}
+	}
+	if (have) {
+		float dx = base.x - me->pos.x, dy = base.y - me->pos.y;
+
+		if (dx * dx + dy * dy < 14.0f * 14.0f)
+			have = 0;       /* already there, and nobody: look elsewhere */
+	}
+	for (tries = 0; tries < 8; tries++) {
+		float spread = have ? 18.0f : 45.0f, x, y;
+		bc_nav_node n;
+
+		x = base.x + bc_rng_range(&b->rng, -spread, spread);
+		y = base.y + bc_rng_range(&b->rng, -spread, spread);
+		if (have) {
+			/* a flanker comes at the place from the side */
+			float dx = base.x - me->pos.x, dy = base.y - me->pos.y;
+			float l = sqrtf(dx * dx + dy * dy), w = (b->persona.trait[BC_T_FLANK] - 1.0f) * 24.0f;
+
+			if (l > 30.0f && w > 0.0f) {
+				x += -dy / l * w * (float)b->flank_side;
+				y += dx / l * w * (float)b->flank_side;
+			}
+		}
+		if (x < 2.0f) x = 2.0f;
+		if (x > 509.0f) x = 509.0f;
+		if (y < 2.0f) y = 2.0f;
+		if (y > 509.0f) y = 509.0f;
+		/* the floor nearest the bot's own level: the topmost one sent
+		 * aosbot's bots to the rooftops */
+		if (!bc_nav_snap(e->map, (int)x, (int)y, (int)floorf(me->pos.z + 2.75f), 4, &n))
+			continue;
+		if (bc_map_is_water(e->map, n.x, n.y))
+			continue;       /* the sea */
+		out->x = (float)n.x + 0.5f;
+		out->y = (float)n.y + 0.5f;
+		out->z = (float)n.z - 2.25f;
+		return 1;
+	}
+	return 0;
+}

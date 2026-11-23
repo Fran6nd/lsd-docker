@@ -40,7 +40,10 @@ typedef struct bc_engine bc_engine;
 /* What the core asks of its host. */
 typedef struct bc_engine_host {
 	void *ctx;
-	/* a line for the log; level 0 debug, 1 note, 2 trouble */
+	/* a line for the log; level 0 debug, 1 note, 2 trouble. The core
+	 * keeps what happens all the time at 0 (a bot let go of a wall), what
+	 * an operator should see once at 1 (a map loaded, a bot made), and
+	 * what is wrong at 2 (a tree that does not compile, no room). */
 	void (*log)(void *ctx, int level, const char *line);
 	/* an action for the server (bl_action), as bl_push takes it */
 	void (*action)(void *ctx, uint8_t type, uint8_t pid, const void *payload, uint32_t bytes);
@@ -53,7 +56,17 @@ void bc_engine_free(bc_engine *e);
 
 /* The built-in trees: one text holding every `tree <name>:` (bt.h). The
  * tree a bot runs is the one named by the setting `tree` (default
- * "default"). 0 on a mistake, said in err. */
+ * "default"). 0 on a mistake, said in err.
+ *
+ * A call that FAILS leaves the engine exactly as it was: the trees it
+ * had stay, and the bots stay in them. A call that succeeds REPLACES
+ * every tree given before (it does not add to them); bots already
+ * running leave their old tree cleanly (every action RUNNING is told to
+ * stop) and enter the new one at its root. So a host may try each file
+ * alone for its own error line and then give the good ones as one text.
+ * With no trees given at all the engine runs a small one of its own.
+ * `tree items` may always be named: the engine writes that tree itself
+ * (engine.c, THE ITEMS TREE). */
 int bc_engine_trees(bc_engine *e, const char *text, char *err, size_t err_size);
 
 /* A map: the bytes of a .vxl, as the server's BL_EV_MAP named it. Every

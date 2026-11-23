@@ -1,0 +1,36 @@
+# default.bt -- what a bot does in a mode that brought no tree of its own:
+# walk about, fight what it meets, look into what it hears.
+#
+# The words are core/vocab.h's, the grammar core/bt.h's. Two things to know
+# before copying this:
+#   - `pick` chooses again every `every` seconds, by score x the bot's own
+#     trait x a little luck. It is how a bot changes its mind: seq and select
+#     remember where they were. Give an option a score that is 0 when its
+#     action cannot be done, or the pick fails on it.
+#   - "<name>_also" is ticked beside "<name>" at every decision: items,
+#     pings, the server's extras -- actions that end at once.
+#   - Nothing here knows of night or flashlights: a server that has them
+#     sends that part itself (`tree extras`).
+
+tree default:
+select
+	pick every=1.5 sticky=0.3 noise=0.15
+		option none grenade_near x50          # a grenade at its feet: run
+			do evade
+		option none has_order x20             # the server said so
+			do obey
+		option aggression enemy_visible
+			do fight
+		option curiosity search x0.6          # a noise, a man lost, a hit from somewhere
+			do investigate
+		option none always x0.3               # never stand without a reason
+			do roam
+	limit 1
+		do roam
+
+tree default_also:
+seq
+	always
+		tree extras                           # what the server's scripts add (night and lamps, if it has them)
+	always
+		tree items                            # whatever it holds, used as each item says
