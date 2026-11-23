@@ -772,7 +772,8 @@ for _, s in ipairs(sets) do
 	if (line:find(":night_vision=", 1, true)) then saw_nv = true; else texts[#texts + 1] = line; end
 end
 table.sort(texts);
-check(#texts == 2 and texts[1] == "*:friendly_fire=true" and texts[2] == pid .. ":difficulty=3", "...the settings, global and the bot's", table.concat(texts, ","));
+check(#texts == 4 and texts[1] == "*:friendly_fire=true" and texts[2] == "*:water.damage=0" and texts[3] == "*:water=safe"
+	and texts[4] == pid .. ":difficulty=3", "...the settings, global and the bot's, the map's water among them", table.concat(texts, ","));
 check(saw_nv, "...and whether the bot sees in the dark");
 local od = of(evs, 12);
 check(#od == 1 and od[1].pid == pid and as(od[1], "bl_ev_order").order == 1 and as(od[1], "bl_ev_order").pos.y == 2
@@ -828,6 +829,25 @@ NV[pid] = nil;
 step(61);
 check(settexts()[pid .. ":night_vision=0"], "and when it ends");
 PlayerEffect = nil;
+
+print("\n9d. what the map's water does");
+local META = {};
+function get_map_meta() return META; end
+local function water_after_load()
+	settexts();
+	prepare_map_load(); finish_map_load();
+	local t = settexts();
+	return t["*:water=lethal"] and "lethal" or t["*:water=safe"] and "safe" or "?", t;
+end
+local w, wt = water_after_load();
+check(w == "safe" and wt["*:water.damage=0"], "a map that says nothing: the water is safe", w);
+META.water_damage = 30;
+w, wt = water_after_load();
+check(w == "lethal" and wt["*:water.damage=30"], "a map whose water hurts: lethal, and how much a second", w);
+META.water_damage = nil;
+w = water_after_load();
+check(w == "safe", "the next map's water is its own", w);
+get_map_meta = nil;
 
 --================ 10. ONE RECORD PER EVENT, WHATEVER THE FLEET ======--
 print("\n10. the same events cost the same with 1 bot and with 32");

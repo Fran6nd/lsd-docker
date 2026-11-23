@@ -488,9 +488,23 @@ function mod.after.prepare_map_load()
 	loading = true;
 end
 
+-- WHAT THIS MAP'S WATER DOES. On some maps wading costs health every
+-- second (the map's own `water_damage`, applied by water_damage.lua);
+-- on most it costs nothing. A bot should not have to drown to find out:
+-- the engine is told with each map, as settings -- "water=lethal|safe",
+-- which its route planner obeys, and "water.damage=<health a second>".
+local function tell_water()
+	local meta = get_map_meta ~= nil and get_map_meta() or nil;
+	local dmg = meta ~= nil and tonumber(meta.water_damage) or 0;
+	if (dmg == nil or dmg < 0) then dmg = 0; end
+	botlink_set("water", dmg > 0 and "lethal" or "safe");
+	botlink_set("water.damage", tostring(dmg));
+end
+
 function mod.after.finish_map_load()
 	loading = false;
 	map_seq = map_seq + 1;
+	tell_water();
 	-- the bots stay; a bot's body is a new one after the map (spawn)
 	if (f ~= nil and attached) then
 		send_map();
