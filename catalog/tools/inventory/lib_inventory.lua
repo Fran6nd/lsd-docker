@@ -16,9 +16,10 @@
 --
 -- API (globals):
 --   inventory_define(key, {label = {en=}, command = "reward rocket",
---                          aim = true, order = 10})
+--                          aim = true, order = 10, bot = {...}})
 --        a kind of item; `command` without its slash; `aim`: the use is
---        sent the point aimed at (x y z) after it; `order` sorts the list
+--        sent the point aimed at (x y z) after it; `order` sorts the list;
+--        `bot`: when a bot should use it, see BOTS below
 --   inventory_undefine(key)
 --   inventory_give(pid, key [, n])      n defaults to 1; math.huge: unlimited
 --   inventory_take(pid, key [, n])      -> how many were taken
@@ -30,6 +31,27 @@
 --        apart with it (rewards: typed, /reward rocket uses an item)
 --   inventory_keep()                    called by an item's command that
 --        did nothing (a medkit at full health): the item is not used up
+--   inventory_kinds()                   -> {key = {label=, command=, aim=,
+--        order=, bot=}}: every kind there is (a copy)
+--   inventory_listen(name, {count = fn(pid, key, n), kind = fn(key, def)})
+--        told of every change: a player's count of a kind (n; math.huge
+--        for unlimited), and a kind defined or -- def nil -- undefined.
+--        Registering a name again replaces it. inventory_unlisten(name)
+--
+-- BOTS. A bot holds items like anybody, and uses them by the same
+-- command. WHEN it should is the item's to say, since only whoever made
+-- the item knows what it is for:
+--
+--   bot = {tree = "seq\n\tif health_below 40\n\tdo use medkit",
+--          guide = 0}
+--
+-- `tree` is a fragment of behaviour tree, in the bot engine's text
+-- (bot/core/bt.h, its words in bot/core/vocab.h), tried by any bot that
+-- holds the item, wherever its gamemode's tree says `tree items`.
+-- `guide`: seconds the bot keeps its aim on the target after using it (a
+-- guided missile). This module only carries it: lib_botlink listens
+-- (inventory_listen) and tells the engine what each bot holds and what
+-- each item's fragment is.
 --
 -- An item is used up after its command ran, unless it kept it. Items
 -- last until the player leaves.
@@ -57,6 +79,28 @@ local function refresh(pid)
 	if (pie_menu_refresh ~= nil) then
 		pie_menu_refresh(pid);
 	end
+end
+
+-- whoever follows the inventory (inventory_listen); one that raises is
+-- dropped, as lib_shot_detect does with its own
+local listeners = {};
+local function tell(what, ...)
+	for name, l in pairs(listeners) do
+		if (l[what] ~= nil) then
+			local ok, err = pcall(l[what], ...);
+			if (not ok) then
+				listeners[name] = nil;
+				log("lib_inventory: listener %s raised, dropped: %s", name, tostring(err));
+			end
+		end
+	end
+end
+
+-- a player's count of a kind changed
+local function changed(pid, key)
+	refresh(pid);
+	local b = held[pid];
+	tell("count", pid, key, type(b) == "table" and b[key] or 0);
 end
 
 function inventory_count(pid, key)
@@ -135,20 +179,41 @@ function inventory_define(key, def)
 	assert(type(def) == "table" and type(def.label) == "table" and type(def.command) == "string",
 		"inventory_define: {label = {en = ...}, command = ...}");
 	kinds[key] = {label = def.label, command = (string.gsub(def.command, "^/", "")),
-		aim = def.aim == true, order = tonumber(def.order)};
+		aim = def.aim == true, order = tonumber(def.order),
+		bot = type(def.bot) == "table" and def.bot or nil};
 	republish();
+	tell("kind", key, kinds[key]);
 end
 
 function inventory_undefine(key)
+	if (kinds[key] == nil) then
+		return;
+	end
 	kinds[key] = nil;
 	republish();
+	tell("kind", key, nil);
+end
+
+function inventory_kinds()
+	local out = {};
+	for key, k in pairs(kinds) do out[key] = k; end
+	return out;
+end
+
+function inventory_listen(name, l)
+	assert(type(name) == "string" and type(l) == "table", "inventory_listen(name, {count=, kind=})");
+	listeners[name] = l;
+end
+
+function inventory_unlisten(name)
+	listeners[name] = nil;
 end
 
 function inventory_give(pid, key, n)
 	n = n or 1;
 	local b = bag(pid);
 	b[key] = (b[key] or 0) + n;
-	refresh(pid);
+	changed(pid, key);
 	return b[key];
 end
 
@@ -163,7 +228,7 @@ function inventory_take(pid, key, n)
 		local b = bag(pid);
 		b[key] = have - took;
 		if (b[key] <= 0) then b[key] = nil; end
-		refresh(pid);
+		changed(pid, key);
 	end
 	return took;
 end
@@ -171,7 +236,7 @@ end
 function inventory_set(pid, key, n)
 	local b = bag(pid);
 	b[key] = (n ~= nil and n > 0) and n or nil;
-	refresh(pid);
+	changed(pid, key);
 end
 
 function inventory_using(pid)
@@ -256,7 +321,8 @@ function mod.on_unload()
 		pie_menu_remove("inventory");
 	end
 	for _, name in ipairs({"inventory_define", "inventory_undefine", "inventory_give",
-		"inventory_take", "inventory_set", "inventory_count", "inventory_use", "inventory_using", "inventory_keep"}) do
+		"inventory_take", "inventory_set", "inventory_count", "inventory_kinds",
+		"inventory_listen", "inventory_unlisten", "inventory_use", "inventory_using", "inventory_keep"}) do
 		_G[name] = nil;
 	end
 end

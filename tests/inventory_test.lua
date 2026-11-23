@@ -94,6 +94,26 @@ check(#pies == 2 and #pies[1].slices == 6 and #pies[2].slices == 2 and pies[1].i
 inventory_undefine("k1");
 check(#pies[2].slices == 1, "a kind undefined leaves the pie");
 
+print("\n7. listeners: who follows what is held, and what an item is for a bot");
+local seen = {};
+inventory_listen("t", {count = function(pid, key, n) seen[#seen+1] = "count " .. pid .. " " .. key .. " " .. tostring(n); end,
+	kind = function(key, def) seen[#seen+1] = "kind " .. key .. " " .. tostring(def and def.bot and def.bot.tree); end});
+inventory_define("kit", {label = {en = "Kit"}, command = "kit", bot = {tree = "do use kit", guide = 2}});
+check(seen[#seen] == "kind kit do use kit" and inventory_kinds().kit.bot.guide == 2, "a kind defined is told, its bot fragment with it");
+inventory_give(1, "kit", 2);
+check(seen[#seen] == "count 1 kit 2", "a count going up");
+inventory_use(1, "kit");
+check(seen[#seen] == "count 1 kit 1", "down when one is used");
+inventory_set(1, "kit", math.huge);
+check(seen[#seen] == "count 1 kit inf", "unlimited");
+inventory_set(1, "kit", 0);
+check(seen[#seen] == "count 1 kit 0", "and none");
+inventory_undefine("kit");
+check(seen[#seen] == "kind kit nil", "a kind undefined is told");
+inventory_listen("bad", {count = function() error("boom"); end});
+check(pcall(inventory_give, 0, "rocket", 1), "a listener that raises spoils nothing");
+inventory_unlisten("t");
+
 L.clean(check);
 mod.on_unload();
 check(inventory_give == nil and pies == nil, "unloaded: its globals and its pie are gone");
