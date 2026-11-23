@@ -30,6 +30,27 @@ tests. Its decisions -- utility-scored roles chosen in C++ -- are not
 ported: decisions are trees here, written as text, so a gamemode's Lua
 can bring its own.
 
+## A gamemode's part, and nothing more
+
+Nothing in `core/` or `botd/` may know a gamemode by name. What differs
+from one mode to the next is data, and comes over the link:
+
+- **A tree** (`bt.h`), as text. The built-in ones are files in
+  `trees/` (`tdm.bt` first), one per mode, and a gamemode's Lua can send
+  its own (`botlink_set("tree", text)`); a mode that sends none gets
+  `default.bt`. A tree is made only of the neutral vocabulary below.
+- **Settings**, `key=value` (`BL_EV_SET`): what the mode's objects mean
+  (`intel=fetch`, `tents=defend`...), zones where editing is refused,
+  the archetype mix, how many blocks a bot may spend.
+- **Orders**, for one bot (`BL_EV_ORDER`), when a mode wants to direct it.
+
+**The vocabulary** -- the conditions, scores and actions a tree may name
+-- is the engine's whole interface to behaviour, so it is kept small,
+named for what it does and not for who uses it (`enemy_near`, never
+`tdm_enemy_near`), and documented in one place (`core/vocab.h`). A new
+mode that needs a new word adds it there, neutral, with a test; it does
+not add an `if (mode == ...)` anywhere.
+
 ## Rules for every file in `core/`
 
 - C11, `-Wall -Wextra -Werror -pedantic`. No compiler extensions.
