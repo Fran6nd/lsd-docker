@@ -38,7 +38,7 @@ msgid "Night vision"
 msgstr ""
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "You earned a reward point (%(points)/%(max)). Spend it: /reward, or the pie menu."
+msgid "You earned: %(what). Use it with /inv, or the pie menu."
 msgstr ""
 
 #: catalog/tools/rewards/lib_rewards.lua
@@ -46,46 +46,26 @@ msgid "%(name) earned a reward"
 msgstr ""
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "Rewards -- you have %(points) point(s):"
-msgstr ""
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "  /reward %(name): %(label), %(cost) point(s)"
-msgstr ""
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "  Nothing is on offer here."
-msgstr ""
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "You got: %(what). Points left: %(points)."
-msgstr ""
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "%(what) costs %(cost) point(s) and you have %(points)."
-msgstr ""
-
-#: catalog/tools/rewards/lib_rewards.lua
 msgid "Rewards are for the living."
 msgstr ""
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "%(what) is only offered at night."
+msgid "%(what) is only for the night."
 msgstr ""
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "No such reward. Type /reward for the list."
+msgid "No such reward. Your rewards are in your inventory: /inv."
 msgstr ""
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "%(what) could not be used right now; no point spent."
+msgid "%(what) could not be used right now; you keep it."
+msgstr ""
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "You have no %(what): rewards come every %(kills) kills, and with every capture."
 msgstr ""
 
 #: catalog/tools/rewards/lib_rewards.lua
 msgctxt "command"
-msgid "Spend your reward points: /reward lists what you can get."
-msgstr ""
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "Rewards"
+msgid "Use one of your rewards (they are in your inventory: /inv)."
 msgstr ""

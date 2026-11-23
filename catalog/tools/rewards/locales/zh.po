@@ -40,54 +40,34 @@ msgid "Night vision"
 msgstr "夜视"
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "You earned a reward point (%(points)/%(max)). Spend it: /reward, or the pie menu."
-msgstr "你获得一个奖励点数（%(points)/%(max)）。用 /reward 或饼状菜单花掉它。"
+msgid "You earned: %(what). Use it with /inv, or the pie menu."
+msgstr "你获得了：%(what)。用 /inv 或圆盘菜单使用。"
 
 #: catalog/tools/rewards/lib_rewards.lua
 msgid "%(name) earned a reward"
 msgstr "%(name) 获得了一个奖励"
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "Rewards -- you have %(points) point(s):"
-msgstr "奖励——你有 %(points) 点："
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "  /reward %(name): %(label), %(cost) point(s)"
-msgstr "  /reward %(name)：%(label)，%(cost) 点"
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "  Nothing is on offer here."
-msgstr "  这里没有可兑换的奖励。"
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "You got: %(what). Points left: %(points)."
-msgstr "你获得了：%(what)。剩余点数：%(points)。"
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "%(what) costs %(cost) point(s) and you have %(points)."
-msgstr "%(what) 需要 %(cost) 点，你有 %(points) 点。"
-
-#: catalog/tools/rewards/lib_rewards.lua
 msgid "Rewards are for the living."
 msgstr "奖励只属于活人。"
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "%(what) is only offered at night."
-msgstr "%(what) 只在夜晚提供。"
+msgid "%(what) is only for the night."
+msgstr "%(what) 只能在夜晚使用。"
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "No such reward. Type /reward for the list."
-msgstr "没有这个奖励。输入 /reward 查看列表。"
+msgid "No such reward. Your rewards are in your inventory: /inv."
+msgstr "没有这个奖励。你的奖励在物品栏里：/inv。"
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "%(what) could not be used right now; no point spent."
-msgstr "%(what) 现在无法使用；未花费点数。"
+msgid "%(what) could not be used right now; you keep it."
+msgstr "%(what) 现在无法使用；你保留它。"
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "You have no %(what): rewards come every %(kills) kills, and with every capture."
+msgstr "你没有 %(what)：每 %(kills) 次击杀和每次夺旗都会获得奖励。"
 
 #: catalog/tools/rewards/lib_rewards.lua
 msgctxt "command"
-msgid "Spend your reward points: /reward lists what you can get."
-msgstr "花费你的奖励点数：/reward 列出可获得的奖励。"
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "Rewards"
-msgstr "奖励"
+msgid "Use one of your rewards (they are in your inventory: /inv)."
+msgstr "使用你的一个奖励（它们在你的物品栏里：/inv）。"

@@ -1,50 +1,59 @@
--- lib_rewards.lua -- Reward points, spent on a player effect
+-- lib_rewards.lua -- Rewards for kills and captures, in the inventory
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 -- Under any gamemode: every rewards_kills kills a player makes (counted
--- across lives, from the map's start) earns a point, and so does an
--- intel capture (rewards_capture). A player holds at most rewards_max
--- points. They are spent on one of the rewards of rewards_menu:
+-- across lives, from the map's start), and every intel capture
+-- (rewards_capture), earns a REWARD: one of rewards_menu at random --
+-- the costlier, the rarer -- put in the player's inventory (lib_inventory),
+-- used from there like any item:
 --
---   /reward            what there is, and the points held
---   /reward railgun    spend the points it costs, get it
+--   /inv                the inventory: "1) Rocket x2  2) Airstrike x1"
+--   /inv <number|name>  use one -- or its wedge in the Inventory pie,
+--                       labelled with how many
+--   /reward rocket      the same, by the reward's name
 --
--- and from the pie menu, a pie with a wedge for each reward the player
--- can afford right now -- the others are not shown. An airstrike's
--- wedge sends the point under the crosshair (%h), so it lands where the
--- player looks.
+-- A player holds at most rewards_max rewards; at the cap the kill count
+-- waits, so the next one is a kill away once one is used.
+--
+-- Each reward is an inventory item whose command is /reward <name>: run
+-- from the inventory it gives the effect; typed, it uses an item of the
+-- player's, if they hold one -- never a free one. A reward that cannot
+-- be used right now (a medkit at full health, night vision by day) is
+-- not used up.
 --
 -- THE MENU is a setting, a list of
 --
 --   {effect = "railgun", cost = 1, label = {en = "Railgun"},
 --    secs = 30, death = true}          -- given for 30 s, or until death
---   {effect = "rocket", cost = 1, charges = 3, ...}
---                                     -- three charges, one a shot
 --   {effect = "medkit", cost = 1, trigger = true, opts = {free = true}}
 --                                     -- set off at once, not kept
 --   {effect = "airstrike", cost = 2, trigger = true, aim = true}
---                                     -- aim: takes the %h point
+--                                     -- aim: takes the point aimed at
 --   {effect = "nightvision", cost = 1, night = true, secs = 60}
---                                     -- night: offered only at night
+--                                     -- night: usable only at night
 --
--- An effect that is not loaded is not offered: effects stay separately
--- installable, so this offers whatever is there.
+-- `cost` is how rare it is: a reward of cost 2 comes up half as often as
+-- one of cost 1. An effect that is not loaded is not handed out: effects
+-- stay separately installable, so this offers whatever is there.
+--
+-- rewards_free (demo_reward): every reward, unlimited -- x∞ in the
+-- inventory -- for everybody.
 --
 -- WHO ELSE HAS IT. A player effect is everybody's while its
 -- <id>_everyone is true, which is its default: install the railgun and
 -- every rifle is one. A reward the railgun is not worth that, so while
 -- rewards_exclusive (the default) the effects of the menu are taken
--- away from everybody and are held only by those who bought them,
+-- away from everybody and are held only by those who earned them,
 -- whatever <id>_everyone says. Put rewards_exclusive = false to leave
 -- an effect that is on for everybody as it is (the rewards then add
 -- nothing to it, but a trigger -- medkit, airstrike -- still works).
 local mod = init_mod();
 
-getcfg("rewards_kills", 10, "Kills (across lives, per map) for one reward point.");
-getcfg("rewards_capture", 1, "Reward points for an intel capture.");
-getcfg("rewards_max", 3, "Most reward points a player can hold.");
+getcfg("rewards_kills", 10, "Kills (across lives, per map) for one reward.");
+getcfg("rewards_capture", 1, "Rewards for an intel capture.");
+getcfg("rewards_max", 3, "Most rewards a player can hold.");
 getcfg("rewards_exclusive", true,
-	"Effects offered as rewards are held only by those who bought them, "
+	"Effects offered as rewards are held only by those who earned them, "
 	.. "even if their <id>_everyone setting is true.");
 getcfg("rewards_menu", {
 	{effect = "railgun", cost = 1, secs = 30, death = true,
@@ -65,27 +74,21 @@ getcfg("rewards_menu", {
 		label = {en = "Area heal"}},
 	{effect = "nightvision", cost = 1, secs = 60, night = true, death = true,
 		label = {en = "Night vision"}},
-}, "What reward points buy: a list of {effect, cost, label, secs | charges | trigger, death, night}.");
+}, "What a reward may be: a list of {effect, cost (how rare), label, secs | charges | trigger, death, night}.");
 
 getcfg("rewards_free", false,
 	"Every reward free and unlimited, for trying them out (demos).");
 
-local MAX_WEDGES = 6;
-
-local points = pid_connected_table(0);
+local INFINITE = math.huge;
 local kills = pid_connected_table(0);
 
-local earned_you = {en = "You earned a reward point (%(points)/%(max)). Spend it: /reward, or the pie menu."};
+local earned_you = {en = "You earned: %(what). Use it with /inv, or the pie menu."};
 local earned_all = {en = "%(name) earned a reward"};
-local list_head = {en = "Rewards -- you have %(points) point(s):"};
-local list_line = {en = "  /reward %(name): %(label), %(cost) point(s)"};
-local list_none = {en = "  Nothing is on offer here."};
-local got_msg = {en = "You got: %(what). Points left: %(points)."};
-local poor_msg = {en = "%(what) costs %(cost) point(s) and you have %(points)."};
 local dead_msg = {en = "Rewards are for the living."};
-local night_msg = {en = "%(what) is only offered at night."};
-local unknown_msg = {en = "No such reward. Type /reward for the list."};
-local failed_msg = {en = "%(what) could not be used right now; no point spent."};
+local night_msg = {en = "%(what) is only for the night."};
+local unknown_msg = {en = "No such reward. Your rewards are in your inventory: /inv."};
+local failed_msg = {en = "%(what) could not be used right now; you keep it."};
+local none_msg = {en = "You have no %(what): rewards come every %(kills) kills, and with every capture."};
 
 --============================== THE MENU ============================--
 
@@ -98,7 +101,7 @@ local function menu()
 	for _, e in ipairs(rewards_menu) do
 		if (type(e) == "table" and type(e.effect) == "string"
 		    and tonumber(e.cost) ~= nil and type(e.label) == "table") then
-			e.key = tostring(e.name or e.effect);
+			e.key = string.lower(tostring(e.name or e.effect));
 			out[#out+1] = e;
 		end
 	end
@@ -108,7 +111,7 @@ end
 local function by_key(key)
 	key = string.lower(key);
 	for _, e in ipairs(menu()) do
-		if (string.lower(e.key) == key) then
+		if (e.key == key) then
 			return e;
 		end
 	end
@@ -118,33 +121,84 @@ local function is_night()
 	return daytime_is_night ~= nil and daytime_is_night() == true;
 end
 
--- is the reward on offer at all, to anybody, right now
+-- is the reward there to be had at all: its effect loaded
 local function offered(e)
-	return PlayerEffect.get(e.effect) ~= nil and (not e.night or is_night());
+	return PlayerEffect.get(e.effect) ~= nil;
 end
 
-local function affordable(e, pid)
-	return offered(e) and (rewards_free or points[pid] >= tonumber(e.cost));
+local function say_what(pid, e)
+	return l10n_str(pid, e.label);
+end
+
+-- each offered reward an inventory item, its command /reward <name>
+local defined = {};
+local function define_items()
+	if (inventory_define == nil) then
+		return;
+	end
+	for i, e in ipairs(menu()) do
+		if (offered(e) and not defined[e.key]) then
+			defined[e.key] = true;
+			inventory_define(e.key, {label = e.label, command = "reward " .. e.key,
+				aim = e.aim == true, order = i});
+		elseif (not offered(e) and defined[e.key]) then
+			defined[e.key] = nil;
+			inventory_undefine(e.key);
+		end
+	end
 end
 
 --============================== EARNING =============================--
 
-local function refresh(pid)
-	if (pie_menu_refresh ~= nil) then
-		pie_menu_refresh(pid);
+local function held(pid)
+	local n = 0;
+	for _, e in ipairs(menu()) do
+		local c = inventory_count(pid, e.key);
+		if (c ~= INFINITE) then n = n + c; end
 	end
+	return n;
+end
+
+-- one reward at random, the costlier the rarer; nil with none to give
+local function draw()
+	local pool, total = {}, 0;
+	for _, e in ipairs(menu()) do
+		if (offered(e)) then
+			local w = 1 / math.max(1, tonumber(e.cost));
+			pool[#pool+1] = {e = e, w = w};
+			total = total + w;
+		end
+	end
+	local r = math.random() * total;
+	for _, p in ipairs(pool) do
+		r = r - p.w;
+		if (r <= 0) then return p.e; end
+	end
+	return pool[#pool] and pool[#pool].e;
 end
 
 local function award(pid, n)
-	local was = points[pid];
-	points[pid] = math.min(rewards_max, was + n);
-	if (points[pid] == was) then
-		return false;
+	if (rewards_free) then
+		return false; -- everybody holds everything already
 	end
-	l10n_send_chat(pid, earned_you, {points = points[pid], max = rewards_max});
-	l10n_send_chat(PID_BROADCAST, earned_all, {name = get_name(pid)});
-	refresh(pid);
-	return true;
+	local given = 0;
+	for _ = 1, n do
+		if (held(pid) >= rewards_max) then
+			break;
+		end
+		local e = draw();
+		if (e == nil) then
+			break;
+		end
+		define_items();
+		inventory_give(pid, e.key, 1);
+		given = given + 1;
+		l10n_send_chat(pid, earned_you, {what = e.label});
+	end
+	if (given > 0) then
+		l10n_send_chat(PID_BROADCAST, earned_all, {name = get_name(pid)});
+	end
+	return given > 0;
 end
 
 local function counts(pid, ktype, killer)
@@ -161,8 +215,8 @@ function mod.after.kill(pid, ktype, killer)
 		return;
 	end
 	kills[killer] = kills[killer] + 1;
-	-- at the cap the count waits, so the next point is one kill away
-	-- once one is spent, and not ten
+	-- at the cap the count waits, so the next reward is one kill away
+	-- once one is used, and not ten
 	if (kills[killer] >= rewards_kills and award(killer, 1)) then
 		kills[killer] = 0;
 	end
@@ -181,11 +235,7 @@ function mod.after.load_map()
 	end
 end
 
---============================== SPENDING ============================--
-
-local function say_what(pid, e)
-	return l10n_str(pid, e.label);
-end
+--============================== USING ===============================--
 
 local function give(pid, e, fx, pos)
 	if (e.trigger) then
@@ -205,82 +255,75 @@ local function give(pid, e, fx, pos)
 	return true;
 end
 
-local function spend(pid, e, pos)
-	local what = say_what(pid, e);
+-- the reward's effect, run as an inventory item: anything that stops it
+-- keeps the item
+local function apply(pid, e, pos)
 	local fx = PlayerEffect.get(e.effect);
-
+	local what = say_what(pid, e);
+	local why;
 	if (fx == nil) then
-		l10n_send_chat(pid, unknown_msg);
+		why = {unknown_msg};
 	elseif (not is_alive(pid)) then
-		l10n_send_chat(pid, dead_msg);
+		why = {dead_msg};
 	elseif (e.night and not is_night()) then
-		l10n_send_chat(pid, night_msg, {what = what});
-	elseif (not rewards_free and points[pid] < tonumber(e.cost)) then
-		l10n_send_chat(pid, poor_msg, {what = what, cost = e.cost, points = points[pid]});
+		why = {night_msg, {what = what}};
 	elseif (not give(pid, e, fx, pos)) then
-		l10n_send_chat(pid, failed_msg, {what = what});
-	else
-		if (not rewards_free) then
-			points[pid] = points[pid] - tonumber(e.cost);
-		end
-		l10n_send_chat(pid, got_msg, {what = what, points = points[pid]});
-		refresh(pid);
+		why = {failed_msg, {what = what}};
+	end
+	if (why ~= nil) then
+		inventory_keep();
+		l10n_send_chat(pid, why[1], why[2]);
 	end
 end
 
-local cmd = {name = "reward", usage = "[name]",
-	desc = "Spend your reward points: /reward lists what you can get."};
+local cmd = {name = "reward", usage = "[name] [x y z]",
+	desc = "Use one of your rewards (they are in your inventory: /inv)."};
 function cmd.func(pid, argv)
 	local e = argv[1] and by_key(argv[1]);
-	if (e ~= nil) then
-		local x, y, z = tonumber(argv[2]), tonumber(argv[3]), tonumber(argv[4]);
-		spend(pid, e, x and y and z and {x = x, y = y, z = z} or nil);
+	if (e == nil) then
+		l10n_send_chat(pid, unknown_msg);
 		return;
 	end
-	if (argv[1] ~= nil) then
-		l10n_send_chat(pid, unknown_msg);
-	end
-
-	l10n_send_chat(pid, list_head, {points = points[pid]});
-	local any = false;
-	for _, m in ipairs(menu()) do
-		if (offered(m)) then
-			any = true;
-			l10n_send_chat(pid, list_line, {name = m.key, label = say_what(pid, m),
-				cost = m.cost});
-		end
-	end
-	if (not any) then
-		l10n_send_chat(pid, list_none);
+	local x, y, z = tonumber(argv[2]), tonumber(argv[3]), tonumber(argv[4]);
+	local pos = x and y and z and {x = x, y = y, z = z} or nil;
+	if (inventory_using(pid) == e.key) then
+		apply(pid, e, pos);
+	elseif (inventory_count(pid, e.key) > 0) then
+		-- typed by hand: one of theirs, through the inventory
+		inventory_use(pid, e.key, pos);
+	else
+		l10n_send_chat(pid, none_msg, {what = e.label, kills = rewards_kills});
 	end
 end
 register_command(cmd, mod);
 
---============================== THE PIE =============================--
+--============================== FREE ================================--
 
--- A pie holds six wedges; a longer menu goes on in a second pie, a
--- third..., offered in the same contexts, right after the first. A pie
--- left with nothing affordable on it is not sent at all.
-local function pies()
-	local out, slices = {}, nil;
+-- rewards_free: everybody holds every reward, unlimited -- whoever
+-- joins too, within the second -- taken back when it is turned off
+local was_free = false;
+local function free_for(pid)
 	for _, e in ipairs(menu()) do
-		if (slices == nil or #slices == MAX_WEDGES) then
-			slices = {};
-			out[#out+1] = {id = #out == 0 and "rewards" or ("rewards" .. (#out + 1)),
-				theme = {en = "Rewards"}, when = "alive", slices = slices};
+		if (offered(e) and inventory_count(pid, e.key) ~= INFINITE) then
+			inventory_give(pid, e.key, INFINITE);
 		end
-		slices[#slices+1] = {
-			text = "/reward " .. e.key .. (e.aim and " %h" or ""),
-			label = e.label,
-			show = function(pid) return affordable(e, pid); end,
-		};
 	end
-	return out;
 end
 
-local pie_in = false;
-local was_night = false;
-local next_check = 0;
+local function sync_free()
+	if (rewards_free) then
+		for pid in piditer(PID_BROADCAST) do free_for(pid); end
+	elseif (was_free) then
+		for pid in piditer(PID_BROADCAST) do
+			for _, e in ipairs(menu()) do
+				if (inventory_count(pid, e.key) == INFINITE) then
+					inventory_set(pid, e.key, 0);
+				end
+			end
+		end
+	end
+	was_free = rewards_free == true;
+end
 
 -- the effects offered are not everybody's: see WHO ELSE HAS IT
 local taken = {};
@@ -297,38 +340,28 @@ local function claim()
 	end
 end
 
--- wedges come and go with the night; daytime_set_night is a plain
--- global, not a hook, so the change is looked for
-function mod.after.tick()
-	if (pie_menu_add ~= nil and not pie_in) then
-		pie_in = true;
-		pie_menu_add("rewards", pies(), 30);
-	elseif (pie_menu_add == nil) then
-		pie_in = false;
-	end
+local next_check = 0;
 
+function mod.after.tick()
 	local now = get_time();
 	if (now >= next_check) then
 		next_check = now + 1;
 		claim();
-		local night = is_night();
-		if (night ~= was_night) then
-			was_night = night;
-			refresh();
-		end
+		define_items();
+		sync_free();
 	end
 end
 
 function mod.on_load()
 	claim();
-	was_night = is_night();
+	define_items();
 end
 
 function mod.on_unload()
-	if (pie_menu_remove ~= nil) then
-		pie_menu_remove("rewards");
+	for key in pairs(defined) do
+		if (inventory_undefine ~= nil) then inventory_undefine(key); end
 	end
-	pie_in = false;
+	defined = {};
 	for name in pairs(taken) do
 		local fx = PlayerEffect.get(name);
 		if (fx ~= nil) then

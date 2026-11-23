@@ -40,54 +40,34 @@ msgid "Night vision"
 msgstr "Ночное видение"
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "You earned a reward point (%(points)/%(max)). Spend it: /reward, or the pie menu."
-msgstr "Ты получил очко награды, всего: %(points)/%(max). Потрать его: /reward или через круговое меню."
+msgid "You earned: %(what). Use it with /inv, or the pie menu."
+msgstr "Ты получил: %(what). Используй через /inv или круговое меню."
 
 #: catalog/tools/rewards/lib_rewards.lua
 msgid "%(name) earned a reward"
 msgstr "%(name) получил награду"
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "Rewards -- you have %(points) point(s):"
-msgstr "Награды -- твой баланс: %(points)"
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "  /reward %(name): %(label), %(cost) point(s)"
-msgstr "  /reward %(name): %(label), цена %(cost)"
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "  Nothing is on offer here."
-msgstr "  Здесь сейчас ничего нет."
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "You got: %(what). Points left: %(points)."
-msgstr "Ты получил: %(what). Остаток: %(points)."
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "%(what) costs %(cost) point(s) and you have %(points)."
-msgstr "%(what) стоит %(cost), а у тебя %(points)."
-
-#: catalog/tools/rewards/lib_rewards.lua
 msgid "Rewards are for the living."
 msgstr "Награды только для живых."
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "%(what) is only offered at night."
-msgstr "%(what) доступно только ночью."
+msgid "%(what) is only for the night."
+msgstr "%(what) работает только ночью."
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "No such reward. Type /reward for the list."
-msgstr "Такой награды нет. Введи /reward, чтобы увидеть список."
+msgid "No such reward. Your rewards are in your inventory: /inv."
+msgstr "Нет такой награды. Твои награды в инвентаре: /inv."
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "%(what) could not be used right now; no point spent."
-msgstr "%(what) сейчас нельзя использовать; очко не потрачено."
+msgid "%(what) could not be used right now; you keep it."
+msgstr "%(what) сейчас нельзя использовать; предмет остаётся у тебя."
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "You have no %(what): rewards come every %(kills) kills, and with every capture."
+msgstr "У тебя нет предмета «%(what)»: награды дают за каждые %(kills) убийств и за каждый захват."
 
 #: catalog/tools/rewards/lib_rewards.lua
 msgctxt "command"
-msgid "Spend your reward points: /reward lists what you can get."
-msgstr "Потратить очки награды: /reward показывает, что доступно."
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "Rewards"
-msgstr "Награды"
+msgid "Use one of your rewards (they are in your inventory: /inv)."
+msgstr "Использовать одну из своих наград (они в инвентаре: /inv)."

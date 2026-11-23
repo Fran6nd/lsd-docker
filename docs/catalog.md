@@ -7,7 +7,7 @@
 | effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit, nightvision, rocket, missile, grenade_launcher, airstrike |
 | effects/world | `WorldEffect` | change the map or the match for everybody; same | the_fall |
 | bots | `Bot` | server-side players | guards, battle_bots |
-| tools | `Tool` | everything else | votekick, vote_map, rewards, esp_demo, headless, time_limit, ... |
+| tools | `Tool` | everything else | votekick, vote_map, rewards, inventory, esp_demo, headless, time_limit, ... |
 | demos | `Demo` | set a server up to show something off, not to run for good | demo_reward (every reward free and unlimited) |
 | libs | `Library` | what the others need; installed with them, not listed | ext, ext_policy, bot, shot_detect, player_effect, map_layout, callouts, blast, babel_protect, ask_player |
 
@@ -103,11 +103,13 @@ light theirs; at dawn they put them out. Scoring is tdm's
 ## Rewards
 
 On by default, in every gamemode. Every `rewards_kills` kills (10) and
-every intel capture earn a reward point, up to `rewards_max` (3). Points
-are spent from a Rewards pie in the pie menu -- a wedge shows only while
-it is affordable -- or with `/reward <name>`:
+every intel capture earn a reward: one of the list below at random, the
+costlier the rarer, put in the player's [inventory](#inventory) -- at
+most `rewards_max` (3) held. It is used from there: `/inv`, the
+Inventory pie, or `/reward <name>`. One that cannot be used right now (a
+medkit at full health, night vision by day) is kept.
 
-| reward | cost | |
+| reward | cost (rarity) | |
 |---|---|---|
 | Railgun | 1 | 30 s, or until death |
 | Rocket | 1 | fired at once where you aim: a streak of blocks that blows a crater; one-shots a direct hit and anyone within 2 blocks |
@@ -120,11 +122,22 @@ it is affordable -- or with `/reward <name>`:
 
 The list is the `rewards_menu` setting, and only installed effects are
 offered (rewards installs the eight with it). With `rewards_exclusive`
-(the default) an effect on the menu is held only by whoever bought it,
+(the default) an effect on the menu is held only by whoever earned it,
 even if it is otherwise on for everybody. Every impact -- rocket, missile, bomb -- also plays a grenade explosion,
 the sound and the flash, for every client. Rocket and airstrike are
 ordinary effects too, built on the `blast` library: installed alone,
 they are everybody's.
+
+## Inventory
+
+What a player holds. An item is a command: a script defines a kind
+(`inventory_define(key, {label, command, aim})`) and hands items out
+(`inventory_give(pid, key, n)`); using one runs its command as the
+player and uses it up, unless the command kept it (`inventory_keep()`).
+Players use theirs with `/inv` -- "1) Rocket x3  2) Medkit x1", then
+`/inv <number|name>` -- or from the Inventory pie, each wedge labelled
+with how many (`x∞` for an unlimited one), an aimed item sent the point
+under the crosshair. The rewards are its first items.
 
 ## Voting the map on (/va)
 
@@ -158,16 +171,17 @@ player, later ones queue; the callback gets nil on timeout
 Every gamemode has its own pie of team callouts, ahead of the usual
 pies: in babel "Digger!", "Help build", "Rush intel"; in ctf "Intel
 stolen", "I have intel"; and so on. Each says its line to the team as
-the player's chat, in each teammate's language, and the ones about a
-place drop a Teamplay ping where the player aims. They live in
+the player's chat, in each teammate's language -- words only, never a
+ping. They live in
 `catalog/libs/callouts/callouts/<gamemode>.lua`, one small file each.
 
 The same files hold each gamemode's **pings**: the pie menu's Mark pie
 (aiming at a block or an enemy) -- in ctf "Intel here", "Build here",
-"Sniper"; in babel "Digger here", "Defend the tower". They are offered
-only to players whose client shows Teamplay pings, and follow
-Teamplay's rules for a client's own ping (alive, in sight, not too
-often); the marker reads in each teammate's language. A gamemode with
+"Sniper"; in babel "Digger here", "Defend the tower". Each wedge sends
+Teamplay's own command, `/pingmark %h <reason>`, the reason in the
+language of whoever pings, so it is offered only to players whose
+client speaks Teamplay and follows its rules (alive, in sight, not too
+often). A gamemode with
 no pings of its own gets Enemy, Attack, Defend, Need help, Danger and
 Go here; ffa has none, having no team.
 

@@ -6,5 +6,5 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 #: catalog/demos/demo_reward/demo_reward.lua
-msgid "Rewards demo: every reward is free here. Open the pie menu, or type /reward."
+msgid "Rewards demo: every reward is yours, unlimited. Open the pie menu, or type /inv."
 msgstr ""

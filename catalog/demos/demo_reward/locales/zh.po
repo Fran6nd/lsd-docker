@@ -8,5 +8,5 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 
 #: catalog/demos/demo_reward/demo_reward.lua
-msgid "Rewards demo: every reward is free here. Open the pie menu, or type /reward."
-msgstr "奖励演示：这里所有奖励都免费。打开圆盘菜单，或输入 /reward。"
+msgid "Rewards demo: every reward is yours, unlimited. Open the pie menu, or type /inv."
+msgstr "奖励演示：所有奖励都归你，数量不限。打开圆盘菜单，或输入 /inv。"

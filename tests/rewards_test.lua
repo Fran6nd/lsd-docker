@@ -1,11 +1,11 @@
--- rewards_test.lua -- lib_rewards: earning, spending, the pie
+-- rewards_test.lua -- lib_rewards: earning, the inventory, using
 -- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/rewards_test.lua      (from the repository root)
 --
--- Points from kills and captures, the cap, the menu and what each entry
--- gives, the pie's wedges shown only while affordable (and for the
--- night's alone at night), and effects that stop being everybody's.
+-- Rewards from kills and captures into the real lib_inventory, the cap,
+-- what each reward gives when used, the ones kept when they cannot be
+-- used, free mode, and effects that stop being everybody's.
 package.path = "catalog/libs/player_effect/?.lua;catalog/tools/rewards/?.lua;" .. package.path;
 
 local passed, failed = 0, 0;
@@ -36,18 +36,26 @@ L.pids = {0, 1, 2};
 local chat = L.chat;
 local function last() return chat[#chat]; end
 
-local cmd;
-function register_command(c) cmd = c; end
-local pie;
-function pie_menu_add(name, p) pies = p; end
-function pie_menu_remove() pie = nil; end
-local refreshed = {};
-function pie_menu_refresh(pid) refreshed[#refreshed+1] = pid or "all"; end
+local cmds = {};
+function register_command(c)
+	for _, n in ipairs(type(c.name) == "table" and c.name or {c.name}) do cmds[n] = c; end
+end
+-- commands.lua's: a line run as the player
+function handle_command(pid, line)
+	local argv = {};
+	for w in string.gmatch(line, "%S+") do argv[#argv+1] = w; end
+	local name = table.remove(argv, 1);
+	cmds[name].func(pid, argv);
+end
+function pie_menu_add() end
+function pie_menu_remove() end
+function pie_menu_refresh() end
 
 local night = false;
 function daytime_is_night() return night; end
 
-local lib = dofile("catalog/libs/player_effect/lib_player_effect.lua");
+dofile("catalog/libs/player_effect/lib_player_effect.lua");
+local inv = dofile("catalog/tools/inventory/lib_inventory.lua");
 
 -- the effects the menu offers, as small stand-ins on the real class
 local triggered = {};
@@ -61,9 +69,7 @@ local rail = effect("railgun");
 local rocket = effect("rocket", function(pid, o) triggered.rocket = o; return {}; end);
 local air = effect("airstrike", function(pid, o) triggered.air = o; return o.pos or {x = 1, y = 1, z = 1}; end);
 local kit = effect("medkit", function(pid, o) triggered.kit = o; if (triggered.full) then return nil; end return 40; end);
-local heal = effect("area_heal", function() end);
 local nv = effect("nightvision", function() end);
-local mis = effect("missile", function(pid, o) triggered.missile = o; return {}; end);
 check(rail.everyone and nv.everyone, "effects start out everybody's");
 
 local mod = dofile("catalog/tools/rewards/lib_rewards.lua");
@@ -71,186 +77,129 @@ mod.on_load();
 check(not rail.everyone and not air.everyone and not nv.everyone,
 	"the rewards take the effects they offer away from everybody");
 
+local KEYS = {"railgun", "rocket", "airstrike", "medkit", "nightvision"};
+local function total(pid)
+	local n = 0;
+	for _, k in ipairs(KEYS) do n = n + inventory_count(pid, k); end
+	return n;
+end
+local function empty(pid) for _, k in ipairs(KEYS) do inventory_set(pid, k, 0); end end
 local function kill(killer, victim, kt) mod.after.kill(victim, kt or 0, killer); end
-local function run(...) cmd.func(0, {...}); end
--- the menu's wedges, every pie of it in order
-local function all_slices()
-	local out = {};
-	for _, p in ipairs(pies or {}) do
-		for _, s in ipairs(p.slices) do out[#out+1] = s; end
-	end
-	return out;
-end
-local function wedge(name)
-	for _, sl in ipairs(all_slices()) do
-		if (sl.text:match("^/reward (%S+)") == name) then return sl; end
-	end
-end
-local function visible()
-	local out = {};
-	for _, s in ipairs(all_slices()) do if (s.show(0)) then out[#out+1] = s.text; end end
-	return out;
-end
+local function reward(...) cmds.reward.func(0, {...}); end
 
 --============================= EARNING ==============================--
-print("\n1. a point for every rewards_kills kills, across lives");
-mod.after.tick();
-check(pies ~= nil and #pies == 2 and pies[1].when == "alive" and #pies[1].slices == 6
-	and #pies[2].slices == 2 and pies[2].when == "alive" and pies[1].id ~= pies[2].id,
-	"eight rewards: a full pie of six for the living, the rest on a second one");
+print("\n1. a reward for every rewards_kills kills, into the inventory");
 for i = 1, 9 do kill(0, 2); end
-check(#chat == 0, "nine kills: nothing yet");
+check(#chat == 0 and total(0) == 0, "nine kills: nothing yet");
 kill(0, 2);
-check(last() and last().m:find("earned a reward") and last().to == PID_BROADCAST,
-	"the tenth: a short global line");
-check(chat[#chat-1].to == 0 and chat[#chat-1].a.points == 1, "and the player is told, privately");
-check(refreshed[#refreshed] == 0, "the pie is refreshed for them");
+check(total(0) == 1, "the tenth: one reward in the inventory");
+check(last().to == PID_BROADCAST and last().text == "P0 earned a reward", "a short global line", last().text);
+check(chat[#chat-1].to == 0 and chat[#chat-1].text:find("^You earned: %u"), "and the player is told which, by name",
+	chat[#chat-1].text);
+check(inventory_count(0, "missile") == 0 and inventory_count(0, "area_heal") == 0,
+	"never one whose effect is not loaded");
 
 print("\n2. kills that do not count");
-local n = #chat;
-for i = 1, 20 do kill(0, 1); end          -- teammate
-for i = 1, 20 do kill(0, 0); end          -- suicide
-for i = 1, 20 do kill(0, 2, 4); end       -- not a kill (a team change)
-check(#chat == n, "teamkills, suicides and non-kills earn nothing");
+local n = total(0);
+for i = 1, 12 do kill(0, 1); end
+for i = 1, 12 do kill(0, 0); end
+for i = 1, 12 do kill(0, 2, 5); end
+check(total(0) == n, "teammates, oneself, and deaths that are no kill");
 
 print("\n3. the cap, and the count that waits at it");
-for i = 1, 20 do kill(0, 2); end
-check(#chat > n, "two more points");
-n = #chat;
-for i = 1, 30 do kill(0, 2); end
-check(#chat == n, "at rewards_max (3) no more is earned");
-mod.after.capture_intel(0);
-check(#chat == n, "not by a capture either");
+for i = 1, 40 do kill(0, 2); end
+check(total(0) == rewards_max, "no more than rewards_max held", total(0));
+empty(0);
+kill(0, 2);
+check(total(0) == 1, "at the cap the count waited: one kill after using, the next reward");
+mod.after.load_map();
+for i = 1, 9 do kill(0, 2); end
+check(total(0) == 1, "a new map starts the kill count again");
 
-print("\n4. a capture is a point");
-run("railgun");   -- spend one: 2 left
-check(rail:has(0), "(spent one on the railgun)");
-n = #chat;
+print("\n4. a capture earns one too, except tdm's winning one");
+empty(0);
 mod.after.capture_intel(0);
-check(chat[n+1] and chat[n+1].a.points == 3, "a capture earns rewards_capture");
+check(total(0) == rewards_capture, "a capture");
 gamemode = "tdm";
-local k = #chat;
 mod.after.capture_intel(0);
+check(total(0) == rewards_capture, "tdm's capture is the end of its game, not one");
 gamemode = "ctf";
-check(#chat == k, "but not tdm's winning capture, which is not one");
 
---============================= SPENDING =============================--
-print("\n5. /reward lists, /reward <name> spends");
-L.reset();
-run();
-check(chat[1].m:find("you have") and chat[1].a.points == 3, "the list says the points held");
-local lines = 0; for _, c in ipairs(chat) do if (c.m:find("/reward %(name)", 1, true)) then lines = lines + 1; end end
-check(lines == 6, "and every reward on offer (night vision is not, by day)", lines);
+print("\n5. the costlier, the rarer");
+local seen = {};
+for _ = 1, 400 do
+	empty(1);
+	mod.after.capture_intel(1);
+	for _, k in ipairs(KEYS) do if (inventory_count(1, k) > 0) then seen[k] = (seen[k] or 0) + 1; end end
+end
+empty(1);
+check((seen.rocket or 0) > (seen.airstrike or 0) and (seen.airstrike or 0) > 0,
+	"cost 2 comes up, and less often than cost 1", (seen.rocket or 0) .. " vs " .. (seen.airstrike or 0));
 
-print("\n6. what each reward gives");
-for p in pairs({}) do end
-rail:take(0);
-run("railgun");
-check(rail:has(0) and rail:stacks(0) == 1, "railgun: a grant, only for them");
-check(not rail:has(1), "and nobody else");
+--============================== USING ===============================--
+print("\n6. used from the inventory, each gives its effect");
+empty(0);
+inventory_give(0, "railgun"); inventory_give(0, "rocket"); inventory_give(0, "airstrike");
+inventory_give(0, "medkit"); inventory_give(0, "nightvision");
+cmds.inv.func(0, {"railgun"});
+check(rail:has(0) and not rail:has(1) and inventory_count(0, "railgun") == 0, "railgun: a grant, theirs alone, the item used");
 local g = rail.grants[0][1];
 check(g.death == true and g.ends > get_time() and g.ends <= get_time() + 30, "for 30 s or until death");
--- 2 points left
-run("rocket", "5", "6", "7");
-check(triggered.rocket ~= nil and triggered.rocket.pos.x == 5 and triggered.rocket.pos.z == 7,
-	"rocket: fired at once, at the point aimed at, like the airstrike");
-check(rocket:stacks(0) == 0, "no charges left on the gun");
--- 1 left: a missile costs 2
-L.reset();
-run("missile", "8", "9", "10");
-check(triggered.missile == nil and last().m:find("costs"), "missile: two points, refused with one");
--- 1 left; airstrike costs 2
-L.reset();
-run("airstrike", "10", "20", "30");
-check(last().m:find("costs") and triggered.air == nil, "airstrike: refused for want of points");
-mod.after.capture_intel(0);
-run("airstrike", "10", "20", "30");
-check(triggered.air ~= nil and triggered.air.pos.x == 10 and triggered.air.pos.z == 30,
-	"airstrike: triggered at the point the pie sent");
-mod.after.capture_intel(0);
-local points_before = last();
+cmds.inv.func(0, {"rocket", "5", "6", "7"});
+check(triggered.rocket and triggered.rocket.pos.x == 5 and triggered.rocket.pos.z == 7 and inventory_count(0, "rocket") == 0,
+	"rocket: fired at the point aimed at");
+reward("airstrike", "10", "20", "30");
+check(triggered.air and triggered.air.pos.x == 10 and inventory_count(0, "airstrike") == 0,
+	"/reward <name>, typed: the same, through the inventory");
+triggered.air = nil;
+reward("airstrike", "10", "20", "30");
+check(triggered.air == nil and last().text:find("You have no Airstrike"), "typed without one: nothing, and why", last().text);
+reward("nope");
+check(last().text:find("No such reward"), "an unknown name is said so");
+
+print("\n7. a reward that cannot be used now is kept");
 triggered.full = true;
-L.reset();
-run("medkit");
-check(last().m:find("no point spent"), "a trigger that does nothing (full health) is not paid for");
+cmds.inv.func(0, {"medkit"});
+check(inventory_count(0, "medkit") == 1 and last().text == "Medkit could not be used right now; you keep it.",
+	"a medkit at full health", last().text);
 triggered.full = false;
-run("medkit");
-check(triggered.kit and triggered.kit.free == true, "medkit: triggered, free of kits");
-ALIVE[0] = false;
-mod.after.capture_intel(0);
-run("area_heal");
-check(last().m:find("living"), "the dead cannot spend");
-ALIVE[0] = true;
-run("area_heal");
-check(heal:has(0) and not heal:has(1), "area heal: for them");
-run("nope");
-local said_no = false;
-for _, c in ipairs(chat) do if (c.m:find("No such reward")) then said_no = true; end end
-check(said_no, "an unknown name says so");
-
---============================== THE PIE =============================--
-print("\n7. a wedge only while the player can afford it");
-local pts = {};
--- start over: points back to zero by joining anew
-mod.on_unload();
-mod = dofile("catalog/tools/rewards/lib_rewards.lua");
-mod.on_load();
-mod.after.tick();
-check(#visible() == 0, "no points, no wedge");
-mod.after.capture_intel(0);
-local v = visible();
-check(#v == 4 and v[1] == "/reward railgun", "one point: the 1-point rewards", #v);
-check(wedge("airstrike").text == "/reward airstrike %h" and not wedge("airstrike").show(0),
-	"airstrike's wedge sends %h, and needs two");
-mod.after.capture_intel(0);
-check(wedge("airstrike").show(0), "two points: it shows");
-run("airstrike", "1", "2", "3");
-check(#visible() == 0, "spent: the wedges vanish");
-check(refreshed[#refreshed] == 0, "and the pie was refreshed");
-
-print("\n8. a reward whose effect is not loaded is not offered");
-mod.after.capture_intel(0);
-PlayerEffect.get("medkit").mod.on_unload();
-local texts = visible();
-local has_kit = false;
-for _, t in ipairs(texts) do if (t:find("medkit")) then has_kit = true; end end
-check(not has_kit, "no medkit wedge");
-L.reset();
-run();
-local listed = false;
-for _, c in ipairs(chat) do if (c.a.name == "medkit") then listed = true; end end
-check(not listed, "and not in /reward");
-
-print("\n9. night vision: offered only at night");
-local nvwedge = wedge("nightvision");
-check(nvwedge.text == "/reward nightvision", "its wedge");
-mod.after.capture_intel(0);
-check(not nvwedge.show(0), "by day: hidden");
-L.reset();
-run("nightvision");
-check(last().m:find("only offered at night") and not nv:has(0), "by day: the command says it is for the night");
+cmds.inv.func(0, {"medkit"});
+check(inventory_count(0, "medkit") == 0 and triggered.kit.free == true, "then used, with the menu's own options");
+cmds.inv.func(0, {"nightvision"});
+check(inventory_count(0, "nightvision") == 1 and not nv:has(0) and last().text == "Night vision is only for the night.",
+	"night vision by day", last().text);
 night = true;
-check(nvwedge.show(0), "at night: shown");
-run("nightvision");
-check(nv:has(0), "at night: given");
-local before = #refreshed;
-NOW = NOW + 2;
-mod.after.tick();
-check(#refreshed > before, "the wedges are refreshed when day turns to night");
-before = #refreshed;
-NOW = NOW + 2;
+cmds.inv.func(0, {"nightvision"});
+check(nv:has(0) and inventory_count(0, "nightvision") == 0, "at night it works");
 night = false;
-mod.after.tick();
-check(#refreshed > before, "and when night turns to day");
-check(nv:has(0), "and a granted night vision runs on");
+inventory_give(0, "rocket");
+ALIVE[0] = false;
+triggered.rocket = nil;
+cmds.inv.func(0, {"rocket"});
+check(triggered.rocket == nil and inventory_count(0, "rocket") == 1 and last().text == "Rewards are for the living.",
+	"dead: kept");
+ALIVE[0] = true;
 
-print("\n10. everyone: the effects go back on unload, and rewards_exclusive = false leaves them alone");
+print("\n8. rewards_free: everybody holds every reward, unlimited");
+rewards_free = true;
+NOW = NOW + 2; mod.after.tick();
+check(inventory_count(1, "rocket") == math.huge and inventory_count(2, "airstrike") == math.huge, "x\226\136\158 for everyone");
+triggered.rocket = nil;
+cmds.inv.func(1, {"rocket"});
+check(triggered.rocket ~= nil and inventory_count(1, "rocket") == math.huge, "used, never used up");
+local lines = #chat;
+for i = 1, 10 do kill(1, 2); end
+check(inventory_count(1, "rocket") == math.huge and #chat == lines, "nothing is earned, or announced, while all is free");
+rewards_free = false;
+NOW = NOW + 2; mod.after.tick();
+check(total(1) == 0 and total(2) == 0, "turned off: taken back");
+
+print("\n9. unloaded, effects are everybody's again and the items are gone");
 mod.on_unload();
-check(rail.everyone and air.everyone, "unloaded: everybody's again (their <id>_everyone)");
-rewards_exclusive = false;
-mod = dofile("catalog/tools/rewards/lib_rewards.lua");
-mod.on_load();
-check(rail.everyone, "rewards_exclusive = false: left as it was");
+check(rail.everyone and air.everyone, "everyone's again");
+inventory_give(0, "rocket");
+local ok = pcall(cmds.inv.func, 0, {"rocket"});
+check(ok and inventory_count(0, "rocket") == 1, "a reward's item is no longer a kind: nothing runs");
 
 L.clean(check);
 print(string.format("\n%d checks, %d failed", passed + failed, failed));

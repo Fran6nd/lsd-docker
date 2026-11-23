@@ -8,5 +8,5 @@ msgstr ""
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
 #: catalog/demos/demo_reward/demo_reward.lua
-msgid "Rewards demo: every reward is free here. Open the pie menu, or type /reward."
-msgstr "Демо наград: здесь все награды бесплатны. Открой круговое меню или набери /reward."
+msgid "Rewards demo: every reward is yours, unlimited. Open the pie menu, or type /inv."
+msgstr "Демо наград: все награды твои, без ограничений. Открой круговое меню или набери /inv."

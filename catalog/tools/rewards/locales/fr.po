@@ -40,54 +40,34 @@ msgid "Night vision"
 msgstr "Vision nocturne"
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "You earned a reward point (%(points)/%(max)). Spend it: /reward, or the pie menu."
-msgstr "Tu as gagné un point de récompense (%(points)/%(max)). Dépense-le : /reward, ou le menu radial."
+msgid "You earned: %(what). Use it with /inv, or the pie menu."
+msgstr "Tu as gagné : %(what). Utilise-le avec /inv, ou le menu radial."
 
 #: catalog/tools/rewards/lib_rewards.lua
 msgid "%(name) earned a reward"
 msgstr "%(name) a gagné une récompense"
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "Rewards -- you have %(points) point(s):"
-msgstr "Récompenses -- tu as %(points) point(s) :"
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "  /reward %(name): %(label), %(cost) point(s)"
-msgstr "  /reward %(name) : %(label), %(cost) point(s)"
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "  Nothing is on offer here."
-msgstr "  Rien n'est proposé ici."
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "You got: %(what). Points left: %(points)."
-msgstr "Tu as obtenu : %(what). Points restants : %(points)."
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "%(what) costs %(cost) point(s) and you have %(points)."
-msgstr "%(what) coûte %(cost) point(s) et tu en as %(points)."
-
-#: catalog/tools/rewards/lib_rewards.lua
 msgid "Rewards are for the living."
 msgstr "Les récompenses sont pour les vivants."
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "%(what) is only offered at night."
-msgstr "%(what) n'est proposé que la nuit."
+msgid "%(what) is only for the night."
+msgstr "%(what) ne sert que la nuit."
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "No such reward. Type /reward for the list."
-msgstr "Récompense inconnue. Tape /reward pour la liste."
+msgid "No such reward. Your rewards are in your inventory: /inv."
+msgstr "Récompense inconnue. Tes récompenses sont dans ton inventaire : /inv."
 
 #: catalog/tools/rewards/lib_rewards.lua
-msgid "%(what) could not be used right now; no point spent."
-msgstr "%(what) ne peut pas être utilisé maintenant ; aucun point dépensé."
+msgid "%(what) could not be used right now; you keep it."
+msgstr "%(what) ne peut pas être utilisé maintenant ; tu le gardes."
+
+#: catalog/tools/rewards/lib_rewards.lua
+msgid "You have no %(what): rewards come every %(kills) kills, and with every capture."
+msgstr "Tu n'as pas de %(what) : une récompense toutes les %(kills) éliminations, et à chaque capture."
 
 #: catalog/tools/rewards/lib_rewards.lua
 msgctxt "command"
-msgid "Spend your reward points: /reward lists what you can get."
-msgstr "Dépenser tes points de récompense : /reward affiche ce que tu peux obtenir."
-
-#: catalog/tools/rewards/lib_rewards.lua
-msgid "Rewards"
-msgstr "Récompenses"
+msgid "Use one of your rewards (they are in your inventory: /inv)."
+msgstr "Utiliser une de tes récompenses (elles sont dans ton inventaire : /inv)."

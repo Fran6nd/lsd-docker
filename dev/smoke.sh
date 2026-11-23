@@ -200,6 +200,10 @@ echo "ok: ctf has its callouts pie, first"
 pg=$(docker exec "$NAME" lsdctl exec 'exec local h = pie_menu_hide_unavailable; pie_menu_hide_unavailable = false; local t = teamplay_supported; local id = MAX_PLAYERS - 1; teamplay_supported = function() return true end; local b = pie_menu_build(id) or ""; teamplay_supported = function() return false end; local n = pie_menu_build(id) or ""; teamplay_supported = t; pie_menu_hide_unavailable = h; log("PG|" .. tostring(b:find("/pingmark %h Intel here", 1, true) ~= nil) .. "|" .. tostring(n:find("/pingmark", 1, true) ~= nil) .. "|")')
 echo "$pg" | grep -q "PG|true|false|" || fail "ctf pings: $pg"
 echo "ok: ctf pings are in the Mark pie, for Teamplay clients only"
+# rewards live in the inventory: an item held shows as a counted wedge
+iv=$(docker exec "$NAME" lsdctl exec 'exec local id = MAX_PLAYERS - 1; inventory_give(id, "rocket", 2); local h = pie_menu_hide_unavailable; pie_menu_hide_unavailable = false; local b = pie_menu_build(id) or ""; pie_menu_hide_unavailable = h; inventory_set(id, "rocket", 0); log("IV|" .. tostring(commands.inv ~= nil and commands.reward ~= nil) .. "|" .. tostring(b:find("/inv rocket %h", 1, true) ~= nil) .. "|" .. tostring(b:find("Rocket x2", 1, true) ~= nil) .. "|" .. tostring(b:find("/inv medkit", 1, true) ~= nil) .. "|")')
+echo "$iv" | grep -q "IV|true|true|true|false|" || fail "inventory: $iv"
+echo "ok: a reward held is a counted wedge of the Inventory pie; none held, none shown"
 
 docker exec "$NAME" lsdctl gamemode hostage --yes --now || fail "gamemode"
 sleep 3
