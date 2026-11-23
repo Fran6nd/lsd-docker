@@ -778,6 +778,36 @@ botlink_set("night_vision", 1);
 local s = of(engine_events(), 11);
 check(#s == 1 and ffi.string(s[1].raw) == "night_vision=1", "botlink_set pushes at once");
 
+print("\n9b. what a bot holds, and what each item is for, reach the engine");
+local INV;
+function inventory_listen(name, l) INV = l; end
+function inventory_unlisten() INV = nil; end
+function inventory_kinds() return {medkit = {bot = {tree = "seq\n\tif health_below 40\n\tdo use medkit", guide = 0}}, plain = {}}; end
+function inventory_count(p, k) return (p == pid and k == "medkit") and 1 or 0; end
+step(61);   -- listeners are looked for once a second
+local function settexts()
+	local t = {};
+	for _, e in ipairs(of(engine_events(), 11)) do t[(e.pid == 255 and "*" or e.pid) .. ":" .. ffi.string(e.raw)] = true; end
+	return t;
+end
+local t = settexts();
+check(INV ~= nil, "the link listens to the inventory when there is one");
+check(t["*:item.medkit.tree=seq\n\tif health_below 40\n\tdo use medkit"] and t["*:item.medkit.guide=0"],
+	"each kind's own tree fragment and guide time, for everybody");
+check(t["*:item.plain.tree="], "a kind with nothing to say to bots: an empty fragment");
+check(t[pid .. ":item.medkit=1"], "and what the bot already held");
+INV.count(pid, "rocket", 3);
+INV.count(pid, "missile", math.huge);
+INV.count(7, "rocket", 2);   -- a person: not the engine's business
+t = settexts();
+check(t[pid .. ":item.rocket=3"] and t[pid .. ":item.missile=inf"], "a bot's count as it changes; unlimited is inf");
+local n = 0; for _ in pairs(t) do n = n + 1; end
+check(n == 2, "a person's inventory is not sent", n);
+INV.kind("medkit", nil);
+t = settexts();
+check(t["*:item.medkit.tree="], "an item undefined withdraws its fragment");
+inventory_listen, inventory_unlisten, inventory_kinds, inventory_count = nil, nil, nil, nil;
+
 --================ 10. ONE RECORD PER EVENT, WHATEVER THE FLEET ======--
 print("\n10. the same events cost the same with 1 bot and with 32");
 local function script_events()

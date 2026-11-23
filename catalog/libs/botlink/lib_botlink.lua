@@ -392,9 +392,39 @@ local function on_shot(pid, gun)
 	sound(pid, p.x, p.y, p.z, 1);
 end
 
+-- WHAT A BOT HOLDS, and what each item is for (lib_inventory, when it is
+-- there). The engine knows no item by name: it is told each bot's count
+-- of each kind ("item.<kind>=<n>", "inf" for unlimited), and each kind's
+-- own fragment of behaviour tree ("item.<kind>.tree=<text>", written by
+-- whoever defined the item) with how long to keep aiming after using it
+-- ("item.<kind>.guide=<secs>"). Sent as settings, so an engine that
+-- attaches late is told them all again.
+local function item_count(pid, key, n)
+	if (ours[pid] ~= nil) then
+		botlink_set("item." .. key, n == math.huge and "inf" or tostring(n or 0), pid);
+	end
+end
+
+local function item_kind(key, def)
+	local bot = def and def.bot;
+	botlink_set("item." .. key .. ".tree", bot and tostring(bot.tree or "") or "");
+	botlink_set("item." .. key .. ".guide", bot and tostring(tonumber(bot.guide) or 0) or "0");
+end
+
 -- listeners are re-registered if their library was reloaded under us
-local shot_with, ping_with = nil, nil;
+local shot_with, ping_with, inv_with = nil, nil, nil;
 local function hook_listeners()
+	if (inventory_listen ~= nil and inv_with ~= inventory_listen) then
+		inventory_listen("botlink", {count = item_count, kind = item_kind});
+		inv_with = inventory_listen;
+		-- what was defined, and held, before this was listening
+		for key, def in pairs(inventory_kinds()) do
+			item_kind(key, def);
+			for pid in pairs(ours) do
+				item_count(pid, key, inventory_count(pid, key));
+			end
+		end
+	end
 	if (shot_listen ~= nil and shot_with ~= shot_listen) then
 		shot_listen("botlink", on_shot);
 		shot_with = shot_listen;
@@ -993,6 +1023,12 @@ function mod.on_load()
 		warn("inert, the server runs without bots: %s", why);
 		return;
 	end
+	-- the tree the bots run is named after the gamemode; the engine falls
+	-- back to its default tree for a mode it has none for. A gamemode that
+	-- brings its own says so itself: botlink_set("tree", <name or text>).
+	if (settings.tree == nil and gamemode ~= nil) then
+		botlink_set("tree", tostring(gamemode));
+	end
 	hook_listeners();
 end
 
@@ -1005,6 +1041,7 @@ function mod.on_unload()
 	for _, pid in ipairs(pids) do botlink_remove(pid); end
 
 	if (shot_unlisten ~= nil) then shot_unlisten("botlink"); end
+	if (inventory_unlisten ~= nil) then inventory_unlisten("botlink"); end
 	if (teamplay_unlisten_ping ~= nil) then teamplay_unlisten_ping("botlink"); end
 
 	if (f ~= nil) then
