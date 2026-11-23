@@ -84,6 +84,74 @@ map_helper() {
 		done' map_helper "$DATA" &
 }
 
+# The bot engine's host. The server cannot start a process either, so
+# botd (bot/botd) runs beside it, as lsd, and waits for the link file the
+# server makes when its settings ask for bots (a server without bots
+# never makes it: botd then sleeps and costs nothing). botd exits when
+# the server closes the link or goes silent, and is started again here
+# with a small back-off; the file and the map dumps the server wrote for
+# it are removed whenever the server is down, so nothing stale is left
+# for the next start. An image built without an engine has no botd, and
+# this does nothing.
+bot_helper_pid=
+bot_link() {
+	su-exec lsd lsdctl get botlink_file 2>/dev/null || echo /dev/shm/lsd-botlink
+}
+
+bot_clean() {
+	command -v botd >/dev/null 2>&1 || return 0
+	rm -f "$(bot_link)" "$DATA"/rw/botlink-map-*.vxl "$DATA"/rw/botlink-map-*.vxl.new
+}
+
+bot_helper() {
+	command -v botd >/dev/null 2>&1 || return 0
+	(
+		pid=
+		stopping=
+		trap 'stopping=1; [ -z "$pid" ] || kill -TERM "$pid" 2>/dev/null' TERM INT
+		fails=0
+		while [ -z "$stopping" ]; do
+			started=$(date +%s)
+			su-exec lsd botd --file "$(bot_link)" &
+			pid=$!
+			while kill -0 "$pid" 2>/dev/null; do
+				wait "$pid" || true
+			done
+			pid=
+			[ -z "$stopping" ] || break
+			# one that stays up a while, or stops cleanly, restarts at
+			# once; one that keeps failing is let alone for longer
+			if [ $(( $(date +%s) - started )) -lt 5 ]; then
+				fails=$((fails + 1))
+			else
+				fails=0
+			fi
+			delay=$(( fails > 5 ? 5 : fails ))
+			[ "$delay" -eq 0 ] || { sleep "$delay" & wait $! || true; }
+		done
+	) &
+	bot_helper_pid=$!
+}
+
+# botd is asked to stop and given a few seconds; then the link is cleaned
+bot_helper_stop() {
+	if [ -n "$bot_helper_pid" ]; then
+		kill -TERM "$bot_helper_pid" 2>/dev/null || true
+		i=0
+		while kill -0 "$bot_helper_pid" 2>/dev/null && [ "$i" -lt 5 ]; do
+			sleep 1
+			i=$((i + 1))
+		done
+		if kill -0 "$bot_helper_pid" 2>/dev/null; then
+			kill -KILL "$bot_helper_pid" 2>/dev/null || true
+			killall -KILL botd 2>/dev/null || true
+		fi
+		wait "$bot_helper_pid" 2>/dev/null || true
+		bot_helper_pid=
+	fi
+	bot_clean
+}
+
 serve() {
 	cd "$HOME_DIR"
 	prepare_data
@@ -102,6 +170,7 @@ serve() {
 		sleep 21600
 	done ) &
 	map_helper
+	bot_helper
 
 	fails=0
 	while :; do
@@ -120,8 +189,9 @@ serve() {
 			wait "$child" || rc=$?
 		done
 		child=
+		bot_clean
 
-		[ -z "$stopping" ] || exit 0
+		[ -z "$stopping" ] || { bot_helper_stop; exit 0; }
 
 		# a server that dies at once is failing to start: back off so
 		# the log stays readable while it is fixed
@@ -155,6 +225,7 @@ play() {
 	tail -n 0 -f "$log" | grep -E 'joined as|disconnected|lib_play:|vote_map:' &
 	watcher=$!
 	map_helper
+	bot_helper
 	su-exec lsd ./server -c config.lua -p "$(su-exec lsd lsdctl get port)" >"$log" 2>&1 &
 	child=$!
 	trap 'kill -TERM "$child" 2>/dev/null' TERM INT
@@ -162,6 +233,7 @@ play() {
 	while kill -0 "$child" 2>/dev/null; do
 		wait "$child" || rc=$?
 	done
+	bot_helper_stop
 	sleep 1
 	kill "$watcher" 2>/dev/null || true
 	echo "game over"

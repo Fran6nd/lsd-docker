@@ -34,6 +34,42 @@ x86_64, i386 and 32-bit arm but not arm64, so the arm64 image runs
 without seccomp (no_new_privs and the container's isolation remain);
 `lsdctl status` shows which sandbox a server has.
 
+## Bots
+
+The bots are made of three pieces, described in `bot/README.md`:
+
+- **The server's side**, `catalog/libs/botlink` (`lib_botlink`): makes the
+  link file when a script asks for the first bot, writes the world into
+  it, takes the engine's intents and actions out. It loads
+  `libbotlink.so` and reads `botlink.h` through LuaJIT's ffi. A server
+  with no bots makes no file.
+- **The link**, `bot/link/`: the file's layout (`botlink.h`) and the
+  library both ends use.
+- **`botd`**, `bot/botd/`: the host process. It waits for the file, maps
+  it, runs the core (`bot/core/`) at 60 rounds a second and writes the
+  bots' intents back. The server cannot start a process (its sandbox), so
+  the entrypoint starts botd beside it (`bot_helper`), as `lsd`, restarts
+  it if it exits while the server is up, and, when the server stops, stops
+  botd and removes the file and the map dumps.
+
+In the image: `/usr/local/bin/botd`, `/lsd/exec/libbotlink.so` and
+`/lsd/exec/botlink.h` (where `lib_botlink` looks first), and the behaviour
+trees (`bot/trees/*.bt`) in `/opt/botd/trees`. The link file is
+`/dev/shm/lsd-botlink` (setting `botlink_file`, read when botd starts), the
+map dumps `$LSD_DATA/rw/botlink-map-N.vxl`. botd is built only once
+`bot/core/engine.c` exists.
+
+To run botd by hand against a server (a local one, or in the container
+with `docker exec -u lsd`): `botd --file /dev/shm/lsd-botlink --trees
+bot/trees`; `--once` exits at once if there is no file, `--hz` and
+`--budget` set the rate and the planner's work per round.
+
+```sh
+make -C bot          # libbotcore.a, libbotlink.so, build/bin/botd
+make -C bot test     # every bot/tests/*_test.c; botd_test runs botd
+                     # against a fake engine and a fake server
+```
+
 ## Moving from the multi-instance layout
 
 Pick the instance to keep, then on the host that ran it, from the old

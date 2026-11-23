@@ -122,6 +122,19 @@ RUN cc -O2 -fPIC -shared /deps/linenoise.c -o exec/liblinenoise.so \
  && cc -O2 -fPIC -shared $(pkg-config --cflags luajit) \
         /deps/lfs.c -o exec/lfs.so
 
+# The bot engine (bot/): the link library the server loads through ffi,
+# the header it reads for the struct layouts, and botd, the host process
+# that runs beside the server (the entrypoint starts it). bot/ reaches
+# the server's source as ../lsd/src -- the patched tree built above.
+# botd exists only once bot/core/engine.c does; bot/trees/ may be empty.
+COPY bot/ /src/bot/
+RUN ln -s /build /src/lsd \
+ && make -C /src/bot CFLAGS=-O2 \
+ && mkdir -p /out/bin /out/exec /out/trees \
+ && cp /src/bot/build/libbotlink.so /src/bot/link/botlink.h /out/exec/ \
+ && if [ -f /src/bot/build/bin/botd ]; then cp /src/bot/build/bin/botd /out/bin/; fi \
+ && if ls /src/bot/trees/*.bt >/dev/null 2>&1; then cp /src/bot/trees/*.bt /out/trees/; fi
+
 
 FROM alpine:3.22
 
@@ -136,6 +149,11 @@ RUN apk add --no-cache luajit enet isa-l sqlite-libs libsodium \
 WORKDIR /lsd
 COPY --from=build /build/server ./server
 COPY --from=build /build/exec ./exec
+# lib_botlink looks for these two in exec/ (beside the other .so);
+# botd, if this build has an engine, is the entrypoint's to run
+COPY --from=build /out/exec/ ./exec/
+COPY --from=build /out/bin/ /usr/local/bin/
+COPY --from=build /out/trees/ /opt/botd/trees/
 # upstream's scripts, kept apart: the entrypoint assembles scripts/
 # from them, the catalog and the data volume at every start
 COPY --from=build /build/scripts ./scripts.dist

@@ -1,10 +1,13 @@
-# the build needs the lsd sources, our patches to them, the catalog and
-# image/ -- nothing else
+# the build needs the lsd sources, our patches to them, the catalog,
+# image/ and the bot engine's sources -- nothing else
 *
 !lsd
 !patches
 !catalog
 !image
+!bot
+bot/build
+**/*.dSYM
 lsd/.git
 lsd/**/*.o
 lsd/server

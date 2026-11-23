@@ -1,6 +1,7 @@
 # bot/Makefile -- the bot engine: the link, the core, botd, the tests
 #
-#   make            build/libbotcore.a, build/libbotlink.so, build/botd
+#   make            build/libbotcore.a, build/libbotlink.so, and build/bin/botd
+#                   once core/engine.c exists (botd links the engine)
 #   make test       build and run every tests/*_test.c
 #
 # Nothing here is listed by hand: every core/*.c is the core, every
@@ -20,9 +21,11 @@ B = build
 CORE = $(wildcard core/*.c)
 LINK = $(wildcard link/*.c)
 BOTD = $(wildcard botd/*.c)
+BOTD_LIB = $(patsubst botd/%.c,$(B)/botd/%.o,$(filter-out botd/main.c,$(BOTD)))
+LINK_OBJ = $(patsubst link/%.c,$(B)/link/%.o,$(LINK))
 TESTS = $(patsubst tests/%.c,$(B)/tests/%,$(wildcard tests/*_test.c))
 
-all: $(B)/libbotcore.a $(B)/libbotlink.so $(if $(BOTD),$(B)/botd)
+all: $(B)/libbotcore.a $(B)/libbotlink.so $(if $(and $(BOTD),$(wildcard core/engine.c)),$(B)/bin/botd)
 
 $(B)/core/%.o: core/%.c $(wildcard core/*.h)
 	@mkdir -p $(@D)
@@ -43,8 +46,16 @@ $(B)/libbotcore.a: $(patsubst core/%.c,$(B)/core/%.o,$(CORE))
 $(B)/libbotlink.so: $(patsubst link/%.c,$(B)/link/%.o,$(LINK))
 	$(CC) -shared -o $@ $^
 
-$(B)/botd: $(patsubst botd/%.c,$(B)/botd/%.o,$(BOTD)) $(patsubst link/%.c,$(B)/link/%.o,$(LINK)) $(B)/libbotcore.a
+$(B)/bin/botd: $(patsubst botd/%.c,$(B)/botd/%.o,$(BOTD)) $(LINK_OBJ) $(B)/libbotcore.a
+	@mkdir -p $(@D)
+	@mkdir -p $(@D)
 	$(CC) -o $@ $^ -lm -lpthread
+
+# botd's test is the host with a fake engine of its own behind it: botd's
+# files but main.c, the link, and no libbotcore.a
+$(B)/tests/botd_test: tests/botd_test.c $(BOTD_LIB) $(LINK_OBJ) $(wildcard tests/*.h)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(STRICT) $(INC) -Ibotd -D_POSIX_C_SOURCE=200809L $< $(BOTD_LIB) $(LINK_OBJ) -lm -lpthread -o $@
 
 $(B)/tests/%: tests/%.c $(B)/libbotcore.a $(patsubst link/%.c,$(B)/link/%.o,$(LINK)) $(wildcard tests/*.h)
 	@mkdir -p $(@D)
