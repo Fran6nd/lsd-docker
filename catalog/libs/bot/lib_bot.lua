@@ -27,6 +27,11 @@
 --   bot_is_bot(pid) / bot_get(pid)   -- bot_get(pid).data is yours
 --   bot_walk(pid, {forward=, back=, left=, right=, jump=, crouch=,
 --                  sneak=, sprint=})  -- unset keys mean released
+--   bot_keys(pid, mask)              -- the whole key set as one number
+--                                       (1 fwd, 2 back, 4 left, 8 right,
+--                                       16 jump, 32 crouch, 64 sneak,
+--                                       128 sprint), for a caller that has
+--                                       the keys as a mask already (lib_botlink)
 --   bot_stop(pid)                    -- release everything
 --   bot_crouch(pid)                  -- stop and hold crouch
 --   bot_look_toward(pid, dir)        -- unit vector
@@ -50,6 +55,10 @@
 --   bot_shoot(pid, {range=, spread_mult=, reject=}) -> hits | false
 --        fires the gun along the current aim with client-like spread,
 --        recoil and cadence, and damages whoever the ray strikes
+--   bot_melee(pid, {reach=}) -> true | false | nil
+--        one spade swing along the aim: true if it hit an enemy (through
+--        on_hit, as a client's would), false if it swung at nothing (the
+--        caller may dig then), nil while the spade is still cycling
 --   bot_lob_grenade(pid, target, {accuracy=1..4, tolerance=}) -> thrown
 --        aims and throws; 1 = crude lob, 4 = searched + cooked
 --   bot_grenade_solution(pid, target, accuracy) -> {vel=,fuse=,err=}|nil
@@ -342,6 +351,10 @@ function bot_walk(pid, keys)
 	if (keys.sprint)  then want = want + KEY.sprint; end
 
 	bots[pid].want = want;
+end
+
+function bot_keys(pid, mask)
+	bots[pid].want = mask;
 end
 
 function bot_stop(pid)
@@ -662,6 +675,33 @@ function bot_shoot(pid, opts)
 	b.muzzle = now;
 
 	return hits;
+end
+
+-- One spade swing: AoS spade cadence and reach, the same body test a
+-- bullet uses. The hit goes through on_hit, which is what a client's
+-- Hit packet becomes, so team checks and every damage hook apply.
+local SPADE_FIRE, SPADE_REACH = 0.25, 3.0;
+
+function bot_melee(pid, opts)
+	local b = bots[pid];
+	if (b == nil or get_tool(pid) ~= TOOL.spade) then return nil; end
+	local now = get_time();
+	if (now - (b.lastswing or 0) < SPADE_FIRE) then return nil; end
+	b.lastswing = now;
+
+	local reach = opts and opts.reach or SPADE_REACH;
+	local start, dir, team = get_position(pid), get_orientation(pid), get_team(pid);
+	local best, bestd;
+	for i in piditer(PID_BROADCAST) do
+		if (i ~= pid and is_alive(i) and get_team(i) ~= team
+		    and ray_hits_player(start, dir, i, reach) ~= nil) then
+			local d = bot_distance_to(pid, i);
+			if (best == nil or d < bestd) then best, bestd = i, d; end
+		end
+	end
+	if (best == nil) then return false; end
+	on_hit(pid, 4, best);
+	return true;
 end
 
 -- step lsd's own grenade physics for up to `fuse` seconds, tracking the
