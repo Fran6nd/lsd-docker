@@ -83,6 +83,7 @@ int bl_layout_ok(void)
 	    && offsetof(bl_ring, data) == 16
 	    && sizeof(bl_header) == 32
 	    && offsetof(bl_header, engine_pid) == 20
+	    && offsetof(bl_header, closing) == 24
 	    && sizeof(bl_ev_map) == 4 + BL_PATH_MAX
 	    && sizeof(bl_ev_block) == 12
 	    && sizeof(bl_ev_line) == 20
@@ -252,6 +253,19 @@ corrupt:
 	/* Nothing in here can be trusted: drop it all and start again from head. */
 	atomic_store_explicit(U32(&r->tail), head, memory_order_release);
 	return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Going down                                                         */
+
+void bl_shutdown(bl_file *f)
+{
+	atomic_store_explicit(U32(&f->header.closing), 1, memory_order_release);
+}
+
+int bl_closing(const bl_file *f)
+{
+	return atomic_load_explicit(U32(&f->header.closing), memory_order_acquire) != 0;
 }
 
 /* ------------------------------------------------------------------ */

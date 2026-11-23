@@ -289,7 +289,8 @@ typedef struct bl_header {
 	uint32_t server_beat;           /* goes up while the server lives */
 	uint32_t engine_beat;           /* goes up while the engine lives */
 	uint32_t engine_pid;            /* the engine's process id, or 0 */
-	uint32_t pad_[2];
+	uint32_t closing;               /* the server is going down: see below */
+	uint32_t pad_;
 } bl_header;
 
 typedef struct bl_file {
@@ -299,6 +300,16 @@ typedef struct bl_file {
 	bl_ring events;                 /* server -> engine */
 	bl_ring actions;                /* engine -> server */
 } bl_file;
+
+/* WHO STARTS AND STOPS WHAT. The server cannot start a process (its
+ * sandbox), so the engine is started beside it by the container's
+ * entrypoint and waits for this file; the file exists only on a server
+ * whose settings ask for bots, and each bot is asked for by the server
+ * (BL_EV_BOT) -- the engine makes none of its own. Going down, the
+ * server takes its bots out (BL_EV_UNBOT), sets `closing` and stops
+ * beating; the engine, seeing either, writes no more intents and
+ * exits. A server starting again makes the file anew (bl_create), with
+ * `closing` 0, and the entrypoint starts an engine for it. */
 
 /* ------------------------------------------------------------------ */
 /* THE CALLS (botlink.c). Each end makes its own half only.           */
@@ -328,6 +339,10 @@ int bl_push(bl_ring *r, uint8_t type, uint8_t pid, const void *payload, uint32_t
 /* The next record off a ring, header and payload, into buf (of
  * BL_RECORD_MAX bytes). Its size, or 0 with nothing waiting. */
 uint32_t bl_pop(bl_ring *r, void *buf);
+
+/* The server, going down: marks the file closing. bl_closing: has it? */
+void bl_shutdown(bl_file *f);
+int bl_closing(const bl_file *f);
 
 /* A beat: each end calls its own, often. bl_alive: has the other end's
  * moved since `*last` was last filled in? */
