@@ -36,12 +36,9 @@ function pie_menu_remove(name) added[name], sliced[name] = nil, nil; end
 
 local supported = {[0] = true};
 function teamplay_supported(pid) return supported[pid] == true; end
-TEAMPLAY_REFUSED = {sight = {en = "You can only ping what you are looking at."}};
-local requests, refuse = {}, nil;
-function teamplay_request_ping(pid, pos, reason)
-	requests[#requests+1] = {pid = pid, pos = pos, reason = reason};
-	return refuse;
-end
+-- any ping a callout made would land here: none may
+local pinged = 0;
+function teamplay_ping() pinged = pinged + 1; return true; end
 
 local cmd;
 function register_command(c) cmd = c; end
@@ -63,11 +60,10 @@ check(pings[1].show(0) == true and pings[1].show(1) == false,
 	"shown only to a client with Teamplay");
 
 print("\n2. a callout is words only: no position, no ping");
-local n = #requests;
 run("enemy");
 check(#chat == 2 and chat[1].to == 0 and chat[2].to == 1, "said to the team only");
 check(chat[1].line == "Enemy here!", "as text the player reads", chat[1].line);
-check(#requests == n, "and nothing pinged");
+check(pinged == 0, "and nothing pinged");
 for _, sl in ipairs(added.callouts.slices) do
 	check(not string.find(sl.text, "%h", 1, true), "the callout wedge " .. sl.text .. " sends no position");
 end

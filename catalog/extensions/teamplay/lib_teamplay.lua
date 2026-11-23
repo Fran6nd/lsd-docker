@@ -29,12 +29,6 @@
 --        and re-sent to them with the time it has left
 --   teamplay_clear(viewer, target) / teamplay_clear_all(target)
 --   teamplay_ping(viewer, pos, opts) / teamplay_ping_all(pos, opts)
---   teamplay_request_ping(pid, pos, reason)  -> nil, or why not
---        a player's ping, under every rule a client's Ping packet is
---        held to (feature on, alive, interval, on the map, in sight),
---        relayed to their team. The pie menu's pings (lib_callouts) go
---        through this. `why` is a key of TEAMPLAY_REFUSED, messages to
---        say back to the player
 --   teamplay_send_config()               re-announce features and north
 --   teamplay_listen_ping(name, fn)  / teamplay_unlisten_ping(name)
 --        fn(pid, pos, reason) for every ping a client sends
@@ -821,12 +815,7 @@ local function request_ping(pid, pos, raw_reason)
 		return "sight";
 	end
 
-	-- a message stays one, for teamplay_ping to put in each viewer's
-	-- language; the listeners are given its English
-	local reason = type(raw_reason) == "table" and raw_reason
-		or clean_reason(raw_reason);
-	local reason_en = type(reason) == "table" and clean_reason(reason.en)
-		or reason;
+	local reason = clean_reason(raw_reason);
 
 	ping_at[pid] = now;
 
@@ -845,12 +834,12 @@ local function request_ping(pid, pos, raw_reason)
 		if (teamplay_ping_debug) then
 			log("lib_teamplay: ping #%d accepted at %.1f,%.1f,%.1f,"
 				.. " relayed to %d of team %d (reason %q)",
-				pid, pos.x, pos.y, pos.z, sent, get_team(pid), reason_en);
+				pid, pos.x, pos.y, pos.z, sent, get_team(pid), reason);
 		end
 	end
 
 	for name,fn in pairs(listeners) do
-		local ok, err = pcall(fn, pid, pos, reason_en);
+		local ok, err = pcall(fn, pid, pos, reason);
 		if (not ok) then
 			listeners[name] = nil;
 			log("lib_teamplay: %s crashed on a ping, dropped: %s",
@@ -922,7 +911,8 @@ local pingmark = {name = "pingmark", usage = "<x> <y> <z> [reason...]",
 	desc = "Ping a position for your team."};
 
 -- No wedges of its own: the pie menu's pings are each gamemode's, from
--- lib_callouts, which sends them through teamplay_request_ping.
+-- lib_callouts, whose wedges send this very command (/pingmark %h
+-- <reason>).
 
 function pingmark.func(pid, argv)
 	if (not negotiated(pid)) then
@@ -998,12 +988,6 @@ end
 
 function teamplay_supported(pid)
 	return negotiated(pid);
-end
-
-TEAMPLAY_REFUSED = REFUSED;
-
-function teamplay_request_ping(pid, pos, reason)
-	return request_ping(pid, pos, reason);
 end
 
 -- Outline `target` on `viewer`'s screen. secs 0 clears it,
@@ -1189,7 +1173,6 @@ local EXPORTS = {
 	"teamplay_send_config",
 	"teamplay_listen_ping", "teamplay_unlisten_ping",
 	"teamplay_listen_ready", "teamplay_unlisten_ready",
-	"teamplay_request_ping", "TEAMPLAY_REFUSED",
 	"TEAMPLAY_FOREVER",
 	"TEAMPLAY_WORLD", "TEAMPLAY_MINIMAP", "TEAMPLAY_COMPASS",
 };
