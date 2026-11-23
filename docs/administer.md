@@ -27,11 +27,11 @@ lsdctl address                       # the aos:// URLs players connect with
 lsdctl setup                         # the wizard again: quick (name, listing, game, map) or full
 
 lsdctl available                     # every script this image can install
-lsdctl info flashlight               # what it does, needs, asks, and every setting it reads
-lsdctl install flashlight            # install, run its setup, restart to load it
-lsdctl install flashlight --preset night_vision --policy required --yes
-lsdctl configure flashlight          # run its setup again
-lsdctl remove flashlight
+lsdctl info night                    # what it does, needs, asks, and every setting it reads
+lsdctl install night                 # install, run its setup, restart to load it
+lsdctl install night --preset night_vision --policy required --yes
+lsdctl configure night             # run its setup again
+lsdctl remove night
 lsdctl list                          # what is installed
 
 lsdctl gamemode                      # list gamemodes (* is the current one)

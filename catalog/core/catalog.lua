@@ -30,7 +30,9 @@
 --   |                     of its own settings giving one (player_limit:
 --   |                     required only above 32 seats),
 --   |                     and its setup includes what a client missing
---   |                     it costs (its ext_policy entry)
+--   |                     it costs (its ext_policy entry). An entry
+--   |                     may speak several (exts = {{id, title,
+--   |                     policy}, ...}): one entry and one question each
 --   +- Gamemode           exactly one runs; a base module, optionally
 --   |                     a rider loaded after the bots; every one runs
 --   |                     the map's layout (map_layout)
@@ -113,6 +115,7 @@ local SPEC = {
 	questions = "table", upstream = "boolean", listed = "boolean",
 	-- Extension
 	ext_id = "number", ext_title = "string", policy = "string|function",
+	exts = "table",
 	-- Gamemode
 	base = "string", rider = "string",
 };
@@ -341,31 +344,65 @@ C.POLICIES = POLICIES;
 -- speak it costs. That answer lives in the shared ext_policy map, not
 -- in the extension's section, because lib_ext_policy reads one map for
 -- every extension.
--- The policy this extension comes with, for these settings of its own.
-function C.Extension:default_policy(values)
-	if (type(self.policy) == "function") then
-		return self.policy(values or {});
+-- The protocol extensions this entry speaks, as a list of {id, title,
+-- policy}. Most entries are one: ext_id and policy, titled as the
+-- entry. An entry that ships several (night: Daytime and Weather, and
+-- Flashlight) lists them itself:
+--
+--   exts = {{id = 0x33, title = "Daytime and Weather", policy = <as policy>},
+--           {id = 0x32, title = "Flashlight", policy = "applied"}}
+--
+-- Each has its own ext_policy entry and its own question in the setup.
+function C.Extension:ext_list()
+	if (self.exts ~= nil) then
+		return self.exts;
 	end
-	return self.policy;
+	return {{id = self.ext_id, title = self.ext_title or self:label(),
+		policy = self.policy}};
+end
+
+-- The policy of one of them (a level, or a function of the entry's
+-- settings), for these settings of its own.
+local function policy_of(x, values)
+	if (type(x.policy) == "function") then
+		return x.policy(values or {});
+	end
+	return x.policy or "recommended";
+end
+
+-- The policy this extension comes with, for these settings of its own;
+-- `id` names which, for an entry with several (the first by default).
+function C.Extension:default_policy(values, id)
+	for _, x in ipairs(self:ext_list()) do
+		if (id == nil or x.id == id) then
+			return policy_of(x, values);
+		end
+	end
 end
 
 function C.Extension:setup(ui, current, opts)
 	local values, preset = Script.setup(self, ui, current, opts);
-	local policy = opts and opts.policy;
+	local flag = opts and opts.policy;
+	local chosen = {};
 
-	if (policy == nil) then
-		local now = type(current.ext_policy) == "table"
-			and current.ext_policy[self.ext_id] or nil;
-		-- a policy that is the default for the old settings was never
-		-- chosen: it follows the settings to their new default
-		if (now == self:default_policy(current)) then
-			now = nil;
+	for _, x in ipairs(self:ext_list()) do
+		local policy = flag;
+
+		if (policy == nil) then
+			local now = type(current.ext_policy) == "table"
+				and current.ext_policy[x.id] or nil;
+			-- a policy that is the default for the old settings was never
+			-- chosen: it follows the settings to their new default
+			if (now == policy_of(x, current)) then
+				now = nil;
+			end
+			policy = ui:choose("What a client without " .. x.title
+				.. " costs", POLICIES, now or policy_of(x, values));
 		end
-		policy = ui:choose("What a client without " .. self:label()
-			.. " costs", POLICIES, now or self:default_policy(values));
+		chosen[x.id] = policy;
 	end
 
-	self._policy = policy;
+	self._policy = chosen;
 	return values, preset;
 end
 
@@ -373,17 +410,25 @@ function C.Extension:on_install(doc)
 	local policy = doc:get("ext_policy");
 	if (type(policy) ~= "table") then policy = {}; end
 
-	policy[self.ext_id] = self._policy or policy[self.ext_id]
-		or self:default_policy({});
+	for _, x in ipairs(self:ext_list()) do
+		policy[x.id] = (self._policy or {})[x.id] or policy[x.id]
+			or policy_of(x, {});
+	end
 	doc:set_policy(policy);
 end
 
 function C.Extension:on_remove(doc)
 	local policy = doc:get("ext_policy");
+	local moved = false;
 
-	if (type(policy) == "table" and policy[self.ext_id] ~= nil) then
-		policy[self.ext_id] = nil;
-		doc:set_policy(policy);
+	if (type(policy) == "table") then
+		for _, x in ipairs(self:ext_list()) do
+			if (policy[x.id] ~= nil) then
+				policy[x.id] = nil;
+				moved = true;
+			end
+		end
+		if (moved) then doc:set_policy(policy); end
 	end
 end
 
@@ -576,8 +621,8 @@ function Catalog:get(id)
 	return self.entries[id];
 end
 
--- An id, or an entry's module name -- `lib_flashlight` finds
--- `flashlight`, so the names an operator already knows keep working.
+-- An id, or an entry's module name -- `lib_night` finds
+-- `night`, so the names an operator already knows keep working.
 function Catalog:find(name)
 	if (self.entries[name] ~= nil) then
 		return self.entries[name];

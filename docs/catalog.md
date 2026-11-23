@@ -3,7 +3,7 @@
 | category | class | what | examples |
 |---|---|---|---|
 | gamemodes | `Gamemode` | exactly one runs; every one runs the map's layout (map_layout) | tdm, ctf, bots, bots_rewards, onectf, arena, babel, ffa, hostage, editor |
-| extensions | `Extension` | protocol extensions; the setup also asks what a client lacking one costs | every extension in the [AoS protocol registry](https://github.com/zerospades/aosprotocol): player_properties, damage_markers, teamplay, pie_menu, flashlight, daytime, edit_mode, player_limit, message_types, kick_reason (UTF-8 chat is built into LSd); plus silent_player |
+| extensions | `Extension` | protocol extensions; the setup also asks what a client lacking one costs | every extension in the [AoS protocol registry](https://github.com/zerospades/aosprotocol): player_properties, damage_markers, teamplay, pie_menu, night (daytime and flashlight), edit_mode, player_limit, message_types, kick_reason (UTF-8 chat is built into LSd); plus silent_player |
 | effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit, nightvision, rocket, missile, grenade_launcher, airstrike, ammo_box |
 | effects/world | `WorldEffect` | change the map or the match for everybody; same | the_fall |
 | bots | `Bot` | server-side players | guards, battle_bots |
@@ -48,7 +48,7 @@ itself sets `<id>_every = 0`.
 `nightvision` lets a player who has it light a wide green beam with the F
 key that only their own client draws: every other client is told the
 beam is dark, so neither the light nor its glare gives them away. The
-flashlight extension draws it, so install that too. Players without
+flashlight (part of `night`) draws it, so install that too. Players without
 night vision keep the ordinary flashlight, unless `nightvision_only`. A
 gamemode can switch it for them with
 `PlayerEffect.get("nightvision"):trigger(pid, {on = true})`.
@@ -63,8 +63,8 @@ turns nobody away:
 
 | extension | without it | default |
 |---|---|---|
-| player_properties, damage_markers, pie_menu, flashlight, kick_reason, message_types, silent_player, edit_mode, teamplay | something cosmetic, or a plain fallback | applied |
-| daytime | at night, a black fog instead of real darkness | applied by day, recommended at night |
+| player_properties, damage_markers, pie_menu, night's Flashlight, kick_reason, message_types, silent_player, edit_mode, teamplay | something cosmetic, or a plain fallback | applied |
+| night's Daytime and Weather | at night, a black fog instead of real darkness | applied by day, recommended at night |
 | player_limit | see below | applied up to 32 seats, required above |
 
 **More than 32 players** (`player_limit_max`, 32 by default): clients
@@ -198,13 +198,22 @@ often). A gamemode with
 no pings of its own gets Enemy, Attack, Defend, Need help, Danger and
 Go here; ffa has none, having no team.
 
-The flashlight's presets:
+`night` is both the Daytime and Weather and the Flashlight extensions
+(one file, `lib_night`), and tells the bot engine how bots see and use a
+lamp at night. An entry takes one preset, so night's say both whether it
+is day or night and how the beam looks:
 
 | preset | |
 |---|---|
-| `default` | OpenSpades' warm white beam, seen by everybody |
-| `night_vision` | a green beam only its carrier sees: nobody spots your light |
-| `disco` | every player's beam a random colour, changing as they play |
+| `day` | ordinary daylight, OpenSpades' warm white beam seen by everybody |
+| `night` | full darkness, only flashlights light the world, the same beam |
+| `night_vision` | night, a green beam only its carrier sees: nobody spots your light |
+| `disco` | night, every player's beam a random colour, changing as they play |
+
+Each of the two extensions has its own policy (the setup asks about
+both; `--policy` sets both). By night the bots are told how far their
+lamp lights (`flashlight_cone`, `flashlight_reach`) and how far night
+vision sees a lit lamp (`night_far`, 192 blocks).
 
 The pie menu's slices come from the settings file, or a built-in menu
 of pings, quick chat and player commands when it names none:
@@ -251,9 +260,9 @@ block without asking the gate.
 An entry is a directory, `catalog/<category>/<id>/`:
 
 ```
-catalog/extensions/flashlight/
+catalog/extensions/night/
 ├── script.lua           the manifest
-└── lib_flashlight.lua   the LSd module(s) it ships
+└── lib_night.lua        the LSd module(s) it ships
 ```
 
 The manifest is one call to its category's class, which extends the
@@ -264,7 +273,7 @@ return Extension {
 	title = "Flashlight",
 	summary = "Server-controlled flashlights.",
 	module = "lib_flashlight",       -- or modules = {...}
-	ext_id = 0x32,
+	ext_id = 0x32,                   -- policy = "applied" or a function of its settings
 	requires = {},                   -- other catalog ids (load before it)
 	presets = {
 		{name = "default", summary = "...", values = {flashlight_red = 255}},
@@ -274,6 +283,17 @@ return Extension {
 			ask = "Grenade blasts shake beams?"},
 	},
 }
+```
+
+An entry that speaks several protocol extensions lists them instead of
+`ext_id`/`policy`, each with its own policy and its own question in the
+setup (`night` does):
+
+```lua
+	exts = {
+		{id = 0x33, title = "Daytime and Weather", policy = function(v) ... end},
+		{id = 0x32, title = "Flashlight", policy = "applied"},
+	},
 ```
 
 The category decides where the modules load (`phase`), what every entry

@@ -90,9 +90,15 @@ local pl = cat:get("player_limit");
 eq(pl:default_policy({player_limit_max = 32}), "applied", "32 seats: nothing asked of anyone");
 eq(pl:default_policy({player_limit_max = 64}), "required", "above 32: clients without it only watch");
 eq(pl:default_policy({}), "applied", "player_limit's default seats are 32");
-eq(cat:get("daytime"):default_policy({daytime_night = true}), "recommended", "night: told about the dark");
-eq(cat:get("daytime"):default_policy({}), "applied", "by day: nothing to tell");
-for _, id in ipairs({"teamplay", "damage_markers", "message_types", "flashlight", "pie_menu"}) do
+local night = cat:get("night");
+eq(night:default_policy({daytime_night = true}, 0x33), "recommended", "night: told about the dark");
+eq(night:default_policy({}, 0x33), "applied", "by day: nothing to tell");
+eq(night:default_policy({daytime_night = true}, 0x32), "applied", "the flashlight is applied, night or day");
+eq(night:default_policy({}), "applied", "with no id, the first extension's");
+eq(#night:ext_list(), 2, "night speaks two protocol extensions");
+eq(#pl:ext_list(), 1, "an ordinary extension speaks one");
+eq(pl:ext_list()[1].id, pl.ext_id, "and it is its ext_id");
+for _, id in ipairs({"teamplay", "damage_markers", "message_types", "pie_menu"}) do
 	eq(cat:get(id):default_policy({}), "applied", id .. " is applied");
 end
 for _, e in ipairs(cat:of_class(C.Extension)) do
@@ -272,7 +278,7 @@ for _, g in ipairs(cat:of_class(C.Gamemode)) do
 end
 
 print("\n5. the order honours the constraints");
-local plan = cat:plan({"flashlight", "guards", "railgun", "headless"}, "hostage");
+local plan = cat:plan({"night", "guards", "railgun", "headless"}, "hostage");
 local order = {};
 for _, p in ipairs(C.PHASES) do
 	if (p == "spawns") then order[#order+1] = "tentspawns"; end
@@ -283,14 +289,14 @@ local function before(a, b, what)
 	check(ia ~= nil and ib ~= nil and ia < ib, what,
 		table.concat(order, " "));
 end
-before("lib_ext", "lib_flashlight", "lib_ext before the extensions");
+before("lib_ext", "lib_night", "lib_ext before the extensions");
 before("lib_shot_detect", "rifle_is_a_rail_gun", "shot detection before the railgun");
 before("lib_player_effect", "rifle_is_a_rail_gun", "the PlayerEffect class before the railgun");
 before("ctf", "tentspawns", "the gamemode before the spawns");
 before("tentspawns", "lib_bot", "the spawns before the bots");
 before("lib_bot", "hostage", "lib_bot before hostage, its rider");
 before("lib_bot", "lib_headless", "lib_bot before lib_headless");
-before("lib_flashlight", "bot_standard", "the flashlight before the guards that carry it");
+before("lib_night", "bot_standard", "the flashlight before the guards that carry it");
 check(index_of(order, "lib_ext_policy") ~= nil, "ext_policy comes with any extension");
 
 -- bots: its rider loads before the guards it installs with it
@@ -299,8 +305,7 @@ local bo = {};
 for _, p in ipairs(C.PHASES) do
 	for _, m in ipairs(bp.phases[p]) do bo[#bo+1] = m; end
 end
-check(index_of(bo, "bot_standard") ~= nil and index_of(bo, "lib_daytime") ~= nil
-	and index_of(bo, "lib_flashlight") ~= nil, "bots brings the guards, daytime and the flashlight");
+check(index_of(bo, "bot_standard") ~= nil and index_of(bo, "lib_night") ~= nil, "bots brings the guards, and night: daytime and the flashlight");
 check(index_of(bo, "bots") ~= nil and index_of(bo, "bots") < index_of(bo, "bot_standard"),
 	"the bots rider loads before the guards", table.concat(bo, " "));
 
@@ -336,15 +341,45 @@ local p2 = cat:plan({"no_such_script"}, "ctf");
 eq(#p2.missing, 1, "a missing script is reported, not fatal");
 
 print("\n7. presets and setup without a terminal");
-local fl = cat:get("flashlight");
+local fl = cat:get("night");
 local quiet = {choose = function(_, _, _, d) return d; end,
 	ask = function(_, _, cur) return cur; end};
 local v, preset = fl:setup(quiet, {}, {preset = "night_vision", policy = "required"});
 eq(preset, "night_vision", "the asked-for preset is used");
+eq(v.daytime_night, true, "night vision is a night preset");
 eq(v.flashlight_visibility, "self", "night vision hides other players' lights");
 eq(v.flashlight_green, 255, "and is green");
 v = fl:setup(quiet, {}, {preset = "disco", policy = "applied"});
 eq(v.flashlight_colors, "random", "disco gives everybody a random colour");
+v = fl:setup(quiet, {}, {preset = "day"});
+eq(v.daytime_night, false, "day is daylight");
+eq(v.flashlight_visibility, "all", "with the default beam");
+eq(fl:defaults().daytime_night, false, "the default preset is day");
+check(fl:preset("night") and fl:preset("night").values.daytime_night == true, "night is darkness");
+
+-- several protocol extensions: each is asked about, each gets its entry
+local asked = {};
+local ui = {choose = function(_, text, _, d) asked[#asked+1] = text; return d; end,
+	ask = function(_, _, cur) return cur; end};
+fl:setup(ui, {}, {preset = "night"});
+local titles = {};
+for _, t in ipairs(asked) do if (string.find(t, "client without", 1, true)) then titles[#titles+1] = t; end end
+eq(#titles, 2, "the setup asks what a missing client costs, once per extension");
+check(string.find(titles[1], "Daytime and Weather", 1, true) and string.find(titles[2], "Flashlight", 1, true),
+	"each question names its extension", table.concat(titles, " | "));
+local store, saved = {}, nil;
+local fake = {get = function(_, k) return store[k]; end, set_policy = function(_, m) saved = m; end};
+fl:setup(quiet, {}, {preset = "night", policy = "required"});
+fl:on_install(fake);
+eq(saved[0x33], "required", "--policy sets the first");
+eq(saved[0x32], "required", "and the second");
+fl:setup(quiet, {}, {preset = "night"});
+store.ext_policy = {[0x32] = "disabled", [7] = "applied"};
+fl:on_install(fake);
+eq(saved[0x32], "applied", "a policy is the entry's default unless chosen");
+eq(saved[7], "applied", "another extension's is left alone");
+fl:on_remove(fake);
+check(saved[0x32] == nil and saved[0x33] == nil and saved[7] == "applied", "removing clears both, and only those");
 check(not pcall(fl.setup, fl, quiet, {}, {preset = "nope"}), "an unknown preset is refused");
 
 print("\n8. editing the settings file");

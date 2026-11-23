@@ -5,7 +5,7 @@ return Gamemode {
 	summary = "Team deathmatch against and alongside guard bots, day then night then day.",
 	base = "ctf",
 	rider = "bots",
-	requires = {"daytime", "flashlight"},
+	requires = {"night"},
 	-- installed with the mode but loaded after its rider, which only sets
 	-- what the guards read
 	with = {"guards"},

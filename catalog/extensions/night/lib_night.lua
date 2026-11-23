@@ -1,5 +1,94 @@
--- lib_flashlight.lua -- The Flashlight protocol extension
+-- lib_night.lua -- Night: the Daytime and Weather and Flashlight protocol
+-- extensions, and how the bot engine behaves in the dark
 -- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
+--
+-- THREE PARTS IN ONE FILE, because they are one subject: by night the
+-- only light is a flashlight, and a bot has to know that as well.
+--
+--   DAYTIME     the sky packet: day or night (ext 0x33, packet 0x73)
+--   FLASHLIGHT  the lights players carry     (ext 0x32, packet 0x72)
+--   BOTS        what the bot engine is told about night and lamps
+--
+-- It used to be two modules, lib_daytime and lib_flashlight, and each
+-- keeps its own reasoning below. Their globals, settings and packets are
+-- unchanged. What they used to share by being separate files -- the hooks
+-- (tick, finish_map_load, on_any_packet, on_load, on_unload) -- is merged
+-- at the end of the file, where each hook does each half's job in turn.
+--
+-- Names that would have clashed carry the half's prefix: DAY_ and day_
+-- for the first, FL_ and fl_ for the second.
+
+
+--============================ DAYTIME ===============================--
+-- (the sky packet; the code is below)
+--
+-- Speaks aosprotocol's Daytime and Weather extension (id 0x33, version
+-- 1): the server says whether it is day or night, and the client draws
+-- the dark.
+--
+-- ONE SUB-PACKET, Sky, Server to Client:
+--   [0x73][0][Time u16][Reserved u16][Weather u8[2]]   -- eight bytes
+--
+--   Time      0 is night, anything else is day
+--   Reserved  must be 0
+--   Weather   two bytes, unimplemented in version 1, must be 0
+--
+-- IT IS A SWITCH, NOT A CLOCK. Version 1 has no time of day that
+-- passes: Time is day or night and nothing in between. The Reserved
+-- field is where a later version puts the speed, with Time becoming
+-- minutes since midnight -- the spec leaves that out of v1 because
+-- moving the sun, and the shadows with it, is still too costly for
+-- clients to draw. So there is no hour here, no sun to place and no
+-- curve to evaluate, and this module is smaller than it looks like it
+-- ought to be.
+--
+-- WHAT NIGHT IS, which is the client's half: full darkness. The sun
+-- casts no light and no shadow, nothing else lights the world, and the
+-- fog and sky are black. Not dimmed -- black. By day the client draws
+-- the world exactly as it does without this extension.
+--
+-- SO A FLASHLIGHT IS THE ONLY LIGHT THERE IS, and it burns as brightly
+-- as by day. That is the whole reason these two extensions (both in this file) are worth
+-- having together: at night the flashlight is not decoration, it is the
+-- only way anybody sees anything at all.
+--
+-- Which also means the server has nothing to say about the night sky.
+-- The client blacks it out on its own and never consults the Fog
+-- Colour, so the global fog stays the map's own daylight colour -- the
+-- correct thing by day, and ignored by night. The fallback below is for
+-- the clients that cannot do any of this, and it paints them one at a
+-- time rather than touching that global.
+--
+-- THE FIRST SKY IS NOT OPTIONAL. "A client that negotiated this
+-- extension waits for the first Sky before drawing the world" -- so a
+-- client we agree with and then never send to is a client staring at
+-- nothing. It goes out from the ready callback, which is the earliest
+-- moment there is, and that is the one packet this module must never
+-- fail to send.
+--
+-- Nothing in LSd's core knows about any of this. PacketTypeExtensionInfo
+-- is declared in protocol.h:804 and the ExtensionID enum lives at :916,
+-- which names nothing near 0x33, while nothing in funcs_packetrecv.c,
+-- funcs_send.c, main.c or lua.c ever touches packet 0x73. So the
+-- negotiation is unclaimed, and lib_ext claims it for every extension
+-- at once. This half owns packet 0x73 and nothing else; load lib_ext
+-- before it.
+--
+-- API (globals):
+--   daytime_supported(pid)  -> true once ext 0x33 is agreed
+--   daytime_is_night()      -> is it night
+--   daytime_daylight()      -> 1 by day, 0 by night. How much of the
+--                              world's own lighting there is, for
+--                              anything that wants to match the client
+--   daytime_set_night(on)   switch it and tell everybody
+--   daytime_announce()      re-send the Sky to everybody who has
+--                              negotiated, after setting daytime_night
+--                              directly
+
+
+--============================ FLASHLIGHT ============================--
+-- (the lights players carry; the code is below)
+--
 --
 -- Speaks aosprotocol's Flashlight extension (id 0x32, version 1): a
 -- light a player carries, switched by the server and drawn by every
@@ -16,7 +105,7 @@
 -- which names 0, 1 and the packetless ones, and nothing near 0x32 --
 -- while nothing in funcs_packetrecv.c, funcs_send.c, main.c or lua.c
 -- ever touches packet 0x72. So the negotiation is unclaimed, and lib_ext
--- claims it for every extension at once. This module owns packet 0x72
+-- claims it for every extension at once. This half owns packet 0x72
 -- and nothing else; load lib_ext before it.
 --
 -- API (globals):
@@ -66,7 +155,7 @@
 --
 -- And the glare brightens as the world darkens: the spec scales it by a
 -- dark adaptation of 1 in daylight up to 8 in total darkness. Switch
--- lib_daytime to night and a lit player is not subtly visible, they are
+-- the daytime half to night and a lit player is not subtly visible, they are
 -- a beacon. Which is the point on a map played in the dark -- see
 -- hallwayatnight's guards, who carry theirs lit on purpose.
 --
@@ -103,14 +192,254 @@
 local mod = init_mod();
 local bit = require("bit");
 
-local EXT_ID = 0x32;
-local EXT_VERSION = 1;
+--======================= DAYTIME: THE CODE ==========================--
+
+
+local DAY_EXT_ID = 0x33;
+local DAY_EXT_VERSION = 1;
+
+-- Daytime and Weather. The packet id is 64 + the extension id, so 0x73.
+local DAY_PKT = 64 + DAY_EXT_ID;
+local DAY_SUB_SKY = 0;
+
+-- The two values of Time. 0 is night and "anything else" is day, so the
+-- day value is a choice -- and it is noon, 720 minutes after midnight:
+-- day to a v1 client (ZeroSpades reads `time == 0 ? Night : Day`,
+-- DaytimeWeather.cpp) and day to the later version, which reads this
+-- field as minutes since midnight and would take a 1 as 00:01.
+local TIME_NIGHT = 0;
+local TIME_DAY = 720;
+
+-- Reserved, and Weather, both of which must be zero in version 1.
+-- Spelled out rather than left as a run of "\0" because version 2 is
+-- where Reserved becomes the speed, and this is the line that changes.
+local RESERVED_ZERO = "\0\0";
+local WEATHER_NONE = "\0\0";
+
+-- Night is black, and that is a spec constant rather than a knob: the
+-- client draws its own darkness and the server cannot talk it out of
+-- it, so a setting here could only make the two disagree about how dark
+-- it is. The fallback paints this same black for the clients that
+-- cannot.
+local NIGHT_FOG = {r = 0, g = 0, b = 0};
+-- How much of the world's own lighting survives the night. None of it.
+local NIGHT_LIGHT = 0;
+
+-- Night, or day. The whole configuration of this extension in v1.
+getcfg("daytime_night", false,
+	"Night instead of day. By night nothing lights the world and "
+		.."the sky is black; only flashlights light it.");
+-- Seconds between unprompted re-sends of the Sky. There is no clock to
+-- drift in v1, so this is not the correction it was when Time was an
+-- hour -- it is belt and braces: eight bytes a client every five
+-- minutes against the chance that one somehow missed the Sky it is
+-- waiting for and is sitting there not drawing the world. 0 turns it
+-- off.
+getcfg("daytime_resync", 300,
+	"Seconds between unprompted re-sends of the Sky. 0 turns it "
+		.."off.");
+-- Paint the fog for clients that have NOT negotiated the extension, so
+-- that night at least looks like night to them -- a black sky, which is
+-- the half of it the base protocol can express. Off leaves them the
+-- map's own sky. See the fallback below for what it cannot do.
+getcfg("daytime_fog_fallback", true,
+	"Paint a black sky for clients that cannot draw the night "
+		.."themselves.");
+getcfg("daytime_debug", false,
+	"Log every Sky sent and every client that negotiated.");
+
+local function day_negotiated(pid)
+	return ext_supported ~= nil and ext_supported(pid, DAY_EXT_ID) ~= nil;
+end
+
+-- pid -> the fog we last painted for them, so a client is sent a fog
+-- packet only when its own sky actually changed. Cleared on disconnect,
+-- since the next occupant of that id has been painted nothing.
+local painted = pid_connected_table();
+
+--============================== BYTES ===============================--
+
+-- Little-endian u16, out of arithmetic rather than the FFI: LuaJIT is
+-- 5.1 so there is no string.pack, and the modulo says little-endian on
+-- every host where a cast would only say it on x86.
+local function put_u16(n)
+	n = math.floor(tonumber(n) or 0) % 65536;
+	return string.char(n % 256, math.floor(n / 256));
+end
+
+--=============================== API ================================--
+
+function daytime_supported(pid)
+	return day_negotiated(pid);
+end
+
+function daytime_is_night()
+	return daytime_night and true or false;
+end
+
+function daytime_daylight()
+	return daytime_is_night() and NIGHT_LIGHT or 1;
+end
+
+local function send_sky(pid)
+	send_packet(pid, string.char(DAY_PKT, DAY_SUB_SKY)
+		.. put_u16(daytime_is_night() and TIME_NIGHT or TIME_DAY)
+		.. RESERVED_ZERO
+		.. WEATHER_NONE);
+end
+
+-- Re-send the Sky to everybody who has negotiated. The server may send
+-- one whenever it likes and it applies on arrival, so this is how a
+-- change to daytime_night reaches clients already connected -- without
+-- it, only the ones that negotiate afterwards see the new sky.
+function daytime_announce()
+	for i in piditer(PID_BROADCAST) do
+		if (day_negotiated(i)) then
+			send_sky(i);
+		end
+	end
+
+	if (daytime_debug) then
+		log("lib_night: announced %s",
+			daytime_is_night() and "night" or "day");
+	end
+end
+
+function daytime_set_night(on)
+	daytime_night = on and true or false;
+	daytime_announce();
+end
+
+--============================= FALLBACK =============================--
+
+-- The sky for a client that never heard of this extension, which is the
+-- most the base 0.75 protocol can say: the same black the extension's
+-- clients draw for themselves.
+--
+-- WHAT IT CANNOT DO is the lighting. Nothing in base 0.75 scales how
+-- bright the blocks are, so one of these clients gets a night sky over
+-- a fully lit world. It reads as dusk rather than as night, and it is
+-- the better deal in a firefight -- which is an argument for requiring
+-- the extension (ext_policy) on a server that plays at night, not an
+-- argument for telling these clients nothing at all.
+--
+-- Per client, and never through set_fog. set_fog writes the global and
+-- broadcasts it to everybody (main.c:279-285) -- one sky for the whole
+-- server. The global has to stay the map's own colour: it is what a
+-- joining client reads out of its State Data, what map_meta put there,
+-- and what every client falls back to by day. send_fog takes a pid
+-- (send:2), so the black goes only to the clients that need to be told
+-- about it.
+local function want_fog()
+	local fog = get_fog();
+
+	if (fog == nil) then
+		return nil;
+	end
+
+	if (not daytime_is_night()) then
+		return fog; -- by day, the map's own sky, unchanged
+	end
+
+	return NIGHT_FOG;
+end
+
+local function paint()
+	local want = want_fog();
+
+	if (want == nil) then
+		return;
+	end
+
+	for pid in piditer(PID_BROADCAST) do
+		-- served by the extension itself, so not ours to paint
+		if (not day_negotiated(pid)) then
+			local had = painted[pid];
+
+			if (had == nil or had.r ~= want.r or had.g ~= want.g
+			    or had.b ~= want.b) then
+				painted[pid] = want;
+				send_fog(pid, want);
+			end
+		end
+	end
+end
+
+--============================== READY ===============================--
+
+-- The ready callback, and the one packet that must not be missed: a
+-- client that has negotiated this draws nothing until the first Sky
+-- arrives.
+--
+-- It also stops being the fallback's business, so whatever was painted
+-- for it is forgotten -- it scales the map's own fog for itself from
+-- here, and the global it reads is already the right input.
+--
+-- Forgotten AND undone. A client can sit through a tick or two of the
+-- fallback before its reply arrives, and if that was at night it was
+-- painted black -- which it would then keep by day, when the spec has it
+-- draw the world "as it does without this extension", under the map's
+-- own fog. So a painted client is handed that fog back first.
+local function day_on_ready(pid)
+	local had = painted[pid];
+	local fog = get_fog();
+
+	painted[pid] = nil;
+	if (had ~= nil and fog ~= nil and (had.r ~= fog.r or had.g ~= fog.g
+	    or had.b ~= fog.b)) then
+		send_fog(pid, fog);
+	end
+
+	send_sky(pid);
+
+	if (daytime_debug) then
+		log("lib_night: #%d negotiated, sky is %s", pid,
+			daytime_is_night() and "night" or "day");
+	end
+end
+
+--============================== DRIVE ===============================--
+
+local last_resync = 0;
+
+local function day_tick()
+	if (daytime_fog_fallback) then
+		paint();
+	end
+
+	local every = tonumber(daytime_resync) or 0;
+	if (every <= 0) then
+		return;
+	end
+
+	local now = get_time();
+
+	-- Seeded from the first tick rather than from zero, so a server does
+	-- not open by broadcasting a Sky to nobody: get_time() counts from
+	-- boot (main.c:130-136), so now - 0 is already enormous.
+	if (last_resync == 0) then
+		last_resync = now;
+		return;
+	end
+
+	if (now - last_resync < every) then
+		return;
+	end
+	last_resync = now;
+
+	daytime_announce();
+end
+
+--====================== FLASHLIGHT: THE CODE ========================--
+
+local FL_EXT_ID = 0x32;
+local FL_EXT_VERSION = 1;
 
 -- Flashlight. The packet id is 64 + the extension id, so 0x72.
-local PKT = 64 + EXT_ID;
-local SUB_LIGHT = 0;  -- S<->C [PKT][0][pid][state]
-local SUB_STATE = 1;  -- S->C  [PKT][1][bitmap ...]
-local SUB_CONFIG = 2; -- S->C  [PKT][2][pid][reach][cone][r][g][b][flicker]
+local FL_PKT = 64 + FL_EXT_ID;
+local SUB_LIGHT = 0;  -- S<->C [FL_PKT][0][pid][state]
+local SUB_STATE = 1;  -- S->C  [FL_PKT][1][bitmap ...]
+local SUB_CONFIG = 2; -- S->C  [FL_PKT][2][pid][reach][cone][r][g][b][flicker]
 
 -- Direction is part of the specification, not a detail of it. Light is
 -- the only sub-packet a client may send, and even that one it may only
@@ -268,8 +597,8 @@ getcfg("flashlight_disco_interval", 0,
 -- version 1. lib_ext holds the agreement -- one table for every
 -- extension, keyed by the pid it belongs to and dropped when that pid
 -- does -- so there is nothing to keep here beyond asking it.
-local function negotiated(pid)
-	return ext_supported ~= nil and ext_supported(pid, EXT_ID) ~= nil;
+local function fl_negotiated(pid)
+	return ext_supported ~= nil and ext_supported(pid, FL_EXT_ID) ~= nil;
 end
 
 -- Whether viewer sees target's light; see flashlight_visibility. Your
@@ -360,7 +689,7 @@ local function build_state()
 		end
 	end
 
-	local out = {string.char(PKT, SUB_STATE)};
+	local out = {string.char(FL_PKT, SUB_STATE)};
 	for i = 1, math.max(top, 1) do
 		out[#out+1] = string.char(bytes[i] or 0);
 	end
@@ -406,7 +735,7 @@ end
 -- reverses it. The field names in the spec are the authority and the
 -- table is read by name here for exactly that reason.
 local function send_config(viewer, target, w)
-	send_packet(viewer, string.char(PKT, SUB_CONFIG, target,
+	send_packet(viewer, string.char(FL_PKT, SUB_CONFIG, target,
 		w.reach, w.cone, w.r, w.g, w.b, w.flicker));
 end
 
@@ -480,7 +809,7 @@ local function broadcast_beam(pid, now)
 	local w = effective(pid, now);
 
 	for i in piditer(PID_BROADCAST) do
-		if (negotiated(i)) then
+		if (fl_negotiated(i)) then
 			send_config(i, pid, beam_for(i, pid, now));
 		end
 	end
@@ -532,19 +861,19 @@ local function announce_default(pid)
 	end
 
 	for i in piditer(PID_BROADCAST) do
-		if (negotiated(i)) then
+		if (fl_negotiated(i)) then
 			send_view(i, now);
 		end
 	end
 
 	if (flashlight_debug) then
-		log("lib_flashlight: default beam is %s", describe(default_config()));
+		log("lib_night: default beam is %s", describe(default_config()));
 	end
 end
 
 local function send_light(viewer, target, on)
 	send_packet(viewer,
-		string.char(PKT, SUB_LIGHT, target, on and 1 or 0));
+		string.char(FL_PKT, SUB_LIGHT, target, on and 1 or 0));
 end
 
 --=========================== NEGOTIATION ============================--
@@ -567,12 +896,12 @@ end
 -- different one for -- and it is also the packet the spec has arriving
 -- "after State Data", which this is well after, since negotiation
 -- finishes long after a join.
-local function on_ready(pid)
+local function fl_on_ready(pid)
 	send_view(pid);
 	send_packet(pid, build_state());
 
 	if (flashlight_debug) then
-		log("lib_flashlight: #%d negotiated, sent the beams and the state",
+		log("lib_night: #%d negotiated, sent the beams and the state",
 			pid);
 	end
 end
@@ -630,7 +959,7 @@ function mod.after.spawn_player(pid)
 	-- everybody is told pid's beam afresh, and pid everybody's.
 	if (flashlight_visibility == "team") then
 		broadcast_beam(pid);
-		if (negotiated(pid)) then
+		if (fl_negotiated(pid)) then
 			send_view(pid);
 		end
 	end
@@ -647,7 +976,7 @@ end
 -- spec's and it is the sensible half of it -- a new world is a reason
 -- to stop carrying a light, not a reason to forget what the light looks
 -- like, so nothing has to be re-sent after a map change.
-function mod.after.finish_map_load()
+local function fl_finish_map_load()
 	for i in piditer(PID_BROADCAST) do
 		lit[i] = false;
 	end
@@ -737,7 +1066,7 @@ local function shake(pid, strength, now)
 	shaken[pid].sent_at = now;
 
 	if (flashlight_debug) then
-		log("lib_flashlight: #%d's bulb shaken, flicker %d", pid, w.flicker);
+		log("lib_night: #%d's bulb shaken, flicker %d", pid, w.flicker);
 	end
 end
 
@@ -774,7 +1103,7 @@ end
 -- at most every SETTLE_INTERVAL, and once more when it reaches the
 -- beam's own -- which is the one that must not be skipped, or the bulb
 -- stays as unsteady as the last step left it.
-function mod.after.tick()
+local function fl_tick()
 	local now;
 
 	for pid, s in pairs(shaken) do
@@ -813,7 +1142,7 @@ end
 -- in it is asking about itself in a confused way, not asking about them.
 local function on_light_request(pid, data)
 	if (flashlight_debug) then
-		log("lib_flashlight: request from #%d, %d bytes, state %s",
+		log("lib_night: request from #%d, %d bytes, state %s",
 			pid, #data, tostring(string.byte(data, 4)));
 	end
 
@@ -829,17 +1158,17 @@ local function on_light_request(pid, data)
 	-- nothing itself either, since drawing is the half it did not sign
 	-- up for. So the negotiation is a precondition for being heard, not
 	-- only for being told.
-	if (not negotiated(pid)) then
+	if (not fl_negotiated(pid)) then
 		if (flashlight_debug) then
-			log("lib_flashlight: request #%d ignored: never negotiated"
-				.. " ext 0x%x", pid, EXT_ID);
+			log("lib_night: request #%d ignored: never negotiated"
+				.. " ext 0x%x", pid, FL_EXT_ID);
 		end
 		return;
 	end
 
 	if (not flashlight_allow_requests) then
 		if (flashlight_debug) then
-			log("lib_flashlight: request #%d refused: asking is not"
+			log("lib_night: request #%d refused: asking is not"
 				.. " permitted", pid);
 		end
 		return;
@@ -853,7 +1182,7 @@ local function on_light_request(pid, data)
 	-- having turned it off itself on the Kill Action.
 	if (not is_alive(pid)) then
 		if (flashlight_debug) then
-			log("lib_flashlight: request #%d refused: not alive", pid);
+			log("lib_night: request #%d refused: not alive", pid);
 		end
 		return;
 	end
@@ -872,7 +1201,7 @@ local function on_light_request(pid, data)
 	local now = get_time();
 	if (now - asked_at[pid] < flashlight_request_interval) then
 		if (flashlight_debug) then
-			log("lib_flashlight: request #%d refused, too soon: %.2fs"
+			log("lib_night: request #%d refused, too soon: %.2fs"
 				.. " since the last (need %.2fs)", pid,
 				now - asked_at[pid], flashlight_request_interval);
 		end
@@ -905,14 +1234,14 @@ local function on_light_request(pid, data)
 
 		if (not ok) then
 			listeners[name] = nil;
-			log("lib_flashlight: %s crashed on a request, dropped, and the"
+			log("lib_night: %s crashed on a request, dropped, and the"
 				.. " request refused: %s", name, tostring(allow));
 			return;
 		end
 
 		if (allow == false) then
 			if (flashlight_debug) then
-				log("lib_flashlight: request #%d refused by %s", pid, name);
+				log("lib_night: request #%d refused by %s", pid, name);
 			end
 			return;
 		end
@@ -921,35 +1250,10 @@ local function on_light_request(pid, data)
 	flashlight_set(pid, want);
 end
 
---============================= INTAKE ===============================--
--- Packet 0x72 is unknown to the core, which would log it as "Unknown
--- packet ID" crap (funcs_packetrecv.c:484). Returning 0 hands it to
--- on_sane_packet instead, whose switch has no default case, so it is
--- silently dropped there having already been dealt with here.
-function mod.on_any_packet(pid, data)
-	local id = string.byte(data, 1);
-
-	if (id == PKT) then
-		local sub = string.byte(data, 2);
-
-		-- one way only, see CLIENT_MAY_SEND
-		if (sub == nil or not CLIENT_MAY_SEND[sub]) then
-			return 0;
-		end
-
-		if (sub == SUB_LIGHT) then
-			on_light_request(pid, data);
-		end
-		return 0;
-	end
-
-	return mod.next.on_any_packet(pid, data);
-end
-
 --=============================== API ================================--
 
 function flashlight_supported(pid)
-	return negotiated(pid);
+	return fl_negotiated(pid);
 end
 
 function flashlight_get(pid)
@@ -996,13 +1300,13 @@ function flashlight_set(pid, on)
 	lit[pid] = on;
 
 	for i in piditer(PID_BROADCAST) do
-		if (negotiated(i)) then
+		if (fl_negotiated(i)) then
 			send_light(i, pid, on);
 		end
 	end
 
 	if (flashlight_debug) then
-		log("lib_flashlight: #%d's light is %s", pid, on and "on" or "off");
+		log("lib_night: #%d's light is %s", pid, on and "on" or "off");
 	end
 
 	return true;
@@ -1037,7 +1341,7 @@ function flashlight_config(pid, opts)
 	broadcast_beam(pid);
 
 	if (flashlight_debug) then
-		log("lib_flashlight: #%d's beam is %s", pid, describe(c));
+		log("lib_night: #%d's beam is %s", pid, describe(c));
 	end
 
 	return true;
@@ -1071,7 +1375,7 @@ function flashlight_private(pid, opts)
 	broadcast_beam(pid);
 
 	if (flashlight_debug) then
-		log("lib_flashlight: #%d's beam is %s", pid, private[pid] ~= nil
+		log("lib_night: #%d's beam is %s", pid, private[pid] ~= nil
 			and ("private, " .. describe(private[pid])) or "public again");
 	end
 
@@ -1103,7 +1407,7 @@ end
 --
 -- Which is why the beam lives in globals rather than being passed here:
 -- whatever is in them is what every Light Config says, including the
--- one on_ready sends. Exactly teamplay_send_config's bargain.
+-- one fl_on_ready sends. Exactly teamplay_send_config's bargain.
 --
 -- It does not touch a player who has a config of their own -- the
 -- client only applies the default where there is nothing more specific,
@@ -1125,11 +1429,167 @@ function flashlight_unlisten_request(name)
 	listeners[name] = nil;
 end
 
+--============================== BOTS ================================--
+
+-- WHAT THE BOT ENGINE IS TOLD. The engine (bot/, its own process) knows
+-- only day, and no flashlight, unless a server says otherwise: with no
+-- night script its bots see as they do by day and never reach for a lamp.
+-- This is that script. botlink (catalog/libs/botlink) is the way there:
+-- botlink_set(key, value) stores a setting and sends it, and sends it
+-- again to an engine that attaches late.
+--
+--   night.sight  "1": turn the engine's night sight rules on
+--   night.cone   the flashlight's cone in degrees   (flashlight_cone)
+--   night.reach  and its reach in blocks            (flashlight_reach)
+--   night.far    how far a bot with night vision sees a lit lamp:
+--                night_far, 1.5 x the day's sight range of 128 by default
+--   extra.night.tree  how a bot works its lamp, a fragment of the
+--                engine's behaviour tree (BOT_TREE below)
+--
+-- What the engine is NOT told here: whether it is night (it has the
+-- world's flag), and whose lamp is lit (it has each player's).
+--
+-- botlink is optional and may load before or after this, or be reloaded:
+-- it is looked at on every tick, and everything is sent again whenever
+-- the function answering botlink_set is not the one last sent to -- the
+-- way lib_botlink itself notices a library reloaded under it. Between
+-- those, only a value that changed is sent, which is how a new
+-- flashlight_cone reaches the engine.
+getcfg("night_far", 192,
+	"How far, in blocks, a bot with night vision sees a lit lamp: one "
+		.."and a half times the day's sight range of 128.");
+
+-- THE LAMP BEHAVIOUR, in one place so it can be adjusted. A fragment of
+-- the engine's behaviour tree in its text format (bot/core/bt.h; the
+-- words are bot/core/vocab.h's), indented with TABS. Read it as: with
+-- night vision stay dark; shot at while blind, light up; the stealthy
+-- stay dark and listen; otherwise light up at night. By day `night`
+-- scores 0, so none of it does anything.
+local BOT_TREE = table.concat({
+	"pick noise=0",
+	"\toption none night_vision x10",
+	"\t\tdo lamp off",
+	"\toption none hit_in_dark x10",
+	"\t\tdo lamp on",
+	"\toption stealth night",
+	"\t\tdo lamp off",
+	"\toption none night x1.2",
+	"\t\tdo lamp on",
+}, "\n") .. "\n";
+
+local function bot_keys()
+	return {
+		["night.sight"] = "1",
+		["night.cone"] = string.format("%g", tonumber(flashlight_cone) or 90),
+		["night.reach"] = string.format("%g", tonumber(flashlight_reach) or 60),
+		["night.far"] = string.format("%g", tonumber(night_far) or 192),
+		["extra.night.tree"] = BOT_TREE,
+	};
+end
+
+-- the botlink_set last sent to, and what it was sent
+local bots_with, bots_sent = nil, {};
+
+local function bots_sync()
+	if (botlink_set == nil) then
+		bots_with = nil;
+		return;
+	end
+
+	local again = bots_with ~= botlink_set;
+	if (again) then bots_sent = {}; end
+
+	for k, v in pairs(bot_keys()) do
+		if (bots_sent[k] ~= v) then
+			bots_sent[k] = v;
+			botlink_set(k, v);
+		end
+	end
+	bots_with = botlink_set;
+end
+
+-- Taken back: the engine goes back to day bots with no lamp.
+local function bots_withdraw()
+	if (botlink_set ~= nil) then
+		botlink_set("extra.night.tree", "");
+		botlink_set("night.sight", "0");
+	end
+	bots_with, bots_sent = nil, {};
+end
+
+--============================= INTAKE ===============================--
+-- Server to client only, for both packets: the core would otherwise log
+-- every one as "Unknown packet ID" crap (funcs_packetrecv.c:484).
+-- Returning 0 hands it to on_sane_packet, whose switch has no default
+-- case, so it is dropped there having been dealt with here.
+--
+-- 0x73 (daytime): there is no form of it a client may send, so anything
+-- arriving is swallowed.
+--
+-- 0x72 (flashlight): Light is the only sub-packet a client may send, see
+-- CLIENT_MAY_SEND.
+function mod.on_any_packet(pid, data)
+	local id = string.byte(data, 1);
+
+	if (id == DAY_PKT) then
+		return 0;
+	end
+
+	if (id == FL_PKT) then
+		local sub = string.byte(data, 2);
+
+		-- one way only, see CLIENT_MAY_SEND
+		if (sub == nil or not CLIENT_MAY_SEND[sub]) then
+			return 0;
+		end
+
+		if (sub == SUB_LIGHT) then
+			on_light_request(pid, data);
+		end
+		return 0;
+	end
+
+	return mod.next.on_any_packet(pid, data);
+end
+
+--============================= THE HOOKS ============================--
+-- Each hook is both halves' job, in turn; nothing in one depends on the
+-- order, so it is the order the halves are written in.
+
+-- Daytime: a map change needs no Sky -- "the Time survives Map Start" --
+-- but it does repaint the global fog, from the map's own metadata or the
+-- `fog` config (map_meta.lua:41-45). That resets the clients the fallback
+-- painted, so they are forgotten here and painted again on the next
+-- tick, out of the new map's colour.
+local function day_finish_map_load()
+	for pid in piditer(PID_BROADCAST) do
+		painted[pid] = nil;
+	end
+end
+
+function mod.after.tick()
+	day_tick();
+	fl_tick();
+	bots_sync();
+end
+
+-- Flashlight's half: every light off, every config kept.
+function mod.after.finish_map_load()
+	day_finish_map_load();
+	fl_finish_map_load();
+end
+
 --============================ LIFECYCLE =============================--
 
--- Negotiation happens once per connection, so a hot load does not
--- re-run it: lib_ext keeps the agreements, and runs on_ready again for
--- every client that had agreed to this extension once it re-registers.
+-- Daytime: registering does not re-announce -- negotiation happens once
+-- per connection -- but on a reload lib_ext runs the ready callback again
+-- for every client that agreed with the last copy, which is what gets a
+-- Sky to them from this one.
+--
+-- Flashlight: negotiation happens once per connection, so a hot load
+-- does not re-run it: lib_ext keeps the agreements, and runs the ready
+-- callback again for every client that had agreed to the extension once
+-- it re-registers.
 --
 -- Which also repairs the state across a hot load, in the one direction
 -- that can be repaired: the new copy's tables are empty, so every light
@@ -1139,32 +1599,43 @@ end
 -- the server knows how to switch off.
 function mod.on_load()
 	if (ext_register == nil) then
-		error("lib_flashlight needs lib_ext loaded first "
-			.."(installing the flashlight script pulls it in: "
-			.."lsdctl install flashlight)", 0);
+		error("lib_night needs lib_ext loaded first "
+			.."(installing the night script pulls it in: "
+			.."lsdctl install night)", 0);
 	end
 
-	-- And nothing to hand out here. Everybody already in the game is
-	-- covered by the default config on_ready sends them, and giving them
-	-- a config of their own instead -- which is what this did before the
-	-- default id existed -- would be worse than redundant: a per-player
-	-- config overrides the default, so it would pin every player present
-	-- at load time to the beam of that moment and leave later
-	-- flashlight_announce_default calls unable to move them.
-	ext_register("lib_flashlight", EXT_ID, EXT_VERSION, on_ready, "Flashlight");
+	ext_register("lib_night", DAY_EXT_ID, DAY_EXT_VERSION, day_on_ready,
+		"Daytime and Weather");
+
+	-- And nothing to hand out for the flashlight. Everybody already in
+	-- the game is covered by the default config the ready callback
+	-- sends them, and giving them a config of their own instead -- which
+	-- this did before the default id existed -- would be worse than
+	-- redundant: a per-player config overrides the default, so it would
+	-- pin every player present at load time to the beam of that moment
+	-- and leave later flashlight_announce_default calls unable to move
+	-- them.
+	ext_register("lib_night", FL_EXT_ID, FL_EXT_VERSION, fl_on_ready,
+		"Flashlight");
+
+	bots_sync();
 end
 
 -- Everything this module put in the global table, taken back out again.
 --
 -- Unloading a module does not undo its globals -- the functions keep
 -- working, closed over the state of a module nothing is calling any
--- more -- and consumers ask "is flashlight_set nil?" to find out
--- whether the extension is available at all. Left behind, those names
--- answer yes forever and the guard is dead code.
+-- more -- and consumers test these names ("is flashlight_set nil?") to
+-- find out whether the thing is available at all. Left behind, they
+-- answer yes forever and every such guard becomes dead code.
 --
--- The list is exhaustive on purpose: a name added to the API above and
+-- The list is exhaustive on purpose: a name added to an API above and
 -- forgotten here outlives its own module, and goes on answering for it.
 local EXPORTS = {
+	-- daytime
+	"daytime_supported", "daytime_is_night", "daytime_daylight",
+	"daytime_set_night", "daytime_announce",
+	-- flashlight
 	"flashlight_supported",
 	"flashlight_get", "flashlight_set",
 	"flashlight_get_config", "flashlight_config",
@@ -1173,12 +1644,20 @@ local EXPORTS = {
 	"flashlight_listen_request", "flashlight_unlisten_request",
 };
 
--- Every light out on the way down, while there is still something that
--- knows how to say so. Lights are the one piece of this extension a
--- client cannot be talked out of on its own: a config is only ever
--- replaced and a bitmap is only ever re-sent, but a light stays lit
--- until a Light says otherwise, and after this returns there is nothing
--- left to send one. So the last thing this module does is turn them off.
+-- Flashlight: every light out on the way down, while there is still
+-- something that knows how to say so. Lights are the one piece of the
+-- extension a client cannot be talked out of on its own: a config is
+-- only ever replaced and a bitmap is only ever re-sent, but a light
+-- stays lit until a Light says otherwise, and after this returns there
+-- is nothing left to send one. So the first thing this does is turn them
+-- off.
+--
+-- Daytime: the clients the fallback painted are put back to the server's
+-- own sky, which it can do exactly because it never touched the global:
+-- get_fog still holds whatever map_meta last set, so there is a right
+-- answer to return them to rather than a guess.
+--
+-- Bots: the engine is told to forget the night.
 function mod.on_unload()
 	for i in piditer(PID_BROADCAST) do
 		if (lit[i]) then
@@ -1186,11 +1665,23 @@ function mod.on_unload()
 		end
 	end
 
+	local fog = get_fog();
+
+	if (fog ~= nil) then
+		for pid in piditer(PID_BROADCAST) do
+			if (painted[pid] ~= nil) then
+				send_fog(pid, fog);
+			end
+		end
+	end
+
 	if (ext_unregister ~= nil) then
-		ext_unregister(EXT_ID);
+		ext_unregister(DAY_EXT_ID);
+		ext_unregister(FL_EXT_ID);
 	end
 
 	listeners = {};
+	bots_withdraw();
 
 	for _,name in ipairs(EXPORTS) do
 		_G[name] = nil;

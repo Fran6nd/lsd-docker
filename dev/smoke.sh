@@ -45,8 +45,28 @@ docker run --rm -v "$VOL:/data" "$IMAGE" set masterlist_enabled False >/dev/null
 # policies from when everything came "recommended", and Player Limit's
 # old 254 seats: migrated at start to today's defaults
 docker run --rm -v "$VOL:/data" "$IMAGE" set player_limit_max 254 >/dev/null || fail "set old seats"
-docker run --rm -v "$VOL:/data" "$IMAGE" set ext_policy "{48: 'recommended', 192: 'recommended', 0x20: 'required'}" >/dev/null \
+docker run --rm -v "$VOL:/data" "$IMAGE" set ext_policy "{48: 'recommended', 192: 'recommended', 0x20: 'required', 0x33: 'required'}" >/dev/null \
 	|| fail "set old policies"
+# a server from when daytime and flashlight were two scripts: night now,
+# their sections merged, every value kept (and a policy chosen for 0x33
+# kept; 0x32 had none)
+docker run --rm -i -v "$VOL:/data" --entrypoint sh "$IMAGE" -s <<'EOS' || fail "seed old daytime and flashlight"
+set -e
+awk '/^# ---- /{skip = ($3 == "night")}
+	/^\t"night",$/{print "\t\"daytime\","; print "\t\"flashlight\","; next}
+	!skip' /data/settings > /data/settings.new
+mv /data/settings.new /data/settings
+cat >> /data/settings <<'OLD'
+
+# ---- daytime ----  Daytime and Weather, extension
+daytime_night = True
+
+# ---- flashlight ----  Flashlight, extension
+flashlight_red = 200
+flashlight_reach = 75
+OLD
+EOS
+docker run --rm -v "$VOL:/data" "$IMAGE" get scripts | grep -q '"flashlight"' || fail "seed: flashlight not in the old scripts"
 # a setting from before world_editor became map_layout, migrated at start
 docker run --rm -v "$VOL:/data" "$IMAGE" set world_editor_door_speed 9 >/dev/null \
 	|| fail "set an old setting"
@@ -64,6 +84,17 @@ echo "$pol" | grep -Eq '48: *"applied"' || fail "teamplay's old recommended not 
 echo "$pol" | grep -Eq '192: *"applied"' || fail "player_limit's old recommended not migrated: $pol"
 echo "$pol" | grep -Eq '32: *"required"' || fail "a policy set by hand was changed: $pol"
 echo "ok: old policies and seats migrated, a chosen policy kept"
+scripts=$(docker exec "$NAME" lsdctl get scripts)
+echo "$scripts" | grep -q '"night"' || fail "daytime and flashlight did not become night: $scripts"
+echo "$scripts" | grep -Eq '"(daytime|flashlight)"' && fail "daytime or flashlight still installed: $scripts"
+docker exec "$NAME" lsdctl get flashlight_red | grep -qx 200 || fail "flashlight_red not kept in night's section"
+docker exec "$NAME" lsdctl get flashlight_reach | grep -qx 75 || fail "flashlight_reach not kept in night's section"
+docker exec "$NAME" lsdctl get daytime_night | grep -qi true || fail "daytime_night not kept in night's section"
+docker exec "$NAME" grep -Eq '^# ---- (daytime|flashlight) ----' /data/settings && fail "an old section is still in the file"
+echo "$pol" | grep -Eq '51: *"required"' || fail "daytime's chosen policy was changed: $pol"
+echo "$pol" | grep -Eq '50: *"applied"' || fail "flashlight (new to the server's policies) has no default: $pol"
+docker logs "$NAME" 2>&1 | grep -q 'lib_night' || fail "lib_night not loaded after the migration"
+echo "ok: daytime and flashlight migrated to night, values and policies kept"
 
 # maps: where to find them, a map added from a file (the same path a
 # download takes after it lands), and something that is not a map refused
@@ -86,11 +117,11 @@ echo "ok: map list points at aos.party; map add takes a map and refuses a non-ma
 
 docker exec "$NAME" lsdctl status
 docker exec "$NAME" lsdctl available >/dev/null
-docker exec "$NAME" lsdctl install flashlight --preset disco --policy required --yes --now \
+docker exec "$NAME" lsdctl install night --preset disco --policy required --yes --now \
 	|| fail "install"
 sleep 3
 wait_up "after install"
-docker logs "$NAME" 2>&1 | grep -q 'lib_flashlight' || fail "lib_flashlight not loaded"
+docker logs "$NAME" 2>&1 | grep -q 'lib_night' || fail "lib_night not loaded"
 docker exec "$NAME" lsdctl get flashlight_colors | grep -q random || fail "preset not written"
 echo "ok: install with a preset, server restarted and loaded it"
 
@@ -212,7 +243,7 @@ docker logs "$NAME" 2>&1 | grep -q 'gamemode hostage' || fail "hostage not runni
 echo "ok: gamemode switch"
 
 docker exec "$NAME" lsdctl set masterlist_name "'smoke test'" || fail "set"
-docker exec "$NAME" lsdctl remove flashlight --yes --now || fail "remove"
+docker exec "$NAME" lsdctl remove night --yes --now || fail "remove"
 sleep 3
 wait_up "after remove"
 echo "ok: set, remove"

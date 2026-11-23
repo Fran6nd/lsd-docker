@@ -6,7 +6,7 @@
 -- draws and nobody else's. No beam, no lamp glare -- whoever is lit up
 -- by it, or looking straight at them, sees nothing.
 --
--- It is the flashlight extension doing the drawing (lib_flashlight's
+-- It is the flashlight half of the night script doing the drawing (lib_night's
 -- flashlight_private), so that has to be installed. Effects load
 -- before extensions, so it is looked up at run time and never on load:
 -- without it this does nothing, and says so once in the log.
@@ -60,13 +60,13 @@ local function available()
 	end
 	if (not warned) then
 		warned = true;
-		log("nightvision: the flashlight extension is not loaded, so"
-			.. " nothing is drawn (lsdctl install flashlight)");
+		log("nightvision: the night script is not loaded, so"
+			.. " nothing is drawn (lsdctl install night)");
 	end
 	return false;
 end
 
--- F: lib_flashlight asks before it switches anyone's light. A player
+-- F: lib_night asks before it switches anyone's light. A player
 -- with night vision always may, and their beam is made theirs alone
 -- first; one without it may unless nightvision_only.
 local function on_request(pid, want)

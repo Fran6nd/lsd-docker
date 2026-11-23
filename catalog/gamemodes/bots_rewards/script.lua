@@ -6,7 +6,7 @@ return Gamemode {
 	summary = "Team deathmatch with guard bots, day and night, and every reward free and unlimited.",
 	base = "ctf",
 	rider = "bots",
-	requires = {"daytime", "flashlight", "rewards", "demo_reward"},
+	requires = {"night", "rewards", "demo_reward"},
 	with = {"guards"},
 	questions = {
 		{key = "tdm_kills", type = "number", default = 50, min = 1, max = 1000,

@@ -239,7 +239,9 @@ end
 function Doc:set_policy(map)
 	local notes = {};
 	for _, e in ipairs(cat():of_class(catalog.Extension)) do
-		notes[e.ext_id] = e:label();
+		for _, x in ipairs(e:ext_list()) do
+			notes[x.id] = x.title;
+		end
 	end
 	self:set("ext_policy", map, {notes = notes});
 end
@@ -883,9 +885,11 @@ command("info", "info <script>", "what a script is, needs and asks",
 		say("  modules:   %s", table.concat(e:load_modules(), ", "));
 		local deps = e:dependencies();
 		if (#deps > 0) then say("  requires:  %s", table.concat(deps, ", ")); end
-		if (e.ext_id) then
-			say("  extension: id %d, default policy %s", e.ext_id,
-				e:default_policy(doc:section(e.id) or {}));
+		if (e:is_a(catalog.Extension)) then
+			for _, x in ipairs(e:ext_list()) do
+				say("  extension: id %d (0x%x), %s, default policy %s", x.id, x.id,
+					x.title, e:default_policy(doc:section(e.id) or {}, x.id));
+			end
 		end
 		for _, p in ipairs(e.presets or {}) do
 			say("  preset %-12s %s", p.name, p.summary or "");
@@ -1790,6 +1794,17 @@ local RENAMED = {
 };
 local RETIRED = {"world_editor"};
 
+-- Scripts a release merged into one: daytime and flashlight are night
+-- now (one file speaks both protocol extensions, and tells the bot
+-- engine how bots behave in the dark). A server that had either gets
+-- night, which ships BOTH -- one that had only the flashlight now also
+-- has the daytime extension, harmless at its default (day). Night takes
+-- the place of the first of them in the installed list, so the order is
+-- kept; their sections merge into night's, every value kept (the keys
+-- never clash: daytime_* and flashlight_*). The ext_policy map is
+-- keyed by protocol extension id, which did not change, so it stays.
+local MERGED = {night = {"daytime", "flashlight"}};
+
 -- Bring an older settings file up to date; true if it changed.
 local function migrate(doc)
 	local changed = false;
@@ -1823,6 +1838,54 @@ local function migrate(doc)
 		end
 	end
 
+	for into, olds in pairs(MERGED) do
+		local e = cat():get(into);
+		local had, values = false, {};
+		for _, old in ipairs(olds) do
+			if (doc:is_installed(old) or doc:section(old) ~= nil) then
+				had = true;
+			end
+		end
+
+		if (had and e ~= nil) then
+			-- night's own section, if there already is one, under theirs
+			for k, v in pairs(doc:section(into) or {}) do values[k] = v; end
+			for _, old in ipairs(olds) do
+				for k, v in pairs(doc:section(old) or {}) do values[k] = v; end
+				doc:remove_section(old);
+			end
+
+			local list, put = {}, false;
+			for _, x in ipairs(doc:installed()) do
+				local old = false;
+				for _, o in ipairs(olds) do if (x == o) then old = true; end end
+				if (x == into) then old = true; end
+				if (not old) then
+					list[#list+1] = x;
+				elseif (not put) then
+					list[#list+1] = into;
+					put = true;
+				end
+			end
+			if (not put) then list[#list+1] = into; end
+			doc:set_installed(list);
+
+			doc:write_section(e, values);
+
+			-- the extension a server did not have before gets its default
+			local policy = doc:get("ext_policy");
+			if (type(policy) == "table") then
+				for _, x in ipairs(e:ext_list()) do
+					if (policy[x.id] == nil) then
+						policy[x.id] = e:default_policy(values, x.id);
+					end
+				end
+				doc:set_policy(policy);
+			end
+			changed = true;
+		end
+	end
+
 	-- Policies from when every extension came "recommended": one still
 	-- on it takes its extension's default now, for its settings. And
 	-- Player Limit's old 254 seats, the default nobody chose, becomes
@@ -1840,11 +1903,13 @@ local function migrate(doc)
 	if (type(policy) == "table") then
 		local moved = false;
 		for _, e in ipairs(cat():of_class(catalog.Extension)) do
-			if (policy[e.ext_id] == "recommended") then
-				local now = e:default_policy(doc:section(e.id) or {});
-				if (now ~= "recommended") then
-					policy[e.ext_id] = now;
-					moved = true;
+			for _, x in ipairs(e:ext_list()) do
+				if (policy[x.id] == "recommended") then
+					local now = e:default_policy(doc:section(e.id) or {}, x.id);
+					if (now ~= "recommended") then
+						policy[x.id] = now;
+						moved = true;
+					end
 				end
 			end
 		end

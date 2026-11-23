@@ -10,8 +10,8 @@
 -- its way out of being stuck. The aiming, spread/recoil shooting and
 -- grenade ballistics are all lib_bot's; this is just the AI.
 --
--- Where lib_flashlight is loaded, every living guard carries its light
--- lit (guard_flashlight). The client and lib_flashlight both put a
+-- Where lib_night is loaded, every living guard carries its light
+-- lit (guard_flashlight). The client and lib_night both put a
 -- light out on a kill and a respawn, so the think re-lights it on the
 -- first tick of each life rather than once at creation.
 --
@@ -19,7 +19,7 @@
 --
 -- DEPENDENCIES: lib_bot loaded first (config.lua does this), and a
 -- tent gamemode (ctf) for the roam target. It never load()s its deps;
--- lib_flashlight is optional and only used when it is there.
+-- lib_night is optional and only used when it is there.
 require "lib_bulk_destroy"; -- global bdestroy_* for the dig-out stage
 
 local mod = init_mod();
@@ -41,7 +41,7 @@ getcfg("guard_scan", 0.2,
 getcfg("guard_sight_range", 96,
 	"Blocks a guard sees: nobody farther is looked for.");
 getcfg("guard_flashlight", true,
-	"Guards keep their flashlight lit while alive, where lib_flashlight "
+	"Guards keep their flashlight lit while alive, where lib_night "
 	.."is loaded.");
 
 local STUCK_CHECK = 0.5;  -- seconds between progress checks
@@ -175,7 +175,7 @@ local function guard_think(pid)
 	d.gren_cd = math.max(0, (d.gren_cd or 0) - dt);
 
 	-- checked every tick, not only on spawn: a kill and a respawn both
-	-- put the light out (lib_flashlight mirrors the client), and
+	-- put the light out (lib_night mirrors the client), and
 	-- guard_flashlight turned off live puts it out here too
 	local light = guard_flashlight and true or false;
 	if (flashlight_set ~= nil and flashlight_get(pid) ~= light) then

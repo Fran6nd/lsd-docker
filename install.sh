@@ -78,7 +78,7 @@ esac'
 for dir in /usr/local/bin "$HOME/.local/bin"; do
 	if [ -d "$dir" ] && [ -w "$dir" ]; then
 		printf '%s\n' "$wrapper" > "$dir/lsd" && chmod +x "$dir/lsd"
-		say "installed $dir/lsd (lsd status, lsd install flashlight, lsd update, lsd logs -f)"
+		say "installed $dir/lsd (lsd status, lsd install night, lsd update, lsd logs -f)"
 		break
 	fi
 done

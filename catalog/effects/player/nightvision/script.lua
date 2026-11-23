@@ -1,8 +1,8 @@
 -- A green light only its carrier sees: the F key, for the players who
--- have it. Drawn by the flashlight extension, which must be installed.
+-- have it. Drawn by the night script (its flashlight), which must be installed.
 return PlayerEffect {
 	title = "Night vision",
-	summary = "F lights a green beam only its carrier sees (needs the flashlight extension).",
+	summary = "F lights a green beam only its carrier sees (needs the night script).",
 	module = "nightvision",
 	questions = {
 		{key = "nightvision_reach", type = "number", default = 70, min = 1, max = 255,
