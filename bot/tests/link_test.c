@@ -433,7 +433,7 @@ static void print_sizes(void)
 	S(bl_record); S(bl_ring); S(bl_header); S(bl_file);
 	S(bl_ev_map); S(bl_ev_block); S(bl_ev_line); S(bl_ev_kill); S(bl_ev_hurt);
 	S(bl_ev_sound); S(bl_ev_grenade); S(bl_ev_ping); S(bl_ev_bot); S(bl_ev_order);
-	S(bl_ac_block); S(bl_ac_line); S(bl_ac_grenade);
+	S(bl_ac_block); S(bl_ac_line); S(bl_ac_grenade); S(bl_ac_ping);
 }
 
 int main(int argc, char **argv)

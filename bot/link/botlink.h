@@ -252,7 +252,9 @@ enum bl_action {
 	BL_AC_GRENADE = 3,     /* bl_ac_grenade: throw one */
 	BL_AC_COMMAND = 4,     /* text: a command line to run as the bot, no slash */
 	BL_AC_COLOR = 5,       /* uint32 0x00RRGGBB: the colour it builds in */
-	BL_AC_LOG = 6          /* text: a line for the server's log */
+	BL_AC_LOG = 6,         /* text: a line for the server's log */
+	BL_AC_PING = 7         /* bl_ac_ping: ping a place for its team, as a
+	                          player's /pingmark does (Teamplay) */
 };
 
 typedef struct bl_ac_block {
@@ -269,6 +271,13 @@ typedef struct bl_ac_grenade {
 	bl_vec3 vel;
 	float fuse;
 } bl_ac_grenade;
+
+/* The reason is one of the gamemode's ping labels in English ("Enemy",
+ * "Sniper"): the server puts it in each teammate's language. */
+typedef struct bl_ac_ping {
+	bl_vec3 pos;
+	char reason[64];
+} bl_ac_ping;
 
 /* ------------------------------------------------------------------ */
 /* THE FILE.                                                          */

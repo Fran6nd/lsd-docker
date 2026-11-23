@@ -96,6 +96,8 @@ int bl_layout_ok(void)
 	    && sizeof(bl_ac_block) == 8
 	    && sizeof(bl_ac_line) == 12
 	    && sizeof(bl_ac_grenade) == 16
+	    && sizeof(bl_ac_ping) == 76
+	    && offsetof(bl_ac_ping, reason) == 12
 	    && offsetof(bl_file, world) == 32
 	    && offsetof(bl_file, intents) == 32 + 13408
 	    && offsetof(bl_file, events) == 32 + 13408 + 256 * 20
