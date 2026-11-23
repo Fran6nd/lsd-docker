@@ -1,0 +1,12 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/effects/player/ammo_box/ammo_box.lua
+msgid "Ammo boxes resupply you on the spot."
+msgstr "Les caisses de munitions te ravitaillent sur place."

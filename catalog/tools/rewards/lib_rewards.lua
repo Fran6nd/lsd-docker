@@ -32,12 +32,22 @@
 --   {effect = "nightvision", cost = 1, night = true, secs = 60}
 --                                     -- night: usable only at night
 --
+-- BOTS earn and hold rewards like anybody. When one should USE what it
+-- holds is the reward's own to say: `bot` is a fragment of behaviour
+-- tree in the bot engine's words (bot/core/vocab.h), handed to the
+-- inventory with the item (lib_inventory, BOTS), and `guide` the seconds
+-- a bot keeps aiming at its target afterwards (the missile's flight):
+--
+--   {effect = "medkit", ..., bot = "seq\n\tif health_below 50\n\tdo use medkit self"}
+--
 -- `cost` is how rare it is: a reward of cost 2 comes up half as often as
 -- one of cost 1. An effect that is not loaded is not handed out: effects
 -- stay separately installable, so this offers whatever is there.
 --
--- rewards_free (demo_reward): every reward, unlimited -- x∞ in the
--- inventory -- for everybody.
+-- THREE WAYS TO RUN IT, which the setup asks: on (earned, the default),
+-- off (rewards_enabled = False: nothing is earned, no item exists, and
+-- the effects of the menu stay nobody's), infinite (rewards_free: every
+-- reward, unlimited -- x∞ in the inventory -- for everybody).
 --
 -- WHO ELSE HAS IT. A player effect is everybody's while its
 -- <id>_everyone is true, which is its default: install the railgun and
@@ -57,25 +67,39 @@ getcfg("rewards_exclusive", true,
 	.. "even if their <id>_everyone setting is true.");
 getcfg("rewards_menu", {
 	{effect = "railgun", cost = 1, secs = 30, death = true,
-		label = {en = "Railgun"}},
+		label = {en = "Railgun"},
+		bot = "seq\n\tif enemy_visible\n\tif enemy_beyond 20\n\tdo use railgun self"},
 	-- fired at once, like the airstrike, at the point aimed at
 	{effect = "rocket", cost = 1, trigger = true, aim = true,
-		label = {en = "Rocket"}},
+		label = {en = "Rocket"},
+		bot = "seq\n\tif enemy_visible\n\tif enemy_beyond 8\n\tif enemy_within 60\n\tdo use rocket enemy"},
 	-- steered by the buyer's aim for as long as it flies
 	{effect = "missile", cost = 2, trigger = true, aim = true,
-		label = {en = "Missile"}},
+		label = {en = "Missile"}, guide = 6,
+		bot = "seq\n\tif enemy_visible\n\tif sky_clear\n\tif enemy_beyond 15\n\tdo use missile enemy"},
 	{effect = "grenade_launcher", cost = 1, trigger = true,
-		label = {en = "Grenade launcher"}},
+		label = {en = "Grenade launcher"},
+		bot = "seq\n\tif enemy_visible\n\tif enemy_beyond 8\n\tif enemy_within 40\n\tdo use grenade_launcher enemy"},
 	{effect = "airstrike", cost = 2, trigger = true, aim = true,
-		label = {en = "Airstrike"}},
+		label = {en = "Airstrike"},
+		bot = "seq\n\tif enemies_grouped 2 8\n\tif enemy_beyond 20\n\tdo use airstrike group"},
 	{effect = "medkit", cost = 1, trigger = true, opts = {free = true},
-		label = {en = "Medkit"}},
+		label = {en = "Medkit"},
+		bot = "seq\n\tif health_below 50\n\tdo use medkit self"},
+	{effect = "ammo_box", cost = 1, trigger = true,
+		label = {en = "Ammo box"},
+		bot = "seq\n\tif ammo_below 0.25\n\tdo use ammo_box self"},
 	{effect = "area_heal", cost = 1, secs = 20,
-		label = {en = "Area heal"}},
+		label = {en = "Area heal"},
+		bot = "seq\n\tif allies_hurt_near 8\n\tdo use area_heal self"},
 	{effect = "nightvision", cost = 1, secs = 60, night = true, death = true,
-		label = {en = "Night vision"}},
+		label = {en = "Night vision"},
+		bot = "seq\n\tif is_night\n\tdo use nightvision self"},
 }, "What a reward may be: a list of {effect, cost (how rare), label, secs | charges | trigger, death, night}.");
 
+getcfg("rewards_enabled", true,
+	"Rewards are earned and used. Off: none are, and the effects they "
+	.. "would hand out stay nobody's.");
 getcfg("rewards_free", false,
 	"Every reward free and unlimited, for trying them out (demos).");
 
@@ -137,11 +161,13 @@ local function define_items()
 		return;
 	end
 	for i, e in ipairs(menu()) do
-		if (offered(e) and not defined[e.key]) then
+		local on = rewards_enabled ~= false and offered(e);
+		if (on and not defined[e.key]) then
 			defined[e.key] = true;
 			inventory_define(e.key, {label = e.label, command = "reward " .. e.key,
-				aim = e.aim == true, order = i});
-		elseif (not offered(e) and defined[e.key]) then
+				aim = e.aim == true, order = i,
+				bot = type(e.bot) == "string" and {tree = e.bot, guide = tonumber(e.guide) or 0} or nil});
+		elseif (not on and defined[e.key]) then
 			defined[e.key] = nil;
 			inventory_undefine(e.key);
 		end
@@ -178,8 +204,8 @@ local function draw()
 end
 
 local function award(pid, n)
-	if (rewards_free) then
-		return false; -- everybody holds everything already
+	if (rewards_enabled == false or rewards_free) then
+		return false; -- off, or everybody holds everything already
 	end
 	local given = 0;
 	for _ = 1, n do
@@ -311,7 +337,7 @@ local function free_for(pid)
 end
 
 local function sync_free()
-	if (rewards_free) then
+	if (rewards_free and rewards_enabled ~= false) then
 		for pid in piditer(PID_BROADCAST) do free_for(pid); end
 	elseif (was_free) then
 		for pid in piditer(PID_BROADCAST) do
@@ -322,7 +348,7 @@ local function sync_free()
 			end
 		end
 	end
-	was_free = rewards_free == true;
+	was_free = rewards_free == true and rewards_enabled ~= false;
 end
 
 -- the effects offered are not everybody's: see WHO ELSE HAS IT

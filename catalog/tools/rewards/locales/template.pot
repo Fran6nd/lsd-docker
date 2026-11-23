@@ -30,6 +30,10 @@ msgid "Medkit"
 msgstr ""
 
 #: catalog/tools/rewards/lib_rewards.lua
+msgid "Ammo box"
+msgstr ""
+
+#: catalog/tools/rewards/lib_rewards.lua
 msgid "Area heal"
 msgstr ""
 

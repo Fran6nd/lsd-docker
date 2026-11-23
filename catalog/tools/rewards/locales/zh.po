@@ -32,6 +32,10 @@ msgid "Medkit"
 msgstr "医疗包"
 
 #: catalog/tools/rewards/lib_rewards.lua
+msgid "Ammo box"
+msgstr "弹药箱"
+
+#: catalog/tools/rewards/lib_rewards.lua
 msgid "Area heal"
 msgstr "范围治疗"
 

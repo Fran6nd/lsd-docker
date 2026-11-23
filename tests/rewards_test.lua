@@ -157,6 +157,13 @@ check(triggered.air == nil and last().text:find("You have no Airstrike"), "typed
 reward("nope");
 check(last().text:find("No such reward"), "an unknown name is said so");
 
+print("\n6b. each reward says when a bot should use it");
+local kinds = inventory_kinds();
+check(kinds.medkit and kinds.medkit.bot and kinds.medkit.bot.tree:find("if health_below 50", 1, true)
+	and kinds.medkit.bot.tree:find("do use medkit self", 1, true), "the medkit: when hurt");
+check(kinds.rocket.bot.tree:find("do use rocket enemy", 1, true) and kinds.rocket.bot.guide == 0, "the rocket: at an enemy in sight");
+check(kinds.missile == nil, "one whose effect is not loaded is no item, for bots either");
+
 print("\n7. a reward that cannot be used now is kept");
 triggered.full = true;
 cmds.inv.func(0, {"medkit"});
@@ -193,6 +200,23 @@ check(inventory_count(1, "rocket") == math.huge and #chat == lines, "nothing is 
 rewards_free = false;
 NOW = NOW + 2; mod.after.tick();
 check(total(1) == 0 and total(2) == 0, "turned off: taken back");
+
+print("\n8b. rewards_enabled = false: nothing earned, no item, effects still nobody's");
+rewards_enabled = false;
+NOW = NOW + 2; mod.after.tick();
+empty(0);
+for i = 1, 30 do kill(0, 2); end
+mod.after.capture_intel(0);
+check(total(0) == 0, "kills and captures earn nothing");
+check(next(inventory_kinds()) == nil, "no reward is an item");
+check(not rail.everyone, "and the railgun is still nobody's");
+rewards_free = true;
+NOW = NOW + 2; mod.after.tick();
+check(inventory_count(1, "rocket") == 0, "off wins over infinite");
+rewards_free = false;
+rewards_enabled = true;
+NOW = NOW + 2; mod.after.tick();
+check(inventory_kinds().rocket ~= nil, "on again: the items are back");
 
 print("\n9. unloaded, effects are everybody's again and the items are gone");
 mod.on_unload();

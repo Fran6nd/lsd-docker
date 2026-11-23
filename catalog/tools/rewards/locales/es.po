@@ -32,6 +32,10 @@ msgid "Medkit"
 msgstr "Botiquín"
 
 #: catalog/tools/rewards/lib_rewards.lua
+msgid "Ammo box"
+msgstr "Caja de munición"
+
+#: catalog/tools/rewards/lib_rewards.lua
 msgid "Area heal"
 msgstr "Curación en área"
 
