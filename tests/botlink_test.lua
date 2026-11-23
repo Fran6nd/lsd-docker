@@ -765,9 +765,15 @@ check(botlink_alive() and #of(evs, 1) == 1 and dumps > d0, "alive again: a fresh
 check(#of(evs, 9) == 1 and of(evs, 9)[1].pid == pid, "...the bot announced again");
 local sets = of(evs, 11);
 local texts = {};
-for _, s in ipairs(sets) do texts[#texts + 1] = (s.pid == 255 and "*" or s.pid) .. ":" .. ffi.string(s.raw); end
+local saw_nv = false;
+for _, s in ipairs(sets) do
+	local line = (s.pid == 255 and "*" or s.pid) .. ":" .. ffi.string(s.raw);
+	-- every bot's night vision is a setting of its own (section 9c)
+	if (line:find(":night_vision=", 1, true)) then saw_nv = true; else texts[#texts + 1] = line; end
+end
 table.sort(texts);
-check(#sets == 2 and texts[1] == "*:friendly_fire=true" and texts[2] == pid .. ":difficulty=3", "...the settings, global and the bot's", table.concat(texts, ","));
+check(#texts == 2 and texts[1] == "*:friendly_fire=true" and texts[2] == pid .. ":difficulty=3", "...the settings, global and the bot's", table.concat(texts, ","));
+check(saw_nv, "...and whether the bot sees in the dark");
 local od = of(evs, 12);
 check(#od == 1 and od[1].pid == pid and as(od[1], "bl_ev_order").order == 1 and as(od[1], "bl_ev_order").pos.y == 2
 	and as(od[1], "bl_ev_order").secs == 5, "...and its order");
@@ -807,6 +813,21 @@ INV.kind("medkit", nil);
 t = settexts();
 check(t["*:item.medkit.tree="], "an item undefined withdraws its fragment");
 inventory_listen, inventory_unlisten, inventory_kinds, inventory_count = nil, nil, nil, nil;
+
+print("\n9c. who sees in the dark");
+local NV = {};
+PlayerEffect = {get = function(name) return name == "nightvision" and {has = function(_, p) return NV[p] == true; end} or nil; end};
+step(61);
+settexts();
+step(61);
+check(next(settexts()) == nil, "a bot without night vision was told so once, not every second");
+NV[pid] = true;
+step(61);
+check(settexts()[pid .. ":night_vision=1"], "given night vision: the engine is told");
+NV[pid] = nil;
+step(61);
+check(settexts()[pid .. ":night_vision=0"], "and when it ends");
+PlayerEffect = nil;
 
 --================ 10. ONE RECORD PER EVENT, WHATEVER THE FLEET ======--
 print("\n10. the same events cost the same with 1 bot and with 32");

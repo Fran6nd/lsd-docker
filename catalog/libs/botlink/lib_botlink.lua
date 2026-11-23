@@ -411,6 +411,23 @@ local function item_kind(key, def)
 	botlink_set("item." .. key .. ".guide", bot and tostring(tonumber(bot.guide) or 0) or "0");
 end
 
+-- WHO SEES IN THE DARK. Night vision is a player effect a bot may hold
+-- (a reward, a gamemode's gift); at night it decides what the bot can
+-- see at all, so the engine is told: "night_vision=1|0" for each bot,
+-- when it changes. Looked at once a second: a grant ends by its own
+-- clock, with nothing to hook.
+local nv_told = {};
+local function sync_night_vision()
+	local fx = PlayerEffect ~= nil and PlayerEffect.get("nightvision") or nil;
+	for pid in pairs(ours) do
+		local has = (fx ~= nil and fx:has(pid)) and "1" or "0";
+		if (nv_told[pid] ~= has) then
+			nv_told[pid] = has;
+			botlink_set("night_vision", has, pid);
+		end
+	end
+end
+
 -- listeners are re-registered if their library was reloaded under us
 local shot_with, ping_with, inv_with = nil, nil, nil;
 local function hook_listeners()
@@ -547,7 +564,7 @@ function botlink_remove(pid)
 	local o = ours[pid];
 	if (o == nil) then return; end
 	ours[pid] = nil;
-	psettings[pid], orders[pid], lastori[pid] = nil, nil, nil;
+	psettings[pid], orders[pid], lastori[pid], nv_told[pid] = nil, nil, nil, nil;
 	push(10, pid, nil, 0, true);
 	if (bot_destroy ~= nil) then bot_destroy(pid); end
 end
@@ -1010,7 +1027,10 @@ function mod.after.tick()
 	L.bl_beat_server(f);
 	if (attached) then
 		write_world(false);
-		if (tick_n % 60 == 0) then hook_listeners(); end
+		if (tick_n % 60 == 0) then
+			hook_listeners();
+			sync_night_vision();
+		end
 	end
 end
 
