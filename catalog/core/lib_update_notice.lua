@@ -1,5 +1,5 @@
 -- lib_update_notice.lua -- Tell admins, as they log in, of a newer image
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- `lsdctl update-check` asks the registry for the lsd-docker image's
 -- published versions -- the entrypoint runs it every six hours -- and

@@ -1,5 +1,5 @@
 -- edit_mode_test.lua -- Block Batch parsing, and who is sent what
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/edit_mode_test.lua      (from the repository root)
 --

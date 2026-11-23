@@ -1,5 +1,5 @@
 -- lib_ext_policy.lua -- What a missing protocol extension costs a client
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- lib_ext announces what this server speaks and records what each
 -- client speaks back. It does not care what the answer is. This does:

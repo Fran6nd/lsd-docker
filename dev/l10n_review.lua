@@ -1,5 +1,5 @@
 -- dev/l10n_review.lua -- review a language's translations in bulk
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit dev/l10n_review.lua todo <lang> > todo.lua
 --        every entry of every locales/<lang>.po not yet in use (empty,

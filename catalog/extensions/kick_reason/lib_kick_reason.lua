@@ -1,5 +1,5 @@
 -- lib_kick_reason.lua -- The Kick Reason protocol extension
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Speaks aosprotocol's Kick Reason extension (id 194, version 1,
 -- PACKETLESS): before the server disconnects a client, it sends that

@@ -1,5 +1,5 @@
 -- player_limit_test.lua -- what an old client is sent above 32 players
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/player_limit_test.lua      (from the repository root)
 --

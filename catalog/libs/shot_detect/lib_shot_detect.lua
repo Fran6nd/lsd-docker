@@ -1,5 +1,5 @@
 -- lib_shot_detect.lua -- Works out when a player actually fired a bullet
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Scripts that replace what a bullet does -- railguns, exploding pellets
 -- -- all need the same thing first: to know that a bullet happened, once

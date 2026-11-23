@@ -1,5 +1,5 @@
 -- boundary_damage_test.lua -- a map's boundary, written as the web writes it
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/boundary_damage_test.lua      (from the repository root)
 --

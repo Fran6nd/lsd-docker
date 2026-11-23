@@ -1,5 +1,5 @@
 -- lib_rewards.lua -- Rewards for kills and captures, in the inventory
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Under any gamemode: every rewards_kills kills a player makes (counted
 -- across lives, from the map's start), and every intel capture

@@ -1,5 +1,5 @@
 -- ask_player_test.lua -- lib_ask_player: one question at a time, by chat or pie
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/ask_player_test.lua      (from the repository root)
 

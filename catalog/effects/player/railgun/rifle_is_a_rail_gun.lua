@@ -1,5 +1,5 @@
 -- rifle_is_a_rail_gun.lua -- Rifle shots pierce the whole map
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Every block on the trajectory is destroyed (only the unbreakable
 -- water-level floor survives, and even that doesn't stop the bullet)

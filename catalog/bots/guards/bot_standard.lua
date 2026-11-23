@@ -1,5 +1,5 @@
 -- bot_standard.lua -- Combat guard bots on lib_bot
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- A Lua port of piqueserver's example_bot.py. Keeps guard_count fighters
 -- alive per team; each one:

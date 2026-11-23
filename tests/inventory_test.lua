@@ -1,5 +1,5 @@
 -- inventory_test.lua -- lib_inventory: items that are commands
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/inventory_test.lua      (from the repository root)
 local failures, checks = 0, 0;

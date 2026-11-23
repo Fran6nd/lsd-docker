@@ -1,5 +1,5 @@
 -- lib_daytime.lua -- The Daytime and Weather protocol extension
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Speaks aosprotocol's Daytime and Weather extension (id 0x33, version
 -- 1): the server says whether it is day or night, and the client draws

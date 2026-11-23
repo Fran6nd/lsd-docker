@@ -1,5 +1,5 @@
 -- missile.lua -- A rocket steered by its sender's aim, in real time
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- trigger(pid, opts) launches one from the sender's eye, and it goes
 -- for the block under the sender's crosshair as a top-attack missile

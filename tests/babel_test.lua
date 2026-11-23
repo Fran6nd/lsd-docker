@@ -1,5 +1,5 @@
 -- babel_test.lua -- babel_plus: the spawn colour and the camper marks
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/babel_test.lua      (from the repository root)
 --

@@ -1,5 +1,5 @@
 -- lib_headless.lua -- headless clients are not population
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Keeps a fleet of headless clients out of the player count this
 -- server advertises to the public server lists.

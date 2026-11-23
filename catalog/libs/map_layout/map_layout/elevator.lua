@@ -1,5 +1,5 @@
 -- map_layout/elevator.lua -- A built platform that lifts riders
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Placement: /place elevator <up|down>
 --   mark 1 -- one corner of the platform

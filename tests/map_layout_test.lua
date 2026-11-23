@@ -1,5 +1,5 @@
 -- map_layout_test.lua -- the layout's pure parts: its file, its permissions
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/map_layout_test.lua      (from the repository root)
 --

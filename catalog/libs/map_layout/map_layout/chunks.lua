@@ -1,5 +1,5 @@
 -- map_layout/chunks.lua -- Spatial authorization: who may edit what
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- A "chunk" is a named region of the map with a permission attached.
 -- Every block edit is resolved against them; anything not inside a

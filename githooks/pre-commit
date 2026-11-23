@@ -1,7 +1,7 @@
 #!/bin/sh
 # pre-commit -- keep the translation files in step with the scripts
 #
-# Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+# Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 #
 # Runs dev/l10n.lua, which rewrites every script's locales/template.pot
 # and brings each locales/<lang>.po in line with it, and stages what

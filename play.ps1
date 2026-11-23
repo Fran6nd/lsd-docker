@@ -1,5 +1,5 @@
 # play.ps1 -- a casual LAN game of Ace of Spades, gone when it is over (Windows)
-# Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+# Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 #
 #   irm https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.ps1 | iex
 #

@@ -1,5 +1,5 @@
 -- unrestricted_blocks.lua -- Accept block packets the server would refuse
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Sibling of stock infinite_blocks.lua: that one lifts the supply limit,
 -- this one lifts the placement rules.

@@ -1,5 +1,5 @@
 -- area_hurt.lua -- Hurt the enemies near a player
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- When triggered for a player, every living enemy within the radius
 -- takes damage, dealt as that player: a kill is theirs, and they see

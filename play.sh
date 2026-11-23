@@ -1,6 +1,6 @@
 #!/bin/sh
 # play.sh -- a casual LAN game of Ace of Spades, gone when it is over
-# Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+# Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 #
 #   curl -fsSL https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.sh | sh
 #   curl -fsSL .../play.sh | sh -s -- babel random

@@ -1,5 +1,5 @@
 -- callouts_test.lua -- lib_callouts: its pies, and pings only through Teamplay
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 package.path = "catalog/libs/callouts/?.lua;" .. package.path;
 
 local passed, failed = 0, 0;

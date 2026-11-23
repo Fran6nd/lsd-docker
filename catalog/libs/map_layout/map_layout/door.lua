@@ -1,5 +1,5 @@
 -- map_layout/door.lua -- A built surface that retracts to open
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Placement: /place door up|down|left|right
 --   mark 1 -- one corner of the door box

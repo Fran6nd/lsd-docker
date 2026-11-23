@@ -1,5 +1,5 @@
 -- lib_ext.lua -- ExtensionInfo negotiation, shared by every extension
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- One place that speaks packet 60, because the protocol only has room
 -- for one. The server announces what it supports in a SINGLE

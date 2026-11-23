@@ -1,5 +1,5 @@
 -- rocket.lua -- A rocket flies from the player's eye along their aim
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Fired, a rocket leaves the eye along the aim: a short streak of
 -- fiery blocks moving a few blocks a tick, which explodes where it

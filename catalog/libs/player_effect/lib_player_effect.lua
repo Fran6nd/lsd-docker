@@ -1,5 +1,5 @@
 -- lib_player_effect.lua -- The class every player effect is built on
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- A player effect changes what one player's own actions do: what a gun
 -- does when it fires, what a hit does to whoever it lands on -- or what

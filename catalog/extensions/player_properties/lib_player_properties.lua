@@ -1,5 +1,5 @@
 -- lib_player_properties.lua -- The Player Properties protocol extension
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Speaks aosprotocol's Player Properties extension (id 0, version 1):
 -- the server tells a client the authoritative stats of one player --

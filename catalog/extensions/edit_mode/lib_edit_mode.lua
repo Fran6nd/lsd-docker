@@ -1,5 +1,5 @@
 -- lib_edit_mode.lua -- The Edit Mode protocol extension, server side
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Speaks aosprotocol's Edit Mode extension (id 0x36, version 1): the
 -- server puts a player in edit mode, and from then on accepts building

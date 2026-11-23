@@ -1,5 +1,5 @@
 -- lib_inventory.lua -- What a player holds, used by command or by pie
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- An ITEM is a command: a kind of item is a label and the command line
 -- it runs, and using one runs that command as the player who holds it.

@@ -1,6 +1,6 @@
 #!/bin/sh
 # selfupdate.sh -- pull the newest image and recreate the server on it
-# Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+# Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 #
 #   docker run --rm --volumes-from lsd \
 #       -v /var/run/docker.sock:/var/run/docker.sock \

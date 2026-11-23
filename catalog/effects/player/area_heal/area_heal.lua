@@ -1,5 +1,5 @@
 -- area_heal.lua -- Heal the teammates near a player
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- When triggered for a player, every living teammate within the radius
 -- -- not the player themselves -- gets health back, up to full: area_hurt

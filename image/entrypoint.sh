@@ -1,6 +1,6 @@
 #!/bin/sh
 # entrypoint.sh -- serve, or run an lsdctl command
-# Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+# Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 #
 #   docker run ... IMAGE                 serve (the default)
 #   docker run ... IMAGE <command>       lsdctl <command>, e.g. setup

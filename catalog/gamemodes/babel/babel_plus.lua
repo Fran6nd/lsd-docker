@@ -1,5 +1,5 @@
 -- babel_plus.lua -- Babel as a real game: team-coloured blocks, camper marks
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Rides on babel, with babel_protect (which keeps builders out of the
 -- enemy tower area, keeps them from breaking their own, and paints the

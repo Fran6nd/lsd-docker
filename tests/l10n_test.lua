@@ -1,5 +1,5 @@
 -- l10n_test.lua -- translation: catalogs, plurals, and per-player text
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/l10n_test.lua      (from the repository root)
 --

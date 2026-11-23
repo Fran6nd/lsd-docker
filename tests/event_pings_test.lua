@@ -1,5 +1,5 @@
 -- event_pings_test.lua -- lib_callouts' intel and hostage pings
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/event_pings_test.lua      (from the repository root)
 --

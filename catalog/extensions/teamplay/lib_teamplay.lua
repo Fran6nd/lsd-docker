@@ -1,5 +1,5 @@
 -- lib_teamplay.lua -- The Teamplay protocol extension
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Speaks aosprotocol's Teamplay extension (id 48, version 1): the server
 -- can point a client at a player -- "outline that one, for ten seconds,

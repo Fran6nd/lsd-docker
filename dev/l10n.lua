@@ -1,5 +1,5 @@
 -- dev/l10n.lua -- the translation templates, and the .po files kept in step
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit dev/l10n.lua            rewrite every template and .po
 --   luajit dev/l10n.lua --check    fail if any is out of date (CI)

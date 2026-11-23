@@ -1,7 +1,7 @@
 #!/bin/sh
 # commit-msg -- refuse commit messages carrying attribution trailers
 #
-# Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+# Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 #
 # Commits here are authored by one person and say so in the Author field.
 # A Co-authored-by trailer is refused whoever it names: the ones worth

@@ -1,5 +1,5 @@
 -- map_layout/areas.lua -- Shapes, containment and area triggers
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- One shape vocabulary serves the whole editor: authorization chunks
 -- test blocks against it, components test *players* against it. Keeping

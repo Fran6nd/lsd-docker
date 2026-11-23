@@ -1,5 +1,5 @@
 -- l10n_po.lua -- gettext catalogs, plural forms and locales, in pure Lua
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- The parts of translation that need no server, so lib_l10n, lsdctl and
 -- the tests share one copy. The file format is gettext's, as zerospades

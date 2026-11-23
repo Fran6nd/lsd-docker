@@ -1,5 +1,5 @@
 -- votekick.lua -- Player-driven kick votes.
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Any in-game player can start a vote with /votekick <player>; others
 -- add their voice with /y (or /votekick again). Reach the needed count

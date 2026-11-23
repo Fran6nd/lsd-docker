@@ -1,5 +1,5 @@
 -- motd.lua -- Send a blob of text to players when they join
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Upstream's, with the lines in each player's language: `motd` is a
 -- string of lines, or a list whose lines are each a string or a language

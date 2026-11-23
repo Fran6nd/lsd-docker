@@ -1,5 +1,5 @@
 -- lib_message_types.lua -- The Message Types protocol extension
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Speaks aosprotocol's Message Types extension (id 193, version 1):
 -- four more chat types on top of the three the base protocol has, so a

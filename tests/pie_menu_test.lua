@@ -1,5 +1,5 @@
 -- pie_menu_test.lua -- the Pie Menu encoder, its validation, and what is sent
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/pie_menu_test.lua      (from the repository root)
 --

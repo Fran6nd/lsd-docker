@@ -1,5 +1,5 @@
 -- lib_play.lua -- A casual game that ends when its players have gone
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Loaded only on a server set up by `play` (play_mode): a throwaway
 -- container, run with docker run --rm, whose server is not restarted

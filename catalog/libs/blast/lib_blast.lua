@@ -1,5 +1,5 @@
 -- lib_blast.lua -- Flying blasts: a trail of blocks, then an explosion
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- The rocket and the airstrike's bombs are the same thing seen from two
 -- places: something that moves a few blocks a tick along a straight

@@ -1,5 +1,5 @@
 -- lib_server.lua -- The settings that describe the server, not a feature
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Its name, its port, whether it is listed, which maps rotate, which
 -- masterlists to publish to, the fog. Every script owns its own

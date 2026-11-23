@@ -1,5 +1,5 @@
 -- lib_flashlight.lua -- The Flashlight protocol extension
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Speaks aosprotocol's Flashlight extension (id 0x32, version 1): a
 -- light a player carries, switched by the server and drawn by every

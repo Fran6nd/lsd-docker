@@ -1,5 +1,5 @@
 -- map_layout/blocks.lua -- How components write the map
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Components build through this table -- the `we` every component
 -- callback is handed -- so the record of which cells they own, `guarded`,

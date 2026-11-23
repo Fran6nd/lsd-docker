@@ -1,5 +1,5 @@
 -- bots_mode_test.lua -- the bots gamemode: its day and night cycle
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/bots_mode_test.lua      (from the repository root)
 local passed, failed = 0, 0;

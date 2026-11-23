@@ -1,5 +1,5 @@
 -- bots.lua -- Team deathmatch with guard bots, through day and night
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- tdm's scoring, loaded rather than copied, plus a clock: bots_day_secs
 -- of day, then bots_night_secs of night, round and round. The old

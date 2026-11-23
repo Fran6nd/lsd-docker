@@ -1,5 +1,5 @@
 -- lib_ask_player.lua -- Ask a player a question, get one answer back
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Scripts keep needing to put a question to one player -- "join the
 -- other team?", "really surrender?" -- and each would otherwise write

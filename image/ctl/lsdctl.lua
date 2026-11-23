@@ -1,5 +1,5 @@
 -- lsdctl.lua -- Administer the LSD server from inside its container
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   docker exec -it lsd lsdctl <command>          a running server
 --   docker run --rm -it -v lsd-data:/data IMAGE <command>   a stopped one

@@ -1,5 +1,5 @@
 -- teamplay_reason_test.lua -- lib_teamplay's label and /pingmark parsing
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/teamplay_reason_test.lua      (from the repository root)
 --

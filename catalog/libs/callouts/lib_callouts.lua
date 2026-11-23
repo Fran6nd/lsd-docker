@@ -1,5 +1,5 @@
 -- lib_callouts.lua -- What a team says to itself, from the pie menu
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Every gamemode has the things its players need to tell each other --
 -- in babel "we have a digger", in ctf "they have our intel" -- and

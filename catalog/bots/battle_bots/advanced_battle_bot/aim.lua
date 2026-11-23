@@ -1,5 +1,5 @@
 -- advanced_battle_bot/aim.lua -- The "gosa" aim-error model
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Ported from new_gosa/late_gosa/tebure_gosa/moving_target_gosa. A bot never
 -- aims perfectly: its aim carries a skill-scaled error that converges

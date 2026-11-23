@@ -1,5 +1,5 @@
 -- player_effect_test.lua -- the PlayerEffect class, and the effects on it
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/player_effect_test.lua      (from the repository root)
 --

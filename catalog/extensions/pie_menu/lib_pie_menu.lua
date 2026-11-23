@@ -1,5 +1,5 @@
 -- lib_pie_menu.lua -- The Pie Menu protocol extension
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Speaks aosprotocol's Pie Menu extension (id 0x31, version 1): the
 -- ring of six wedges a player opens around the crosshair, each wedge

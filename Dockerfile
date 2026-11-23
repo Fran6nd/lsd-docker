@@ -158,7 +158,7 @@ RUN printf '%s\n' "$VERSION" > VERSION \
 LABEL org.opencontainers.image.title="lsd-docker" \
       org.opencontainers.image.description="LSD Ace of Spades server with a script catalog, administered with lsdctl" \
       org.opencontainers.image.source="https://github.com/Fran6nd/lsd-docker" \
-      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
+      org.opencontainers.image.licenses="GPL-3.0-or-later" \
       org.opencontainers.image.version="$VERSION"
 
 ENV LSD_NO_STDIO_CONSOLE=1 \

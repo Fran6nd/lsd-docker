@@ -1,5 +1,5 @@
 -- advanced_battle_bot.lua -- Advanced battle bots
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- A Lua port of tmp-bot-script-advanced.py (TDM + CTF scope), built on lib_bot.
 --

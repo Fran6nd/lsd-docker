@@ -1,5 +1,5 @@
 -- lib_silent_player.lua -- The Silent Player protocol extension
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Speaks aosprotocol's Silent Player extension (id 3, version 1): the
 -- server tells a client to leave certain player ids out of its own

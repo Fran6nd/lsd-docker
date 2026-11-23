@@ -1,5 +1,5 @@
 -- lib_bot.lua -- Base API for server-side bots
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- So bot scripts read as intent instead of protocol calls.
 --

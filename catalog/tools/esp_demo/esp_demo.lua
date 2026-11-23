@@ -1,5 +1,5 @@
 -- esp_demo.lua -- Aim at an enemy and your whole team sees them
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- A demonstration of lib_teamplay's ESP marks, and of nothing else.
 -- Put your crosshair on an enemy and that enemy is outlined for your

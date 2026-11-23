@@ -1,5 +1,5 @@
 -- editor/placement.lua -- Placing components, chunks and deletions by marks
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- A placement is a session per player: /place door left starts one, and
 -- marks -- points on the map -- feed it until the component has what it

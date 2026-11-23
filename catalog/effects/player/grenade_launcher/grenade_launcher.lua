@@ -1,5 +1,5 @@
 -- grenade_launcher.lua -- A grenade that explodes on impact
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- trigger(pid, opts) fires a real grenade from the player's eye along
 -- their aim, at grenade_launcher_speed (a full-strength throw is about

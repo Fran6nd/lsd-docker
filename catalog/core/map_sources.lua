@@ -1,5 +1,5 @@
 -- map_sources.lua -- Where maps come from, and what was pasted
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Pure Lua, no server API: lsdctl's `map add` and the setup wizard use
 -- it, and the tests drive it directly.

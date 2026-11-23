@@ -1,5 +1,5 @@
 -- advanced_battle_bot/movement.lua -- Reactive navigation
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- In the spirit of bot_standard's try_unstick and the original's spadeing/digy.
 -- A bot walks straight at its destination; when it stops making

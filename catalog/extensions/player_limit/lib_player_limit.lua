@@ -1,5 +1,5 @@
 -- lib_player_limit.lua -- The Player Limit protocol extension
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Speaks aosprotocol's Player Limit extension (id 192, version 1):
 -- "tells client server supports up to 255 players. Player ID 255 is

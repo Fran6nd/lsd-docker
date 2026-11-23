@@ -1,5 +1,5 @@
 -- airstrike.lua -- Call in bombs on a point
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- The caller aims, and everybody is warned: a Teamplay ping on the spot
 -- for the clients that show one, and a line in chat for the rest. A few

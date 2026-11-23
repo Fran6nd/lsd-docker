@@ -1,5 +1,5 @@
 -- map_layout/json.lua -- The layout file's JSON, both ways
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- No JSON library ships with the server and the data here is simple
 -- (arrays, string/number/bool fields), so a small encoder/decoder is

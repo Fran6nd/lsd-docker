@@ -1,5 +1,5 @@
 -- settings_format_test.lua -- the settings file parser, against fixtures
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/settings_format_test.lua      (from the repository root)
 --

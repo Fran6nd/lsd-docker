@@ -1,5 +1,5 @@
 -- editor.lua -- The editor gamemode: build a map and its layout
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Building is its own session, not a game: `lsdctl gamemode editor`,
 -- build, `/save`, `lsdctl gamemode ctf`. While it runs:

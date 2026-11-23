@@ -1,5 +1,5 @@
 -- smg_is_incapacitating.lua -- The SMG pins what it hits, and never runs dry
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Two changes to the SMG, and only the SMG.
 --

@@ -1,5 +1,5 @@
 -- dev/l10n_mt.lua -- machine translation into the .po files, for review
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit dev/l10n_mt.lua <lang> [--url URL] [--accept] [<path>...]
 --

@@ -102,4 +102,4 @@ Ctrl-C stops it at once. Answers can be given ahead:
 
 ## License
 
-AGPL-3.0-or-later; see [LICENSE](LICENSE).
+GPL-3.0-or-later; see [LICENSE](LICENSE).

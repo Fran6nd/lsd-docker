@@ -1,5 +1,5 @@
 -- lib_map_layout.lua -- A map's moving parts and permissions, in every game
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- A map is its .vxl terrain plus a layout, <map>.editor.json beside it:
 -- the components built into it (doors, elevators -- map_layout/door.lua,

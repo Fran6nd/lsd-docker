@@ -1,5 +1,5 @@
 -- map_layout/stencil.lua -- Capture an existing build as a component
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Components that MOVE a piece of the map -- the door, the elevator --
 -- do not draw a shape of their own. Whatever is already built inside the

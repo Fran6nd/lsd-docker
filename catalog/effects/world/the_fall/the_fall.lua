@@ -1,5 +1,5 @@
 -- the_fall.lua -- Die once, then fall until you kill your way out
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Death works normally here, exactly once. You are killed, the killer
 -- gets their point and their line in the feed, and then you respawn --

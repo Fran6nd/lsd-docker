@@ -1,5 +1,5 @@
 -- map_sources_test.lua -- what `map add` makes of what was pasted
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/map_sources_test.lua      (from the repository root)
 

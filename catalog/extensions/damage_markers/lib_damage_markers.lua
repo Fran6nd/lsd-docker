@@ -1,5 +1,5 @@
 -- lib_damage_markers.lua -- The Damage Markers protocol extension
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Speaks aosprotocol's Damage Markers extension (id 0x20, version 1):
 -- when a hit lands, the server tells whoever landed it how much it took

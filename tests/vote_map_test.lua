@@ -1,5 +1,5 @@
 -- vote_map_test.lua -- /va: the vote, the next map, and one from the web
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/vote_map_test.lua      (from the repository root)
 local failures, checks = 0, 0;

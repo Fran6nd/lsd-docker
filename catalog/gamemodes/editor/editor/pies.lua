@@ -1,5 +1,5 @@
 -- editor/pies.lua -- The editor's tools, in the pie menu
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Three pies, added before the default layout's so a builder's first
 -- flick is a tool: Select and Place when aiming at a block, Map anywhere.

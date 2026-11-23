@@ -1,5 +1,5 @@
 -- shotgun_are_grenade_launchers.lua -- Shotgun pellets are grenades
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- One random pellet per shell detonates a grenade where it lands.
 --

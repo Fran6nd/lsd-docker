@@ -1,5 +1,5 @@
 -- config.lua -- The one config the server runs
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Nothing in here is a value. Values live in the settings file
 -- (/data/settings), which `lsdctl` edits and an operator may edit by

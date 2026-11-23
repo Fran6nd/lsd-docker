@@ -1,5 +1,5 @@
 -- nightvision.lua -- A green light only its carrier sees
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- A player who has night vision switches it on and off with the F key,
 -- as they would a flashlight: a wide green beam that their own client

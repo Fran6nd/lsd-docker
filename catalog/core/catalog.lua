@@ -1,5 +1,5 @@
 -- catalog.lua -- What a script is, what kinds there are, and what loads when
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Pure Lua, no server API: the server's config.lua uses it to work out
 -- the load order, and lsdctl uses it to install, remove and set scripts

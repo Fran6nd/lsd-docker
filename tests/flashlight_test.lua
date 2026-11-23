@@ -1,5 +1,5 @@
 -- flashlight_test.lua -- what each viewer is told, under each visibility
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/flashlight_test.lua      (from the repository root)
 --

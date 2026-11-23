@@ -1,5 +1,5 @@
 -- advanced_battle_bot/config.lua -- Tunables and difficulty
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Ported from the header of tmp-bot-script-advanced.py (TDM + CTF scope).
 --

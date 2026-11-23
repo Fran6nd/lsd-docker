@@ -1,5 +1,5 @@
 -- rewards_test.lua -- lib_rewards: earning, the inventory, using
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/rewards_test.lua      (from the repository root)
 --

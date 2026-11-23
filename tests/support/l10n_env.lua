@@ -1,5 +1,5 @@
 -- l10n_env.lua -- the REAL lib_l10n for a host-side test
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   local L = dofile("tests/support/l10n_env.lua").load{};
 --

@@ -1,5 +1,5 @@
 -- medkit.lua -- Use /m for morphine, as a player effect
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Upstream LSd's medkit (lsd/scripts/medkit.lua), which this replaces
 -- under the same name and the same id: medkit_quantity kits a life,

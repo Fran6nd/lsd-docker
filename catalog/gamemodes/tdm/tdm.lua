@@ -1,5 +1,5 @@
 -- tdm.lua -- Team deathmatch, on ctf's ground
--- Copyright (C) 2026 Fran6nd. AGPL-3.0-or-later; see LICENSE.
+-- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- ctf underneath, for what a team game needs and the protocol only has
 -- in ctf terms: the tents (spawns, restock), the team score the client
