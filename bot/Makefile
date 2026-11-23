@@ -10,6 +10,11 @@ CC ?= cc
 CFLAGS ?= -O2 -g
 STRICT = -std=c11 -Wall -Wextra -Werror -pedantic
 INC = -Icore -Ilink -I../lsd/src
+# The core holds the server's physics (core/lsd_core.c compiles
+# ../lsd/src/demoncore.c). A fused multiply-add would make a trajectory
+# differ in its last bit from one compiler or machine to the next, and the
+# core's tests pin trajectories exactly: no contraction anywhere in it.
+CORE_FP = -ffp-contract=off
 B = build
 
 CORE = $(wildcard core/*.c)
@@ -21,7 +26,7 @@ all: $(B)/libbotcore.a $(B)/libbotlink.so $(if $(BOTD),$(B)/botd)
 
 $(B)/core/%.o: core/%.c $(wildcard core/*.h)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(STRICT) $(INC) -c $< -o $@
+	$(CC) $(CFLAGS) $(STRICT) $(CORE_FP) $(INC) -c $< -o $@
 
 $(B)/link/%.o: link/%.c $(wildcard link/*.h)
 	@mkdir -p $(@D)
