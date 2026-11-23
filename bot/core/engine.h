@@ -1,0 +1,82 @@
+/* engine.h -- All the bots of one server, as the host sees them
+ * Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
+ *
+ * The one door between the host (botd: the file, the clock, the logs)
+ * and the core (everything a bot is). The host hands in what the server
+ * said -- the map, the events, the world -- and takes out what the bots
+ * want: an intent each, and actions. It knows nothing else about bots,
+ * and the core knows nothing about files, time or processes.
+ *
+ * The data crossing the door is botlink.h's, as it is (bl_world,
+ * bl_record, bl_intent): those are plain structs, and translating them
+ * into twins would only be a place for the two to disagree.
+ *
+ * WHAT IS SHARED AND WHAT IS A BOT'S. One engine holds what every bot of
+ * a server shares -- the map and its collapse scratch, the measured
+ * moves, the memory of moves that failed, the trees, the vocabulary,
+ * what the fleet knows (who was seen where, which pings stand) -- once.
+ * A bot holds only what is its own: its character, its place in the
+ * tree, its senses' memory, its aim, its route.
+ *
+ * TIME. bc_engine_think is given the time since it was last called; the
+ * core never asks a clock. WORK is bounded the same way: `budget` is in
+ * planner expansions (nav.h), shared out among the bots that need a
+ * route this call, so a think never runs long because thirty bots lost
+ * their way at once. What does not fit waits for the next call, and the
+ * bot keeps doing what it was doing meanwhile.
+ *
+ * ORDER, each time round: bc_engine_event for every record the server
+ * queued (in order), then bc_engine_think with the newest world.
+ */
+#ifndef BC_ENGINE_H
+#define BC_ENGINE_H
+
+#include <stddef.h>
+#include <stdint.h>
+#include "botlink.h"
+
+typedef struct bc_engine bc_engine;
+
+/* What the core asks of its host. */
+typedef struct bc_engine_host {
+	void *ctx;
+	/* a line for the log; level 0 debug, 1 note, 2 trouble */
+	void (*log)(void *ctx, int level, const char *line);
+	/* an action for the server (bl_action), as bl_push takes it */
+	void (*action)(void *ctx, uint8_t type, uint8_t pid, const void *payload, uint32_t bytes);
+} bc_engine_host;
+
+/* One engine: allocates all it will ever need for `max_bots` bots
+ * (nothing is allocated per think). NULL if it cannot. */
+bc_engine *bc_engine_new(const bc_engine_host *host, int max_bots);
+void bc_engine_free(bc_engine *e);
+
+/* The built-in trees: one text holding every `tree <name>:` (bt.h). The
+ * tree a bot runs is the one named by the setting `tree` (default
+ * "default"). 0 on a mistake, said in err. */
+int bc_engine_trees(bc_engine *e, const char *text, char *err, size_t err_size);
+
+/* A map: the bytes of a .vxl, as the server's BL_EV_MAP named it. Every
+ * bot forgets its route; what the fleet learned of the last map goes.
+ * 0 if it is not a map. */
+int bc_engine_map(bc_engine *e, const uint8_t *vxl, size_t bytes, uint32_t map_seq);
+
+/* One record from the server's queue (a bl_record and its payload), any
+ * but BL_EV_MAP -- that one names a file, which is the host's to read. */
+void bc_engine_event(bc_engine *e, const bl_record *rec);
+
+/* Think: every bot marked BL_F_BOT in `world` that the server asked for
+ * (BL_EV_BOT) gets its intent written into `intents[pid]`; actions go
+ * out through the host. `dt` is the seconds since the last call. */
+void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
+	float dt, int budget);
+
+/* How many bots it holds. */
+int bc_engine_bots(const bc_engine *e);
+
+/* For a log or a debug view: what bot `pid` is and is doing --
+ * "pusher L6 | pick:aggression > fight | route 14/31 RUNJUMP | sees 2".
+ * The length written; 0 for no such bot. */
+size_t bc_engine_describe(const bc_engine *e, int pid, char *out, size_t out_size);
+
+#endif
