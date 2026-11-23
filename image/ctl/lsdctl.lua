@@ -1323,6 +1323,35 @@ local function ask_bots(ui, mode, given)
 	return math.max(0, math.min(100, math.floor(tonumber(n) or 0)));
 end
 
+-- Rewards (catalog/tools/rewards): earned, off, or every one free and
+-- unlimited. Asked, or given as a word (`play tdm random 8 infinite`).
+local REWARDS = {
+	{value = "on", label = "on", hint = "kills and captures earn them"},
+	{value = "off", label = "off", hint = "no rewards"},
+	{value = "infinite", label = "infinite", hint = "every reward, unlimited, for everybody"},
+};
+
+local function ask_rewards(ui, given, default)
+	for _, r in ipairs(REWARDS) do
+		if (given == r.value) then return given; end
+	end
+	return ui:choose("Rewards", REWARDS, default or "on");
+end
+
+local function set_rewards(doc, how)
+	if (not doc:is_installed("rewards")) then
+		if (how == "off") then
+			return;
+		end
+		install_ids(doc, {"rewards"}, make_ui(true), {});
+	end
+	doc:set("rewards_enabled", how ~= "off");
+	doc:set("rewards_free", how == "infinite");
+	if (how ~= "on") then
+		say("rewards: %s", how);
+	end
+end
+
 -- ...and into the settings: the engine's bots installed at that count.
 -- None asked for where they were installed before: the count goes to 0,
 -- which is a server with no bots (lib_botlink makes no file for none).
@@ -1443,20 +1472,28 @@ local function set_game_and_map(doc, mode, want, opts)
 	end
 end
 
-command("play", "play [tdm|ctf|bots|bots_rewards|babel] [random|<page|url|source:id>] [bots per team]",
+command("play", "play [tdm|ctf|bots|bots_rewards|babel] [random|<page|url|source:id>] [bots per team] [on|off|infinite]",
 	"set up a casual game on a fresh container (the entrypoint's play runs it)",
 	function(args)
 		local words = parse_args(args, {});
 		local doc = open_doc(true);
 		local ui = make_ui(false);
 		local mode, want = ask_game_and_map(ui, words[1], words[2]);
-		local bots = ask_bots(ui, mode, words[3]);
+		-- after the game and the map, in any order: a number is the
+		-- bots, a word of REWARDS the rewards
+		local nbots, how;
+		for i = 3, #words do
+			if (tonumber(words[i]) ~= nil) then nbots = words[i]; else how = words[i]; end
+		end
+		local bots = ask_bots(ui, mode, nbots);
+		local rewards = ask_rewards(ui, how);
 
 		-- a game among friends: never listed
 		doc:set("masterlist_enabled", false);
 		doc:set("play_mode", true);
 		set_game_and_map(doc, mode, want, {});
 		set_bots(doc, bots);
+		set_rewards(doc, rewards);
 
 		doc:save();
 		say("");
@@ -1851,11 +1888,15 @@ local function quick_setup(doc, ui, existing, flags)
 	local mode, want = ask_game_and_map(ui, nil, nil,
 		game(now or "") and now or nil);
 	local bots = ask_bots(ui, mode, nil);
+	local rewards = ask_rewards(ui, nil,
+		doc:get("rewards_enabled") == false and "off"
+		or doc:get("rewards_free") == true and "infinite" or "on");
 	if (not existing) then
 		install_ids(doc, default_scripts(), make_ui(true), {});
 	end
 	set_game_and_map(doc, mode, want, {rotation = true});
 	set_bots(doc, bots);
+	set_rewards(doc, rewards);
 
 	ensure_maps();
 	doc:save();
