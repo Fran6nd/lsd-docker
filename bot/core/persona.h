@@ -1,0 +1,73 @@
+/* persona.h -- What kind of player a bot is
+ * Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
+ *
+ * Ten bots thinking with one tree should not be ten of the same bot. A
+ * persona is a handful of TRAITS, each a weight around 1, rolled once
+ * when the bot is made, from its own seed. The behaviour tree's
+ * weighted choices (bt.h, `pick`) multiply every option's score by the
+ * trait the option names, so the same situation is weighed differently
+ * by each bot: one pushes where another holds.
+ *
+ * The roll is not flat. A bot is first given an ARCHETYPE -- camper,
+ * pusher, flanker, support... -- drawn by the weights the server set
+ * (`archetypes=camper:2,pusher:3,...`, all 1 when unset), and its
+ * traits are then drawn around that archetype's centres with its
+ * spread: a pusher is aggressive, but no two pushers alike.
+ *
+ * LEVEL is apart from character: 1-10, how good the bot is (reaction,
+ * aim error, turn rate: aim.h's table), not what it prefers.
+ */
+#ifndef BC_PERSONA_H
+#define BC_PERSONA_H
+
+#include <stdint.h>
+#include "rng.h"
+
+enum bc_trait {
+	BC_T_NONE = 0,         /* always 1: an option nobody's character moves */
+	BC_T_AGGRESSION,       /* take the fight, close the distance */
+	BC_T_CAUTION,          /* cover, retreat when hurt, keep range */
+	BC_T_OBJECTIVE,        /* the intel, the point, the tower -- the game */
+	BC_T_TEAMWORK,         /* answer pings, escort, stay with the others */
+	BC_T_BUILDER,          /* dig and build rather than walk round */
+	BC_T_MARKSMAN,         /* fight from far, hold an angle */
+	BC_T_FLANK,            /* go round rather than through */
+	BC_T_STEALTH,          /* sneak, lamp out, do not be heard */
+	BC_T_CURIOSITY,        /* go and look: noises, last-seen places */
+	BC_T_GREED,            /* use what it holds: items, grenades */
+	BC_T_COUNT
+};
+
+enum bc_archetype {
+	BC_A_SOLDIER = 0,      /* the middle of everything */
+	BC_A_CAMPER,
+	BC_A_PUSHER,
+	BC_A_FLANKER,
+	BC_A_SUPPORT,
+	BC_A_SAPPER,
+	BC_A_SCOUT,
+	BC_A_COUNT
+};
+
+typedef struct bc_persona {
+	float trait[BC_T_COUNT];   /* trait[BC_T_NONE] is 1 */
+	uint8_t archetype;         /* bc_archetype */
+	uint8_t level;             /* 1-10 */
+} bc_persona;
+
+/* Roll one. `weights` is BC_A_COUNT chances, or NULL for even ones.
+ * Traits come out within [0.2, 3]. */
+void bc_persona_roll(bc_persona *p, bc_rng *rng, const float *weights, int level);
+
+/* "aggression" <-> BC_T_AGGRESSION, "camper" <-> BC_A_CAMPER, as trees
+ * and settings name them; -1 for a name there is none of. */
+int bc_trait_by_name(const char *name);
+const char *bc_trait_name(int trait);
+int bc_archetype_by_name(const char *name);
+const char *bc_archetype_name(int archetype);
+
+/* "camper:2,pusher:3" into BC_A_COUNT weights (those unnamed 0; all 1
+ * when the text is empty). 0 on a name it does not know. */
+int bc_archetype_weights(const char *text, float *weights);
+
+#endif
