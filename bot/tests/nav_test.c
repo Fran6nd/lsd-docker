@@ -8,9 +8,12 @@
  *     BC_SOAK_LATENCY=n        ticks of command delay (default 1)
  *     BC_SOAK_EDITS=1          let the bots dig and build
  *     BC_SOAK_NODES=n          the search's node pool (default 131072)
- *     BC_SOAK_SHOW=1           print each pair that did not arrive
+ *     BC_SOAK_SHOW=1           print each pair that did not arrive, or took
+ *                              far from its estimate
+ *     BC_SOAK_COSTS=1          walked against planned, by kind of step
  *     BC_SOAK_MAP=file.vxl     that map only
  *     BC_SOAK_PAIR=ax,ay,az,bx,by,bz   that pair only, with its plans
+ *     BC_SOAK_TRACE=1          ...and every tick of it
  *
  * Every scenario is the whole chain: plan on the map, follow in a body
  * moved by the server's physics, until the follower says ARRIVED or the
@@ -89,6 +92,7 @@ static int begin(const char *name)
 	if (only && strcmp(only, name) != 0)
 		return 0;
 	W.verbose = only != NULL;
+	W.trace = only != NULL && getenv("BC_SOAK_TRACE") != NULL;
 	if (only)
 		printf("== %s\n", name);
 	return 1;
@@ -122,6 +126,18 @@ static void print_table(const bc_nav_moves *t)
 	       (double)t->sneak_speed, (double)t->wade_speed);
 	printf("body: stands in %d voxels, crouches in %d; widest level gap: %d at a walk, "
 	       "%d at a sprint\n", t->stand_cells, t->crouch_cells, t->gap_walk, t->gap_sprint);
+	for (i = 0; i < 2; i++) {
+		static const char *const before[4] = {"a climb", "a level run", "a step down", "rest"};
+		int a;
+
+		for (a = 0; a < 4; a++)
+			printf("stride %s after %-12s up %.3fs  level %.3fs  down %.3fs\n",
+			       i ? "diag" : "axis", before[a], (double)t->stride_secs[i][a][0],
+			       (double)t->stride_secs[i][a][1], (double)t->stride_secs[i][a][2]);
+		printf("turn out of %s strides: 45 deg +%.3fs  90 +%.3fs  135 +%.3fs  180 +%.3fs\n",
+		       i ? "diag" : "axis", (double)t->turn_secs[i][1], (double)t->turn_secs[i][2],
+		       (double)t->turn_secs[i][3], (double)t->turn_secs[i][4]);
+	}
 	for (i = 0; i < t->n; i++) {
 		const bc_nav_move *v = &t->mv[i];
 
@@ -343,6 +359,59 @@ static void test_two_block_gap(void)
 			CHECK(r.damage == 0);
 			CHECK(r.plans == 1 && r.step_fails == 0);
 			CHECK(r.ticks < 60 * 6);        /* ~19 voxels: no dithering */
+		}
+	}
+}
+
+/* THE LINK'S DELAY. The follower sees the body as it is and its keys act
+ * a tick or two later. A commitment that is right only if they act at
+ * once is a coin tossed, and both of these were lost on 2FortCTF at two
+ * ticks of delay, each into a pit with no way out. */
+static void test_delay(void)
+{
+	bc_nav_policy pol;
+	sim_result r;
+	int lat;
+
+	bc_nav_policy_default(&pol);
+	if (begin("jump_down_onto_ledge_late")) {
+		/* A terrace, six voxels below it a ledge three deep, six below
+		 * that the ground -- and no way back up from the ground. The goal
+		 * is the ledge's outer edge, and the plan is a jump from the
+		 * terrace straight to it. The body came down on it, and the brake
+		 * came two ticks late. */
+		for (lat = 0; lat <= 2; lat++) {
+			fresh(55);
+			area_top(W.m, 231, 265, 237, 286, 43);
+			area_top(W.m, 228, 287, 237, 289, 49);
+			W.latency = lat;
+			r = sim_run(&W, pol, node(233, 266, 43), node(232, 289, 49), 0, 3000);
+			if (lat == 2)
+				report("jump_down_onto_ledge_late", &r);
+			CHECK(r.arrived);
+			CHECK(r.max_feet < 49.5f && r.damage == 0);
+		}
+	}
+	if (begin("runjump_refused_late")) {
+		/* Two platforms corner to corner across a pit, four columns of
+		 * nothing on the diagonal: a sprinting jump with a window of five
+		 * ticks, from the very corner. When the window does not come the
+		 * body must brake -- and a brake that ends hanging off the corner
+		 * by a twentieth of a voxel is not one. There is another way
+		 * round, a long one; whatever it does, it must not be in the pit. */
+		for (lat = 0; lat <= 2; lat++) {
+			fresh(49);
+			area_top(W.m, 295, 230, 298, 248, 44);
+			area_top(W.m, 286, 252, 290, 262, 44);
+			area_top(W.m, 299, 230, 320, 232, 44);          /* the long way */
+			area_top(W.m, 318, 233, 320, 262, 44);
+			area_top(W.m, 291, 260, 317, 262, 44);
+			W.latency = lat;
+			r = sim_run(&W, pol, node(297, 239, 44), node(288, 258, 44), 0, 6000);
+			if (lat == 2)
+				report("runjump_refused_late", &r);
+			CHECK(r.arrived);
+			CHECK(r.max_feet < 44.5f && r.damage == 0);
 		}
 	}
 }
@@ -601,6 +670,31 @@ static void test_drops(void)
 		CHECK(r.damage == 0);
 		CHECK(r.kinds & (K(BC_NAV_DROP) | JUMPS));
 	}
+	if (begin("drop_into_water")) {
+		/* A rock nine voxels over the sea, a bank across the water, and
+		 * a stair down the rock's far side. Nine voxels onto land do not
+		 * hurt; into water the feet sink one more and it is a fall of
+		 * ten, which does. The plan must know it: it once planned the
+		 * jump off, the follower's simulation refused it at the edge,
+		 * and the next plan was the same drop from the next column. */
+		fresh(63);
+		area_top(W.m, 100, 98, 104, 102, 54);
+		for (i = 1; i <= 8; i++)
+			area_top(W.m, 100 - i, 100, 100 - i, 100, 54 + i);
+		area_top(W.m, 120, 90, 130, 110, 62);
+		r = sim_run(&W, pol, node(103, 100, 54), node(125, 100, 62), 0, 4000);
+		report("drop_into_water", &r);
+		CHECK(r.arrived);
+		CHECK(r.damage == 0 && r.step_fails == 0 && r.plans == 1);
+		/* (it does drop in, from part of the way down the stair) */
+		/* eight voxels up it is a fall of nine: taken */
+		fresh(63);
+		area_top(W.m, 100, 98, 104, 102, 55);
+		area_top(W.m, 120, 90, 130, 110, 62);
+		r = sim_run(&W, pol, node(103, 100, 55), node(125, 100, 62), 0, 4000);
+		CHECK(r.arrived && r.damage == 0 && r.step_fails == 0);
+		CHECK(r.kinds & K(BC_NAV_DROP));
+	}
 	if (begin("drop_too_deep")) {
 		/* a plateau fifteen up; the only harmless way down is a
 		 * staircase a hundred voxels along the edge */
@@ -620,6 +714,160 @@ static void test_drops(void)
 		report("drop_too_deep_no_stairs", &r);
 		CHECK(!r.arrived);
 		CHECK(r.damage == 0 && r.max_feet < G - 15 + 0.5f);     /* stayed up */
+	}
+}
+
+/* SIDEWAYS. The ground safety rule once looked at height only, and what
+ * it lost were bodies that overshot a turn. These are those places. */
+static void test_turns(void)
+{
+	bc_nav_policy pol;
+	sim_result r;
+	int k, lat;
+
+	bc_nav_policy_default(&pol);
+	if (begin("turn_below_stairs")) {
+		/* Parkour2's corner, as it is on the map: a platform three wide
+		 * running east, a landing one down at its end, and from the
+		 * landing a stair three wide going north down to a quay -- all of
+		 * it standing in the sea, with no way out of the water. The route
+		 * keeps to the platform's north edge and turns down the stair's
+		 * WEST edge; a body that overshoots the turn eastward is still on
+		 * the landing, and one that comes back from there at a run goes
+		 * off the west edge. */
+		for (lat = 0; lat <= 2; lat++) {
+			fresh(63);
+			area_top(W.m, 90, 100, 104, 102, 52);
+			area_top(W.m, 105, 100, 107, 102, 53);
+			for (k = 0; k < 8; k++)
+				area_top(W.m, 105, 99 - k, 107, 99 - k, 54 + k);
+			area_top(W.m, 105, 80, 107, 91, 61);
+			W.latency = lat;
+			r = sim_run(&W, pol, node(92, 100, 52), node(105, 84, 61), 0, 3000);
+			if (lat == 1)
+				report("turn_below_stairs", &r);
+			CHECK(r.arrived);
+			CHECK(r.plans == 1 && r.off_route == 0 && r.step_fails == 0);
+			CHECK(r.waded == 0 && r.max_feet < 61.5f);
+			CHECK(r.damage == 0);
+		}
+	}
+	if (begin("turn_on_causeway")) {
+		/* one voxel wide, a right angle, forty voxels of air below: no
+		 * overshoot at all is survivable. It must still take the straights
+		 * at a run -- under twice the planned time. */
+		for (lat = 0; lat <= 2; lat++) {
+			fresh(62);
+			area_top(W.m, 100, 100, 125, 100, 22);
+			area_top(W.m, 125, 100, 125, 125, 22);
+			area_top(W.m, 125, 125, 150, 125, 22);
+			W.latency = lat;
+			r = sim_run(&W, pol, node(101, 100, 22), node(149, 125, 22), 0, 3000);
+			if (lat == 1)
+				report("turn_on_causeway", &r);
+			CHECK(r.arrived);
+			CHECK(r.plans == 1 && r.off_route == 0 && r.step_fails == 0);
+			CHECK(r.max_feet < 22.5f && r.damage == 0);
+			CHECK((float)r.ticks / 60.0f < r.route_secs * 2.0f);
+		}
+	}
+	if (begin("turn_past_dead_end")) {
+		/* the same causeway, but the first straight runs on two voxels
+		 * past the turn and stops: somewhere to overshoot to at the
+		 * route's own height, and nothing beyond it */
+		for (lat = 0; lat <= 2; lat++) {
+			fresh(62);
+			area_top(W.m, 100, 100, 127, 100, 22);
+			area_top(W.m, 125, 100, 125, 125, 22);
+			W.latency = lat;
+			r = sim_run(&W, pol, node(101, 100, 22), node(125, 124, 22), 0, 3000);
+			if (lat == 1)
+				report("turn_past_dead_end", &r);
+			CHECK(r.arrived);
+			CHECK(r.plans == 1 && r.off_route == 0 && r.step_fails == 0);
+			CHECK(r.max_feet < 22.5f && r.damage == 0);
+		}
+	}
+	if (begin("goal_in_inner_corner")) {
+		/* Temple again (26,140,51 -> 497,479,55): the goal is the inner
+		 * corner of a terrace one voxel high, reached along its foot. The
+		 * body brushes the terrace's edge, is lifted onto it by one corner
+		 * (the free climb), and comes to rest over the middle of the goal
+		 * column a voxel above its floor. */
+		for (lat = 0; lat <= 2; lat++) {
+			fresh(55);
+			area_top(W.m, 496, 440, 511, 478, 54);
+			area_top(W.m, 498, 479, 511, 479, 54);
+			W.latency = lat;
+			r = sim_run(&W, pol, node(489, 475, 55), node(497, 479, 55), 0, 1200);
+			if (lat == 0)
+				report("goal_in_inner_corner", &r);
+			CHECK(r.arrived);
+			CHECK(r.plans == 1 && r.step_fails == 0);
+			CHECK(r.ticks < 60 * 5);
+		}
+	}
+	if (begin("overshoot_loop")) {
+		/* Temple's pair that never arrived (245,450,52 -> 203,232,43), cut
+		 * down to what did it. The goal is a notch two voxels deep in the
+		 * edge of a terrace; the way into it is along the terrace's edge
+		 * at a run, one step down, and a turn back of 135 degrees. Past
+		 * the step the slope goes on down, two voxels and then three. The
+		 * old rule let the body sprint at the step, because an emergency
+		 * stop "held" -- by one corner, on the step, centre over the
+		 * slope. One tick of command delay later it did not hold: down
+		 * the slope, OFF_ROUTE, a new plan all the way round by the ramp
+		 * and up onto the terrace -- and into the same step at the same
+		 * run. 23 times, until the test bench stopped counting. */
+		for (lat = 0; lat <= 2; lat++) {
+			fresh(47);
+			area_top(W.m, 196, 233, 204, 250, 41);        /* the terrace */
+			col_top(W.m, 204, 232, 41);
+			col_top(W.m, 202, 232, 41);
+			col_top(W.m, 203, 232, 43);                   /* the notch */
+			col_top(W.m, 203, 231, 43);
+			col_top(W.m, 204, 231, 42);                   /* the step */
+			col_top(W.m, 204, 230, 44);                   /* the slope */
+			for (k = 0; k < 5; k++)                       /* a ramp back up */
+				area_top(W.m, 190 + k, 244, 190 + k, 246, 46 - k);
+			area_top(W.m, 195, 244, 195, 246, 41);
+			W.latency = lat;
+			r = sim_run(&W, pol, node(204, 249, 41), node(203, 232, 43), 0, 6000);
+			if (lat == 1)
+				report("overshoot_loop", &r);
+			CHECK(r.arrived);
+			CHECK(r.off_route == 0 && r.plans == 1);
+			CHECK(r.max_feet < 43.5f && r.damage == 0);
+		}
+	}
+	if (begin("zigzag_down")) {
+		/* a stair one wide that doubles back at every landing, down a
+		 * cliff: four turns, each at the bottom of a descent, each with
+		 * the drop beside it */
+		for (lat = 0; lat <= 2; lat++) {
+			int leg, z = 20;
+
+			fresh(62);
+			area_top(W.m, 90, 100, 100, 100, z);
+			for (leg = 0; leg < 4; leg++) {
+				int y = 100 + leg, dir = (leg & 1) ? -1 : 1, x = (leg & 1) ? 109 : 101;
+
+				for (k = 0; k < 8; k++)
+					col_top(W.m, x + dir * k, y, ++z);
+				/* the landing: the stair's last tread, and beside it the
+				 * first of the next flight */
+				col_top(W.m, x + dir * 8, y, z);
+				col_top(W.m, x + dir * 8, y + 1, z);
+			}
+			area_top(W.m, 101, 104, 120, 104, z);
+			W.latency = lat;
+			r = sim_run(&W, pol, node(92, 100, 20), node(118, 104, z), 0, 6000);
+			if (lat == 1)
+				report("zigzag_down", &r);
+			CHECK(r.arrived);
+			CHECK(r.off_route == 0 && r.damage == 0);
+			CHECK(r.max_feet < (float)z + 0.5f);
+		}
 	}
 }
 
@@ -658,6 +906,75 @@ static void test_surprises(void)
 		 * no more than BC_NAV_STUCK_TICKS standing against it */
 		CHECK(r.ticks < 60 * 12);
 		W.truth = W.m;
+	}
+	if (begin("wedged_no_other_way")) {
+		/* The same lie about the world, but the near door is the ONLY
+		 * door. Every plan goes through it -- a remembered failure is a
+		 * price, and the only way is worth any price -- and every walk
+		 * ends against the ledge. That is a loop, and nothing but the
+		 * follower can end it: the third time it would report STUCK from
+		 * that spot it says GIVE_UP instead. */
+		fresh(G);
+		box(W.m, 115, 0, G - 6, 115, BC_MAP_Y - 1, G - 1, 1);
+		box(W.m, 115, 100, G - 3, 115, 100, G - 1, 0);
+		memcpy(&truth, W.m, sizeof truth);
+		box(&truth, 115, 100, G - 2, 115, 100, G - 1, 1);
+		W.truth = &truth;
+		r = sim_run(&W, pol, node(100, 100, G), node(125, 100, G), 0, 60 * 60);
+		report("wedged_no_other_way", &r);
+		CHECK(!r.arrived);
+		CHECK(r.gave_up && !r.plan_cap);
+		CHECK(r.plans == BC_NAV_REPEAT_MAX);
+		CHECK(r.why[BC_NAV_WHY_STUCK] == BC_NAV_REPEAT_MAX - 1);
+		/* three walks of a few ticks and three times the stuck contract */
+		CHECK(r.ticks < 60 * 15);
+		W.truth = W.m;
+	}
+	if (begin("partial_again_and_again")) {
+		/* a goal behind a wall the width of the map, no digging: every
+		 * plan fails and offers a route to "as near as it got". Following
+		 * that and planning again from its end is the same loop with no
+		 * failure in it; the follower counts those arrivals too. */
+		static bc_nav_route route;
+		bc_nav_follow f;
+		bc_nav_cmd cmd;
+		bc_body b;
+		int st, n_arrived = 0, n_plans = 0, t, gave = 0;
+
+		fresh(G);
+		box(W.m, 115, 0, G - 6, 115, BC_MAP_Y - 1, G - 1, 1);
+		bc_body_place(&b, W.m, 100.5f, 100.5f, G, 0);
+		memset(&f, 0, sizeof f);
+		for (t = 0; t < 60 * 60 && !gave && n_plans < 40;) {
+			bc_nav_node cur;
+
+			CHECK(bc_nav_node_of_body(W.m, &b, &cur));
+			CHECK(bc_nav_plan_begin(W.s, W.t, W.m, &pol, cur, node(125, 100, G), 0));
+			while ((st = bc_nav_plan_step(W.s, 100000)) == BC_NAV_MORE)
+				;
+			CHECK(st == BC_NAV_FAILED);
+			bc_nav_plan_route(W.s, &route);
+			CHECK(route.partial);
+			if (n_plans++ == 0)
+				bc_nav_follow_begin(&f, &route);
+			else
+				bc_nav_follow_again(&f, &route);
+			for (; t < 60 * 60; t++) {
+				st = bc_nav_follow_tick(&f, &route, W.t, W.m, &b, &pol, &cmd);
+				bc_body_step(&b, W.m, cmd.keys, cmd.ori, BC_BODY_DT);
+				if (st == BC_NAV_GIVE_UP)
+					gave = 1;
+				if (st == BC_NAV_ARRIVED)
+					n_arrived++;
+				if (st != BC_NAV_FOLLOWING)
+					break;
+			}
+		}
+		printf("  %-28s %d plans, %d partial arrivals, then %s\n", "partial_again_and_again",
+		       n_plans, n_arrived, gave ? "GIVE_UP" : "nothing");
+		CHECK(gave);
+		/* the third arrival at the same dead end is the one not reported */
+		CHECK(n_plans == BC_NAV_REPEAT_MAX && n_arrived == BC_NAV_REPEAT_MAX - 1);
 	}
 	if (begin("route_blocked_midway")) {
 		/* Both doors open; half a second in, somebody bricks up the
@@ -870,6 +1187,11 @@ static void soak_map(const char *dir, const char *file, int pairs, int latency, 
 	bc_nav_policy pol;
 	int tried = 0, reachable = 0, arrived = 0, unreach = 0, exhausted = 0;
 	int step_fails = 0, stale = 0, off = 0, why[8] = {0}, hurt = 0, plans = 0, i;
+	int gave_up = 0, capped = 0;
+	static int cat_ticks[BC_NAV_KINDS][3][3], cat_n[BC_NAV_KINDS][3][3];
+	static float cat_secs[BC_NAV_KINDS][3][3];
+	double sum_time = 0, sum_ratio = 0, worst_ratio = 0;
+	int n_clean = 0, n_over = 0;
 	unsigned max_exp = 0, max_nodes = 0;
 	double sum_exp = 0, sum_us = 0, max_us = 0, sum_secs = 0, sum_ticks = 0;
 	int worst_ticks = 0;
@@ -913,6 +1235,7 @@ static void soak_map(const char *dir, const char *file, int pairs, int latency, 
 			a = node(one[0], one[1], one[2]);
 			b = node(one[3], one[4], one[5]);
 			W.verbose = 1;
+			W.trace = getenv("BC_SOAK_TRACE") != NULL;
 			tried = pairs;
 		}
 		if (edits)
@@ -938,6 +1261,8 @@ static void soak_map(const char *dir, const char *file, int pairs, int latency, 
 			continue;
 		}
 		reachable++;
+		gave_up += r.gave_up;
+		capped += r.plan_cap;
 		step_fails += r.step_fails;
 		stale += r.stale;
 		off += r.off_route;
@@ -945,24 +1270,52 @@ static void soak_map(const char *dir, const char *file, int pairs, int latency, 
 			why[i] += r.why[i];
 		if (r.damage)
 			hurt++;
+		if (r.arrived && r.plans == 1 && r.route_time > 2.0f) {
+			/* a route walked as planned: what the cost model is judged on */
+			double ratio = r.ticks / 60.0 / r.route_time;
+			int k, z, t;
+
+			n_clean++;
+			sum_ratio += ratio;
+			if (ratio > worst_ratio)
+				worst_ratio = ratio;
+			if (ratio > 1.25 || ratio < 0.8) {
+				n_over++;
+				if (getenv("BC_SOAK_SHOW"))
+					printf("    off the estimate: (%d,%d,%d) -> (%d,%d,%d): walked %.1fs, "
+					       "planned %.1fs\n", a.x, a.y, a.z, b.x, b.y, b.z, r.ticks / 60.0,
+					       (double)r.route_time);
+			}
+			for (k = 0; k < BC_NAV_KINDS; k++)
+				for (z = 0; z < 3; z++)
+					for (t = 0; t < 3; t++) {
+						cat_ticks[k][z][t] += r.cat_ticks[k][z][t];
+						cat_n[k][z][t] += r.cat_n[k][z][t];
+						cat_secs[k][z][t] += r.cat_secs[k][z][t];
+					}
+		}
 		if (r.arrived) {
 			arrived++;
 			sum_secs += r.route_secs;
+			sum_time += r.route_time;
 			sum_ticks += r.ticks;
 			if (r.ticks > worst_ticks)
 				worst_ticks = r.ticks;
 		} else if (getenv("BC_SOAK_SHOW")) {
 			printf("    lost: (%d,%d,%d) -> (%d,%d,%d): %d plans, %d step fails "
-			       "[stuck %d timeout %d jump %d drop %d], %d off, no_route %d, %d ticks\n",
+			       "[stuck %d timeout %d jump %d drop %d edit %d], %d off, %d stale, no_route %d, "
+			       "gave up %d, %d ticks\n",
 			       a.x, a.y, a.z, b.x, b.y, b.z, r.plans, r.step_fails,
 			       r.why[BC_NAV_WHY_STUCK], r.why[BC_NAV_WHY_TIMEOUT],
-			       r.why[BC_NAV_WHY_NO_JUMP], r.why[BC_NAV_WHY_NO_DROP], r.off_route,
-			       r.no_route, r.ticks);
+			       r.why[BC_NAV_WHY_NO_JUMP], r.why[BC_NAV_WHY_NO_DROP],
+			       r.why[BC_NAV_WHY_EDIT_REFUSED], r.off_route, r.stale,
+			       r.no_route, r.gave_up, r.ticks);
 		}
 	}
 	printf("  %-20s %3d pairs: %3d reachable (%d no way, %d out of nodes); "
-	       "arrived %3d = %5.1f%%, lost %d\n", file, tried, reachable, unreach, exhausted,
-	       arrived, reachable ? 100.0 * arrived / reachable : 0.0, reachable - arrived);
+	       "arrived %3d = %5.1f%%, lost %d (the follower gave up on %d)\n", file, tried,
+	       reachable, unreach, exhausted, arrived,
+	       reachable ? 100.0 * arrived / reachable : 0.0, reachable - arrived, gave_up);
 	printf("  %-20s step failures %d (stuck %d, timeout %d, no jump %d, no drop %d, edit %d), "
 	       "stale %d, off route %d, hurt on %d routes\n", "", step_fails, why[BC_NAV_WHY_STUCK],
 	       why[BC_NAV_WHY_TIMEOUT], why[BC_NAV_WHY_NO_JUMP], why[BC_NAV_WHY_NO_DROP],
@@ -972,6 +1325,31 @@ static void soak_map(const char *dir, const char *file, int pairs, int latency, 
 	       "", plans, plans ? sum_exp / plans : 0.0, plans ? sum_us / plans : 0.0, max_exp,
 	       max_us, max_nodes, arrived ? sum_ticks / 60.0 / arrived : 0.0,
 	       arrived ? sum_secs / arrived : 0.0, worst_ticks / 60.0);
+	printf("  %-20s the estimate: walked/planned time %.3f over all arrivals; on the %d "
+	       "routes walked as first planned, mean %.3f, worst %.2f, %d outside 0.8-1.25\n", "",
+	       sum_time > 0 ? sum_ticks / 60.0 / sum_time : 0.0, n_clean,
+	       n_clean ? sum_ratio / n_clean : 0.0, worst_ratio, n_over);
+	if (getenv("BC_SOAK_COSTS")) {
+		static const char *const zn[3] = {"up", "level", "down"};
+		static const char *const tn[3] = {"straight", "turn 45", "turn 90+"};
+		int k, z, t;
+
+		for (k = 0; k < BC_NAV_KINDS; k++)
+			for (z = 0; z < 3; z++)
+				for (t = 0; t < 3; t++)
+					if (cat_n[k][z][t] > 0)
+						printf("    cost %-8s %-5s %-9s %7d steps: walked %.3fs each, "
+						       "planned %.3fs (%+.0f s in all)\n", bc_nav_kind_name(k),
+						       zn[z], tn[t], cat_n[k][z][t],
+						       cat_ticks[k][z][t] / 60.0 / cat_n[k][z][t],
+						       (double)cat_secs[k][z][t] / cat_n[k][z][t],
+						       cat_ticks[k][z][t] / 60.0 - (double)cat_secs[k][z][t]);
+		memset(cat_ticks, 0, sizeof cat_ticks);
+		memset(cat_n, 0, sizeof cat_n);
+		memset(cat_secs, 0, sizeof cat_secs);
+	}
+	/* no run may go on until the bench stops it: the follower ends loops */
+	CHECK(capped == 0);
 	/* a soak is a measurement, but a collapse is a failure */
 	CHECK(reachable == 0 || arrived * 100 >= reachable * 90);
 }
@@ -1053,11 +1431,13 @@ int main(int argc, char **argv)
 	test_two_block_gap();
 	test_gaps();
 	test_parkour();
+	test_delay();
 	test_steps_and_walls();
 	test_building();
 	test_crouch();
 	test_water();
 	test_drops();
+	test_turns();
 	test_surprises();
 	test_collapse();
 	test_fail_memory();

@@ -71,7 +71,7 @@
  *                   A bot needs one only while it plans, so a host keeps a
  *                   few and lends them.
  *   bc_nav_route    512 steps, 10 KiB, one per bot.
- *   bc_nav_follow   under 100 bytes, one per bot.
+ *   bc_nav_follow   under 200 bytes, one per bot.
  *   bc_nav_fail     128 remembered failures, 2.5 KiB; shareable.
  *   bc_nav_protect  refused voxels, 36 KiB; shareable.
  * Nothing allocates, nothing is global, no call blocks: a plan is advanced
@@ -86,9 +86,6 @@
  *   - A plan prices each edit against the map as it is: it does not know
  *     that an earlier step on the same route will have changed it, beyond
  *     the room the body itself stands in.
- *   - Stairs cost more than planned: the stride up was timed from a flat
- *     run, and every climb halves the body's speed. Routes are right,
- *     their estimates on long climbs about a fifth short.
  *   - There is no coarse stage. Measured on eight real maps none is
  *     needed for a goal that can be reached (worst 73 000 nodes, 25 ms);
  *     a goal that cannot floods everything it can reach first, up to the
@@ -189,7 +186,31 @@ typedef struct bc_nav_moves {
 	int16_t jump[2][BC_NAV_JUMP_DMAX + 1][BC_NAV_DZ_N]; /* [cls][d][dz - DZ_MIN] */
 	int16_t wade[2];            /* water to water */
 	int16_t water_out[2][4];    /* [cls][voxels up]: from z = 63 to 63 - up */
+
+	/* STRIDES IN CONTEXT. What a stride takes depends on the one before
+	 * it: a climb halves the body's speed, a stair downward is taken half
+	 * in the air where a body hardly accelerates, a turn has the old
+	 * velocity to kill (it follows the facing with a quarter-second lag)
+	 * and a start from rest has all of it to find. A lone stride's time
+	 * (mv[].secs, measured once in a flat run) knows none of that, and
+	 * plans priced with it alone came out a quarter short on hilly maps
+	 * -- and wandered: with no price on a turn, every zigzag between two
+	 * points costs the same as the straight way.
+	 *
+	 * So these too are measured, by having THE FOLLOWER walk built courses
+	 * (flat, stairs up then down, down then up, turns of each angle) and
+	 * timing it. The plan prices a WALK or SPRINT stride on land by them:
+	 *   stride_secs[cls][before][dz + 1]   before: bc_nav_before
+	 *   turn_secs[cls of the stride before][eighths of a turn, 1..4]
+	 * added when the direction changes between two strides. */
+	float stride_secs[2][4][3];
+	float turn_secs[2][5];
 } bc_nav_moves;
+
+/* What the body was doing before a stride: climbing, running level, going
+ * down, or anything that leaves it about at rest (the start of a route, a
+ * landing, an edit, a crouch). */
+enum bc_nav_before { BC_NAV_AFTER_UP = 0, BC_NAV_AFTER_LEVEL, BC_NAV_AFTER_DOWN, BC_NAV_AFTER_REST };
 
 /* Measure everything. `scratch` is a map this call may scribble on (its
  * contents are lost); it is not kept. Takes a few hundred milliseconds:
@@ -387,8 +408,15 @@ enum bc_nav_follow_status {
 	                               see `why`; note it and plan again */
 	BC_NAV_ROUTE_STALE = 3,     /* the map changed and a step ahead is no
 	                               longer possible as planned */
-	BC_NAV_OFF_ROUTE = 4        /* the body is not where the route is
+	BC_NAV_OFF_ROUTE = 4,       /* the body is not where the route is
 	                               (knocked off, fell, respawned) */
+	BC_NAV_GIVE_UP = 5          /* this goal is not being got to: the same
+	                               report has come from the same place
+	                               BC_NAV_REPEAT_MAX times, or there have
+	                               been BC_NAV_REPORTS_MAX in all. Do not
+	                               plan for it again now (see NEVER A LOOP
+	                               below); cmd.why says what the last
+	                               report would have been */
 };
 
 enum bc_nav_why {
@@ -434,8 +462,43 @@ enum {
 	BC_NAV_STUCK_TICKS = 45,
 	BC_NAV_RECENTRE_TICKS = 40,
 	/* An edit asked for and not seen done in this many ticks is refused. */
-	BC_NAV_EDIT_WAIT_TICKS = 180
+	BC_NAV_EDIT_WAIT_TICKS = 180,
+
+	/* NEVER A LOOP. Every answer but FOLLOWING and a true ARRIVED tells
+	 * the caller to plan again, and nothing in a plan promises that the
+	 * new route will not end the way the last one did: a body sprinted
+	 * into the same bad corner 23 times running in the first soak, a full
+	 * lap of the hill between each, and a wall that only the server knows
+	 * of is walked into for ever by a bot with no other way to its goal.
+	 * The failure memory (bc_nav_fail) makes a repeat dearer, never
+	 * impossible -- rightly, the only way there must stay a way.
+	 *
+	 * So the follower counts. It remembers its last BC_NAV_REPORT_SLOTS
+	 * reports for a goal -- what was said (status and why) and the column
+	 * and floor the body was on -- across the routes of that goal, as long
+	 * as each new route is started with bc_nav_follow_again and not
+	 * bc_nav_follow_begin. The BC_NAV_REPEAT_MAX-th time the same thing is
+	 * said from the same place, and in any case the BC_NAV_REPORTS_MAX-th
+	 * report for one goal, it answers BC_NAV_GIVE_UP instead. An ARRIVED
+	 * at the end of a PARTIAL route counts as a report too (a route to
+	 * "as near as I could get" that is followed, planned again and comes
+	 * out the same is the same loop).
+	 *
+	 * What the caller does with it is its business -- another goal, the
+	 * same one a good while later, a shout for help -- but planning for
+	 * the same goal again at once is exactly what it says not to do.
+	 * Whatever happens a goal costs at most BC_NAV_REPORTS_MAX plans. */
+	BC_NAV_REPEAT_MAX = 3,
+	BC_NAV_REPORTS_MAX = 32,
+	BC_NAV_REPORT_SLOTS = 12
 };
+
+/* One remembered report (see NEVER A LOOP). */
+typedef struct bc_nav_report {
+	uint32_t cell;              /* packed node the body was on; 0: empty */
+	uint8_t status, why, count;
+	uint8_t age;                /* reports since it was last made */
+} bc_nav_report;
 
 typedef struct bc_nav_follow {
 	int32_t step;
@@ -455,9 +518,20 @@ typedef struct bc_nav_follow {
 	bc_v3 anchor;               /* where it last moved from */
 	bc_nav_node edit_vox;
 	bc_v3 last_ori;
+	/* the reports made for this goal, kept by bc_nav_follow_again */
+	uint16_t reports;
+	uint8_t pad2_[2];
+	bc_nav_report seen[BC_NAV_REPORT_SLOTS];
 } bc_nav_follow;
 
+/* Start following the first route to a NEW goal: forgets everything. */
 void bc_nav_follow_begin(bc_nav_follow *f, const bc_nav_route *r);
+
+/* Start following another route to the SAME goal, planned because the
+ * follower said to: everything is reset but the record of what has been
+ * reported for this goal, which is what lets the follower end a loop (see
+ * NEVER A LOOP). `f` must have been through bc_nav_follow_begin once. */
+void bc_nav_follow_again(bc_nav_follow *f, const bc_nav_route *r);
 
 /* One tick: given the route, the body as it is and the map as it is, the
  * keys and the facing. Simulates on copies of `b` (hundreds of physics
@@ -473,12 +547,17 @@ void bc_nav_follow_begin(bc_nav_follow *f, const bc_nav_route *r);
  *  - It never walks off an edge unless the simulated drop lands on the
  *    step's target within policy->max_fall_damage.
  *  - On the ground it keeps the fastest pace (sprint, walk, sneak) from
- *    which a simulated emergency stop does not fall below the route.
- *    KNOWN LIMIT: "below the route" is judged by height alone. Where a
- *    ledge at the route's own level (or the level of its next step down)
- *    lies beside a turn, sliding onto it counts as safe, and from there
- *    the body may be somewhere with no way on. This is what still loses
- *    routes in the soak (bot/NAV-STATUS.md).
+ *    which a simulated emergency stop ends ON THE ROUTE'S SAFE CELLS: the
+ *    body never below the route's floor on the way, and at rest with its
+ *    centre over one of the route's own columns or a floor it can walk
+ *    straight back from (two plain strides at most). It asks this for a
+ *    stop begun three ticks from now -- the guarantee, which covers the
+ *    link's delay -- and for one begun a quarter of a second from now --
+ *    the foresight that slows it BEFORE a turn with a drop beside it.
+ *    (Height alone was the first rule, and is not enough: a body that
+ *    overshoots a turn onto a ledge at the route's own level is "not
+ *    below the route", and neither is one hanging over a slope by a
+ *    corner. Those were the lost routes of the first soak.)
  *  - It never changes crouch in the air, nor stands up under a ceiling
  *    (body.h says why).
  *  - It answers something other than FOLLOWING within BC_NAV_STUCK_TICKS
@@ -487,6 +566,9 @@ void bc_nav_follow_begin(bc_nav_follow *f, const bc_nav_route *r);
  *    plans again from where the body is. It does not grind.
  *  - When the map's revision changes it re-checks every step ahead
  *    against the map and answers ROUTE_STALE if one no longer holds.
+ *  - It does not loop: started on each new route with
+ *    bc_nav_follow_again, it answers BC_NAV_GIVE_UP rather than say the
+ *    same thing from the same place a third time (NEVER A LOOP, above).
  * On any answer but FOLLOWING the command brakes. */
 int bc_nav_follow_tick(bc_nav_follow *f, const bc_nav_route *r, const bc_nav_moves *t,
                        const bc_map *m, const bc_body *b, const bc_nav_policy *pol,

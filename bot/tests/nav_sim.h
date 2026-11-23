@@ -35,10 +35,13 @@ typedef struct sim_world {
 	/* ...or, instead of at a tick, when the body's x passes this */
 	float destroy_at_x;
 	int verbose;
+	int trace;                  /* print every tick (BC_SOAK_TRACE) */
 } sim_world;
 
 typedef struct sim_result {
 	int arrived, ticks, plans, plan_fails, no_route;
+	int gave_up;                /* the follower said BC_NAV_GIVE_UP */
+	int plan_cap;               /* stopped by the bench's cap on plans */
 	int step_fails, stale, off_route, why[8];
 	unsigned kinds;             /* bit per bc_nav_kind actually executed */
 	int waded;                  /* ticks with the body wading */
@@ -46,6 +49,14 @@ typedef struct sim_result {
 	int edits;
 	float max_feet;             /* the lowest the feet ever were (z grows down) */
 	float route_secs;           /* the first plan's cost */
+	float route_time;           /* ...and the part of it that is time: less
+	                               what the policy charges for water */
+	/* Walked against planned, by what the step was, on the first route
+	 * while it is the only one: [kind][0 up, 1 level, 2 down][0 straight
+	 * on, 1 after a turn of 45 degrees, 2 of 90 or more]. Ticks walked
+	 * while the follower was on such a step, seconds the plan gave it. */
+	int cat_ticks[BC_NAV_KINDS][3][3], cat_n[BC_NAV_KINDS][3][3];
+	float cat_secs[BC_NAV_KINDS][3][3];
 	unsigned max_exp, sum_exp, max_nodes;
 	double plan_us, max_plan_us;
 	int first_plan_status;
@@ -84,7 +95,7 @@ static sim_result sim_run(sim_world *w, bc_nav_policy pol, bc_nav_node start, bc
 	bc_body b;
 	bc_nav_cmd q[8];
 	int tick = 0, need_plan = 1, edit_cool = 0, blocks = pol.blocks, refusals = 0;
-	int partial_ends = 0, qn = 0;
+	int partial_ends = 0, qn = 0, last_step = -1;
 
 	memset(&R, 0, sizeof R);
 	memset(&f, 0, sizeof f);
@@ -112,8 +123,13 @@ static sim_result sim_run(sim_world *w, bc_nav_policy pol, bc_nav_node start, bc
 				tick++;
 				continue;
 			}
-			if (R.plans >= 24)
+			if (R.plans >= 40) {
+				/* the bench's own stop. The follower's guarantee is
+				 * BC_NAV_REPORTS_MAX reports a goal: this must never
+				 * be what ends a run, and nav_test checks it is not. */
+				R.plan_cap = 1;
 				break;
+			}
 			pol.now = (double)tick / 60.0;
 			pol.blocks = (uint8_t)blocks;
 			t0 = sim_now_us();
@@ -135,8 +151,13 @@ static sim_result sim_run(sim_world *w, bc_nav_policy pol, bc_nav_node start, bc
 				R.max_nodes = bc_nav_plan_nodes(w->s);
 			bc_nav_plan_route(w->s, &route);
 			if (R.first_plan_status < 0) {
+				int i;
+
 				R.first_plan_status = st;
-				R.route_secs = route.secs;
+				R.route_secs = R.route_time = route.secs;
+				for (i = 0; i < route.n; i++)
+					if (route.steps[i].flags & BC_NAV_F_WATER)
+						R.route_time -= pol.water_secs;
 			}
 			if (w->verbose) {
 				int i;
@@ -156,7 +177,11 @@ static sim_result sim_run(sim_world *w, bc_nav_policy pol, bc_nav_node start, bc
 					break;
 				}
 			}
-			bc_nav_follow_begin(&f, &route);
+			/* the first route to a goal, or another to the same one */
+			if (R.plans == 1)
+				bc_nav_follow_begin(&f, &route);
+			else
+				bc_nav_follow_again(&f, &route);
 			need_plan = 0;
 		}
 
@@ -164,12 +189,49 @@ static sim_result sim_run(sim_world *w, bc_nav_policy pol, bc_nav_node start, bc
 		if (status == BC_NAV_FOLLOWING) {
 			if (cmd.step >= 0 && cmd.step < route.n)
 				R.kinds |= 1u << route.steps[cmd.step].kind;
+			if (R.plans == 1 && cmd.step >= 0 && cmd.step < route.n) {
+				const bc_nav_step *sp = &route.steps[cmd.step];
+				bc_nav_node from = cmd.step ? route.steps[cmd.step - 1].to : route.start;
+				int dz = sp->to.z < from.z ? 0 : sp->to.z == from.z ? 1 : 2, tn = 0, i;
+
+				if (cmd.step > 0 && sp->dir < 8 && route.steps[cmd.step - 1].dir < 8) {
+					tn = (sp->dir - route.steps[cmd.step - 1].dir) & 7;
+					tn = tn > 4 ? 8 - tn : tn;
+					tn = tn > 2 ? 2 : tn;
+				}
+				R.cat_ticks[sp->kind][dz][tn]++;
+				/* its planned seconds, once, and those of the ground steps
+				 * ticked off since the last one seen */
+				for (i = last_step + 1; i <= cmd.step; i++) {
+					const bc_nav_step *q = &route.steps[i];
+					bc_nav_node qf = i ? route.steps[i - 1].to : route.start;
+					int qz = q->to.z < qf.z ? 0 : q->to.z == qf.z ? 1 : 2, qt = 0;
+
+					if (i > 0 && q->dir < 8 && route.steps[i - 1].dir < 8) {
+						qt = (q->dir - route.steps[i - 1].dir) & 7;
+						qt = qt > 4 ? 8 - qt : qt;
+						qt = qt > 2 ? 2 : qt;
+					}
+					R.cat_secs[q->kind][qz][qt] += q->secs -
+						((q->flags & BC_NAV_F_WATER) ? pol.water_secs : 0.0f);
+					R.cat_n[q->kind][qz][qt]++;
+				}
+				if (cmd.step > last_step)
+					last_step = cmd.step;
+			}
 		} else if (status == BC_NAV_ARRIVED) {
 			if (!route.partial) {
 				R.arrived = 1;
 				break;
 			}
 			need_plan = 1;
+		} else if (status == BC_NAV_GIVE_UP) {
+			R.gave_up = 1;
+			if (w->verbose)
+				printf("  tick %d: gave up (after %d reports; the last would have been why %d), "
+				       "body (%.2f %.2f %.2f)\n", tick, f.reports, cmd.why, (double)b.pos.x,
+				       (double)b.pos.y, (double)b.pos.z);
+			break;
 		} else if (status == BC_NAV_STEP_FAILED) {
 			bc_nav_node a, c;
 			int kind;
@@ -228,6 +290,12 @@ static sim_result sim_run(sim_world *w, bc_nav_policy pol, bc_nav_node start, bc
 		if (w->latency > qn)
 			memset(&act, 0, sizeof act), act.ori.x = 1.0f;
 		qn++;
+		if (w->trace)
+			printf("    t%-5d st %d step %3d keys %02x ori (%5.2f %5.2f) pos (%7.2f %7.2f) "
+			       "feet %5.2f vel (%5.2f %5.2f %5.2f)%s\n", tick, status, cmd.step, act.keys,
+			       (double)act.ori.x, (double)act.ori.y, (double)b.pos.x, (double)b.pos.y,
+			       (double)bc_body_feet(&b), (double)(b.vel.x * 32.0f), (double)(b.vel.y * 32.0f),
+			       (double)(b.vel.z * 32.0f), b.airborne ? " air" : "");
 		dmg = bc_body_step(&b, w->truth, act.keys, act.ori, BC_BODY_DT);
 		if (dmg > 0)
 			R.damage += dmg;

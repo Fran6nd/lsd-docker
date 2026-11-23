@@ -702,7 +702,46 @@ static void relax(bc_nav_search *s, uint32_t ci, bc_nav_node from, const edge *e
 	heap_up(s, r->hpos);
 }
 
-static void edge_from_move(const bc_nav_search *s, edge *e, bc_nav_node a, int mvi, int dir)
+/* What a stride on land takes, coming after whatever brought the body to
+ * the node (nav.h, STRIDES IN CONTEXT): the measured time of that stride
+ * after a climb, a level run, a step down or a standstill, and the
+ * measured price of the turn if the direction changes.
+ *
+ * This makes an edge's cost depend on the edge before it, which a search
+ * over places (and not over places-and-headings, eight times the nodes)
+ * can only follow along the one way it currently knows to each node. It is
+ * a good estimate and not a proof of the cheapest route: two ways to a
+ * node that differ by less than a turn may be ranked wrongly. What it buys
+ * is routes that are honest about stairs and do not zigzag, in the same
+ * number of nodes. */
+static float stride_secs(const bc_nav_search *s, uint32_t ci, const bc_nav_move *mv, int dir)
+{
+	const bc_nav_moves *t = s->t;
+	const rec *p = &s->recs[ci];
+	int before = BC_NAV_AFTER_REST;
+	float secs;
+
+	if ((mv->kind != BC_NAV_WALK && mv->kind != BC_NAV_SPRINT) || mv->from_water ||
+	    (mv->kind == BC_NAV_WALK && mv->dz >= 0))
+		return mv->secs;        /* crouched, wading, or walking where a
+		                           sprint does not fit: as timed alone */
+	if (p->parent != ci && (p->kind == BC_NAV_WALK || p->kind == BC_NAV_SPRINT) &&
+	    p->move >= 0 && !t->mv[p->move].from_water) {
+		int pdz = t->mv[p->move].dz;
+
+		before = pdz < 0 ? BC_NAV_AFTER_UP : pdz > 0 ? BC_NAV_AFTER_DOWN : BC_NAV_AFTER_LEVEL;
+	}
+	secs = t->stride_secs[mv->cls][before][mv->dz + 1];
+	if (before != BC_NAV_AFTER_REST && p->dir != dir && p->dir < 8) {
+		int turn = (dir - p->dir) & 7;
+
+		secs += t->turn_secs[p->dir & 1][turn > 4 ? 8 - turn : turn];
+	}
+	return secs > 0.0f ? secs : mv->secs;
+}
+
+static void edge_from_move(const bc_nav_search *s, uint32_t ci, edge *e, bc_nav_node a, int mvi,
+                           int dir)
 {
 	const bc_nav_move *mv = &s->t->mv[mvi];
 
@@ -710,7 +749,7 @@ static void edge_from_move(const bc_nav_search *s, edge *e, bc_nav_node a, int m
 	e->to.x = (int16_t)(a.x + mv->d * bc_nav_dx[dir]);
 	e->to.y = (int16_t)(a.y + mv->d * bc_nav_dy[dir]);
 	e->to.z = (int16_t)(a.z + mv->dz);
-	e->secs = mv->secs;
+	e->secs = stride_secs(s, ci, mv, dir);
 	e->move = (int16_t)mvi;
 	e->kind = mv->kind;
 	e->dir = (uint8_t)dir;
@@ -732,7 +771,7 @@ static void try_move(bc_nav_search *s, uint32_t ci, bc_nav_node a, int mvi, int 
 
 	if (mvi < 0 || !nav_move_fits(s->t, s->m, mvi, a, dir))
 		return;
-	edge_from_move(s, &e, a, mvi, dir);
+	edge_from_move(s, ci, &e, a, mvi, dir);
 	relax(s, ci, a, &e);
 }
 
@@ -835,14 +874,23 @@ static void expand(bc_nav_search *s, uint32_t ci)
 				if (mvi >= 0 && nav_move_fits(t, m, mvi, a, dir)) {
 					edge e;
 
-					edge_from_move(s, &e, a, mvi, dir);
+					edge_from_move(s, ci, &e, a, mvi, dir);
 					relax(s, ci, a, &e);
 					walked_z = zb;
 				}
 			} else if (dz <= BC_NAV_DZ_MAX && cls == BC_NAV_CLS_AXIS && akind == 1 && stand) {
 				int mvi = t->drop[cls][dz - BC_NAV_DZ_MIN];
+				/* Into water the feet go a voxel further than the node
+				 * says (nav.h: a water node has z = 63 and the feet at
+				 * 64), and water breaks no fall here: what the landing
+				 * costs is what the drop one deeper costs. The deepest
+				 * drop measured has none deeper to ask, and is refused
+				 * -- the follower, which simulates the real thing,
+				 * would refuse it at the edge every time. */
+				int hurt = zb >= BC_MAP_WATER_Z ?
+				           (dz < BC_NAV_DZ_MAX ? t->drop[cls][dz + 1 - BC_NAV_DZ_MIN] : -1) : mvi;
 
-				if (mvi >= 0 && t->mv[mvi].damage <= pol->max_fall_damage)
+				if (mvi >= 0 && hurt >= 0 && t->mv[hurt].damage <= pol->max_fall_damage)
 					try_move(s, ci, a, mvi, dir);
 			}
 		}

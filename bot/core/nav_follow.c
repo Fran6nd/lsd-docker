@@ -25,10 +25,12 @@
 #include "nav_i.h"
 
 #include <math.h>
+#include <stddef.h>
 #include <string.h>
 
 #define SAFE_RUN_TICKS 3
-#define SAFE_STOP_TICKS 22
+#define SAFE_LOOK_TICKS 15
+#define SAFE_STOP_TICKS 40
 
 static bc_nav_node step_from(const bc_nav_route *r, int i)
 {
@@ -50,6 +52,58 @@ void bc_nav_follow_begin(bc_nav_follow *f, const bc_nav_route *r)
 	memset(f, 0, sizeof *f);
 	f->map_rev = r->map_rev;
 	f->last_ori.x = 1.0f;
+}
+
+void bc_nav_follow_again(bc_nav_follow *f, const bc_nav_route *r)
+{
+	/* everything up to the record goes; the record stays */
+	memset(f, 0, offsetof(bc_nav_follow, reports));
+	f->map_rev = r->map_rev;
+	f->last_ori.x = 1.0f;
+}
+
+/* NEVER A LOOP (nav.h): note a report, and say whether it is one too
+ * many. The place is the floor the body is on -- or, for a body in the
+ * air or in a hole nobody can stand in, the column it is in. */
+static int one_too_many(bc_nav_follow *f, const bc_map *m, const bc_body *b, int status, int why)
+{
+	bc_nav_node here;
+	uint32_t cell;
+	int i, at = -1, old;
+
+	if (!bc_nav_node_of_body(m, b, &here)) {
+		here.x = (int16_t)floorf(b->pos.x);
+		here.y = (int16_t)floorf(b->pos.y);
+		here.z = 0;
+	}
+	cell = nav_pack(here);
+	if (f->reports < 0xFFFF)
+		f->reports++;
+	for (i = 0; i < BC_NAV_REPORT_SLOTS; i++) {
+		bc_nav_report *e = &f->seen[i];
+
+		if (e->cell && e->age < 255)
+			e->age++;
+		if (e->cell == cell && e->status == status && e->why == why)
+			at = i;
+	}
+	if (at < 0) {
+		/* not said from here before: in an empty slot, or the stalest */
+		for (i = 0, old = 0; i < BC_NAV_REPORT_SLOTS; i++) {
+			if (!f->seen[i].cell) { old = i; break; }
+			if (f->seen[i].age > f->seen[old].age)
+				old = i;
+		}
+		at = old;
+		f->seen[at].cell = cell;
+		f->seen[at].status = (uint8_t)status;
+		f->seen[at].why = (uint8_t)why;
+		f->seen[at].count = 0;
+	}
+	f->seen[at].age = 0;
+	if (f->seen[at].count < 255)
+		f->seen[at].count++;
+	return f->seen[at].count >= BC_NAV_REPEAT_MAX || f->reports >= BC_NAV_REPORTS_MAX;
 }
 
 static void set_step(bc_nav_follow *f, int i)
@@ -138,22 +192,130 @@ static void ground_law(const bc_nav_route *r, int i, const bc_body *b, uint8_t c
 	nav_law_steer(b, (float)tgt.x + 0.5f, (float)tgt.y + 0.5f, mode, arrive, keys, ori);
 }
 
-/* A few more ticks at this pace and then an emergency stop: is the body
- * still on the route's floor at the end of it, unhurt? */
+/* --- where a body may be ---------------------------------------------- */
+
+/* Node k of a route: where step k starts (node 0 is the start, node n the
+ * end). */
+static bc_nav_node route_node(const bc_nav_route *r, int k)
+{
+	return k > 0 ? r->steps[k - 1].to : r->start;
+}
+
+/* The stretch of the route the body is on while it does step i: the two
+ * nodes behind it (it has just been there), and ahead as far as the ground
+ * steps run (the safety simulation ticks them off as it goes), eight at
+ * most. */
+static void route_window(const bc_nav_route *r, int i, int *lo, int *hi)
+{
+	int k = i < r->n ? i : r->n;
+
+	*lo = k - 2 < 0 ? 0 : k - 2;
+	while (k < r->n && k < i + 8 && nav_is_ground_kind(r->steps[k].kind))
+		k++;
+	*hi = k;
+}
+
+static int in_window(const bc_nav_route *r, int lo, int hi, int x, int y, int z)
+{
+	int k;
+
+	for (k = lo; k <= hi; k++) {
+		bc_nav_node n = route_node(r, k);
+
+		if (n.x == x && n.y == y && n.z >= z - 1 && n.z <= z + 1)
+			return 1;
+	}
+	return 0;
+}
+
+/* Is the floor (x, y, z) one of the window's nodes, or at most `depth`
+ * plain strides from one -- strides a body WALKS: to a neighbour by a side
+ * (not a corner), onto a floor it can stand on, level, one down or one up
+ * (the free climb), and not into water from dry land? */
+static int near_route(const bc_map *m, const bc_nav_route *r, int lo, int hi,
+                      int x, int y, int z, int depth)
+{
+	int d;
+
+	if (in_window(r, lo, hi, x, y, z))
+		return 1;
+	if (depth <= 0)
+		return 0;
+	for (d = 0; d < 8; d += 2) {
+		int qx = x + bc_nav_dx[d], qy = y + bc_nav_dy[d], z0 = z > 0 ? z - 1 : 0, qz;
+		uint64_t sb;
+
+		if (qx < 0 || qx >= BC_MAP_X || qy < 0 || qy >= BC_MAP_Y)
+			continue;
+		sb = bc_map_stand_bits(m->col[qy * BC_MAP_X + qx]) >> z0;
+		if (!sb)
+			continue;
+		qz = z0 + bc_ctz64(sb);
+		if (qz > z + 1 || (qz >= BC_MAP_WATER_Z && z < BC_MAP_WATER_Z))
+			continue;
+		if (near_route(m, r, lo, hi, qx, qy, qz, depth - 1))
+			return 1;
+	}
+	return 0;
+}
+
+/* THE SAFE CELLS of a route are its own columns and the floor a body can
+ * walk straight back from: within two strides of them.
+ *
+ * Is the body on one -- its CENTRE over the column, its feet on that floor
+ * (or held a little above it by a corner on a higher neighbour, as after
+ * coming down a stair)? A body hanging by a corner with its centre over
+ * nothing is standing, and is not safe: the next push takes it off. */
+static int body_safe(const bc_nav_route *r, const bc_map *m, int i, const bc_body *b)
+{
+	int x = (int)floorf(b->pos.x), y = (int)floorf(b->pos.y), z, lo, hi;
+	float feet = bc_body_feet(b), rest;
+
+	if (x < 0 || x >= BC_MAP_X || y < 0 || y >= BC_MAP_Y)
+		return 0;
+	z = (int)floorf(feet + 0.1f);
+	z = bc_map_floor_at_or_below(m, x, y, z < 0 ? 0 : z > BC_MAP_WATER_Z ? BC_MAP_WATER_Z : z);
+	if (z > BC_MAP_WATER_Z)
+		z = BC_MAP_WATER_Z;
+	rest = nav_rest(z);
+	if (feet < rest - 1.3f || feet > rest + 0.3f)
+		return 0;
+	route_window(r, i, &lo, &hi);
+	return near_route(m, r, lo, hi, x, y, z, 2);
+}
+
+/* THE GROUND SAFETY RULE. "This pace for `run` more ticks, then an
+ * emergency stop": where is the body when it has stopped? The pace is safe
+ * if, all the way, it is never below the route's floor, never hurt, and
+ * at the end it is at rest on one of the route's safe cells.
+ *
+ * It used to ask only the first half -- not below the route -- and a body
+ * that sprinted down a stair and overshot the turn at the bottom slid
+ * onto a ledge at the stair's own level, "safe", turned round at a sprint
+ * and went off the stair's other side into the sea (every route lost on
+ * Parkour2 in the first soak). Height says nothing about sideways.
+ *
+ * A body that is not on a safe cell to begin with (it landed from a jump
+ * on a column's edge, was pushed, has just been given a new route) cannot
+ * be held to that: it is let walk, never sprint, under the height rule
+ * alone, until it is back on one. */
 static int ground_safe(const bc_nav_route *r, const bc_map *m, int i0, const bc_body *b0,
-                       uint8_t cand)
+                       uint8_t cand, int run)
 {
 	bc_body bb = *b0;
 	bc_v3 ori = {1.0f, 0.0f, 0.0f};
-	int i = i0, t;
+	int i = i0, t, on;
 
 	if (bc_body_feet(b0) > floor_limit(r, i0) + 0.3f)
 		return 1;       /* already under it: nothing to learn here */
-	for (t = 0; t < SAFE_RUN_TICKS + SAFE_STOP_TICKS; t++) {
+	on = body_safe(r, m, i0, b0);
+	if (!on && (cand & BC_K_SPRINT))
+		return 0;
+	for (t = 0; t < run + SAFE_STOP_TICKS; t++) {
 		uint8_t k;
 
 		i = ground_advance(r, i, &bb);
-		if (t < SAFE_RUN_TICKS)
+		if (t < run)
 			ground_law(r, i, &bb, cand, &k, &ori);
 		else
 			nav_law_stop(&bb, &k, &ori);
@@ -161,8 +323,10 @@ static int ground_safe(const bc_nav_route *r, const bc_map *m, int i0, const bc_
 			return 0;
 		if (bc_body_feet(&bb) > floor_limit(r, ground_advance(r, i, &bb)) + 0.3f)
 			return 0;
+		if (t >= run && bc_body_speed(&bb) < 0.3f && nav_on_floor(&bb, (int)floorf(bc_body_feet(&bb) + 0.1f)))
+			break;
 	}
-	return 1;
+	return !on || body_safe(r, m, i0, &bb);
 }
 
 static void ground_tick(const bc_nav_route *r, const bc_map *m, int i, const bc_body *b,
@@ -175,8 +339,17 @@ static void ground_tick(const bc_nav_route *r, const bc_map *m, int i, const bc_
 		first = 0;
 	if (i < r->n && r->steps[i].kind == BC_NAV_CROUCH)
 		first = 2;      /* crouched is slower than a sneak: one choice */
+	/* Two questions of each pace. Could it still stop safely after the
+	 * few ticks a command takes to arrive (SAFE_RUN_TICKS)? That one is
+	 * the guarantee: while it holds tick after tick, a stop is always in
+	 * hand. And could it after a quarter of a second more of this
+	 * (SAFE_LOOK_TICKS)? That one is foresight: a body that will swing wide
+	 * of a turn with a drop beside it slows BEFORE the turn, instead of
+	 * running to the last tick a stop works and slamming to a halt there.
+	 * The slowest pace is asked only the first. */
 	for (c = first; c < 3; c++)
-		if (ground_safe(r, m, i, b, paces[c])) {
+		if (ground_safe(r, m, i, b, paces[c], SAFE_RUN_TICKS) &&
+		    (c == 2 || ground_safe(r, m, i, b, paces[c], SAFE_LOOK_TICKS))) {
 			ground_law(r, i, b, paces[c], keys, ori);
 			return;
 		}
@@ -345,11 +518,14 @@ static int route_holds(const bc_nav_follow *f, const bc_nav_route *r, const bc_n
 
 /* --- the tick ---------------------------------------------------------- */
 
-static int finish(bc_nav_follow *f, const bc_map *m, const bc_body *b, bc_nav_cmd *out,
-                  int status, int why)
+static int finish(bc_nav_follow *f, const bc_nav_route *r, const bc_map *m, const bc_body *b,
+                  bc_nav_cmd *out, int status, int why)
 {
 	bc_v3 ori = f->last_ori;
 	uint8_t k;
+
+	if ((status != BC_NAV_ARRIVED || r->partial) && one_too_many(f, m, b, status, why))
+		status = BC_NAV_GIVE_UP;
 
 	nav_law_stop(b, &k, &ori);
 	out->keys = nav_crouch_guard(b, m, k);
@@ -381,7 +557,7 @@ int bc_nav_follow_tick(bc_nav_follow *f, const bc_nav_route *r, const bc_nav_mov
 	if (m->rev != f->map_rev) {
 		f->map_rev = m->rev;
 		if (!route_holds(f, r, t, m))
-			return finish(f, m, b, out, BC_NAV_ROUTE_STALE, 0);
+			return finish(f, r, m, b, out, BC_NAV_ROUTE_STALE, 0);
 	}
 
 	if (f->recentre) {
@@ -422,8 +598,18 @@ int bc_nav_follow_tick(bc_nav_follow *f, const bc_nav_route *r, const bc_nav_mov
 			bc_nav_node last = r->n ? r->steps[r->n - 1].to : r->start;
 			float dx = (float)last.x + 0.5f - b->pos.x, dy = (float)last.y + 0.5f - b->pos.y;
 
-			if (nav_at(b, last) && nav_on_floor(b, last.z) && dx * dx + dy * dy < 0.4f * 0.4f)
-				return finish(f, m, b, out, BC_NAV_ARRIVED, 0);
+			/* There: over the middle of the last column and on its floor
+			 * -- or at rest a voxel above it, which is where a body is
+			 * that came in beside a higher neighbour. It is 0.9 wide in
+			 * a column of 1: a corner over the neighbour's edge holds it
+			 * up, and it comes down only within a twentieth of a voxel
+			 * of dead centre. It is in the column it was sent to; to
+			 * call that "not arrived" was to stand there until STUCK
+			 * (Temple, a goal in the inner corner of a terrace). */
+			if (nav_at(b, last) && dx * dx + dy * dy < 0.4f * 0.4f &&
+			    (nav_on_floor(b, last.z) ||
+			     (nav_on_or_above(b, last.z) && !b->airborne && bc_body_speed(b) < 0.5f)))
+				return finish(f, r, m, b, out, BC_NAV_ARRIVED, 0);
 			ground_tick(r, m, r->n, b, &keys, &ori);
 			break;
 		}
@@ -474,7 +660,7 @@ int bc_nav_follow_tick(bc_nav_follow *f, const bc_nav_route *r, const bc_nav_mov
 			continue;
 		}
 		if (res < 0)
-			return finish(f, m, b, out, BC_NAV_STEP_FAILED, -res);
+			return finish(f, r, m, b, out, BC_NAV_STEP_FAILED, -res);
 		break;
 	}
 
@@ -491,12 +677,12 @@ int bc_nav_follow_tick(bc_nav_follow *f, const bc_nav_route *r, const bc_nav_mov
 		} else if (++f->still_ticks > BC_NAV_STUCK_TICKS) {
 			f->still_ticks = 0;
 			if (f->recentred || f->step >= r->n || is_edit_kind(r->steps[f->step].kind))
-				return finish(f, m, b, out, BC_NAV_STEP_FAILED, BC_NAV_WHY_STUCK);
+				return finish(f, r, m, b, out, BC_NAV_STEP_FAILED, BC_NAV_WHY_STUCK);
 			f->recentred = 1;
 			f->recentre = BC_NAV_RECENTRE_TICKS;
 		}
 		if (++f->step_ticks > (uint16_t)(planned * 3.0f * BC_BODY_HZ) + 300u)
-			return finish(f, m, b, out, BC_NAV_STEP_FAILED, BC_NAV_WHY_TIMEOUT);
+			return finish(f, r, m, b, out, BC_NAV_STEP_FAILED, BC_NAV_WHY_TIMEOUT);
 	}
 
 	/* --- is the body where the route is? --- */
@@ -511,7 +697,7 @@ int bc_nav_follow_tick(bc_nav_follow *f, const bc_nav_route *r, const bc_nav_mov
 
 		if ((da > 9.0f && dc > 9.0f) ||
 		    (!b->airborne && b->vel.z == 0.0f && bc_body_feet(b) > low + 1.5f))
-			return finish(f, m, b, out, BC_NAV_OFF_ROUTE, 0);
+			return finish(f, r, m, b, out, BC_NAV_OFF_ROUTE, 0);
 	}
 
 	out->keys = nav_crouch_guard(b, m, keys);

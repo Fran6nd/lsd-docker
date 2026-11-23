@@ -56,7 +56,7 @@ int nav_on_floor(const bc_body *b, int z)
 /* The same, or held up a little higher: a body that came down a stair is
  * often resting with one corner still on the tread above. It is "at" the
  * lower column all the same, and will drop onto it as it moves. */
-static int on_or_above(const bc_body *b, int z)
+int nav_on_or_above(const bc_body *b, int z)
 {
 	float f = bc_body_feet(b), r = nav_rest(z);
 
@@ -204,16 +204,20 @@ static void land_law(const nav_shot *s, const bc_body *b, uint8_t *keys, bc_v3 *
 }
 
 /* After a landing: does the body get to the middle of the column and stay
- * on that floor? */
-static int settles(const nav_shot *s, const bc_map *m, bc_body *bb)
+ * on that floor? For the first `lag` ticks it is still under the keys it
+ * flew with: the command to brake is as late as every other. */
+static int settles(const nav_shot *s, const bc_map *m, bc_body *bb, uint8_t air_keys, int lag)
 {
 	bc_v3 ori = {1.0f, 0.0f, 0.0f};
 	float lim = nav_rest(s->to.z) + 0.3f;
 	uint8_t k;
 	int t, in = 0;
 
-	for (t = 0; t < 40 && in < 6; t++) {
-		land_law(s, bb, &k, &ori);
+	for (t = 0; t < 40 + lag && in < 6; t++) {
+		if (t < lag)
+			air_law(s, bb, air_keys, &k, &ori);
+		else
+			land_law(s, bb, &k, &ori);
 		bc_body_step(bb, m, k, ori, BC_BODY_DT);
 		if (bc_body_feet(bb) > lim)
 			return 0;
@@ -222,12 +226,21 @@ static int settles(const nav_shot *s, const bc_map *m, bc_body *bb)
 	return in >= 6;
 }
 
+/* THE LINK'S DELAY, for a landing. A jump is pressed only if it lands
+ * with the brake applied at once AND with it applied this many ticks
+ * late. A landing on a single column that holds only with the first is a
+ * coin tossed: 2FortCTF's last loss was one (down six onto a pillar, at a
+ * walk, in stride; the body touched down right, braked two ticks late and
+ * slid off the far edge into a pit with no way out). */
+#define LAND_LAG_TICKS 2
+
 /* Fly the copy to the ground under `air_keys`. 1: it is down on s->to and
  * stays there. */
 static int fly(const nav_shot *s, const bc_map *m, bc_body *bb, uint8_t air_keys,
                uint8_t *damage)
 {
 	bc_v3 ori = {1.0f, 0.0f, 0.0f};
+	bc_body late;
 	uint8_t k;
 	int t;
 
@@ -245,7 +258,8 @@ static int fly(const nav_shot *s, const bc_map *m, bc_body *bb, uint8_t air_keys
 	}
 	if (bb->airborne || !over(bb, s->to) || !nav_on_floor(bb, s->to.z))
 		return 0;       /* still falling, or down on something else */
-	return settles(s, m, bb);
+	late = *bb;
+	return settles(s, m, &late, air_keys, LAND_LAG_TICKS) && settles(s, m, bb, air_keys, 0);
 }
 
 int nav_jump_sim(const nav_shot *s, const bc_map *m, const bc_body *b0, int delay,
@@ -269,7 +283,15 @@ int nav_jump_sim(const nav_shot *s, const bc_map *m, const bc_body *b0, int dela
 	return fly(s, m, &bb, air_keys, NULL);
 }
 
-/* One more tick of running, then an emergency stop: still up there? */
+/* A few more ticks of running (the link's delay, and one to spare), then
+ * an emergency stop: is the body still up there at the end of it -- and
+ * STANDING there, its centre over floor at the take-off's level? Held by
+ * one corner past the edge is "still up" to the physics and a fall to
+ * anything that differs from this simulation by a hundredth: a stop that
+ * ended so, two ticks of delay on, was a body in the pit under 2FortCTF's
+ * bridge with no way out. */
+#define STOP_RUN_TICKS 3
+
 static int can_still_stop(const nav_shot *s, const bc_map *m, const bc_body *b0, int run_ticks)
 {
 	bc_body bb = *b0;
@@ -278,7 +300,7 @@ static int can_still_stop(const nav_shot *s, const bc_map *m, const bc_body *b0,
 	uint8_t k;
 	int i;
 
-	for (i = 0; i < run_ticks + 24; i++) {
+	for (i = 0; i < run_ticks + 40; i++) {
 		if (i < run_ticks)
 			nav_jump_run_law(s, &bb, &k, &ori);
 		else
@@ -286,8 +308,10 @@ static int can_still_stop(const nav_shot *s, const bc_map *m, const bc_body *b0,
 		bc_body_step(&bb, m, k, ori, BC_BODY_DT);
 		if (bc_body_feet(&bb) > lim)
 			return 0;
+		if (i >= run_ticks && bc_body_speed(&bb) < 0.3f)
+			break;
 	}
-	return 1;
+	return nav_node_kind(m, (int)floorf(bb.pos.x), (int)floorf(bb.pos.y), s->from.z) != 0;
 }
 
 /* Keeping on running, is there a moment ahead when the jump can be
@@ -334,7 +358,7 @@ int nav_jump_tick(const nav_shot *s, nav_xs *xs, const bc_body *b, const bc_map 
 		 * this speed does. This is how a jump is taken in stride. (Not
 		 * after a failed attempt: then the full run-up, from rest, as
 		 * measured.) */
-		int in_lane = on_or_above(b, s->from.z) && fabsf(lat) < 0.2f && fabsf(vlat) < 1.0f &&
+		int in_lane = nav_on_or_above(b, s->from.z) && fabsf(lat) < 0.2f && fabsf(vlat) < 1.0f &&
 		              val > -0.5f && along < 0.35f &&
 		              along > -((float)s->runup + 8.5f) * g.cell;
 		xs->phase = in_lane ? NAV_XS_RUN : NAV_XS_ALIGN;
@@ -342,7 +366,7 @@ int nav_jump_tick(const nav_shot *s, nav_xs *xs, const bc_body *b, const bc_map 
 
 	if (xs->phase == NAV_XS_BRAKE) {
 		nav_law_stop(b, keys, ori);
-		if (speed < 0.4f && on_or_above(b, s->from.z)) {
+		if (speed < 0.4f && nav_on_or_above(b, s->from.z)) {
 			if (++xs->attempts >= 3)
 				return -BC_NAV_WHY_NO_JUMP;
 			xs->phase = NAV_XS_ALIGN;
@@ -358,10 +382,10 @@ int nav_jump_tick(const nav_shot *s, nav_xs *xs, const bc_body *b, const bc_map 
 		float dx = tx - b->pos.x, dy = ty - b->pos.y;
 
 		if (dx * dx + dy * dy < 0.12f * 0.12f && speed < 0.8f &&
-		    on_or_above(b, s->from.z)) {
+		    nav_on_or_above(b, s->from.z)) {
 			xs->phase = NAV_XS_RUN;
 		} else {
-			if (speed > 2.5f && !can_still_stop(s, m, b, 2))
+			if (speed > 2.5f && !can_still_stop(s, m, b, STOP_RUN_TICKS))
 				nav_law_stop(b, keys, ori);     /* the edge first */
 			else
 				nav_law_steer(b, tx, ty, 0, 1, keys, ori);
@@ -403,7 +427,7 @@ int nav_jump_tick(const nav_shot *s, nav_xs *xs, const bc_body *b, const bc_map 
 			xs->ticks = 0;
 			return 0;
 		}
-		if (!can_still_stop(s, m, b, 2) && !window_ahead(s, m, b)) {
+		if (!can_still_stop(s, m, b, STOP_RUN_TICKS) && !window_ahead(s, m, b)) {
 			if (ok0 && !can_still_stop(s, m, b, 0)) {
 				/* too late to stop, and a jump now lands: jump */
 				*keys |= BC_K_JUMP;
@@ -504,7 +528,7 @@ static int drop_sim(const nav_shot *s, const bc_map *m, const bc_body *b0, uint8
 				*damage = (uint8_t)dmg;
 		}
 		if (nav_at(&bb, s->to) && nav_on_floor(&bb, s->to.z))
-			return settles(s, m, &bb);
+			return settles(s, m, &bb, 0, 0);
 		if (!bb.airborne && bb.vel.z == 0.0f &&
 		    bc_body_feet(&bb) > nav_rest(s->to.z) + 0.3f)
 			return 0;       /* down, and lower than meant */
@@ -519,7 +543,7 @@ int nav_drop_tick(const nav_shot *s, nav_xs *xs, const bc_body *b, const bc_map 
 {
 	if (nav_at(b, s->to) && nav_on_floor(b, s->to.z))
 		return 1;
-	if (on_or_above(b, s->from.z)) {
+	if (nav_on_or_above(b, s->from.z)) {
 		/* still up: check (again, now and then: the body is not where
 		 * it was) that walking off from here ends on the target */
 		if (xs->phase == NAV_XS_INIT || (tick & 3) == 0) {

@@ -18,8 +18,9 @@
 #include "body.h"
 #include "rng.h"
 
-/* pinned on arm64 macOS, clang 17 */
-#define DRIFT_HASH 0xbcc4329fu
+/* The same value on arm64 macOS (clang 17), arm64 and x86-64 Alpine (musl,
+ * GCC 15) and arm64 Debian (glibc, GCC 14): see test_drift for why it can be. */
+#define DRIFT_HASH 0x417e74eau
 
 static int checks, failed;
 #define CHECK(c) do { checks++; if (!(c)) { failed++; \
@@ -216,7 +217,40 @@ static void test_quirks(void)
 }
 
 /* The drift alarm: 3000 ticks of keys drawn from a fixed seed over a
- * course with steps, walls, a pit, a ceiling and water. */
+ * course with steps, walls, a pit, a ceiling and water.
+ *
+ * The hash is of the trajectory's very bits, so everything that feeds it
+ * must be the same bits on every machine. The physics is: it only adds,
+ * multiplies, divides and takes square roots, which IEEE 754 rounds one
+ * way, and the core is built without contraction. cosf and sinf are NOT --
+ * a C library may round them either way in the last place -- so the
+ * script's facings do not come from them. They are unit vectors with
+ * rational coordinates (Pythagorean triples: 3/5 and 4/5, 5/13 and 12/13,
+ * ...) in all their reflections, each a single division: 44 headings
+ * round the compass, none of them an axis the others are not. */
+static bc_v3 drift_heading(unsigned k)
+{
+	static const float tri[5][3] = {
+		{3.0f, 4.0f, 5.0f}, {5.0f, 12.0f, 13.0f}, {8.0f, 15.0f, 17.0f},
+		{7.0f, 24.0f, 25.0f}, {20.0f, 21.0f, 29.0f}
+	};
+	bc_v3 v = {0.0f, 0.0f, 0.0f};
+	float a, b;
+
+	k %= 44;
+	if (k >= 40) {                  /* the four axes */
+		a = (k & 1) ? -1.0f : 1.0f;
+		if (k & 2) v.y = a; else v.x = a;
+		return v;
+	}
+	a = tri[k / 8][0] / tri[k / 8][2];
+	b = tri[k / 8][1] / tri[k / 8][2];
+	if (k & 1) { float t = a; a = b; b = t; }
+	v.x = (k & 2) ? -a : a;
+	v.y = (k & 4) ? -b : b;
+	return v;
+}
+
 static void test_drift(void)
 {
 	bc_rng rng;
@@ -225,14 +259,15 @@ static void test_drift(void)
 	uint8_t keys = 0;
 	bc_v3 ori = east;
 	int x, y, i;
+	int n_air = 0, n_wade = 0, n_crouch = 0, n_hard = 0, n_reset = 0, n_high = 0, n_low = 0;
 
 	bc_map_fill_flat(m, 40);
 	for (y = 80; y < 120; y++)
 		for (x = 80; x < 120; x++) {
 			int top = 40 - ((x * 7 + y * 3) % 5 == 0) - ((x + y) % 11 == 0) * 2;
 
-			if ((x * 5 + y) % 23 == 0)
-				top = 44;
+			if ((x * 5 + y) % 23 == 0 || y == 104 || y == 105)
+				top = 44;       /* pits, and a trench across the course */
 			if (x > 112)
 				top = 63;
 			m->col[y * BC_MAP_X + x] = ~(uint64_t)0 << top;
@@ -245,33 +280,62 @@ static void test_drift(void)
 		unsigned char raw[24];
 		int k;
 
-		if (i % 20 == 0) {
-			float a = bc_rng_range(&rng, 0.0f, 6.2831853f);
+		if (i % 300 == 0) {
+			/* a fresh start now and then, each in another part of the
+			 * course (the last by the water): a body left to itself ends
+			 * its run at the bottom of the first pit it finds */
+			static const int at[5][2] = {{100, 100}, {90, 108}, {106, 88}, {96, 92}, {110, 101}};
+			int sx = at[(i / 300) % 5][0], sy = at[(i / 300) % 5][1];
+			uint64_t c;
 
+			while ((sx + 2 * sy) % 13 == 0)
+				sx++;           /* not under a ceiling */
+			c = m->col[sy * BC_MAP_X + sx];
+			for (k = 0; k < 64 && !((c >> k) & 1); k++)
+				;
+			bc_body_place(&b, m, (float)sx + 0.5f, (float)sy + 0.5f, k, 0);
+		}
+		if (i % 20 == 0) {
 			keys = (uint8_t)bc_rng_below(&rng, 256);
+			if (bc_rng_below(&rng, 3) != 0)         /* mostly going somewhere */
+				keys = (uint8_t)((keys | BC_K_FORWARD) & ~BC_K_BACK);
 			if (b.airborne)         /* body.h: never change crouch in the air */
 				keys = (uint8_t)((keys & ~BC_K_CROUCH) | (b.keys & BC_K_CROUCH));
-			ori.x = cosf(a); ori.y = sinf(a); ori.z = bc_rng_range(&rng, -0.4f, 0.7f);
+			if (i % 100 == 0)       /* a heading is held long enough to get there */
+				ori = drift_heading(bc_rng_below(&rng, 44));
+			ori.z = bc_rng_range(&rng, -0.4f, 0.7f);
 		} else {
 			keys = (uint8_t)((keys & ~(BC_K_JUMP | BC_K_CROUCH)) | (b.keys & BC_K_CROUCH));
 		}
-		bc_body_step(&b, m, keys, ori, BC_BODY_DT);
-		if (b.pos.x < 82.0f || b.pos.x > 118.0f || b.pos.y < 82.0f || b.pos.y > 118.0f)
+		n_hard += bc_body_step(&b, m, keys, ori, BC_BODY_DT) >= 0;
+		n_air += b.airborne;
+		n_wade += b.wade;
+		n_crouch += (b.keys & BC_K_CROUCH) != 0;
+		n_high += !b.airborne && bc_body_feet(&b) < 38.5f;      /* up on a step */
+		n_low += !b.airborne && bc_body_feet(&b) > 43.0f && !b.wade;    /* down a pit */
+		if (b.pos.x < 82.0f || b.pos.x > 118.0f || b.pos.y < 82.0f || b.pos.y > 118.0f) {
 			bc_body_place(&b, m, 100.5f, 100.5f, 40, 0);
+			n_reset++;
+		}
 		memcpy(raw, &b.pos, 12);
 		memcpy(raw + 12, &b.vel, 12);
 		for (k = 0; k < 24; k++)
 			h = (h ^ raw[k]) * 16777619u;
 	}
-	printf("  drift: 3000 scripted ticks, trajectory hash 0x%08x\n", h);
+	printf("  drift: 3000 scripted ticks, trajectory hash 0x%08x (%d in the air, %d wading, "
+	       "%d crouched, %d on a step, %d in a pit, %d landings, %d restarts)\n", h, n_air,
+	       n_wade, n_crouch, n_high, n_low, n_hard, n_reset);
+	/* a hash of a body that stood still would pin nothing: the script must
+	 * have taken it through every part of the physics */
+	CHECK(n_air > 300 && n_crouch > 300 && n_hard >= 3);
+	CHECK(n_wade > 0 && n_high > 0 && n_low > 0);
 	CHECK(h == DRIFT_HASH);
 	if (h != DRIFT_HASH)
 		printf("  the trajectory changed: lsd/src/demoncore.c did, or this machine's "
-		       "float arithmetic differs (the engine is built -ffp-contract=off;\n"
-		       "  cosf/sinf feed the script's facings and may differ in the last bit "
-		       "between C libraries). If the checks above still pass, read the\n"
-		       "  physics diff, then pin the new hash -- and expect nav_test's table "
-		       "to want the same.\n");
+		       "float arithmetic differs (is the core built -ffp-contract=off?\n"
+		       "  nothing in the script comes from the C library). If the checks "
+		       "above still pass, read the physics diff, then pin the new hash\n"
+		       "  -- and expect nav_test's table to want the same.\n");
 }
 
 int main(void)

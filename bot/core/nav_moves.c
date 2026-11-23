@@ -15,6 +15,7 @@
 #include "nav_i.h"
 
 #include <math.h>
+#include <stddef.h>
 #include <string.h>
 
 #define OX 256
@@ -499,6 +500,264 @@ static int widest_gap(bc_nav_moves *scratch_t, bc_map *m, int sprint)
 	return best;
 }
 
+/* --- courses: strides in context --------------------------------------- */
+
+/* nav.h, STRIDES IN CONTEXT. A course is a route laid by hand over a built
+ * scene, wide enough that no edge is near, and walked by the follower
+ * itself: what is timed is what will happen, pace choices and all. */
+
+enum { COURSE_MAX = 40 };
+
+typedef struct course {
+	int n;                      /* strides */
+	int cls;
+	int8_t turn_at, turn;       /* from this stride on, the direction is
+	                               `turn` eighths round; -1: none */
+	int8_t turn_len;            /* ...for this many strides, then as it
+	                               began; 0: to the end */
+	int8_t dz[COURSE_MAX];      /* each stride's */
+	int tick_at[COURSE_MAX + 1];        /* when node k was reached */
+} course;
+
+/* The direction of the course's stride i. */
+static int course_dir(const course *c, int i)
+{
+	if (c->turn_at < 0 || i < c->turn_at || (c->turn_len && i >= c->turn_at + c->turn_len))
+		return c->cls;
+	return (c->cls + c->turn) & 7;
+}
+
+/* The course's node k, relative to the origin, and its height. */
+static void course_node(const course *c, int k, int *rx, int *ry, int *z)
+{
+	int d0 = c->cls;
+	int i, x = -12 * bc_nav_dx[d0], y = -12 * bc_nav_dy[d0], h = ZA;
+
+	for (i = 0; i < k; i++) {
+		int d = course_dir(c, i);
+
+		x += bc_nav_dx[d]; y += bc_nav_dy[d];
+		h += c->dz[i];
+	}
+	*rx = x; *ry = y; *z = h;
+}
+
+/* The scene: every column takes the height of the course node it is
+ * nearest to ALONG the course's direction -- treads the whole width of the
+ * window, so that nothing but the stair itself is being measured. A
+ * diagonal's in-between columns (its corners) take the lower tread of the
+ * two they lie between. Turn courses are flat. */
+static void course_scene(bc_map *m, const course *c)
+{
+	int d0 = c->cls, rx, ry, k, x0, y0, z0;
+
+	scene_base(m, LAND_BASE);
+	course_node(c, 0, &x0, &y0, &z0);
+	for (ry = -WIN; ry <= WIN; ry++)
+		for (rx = -WIN; rx <= WIN; rx++) {
+			/* how far along: in strides, and for a diagonal in halves */
+			int along = d0 ? (rx - x0) + (ry - y0) : (rx - x0);
+			int top = ZA, lo;
+
+			if (c->turn_at >= 0) {
+				put(m, rx, ry, ZA);
+				continue;
+			}
+			if (d0) {
+				int a = along < 0 ? 0 : along > 2 * c->n ? 2 * c->n : along, za, zb;
+
+				course_node(c, a / 2, &k, &lo, &za);
+				course_node(c, (a + 1) / 2, &k, &lo, &zb);
+				top = za > zb ? za : zb;
+			} else {
+				int a = along < 0 ? 0 : along > c->n ? c->n : along;
+
+				course_node(c, a, &k, &lo, &top);
+			}
+			put(m, rx, ry, top);
+		}
+}
+
+/* Walk it. 1 if the follower arrived having never said anything else. */
+static int course_run(bc_nav_moves *t, bc_map *m, course *c)
+{
+	bc_nav_route r;
+	bc_nav_follow f;
+	bc_nav_policy pol;
+	bc_nav_cmd cmd;
+	bc_body b;
+	int k, x, y, z, tick, seen = 0;
+
+	if (c->n > COURSE_MAX)
+		return 0;
+	course_scene(m, c);
+	memset(&r, 0, offsetof(bc_nav_route, steps));
+	course_node(c, 0, &x, &y, &z);
+	r.start.x = (int16_t)(OX + x); r.start.y = (int16_t)(OY + y); r.start.z = (int16_t)z;
+	for (k = 0; k < c->n; k++) {
+		bc_nav_step *st = &r.steps[k];
+		int d = course_dir(c, k);
+		int mvi = c->dz[k] < 0 ? t->walk[d & 1][0] : t->sprint[d & 1][c->dz[k] + 1];
+
+		if (mvi < 0)
+			return 0;
+		memset(st, 0, sizeof *st);
+		course_node(c, k + 1, &x, &y, &z);
+		st->to.x = (int16_t)(OX + x); st->to.y = (int16_t)(OY + y); st->to.z = (int16_t)z;
+		st->kind = t->mv[mvi].kind;
+		st->dir = (uint8_t)d;
+		st->move = (int16_t)mvi;
+		st->secs = t->mv[mvi].secs;
+	}
+	r.n = c->n;
+	r.goal = r.steps[c->n - 1].to;
+	r.map_rev = m->rev;
+
+	bc_nav_policy_default(&pol);
+	bc_body_place(&b, m, (float)r.start.x + 0.5f, (float)r.start.y + 0.5f, r.start.z, 0);
+	bc_nav_follow_begin(&f, &r);
+	c->tick_at[0] = 0;
+	for (tick = 0; tick < 2400; tick++) {
+		int st = bc_nav_follow_tick(&f, &r, t, m, &b, &pol, &cmd);
+
+		while (seen < f.step && seen < c->n) {
+			seen++;
+			c->tick_at[seen] = tick;
+		}
+		if (st == BC_NAV_ARRIVED)
+			return seen == c->n;
+		if (st != BC_NAV_FOLLOWING)
+			return 0;
+		bc_body_step(&b, m, cmd.keys, cmd.ori, BC_BODY_DT);
+	}
+	return 0;
+}
+
+static float course_secs(const course *c, int from, int to)
+{
+	return (float)(c->tick_at[to] - c->tick_at[from]) * BC_BODY_DT;
+}
+
+static void course_init(course *c, int cls, int n)
+{
+	memset(c, 0, sizeof *c);
+	c->cls = cls;
+	c->n = n;
+	c->turn_at = -1;
+}
+
+/* A course of `lead` level strides, `n` strides at `dz1`, `n2` at `dz2`
+ * and eight level ones to finish: what it takes more than level ground
+ * would, from two strides before the first step to the end. -1 if it
+ * could not be walked. */
+static float stairs_extra(bc_nav_moves *t, bc_map *m, int cls, int lead, int n, int dz1,
+                          int n2, int dz2, float steady, float *first)
+{
+	course c;
+	int k, from = lead >= 2 ? lead - 2 : 0, end = lead + n + n2 + 8;
+
+	course_init(&c, cls, end);
+	for (k = 0; k < n; k++) c.dz[lead + k] = (int8_t)dz1;
+	for (k = 0; k < n2; k++) c.dz[lead + n + k] = (int8_t)dz2;
+	if (!course_run(t, m, &c))
+		return -1.0f;
+	if (first)
+		*first = course_secs(&c, lead, lead + 1);
+	return course_secs(&c, from, end) - (float)(end - from) * steady;
+}
+
+static void measure_context(bc_nav_moves *t, bc_map *m)
+{
+	enum { U = BC_NAV_AFTER_UP, L = BC_NAV_AFTER_LEVEL, D = BC_NAV_AFTER_DOWN,
+	       R = BC_NAV_AFTER_REST };
+	int cls, a, b, k;
+
+	for (cls = 0; cls < 2; cls++) {
+		float (*s)[3] = t->stride_secs[cls];
+		float lone[3], st, e1, e7, e, first = 0.0f, rest;
+		course c;
+
+		/* until measured, and wherever a course cannot be walked: the
+		 * lone stride's time */
+		for (b = 0; b < 3; b++) {
+			int mvi = b == 0 ? t->walk[cls][0] : t->sprint[cls][b];
+
+			lone[b] = mvi >= 0 ? t->mv[mvi].secs : 0.0f;
+			for (a = 0; a < 4; a++)
+				s[a][b] = lone[b];
+		}
+		for (k = 0; k < 5; k++)
+			t->turn_secs[cls][k] = 0.0f;
+		st = lone[1];
+		rest = 0.0f;
+
+		/* flat, from rest: the steady stride, and what the start costs */
+		course_init(&c, cls, 20);
+		if (course_run(t, m, &c)) {
+			st = course_secs(&c, 12, 18) / 6.0f;
+			rest = course_secs(&c, 0, 12) - 12.0f * st;
+			s[L][1] = st;
+			s[R][1] = st + rest;
+		}
+
+		/* STAIRS. What a flight of n steps adds to level ground is, measured,
+		 * a straight line in n (one step up 0.19 s, each further one 0.13;
+		 * down 0.11 and 0.15). Three prices make that line: the stride
+		 * onto the flight (as timed), each stride on it, the first level
+		 * stride after it. One step and seven are measured and the three
+		 * solved from them, so a lone kerb and a long stair are both
+		 * priced right, and what lies between nearly. */
+		for (b = 0; b < 3; b += 2) {
+			int dz = b - 1, x = b == 0 ? U : D;
+
+			e1 = stairs_extra(t, m, cls, 8, 1, dz, 0, 0, st, &first);
+			e7 = stairs_extra(t, m, cls, 8, 7, dz, 0, 0, st, NULL);
+			if (e1 < 0.0f || e7 < 0.0f)
+				continue;
+			s[L][b] = first;
+			s[x][b] = st + (e7 - e1) / 6.0f;
+			s[x][1] = st + e1 - (first - st);
+			/* from rest onto a flight: the same flight, less what the
+			 * running start gave */
+			e = stairs_extra(t, m, cls, 0, 7, dz, 0, 0, st, NULL);
+			if (e >= 0.0f)
+				s[R][b] = st + e - 6.0f * (s[x][b] - st) - (s[x][1] - st);
+		}
+		/* over a ridge and through a dip: the stride that turns from up to
+		 * down, and from down to up */
+		e = stairs_extra(t, m, cls, 8, 7, -1, 7, 1, st, NULL);
+		if (e >= 0.0f)
+			s[U][2] = st + e - (s[L][0] - st) - 6.0f * (s[U][0] - st) - 6.0f * (s[D][2] - st) -
+			          (s[D][1] - st);
+		e = stairs_extra(t, m, cls, 8, 7, 1, 7, -1, st, NULL);
+		if (e >= 0.0f)
+			s[D][0] = st + e - (s[L][2] - st) - 6.0f * (s[D][2] - st) - 6.0f * (s[U][0] - st) -
+			          (s[U][1] - st);
+
+		/* TURNS, on the flat, at full pace: what the corner adds to the
+		 * strides either side of it. */
+		for (k = 1; k <= 4; k++) {
+			float other = (k & 1) && t->sprint[!cls][1] >= 0 ? t->mv[t->sprint[!cls][1]].secs : st;
+
+			course_init(&c, cls, 24);
+			c.turn_at = 12;
+			c.turn = (int8_t)k;
+			if (!course_run(t, m, &c))
+				continue;
+			e = course_secs(&c, 8, 22) - 4.0f * st - 10.0f * other;
+			t->turn_secs[cls][k] = e > 0.0f ? e : 0.0f;
+		}
+
+		/* A price is never under the level stride's (the heuristic leans on
+		 * that), and never absurd. */
+		for (a = 0; a < 4; a++)
+			for (b = 0; b < 3; b++) {
+				if (s[a][b] < st) s[a][b] = st;
+				if (s[a][b] > 3.0f) s[a][b] = 3.0f;
+			}
+	}
+}
+
 /* --- the whole table --------------------------------------------------- */
 
 int bc_nav_moves_measure(bc_nav_moves *t, bc_map *m)
@@ -564,6 +823,7 @@ int bc_nav_moves_measure(bc_nav_moves *t, bc_map *m)
 		for (up = 1; up <= 3; up++)
 			t->water_out[cls][up] = (int16_t)measure_water_out(t, m, cls, up);
 	}
+	measure_context(t, m);
 	return t->n;
 }
 

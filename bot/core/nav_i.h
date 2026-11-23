@@ -47,6 +47,10 @@ int nav_at(const bc_body *b, bc_nav_node n);
 /* Standing on floor voxel z (not the server's flickering `airborne`). */
 int nav_on_floor(const bc_body *b, int z);
 
+/* The same, or at rest up to a voxel higher: held up by a corner on a
+ * neighbouring column's higher edge, its centre over this one. */
+int nav_on_or_above(const bc_body *b, int z);
+
 /* Head for a point. `mode` is extra keys (BC_K_SPRINT, BC_K_SNEAK,
  * BC_K_CROUCH). With `arrive` it slows to stop there. */
 void nav_law_steer(const bc_body *b, float tx, float ty, uint8_t mode, int arrive,
