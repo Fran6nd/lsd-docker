@@ -4,6 +4,7 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.sh | sh
 #   curl -fsSL .../play.sh | sh -s -- babel random
+#   curl -fsSL .../play.sh | sh -s -- tdm random 8      # 8 bots a team
 #   curl -fsSL .../play.sh | sh -s -- ctf https://aos.party/view/864
 #
 # Starts a throwaway server (docker run --rm, no volume kept): it asks

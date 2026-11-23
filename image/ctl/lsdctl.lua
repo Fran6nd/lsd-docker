@@ -1270,9 +1270,10 @@ end
 -- them holds a client back: bots by night only recommends Daytime.
 -- `maps` is the kind of map a random pick asks the map sources for
 -- (map_sources.lua, list): "ctf" -- two bases, a field between -- or
--- "babel".
+-- "babel". `bots`: the game the bot engine has a tree for (bot/trees),
+-- so the short questions offer to add some -- tdm alone, for now.
 local GAMES = {
-	{value = "tdm", label = "tdm", hint = "team deathmatch: every kill scores", maps = "ctf"},
+	{value = "tdm", label = "tdm", hint = "team deathmatch: every kill scores", maps = "ctf", bots = true},
 	{value = "ctf", label = "ctf", hint = "capture the flag", maps = "ctf"},
 	{value = "bots", label = "bots", hint = "team deathmatch with bots, day and night", maps = "ctf"},
 	{value = "bots_rewards", label = "bots_rewards", hint = "bots, with every reward free and unlimited", maps = "ctf"},
@@ -1305,6 +1306,44 @@ local function ask_game_and_map(ui, mode, want, default)
 		want = "aos.party:" .. want;
 	end
 	return mode, want;
+end
+
+-- Bots, for a game that can have them: how many a team, asked or given
+-- (`play tdm random 8`); 0 for none. nil for a game without.
+local function ask_bots(ui, mode, given)
+	local g = game(mode);
+	if (g == nil or not g.bots) then
+		return nil;
+	end
+	local n = tonumber(given);
+	if (n == nil) then
+		n = ui:ask({key = "bots", type = "number", min = 0, max = 100,
+			ask = "Bots per team (0 for none)"}, 0);
+	end
+	return math.max(0, math.min(100, math.floor(tonumber(n) or 0)));
+end
+
+-- ...and into the settings: the engine's bots installed at that count.
+-- None asked for where they were installed before: the count goes to 0,
+-- which is a server with no bots (lib_botlink makes no file for none).
+local function set_bots(doc, n)
+	if (n == nil) then
+		return;
+	end
+	local have = false;
+	for _, id in ipairs(doc:installed()) do
+		if (id == "engine_bots") then have = true; end
+	end
+	if (n > 0 and not have) then
+		install_ids(doc, {"engine_bots"}, make_ui(true), {});
+		have = true;
+	end
+	if (have) then
+		doc:set("engine_bots_count", n);
+	end
+	if (n > 0) then
+		say("bots: %d a team", n);
+	end
 end
 
 -- What a source's listing answers: the text, or nil. A short timeout:
@@ -1404,17 +1443,20 @@ local function set_game_and_map(doc, mode, want, opts)
 	end
 end
 
-command("play", "play [tdm|ctf|bots|bots_rewards|babel] [random|<page|url|source:id>]",
+command("play", "play [tdm|ctf|bots|bots_rewards|babel] [random|<page|url|source:id>] [bots per team]",
 	"set up a casual game on a fresh container (the entrypoint's play runs it)",
 	function(args)
 		local words = parse_args(args, {});
 		local doc = open_doc(true);
-		local mode, want = ask_game_and_map(make_ui(false), words[1], words[2]);
+		local ui = make_ui(false);
+		local mode, want = ask_game_and_map(ui, words[1], words[2]);
+		local bots = ask_bots(ui, mode, words[3]);
 
 		-- a game among friends: never listed
 		doc:set("masterlist_enabled", false);
 		doc:set("play_mode", true);
 		set_game_and_map(doc, mode, want, {});
+		set_bots(doc, bots);
 
 		doc:save();
 		say("");
@@ -1808,10 +1850,12 @@ local function quick_setup(doc, ui, existing, flags)
 	local now = doc:get("gamemode");
 	local mode, want = ask_game_and_map(ui, nil, nil,
 		game(now or "") and now or nil);
+	local bots = ask_bots(ui, mode, nil);
 	if (not existing) then
 		install_ids(doc, default_scripts(), make_ui(true), {});
 	end
 	set_game_and_map(doc, mode, want, {rotation = true});
+	set_bots(doc, bots);
 
 	ensure_maps();
 	doc:save();
