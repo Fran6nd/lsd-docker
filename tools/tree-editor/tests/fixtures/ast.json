@@ -1,0 +1,99 @@
+{
+ "format": "lsd-bt",
+ "version": 1,
+ "files": [
+  {
+   "file": "-",
+   "trees": [
+    {
+     "name": "first",
+     "line": 1,
+     "header": true,
+     "root": {
+      "id": 0,
+      "kind": "select",
+      "line": 2,
+      "column": 1,
+      "text": "select",
+      "children": [
+       {
+        "id": 1,
+        "kind": "pick",
+        "line": 3,
+        "column": 2,
+        "text": "pick every=3",
+        "every": 3,
+        "sticky": 0.25,
+        "noise": 0.1,
+        "defaults": [
+         "sticky",
+         "noise"
+        ],
+        "children": [
+         {
+          "id": 2,
+          "kind": "option",
+          "line": 4,
+          "column": 3,
+          "text": "option aggression enemy_near x1.2",
+          "trait": "aggression",
+          "score": "enemy_near",
+          "args": [],
+          "factor": 1.2,
+          "defaults": [],
+          "comment": "an enemy close: fight him",
+          "children": [
+           {
+            "id": 3,
+            "kind": "do",
+            "line": 5,
+            "column": 4,
+            "text": "do fight",
+            "action": "fight",
+            "args": []
+           }
+          ]
+         },
+         {
+          "id": 4,
+          "kind": "option",
+          "line": 6,
+          "column": 3,
+          "text": "option caution hurt",
+          "trait": "caution",
+          "score": "hurt",
+          "args": [],
+          "factor": 1,
+          "defaults": [
+           "factor"
+          ],
+          "children": [
+           {
+            "id": 5,
+            "kind": "do",
+            "line": 7,
+            "column": 4,
+            "text": "do retreat",
+            "action": "retreat",
+            "args": []
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "id": 6,
+        "kind": "do",
+        "line": 8,
+        "column": 2,
+        "text": "do seek",
+        "action": "seek",
+        "args": []
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,23 @@
+{
+ "format": "lsd-bt-check",
+ "version": 1,
+ "ok": false,
+ "trees": [],
+ "diagnostics": [
+  {
+   "line": 4,
+   "column": 19,
+   "message": "enemy_within: <voxels> is a number, not 'near'"
+  },
+  {
+   "line": 5,
+   "column": 6,
+   "message": "no action called figth"
+  },
+  {
+   "line": 6,
+   "column": 11,
+   "message": "go_to: no place called nowhere"
+  }
+ ]
+}

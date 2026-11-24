@@ -1,0 +1,10 @@
+{
+ "format": "lsd-bt-saved",
+ "version": 1,
+ "ok": true,
+ "file": "/data/trees/mine.bt",
+ "trees": [
+  "mine"
+ ],
+ "note": "read by the bot engine at the next map load; run it with: lsdctl bots apply <tree> --all, or the setting engine_bots_tree"
+}

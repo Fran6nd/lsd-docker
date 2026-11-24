@@ -1,0 +1,6 @@
+{
+ "format": "lsd-bt-error",
+ "version": 1,
+ "ok": false,
+ "error": "no tree text was given"
+}

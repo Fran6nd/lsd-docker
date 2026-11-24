@@ -1,0 +1,189 @@
+{
+ "format": "lsd-bt-bots",
+ "version": 1,
+ "time": 0.517,
+ "world": {
+  "tree": "tdm",
+  "night": false
+ },
+ "trees": [
+  {
+   "name": "ctf",
+   "from": "files"
+  },
+  {
+   "name": "ctf_duty",
+   "from": "files"
+  },
+  {
+   "name": "ctf_round",
+   "from": "files"
+  },
+  {
+   "name": "ctf_net",
+   "from": "files"
+  },
+  {
+   "name": "ctf_under_fire",
+   "from": "files"
+  },
+  {
+   "name": "ctf_contact",
+   "from": "files"
+  },
+  {
+   "name": "ctf_camp",
+   "from": "files"
+  },
+  {
+   "name": "ctf_answer",
+   "from": "files"
+  },
+  {
+   "name": "ctf_also",
+   "from": "files"
+  },
+  {
+   "name": "ctf_callouts",
+   "from": "files"
+  },
+  {
+   "name": "default",
+   "from": "files"
+  },
+  {
+   "name": "default_cover",
+   "from": "files"
+  },
+  {
+   "name": "default_also",
+   "from": "files"
+  },
+  {
+   "name": "parkour",
+   "from": "files"
+  },
+  {
+   "name": "parkour_also",
+   "from": "files"
+  },
+  {
+   "name": "tdm",
+   "from": "files"
+  },
+  {
+   "name": "tdm_under_fire",
+   "from": "files"
+  },
+  {
+   "name": "tdm_contact",
+   "from": "files"
+  },
+  {
+   "name": "tdm_search",
+   "from": "files"
+  },
+  {
+   "name": "tdm_camp",
+   "from": "files"
+  },
+  {
+   "name": "tdm_answer",
+   "from": "files"
+  },
+  {
+   "name": "tdm_also",
+   "from": "files"
+  },
+  {
+   "name": "tdm_callouts",
+   "from": "files"
+  }
+ ],
+ "bots": [
+  {
+   "pid": 0,
+   "name": "Bot82",
+   "team": 1,
+   "alive": false,
+   "archetype": "camper",
+   "level": 6,
+   "health": 0,
+   "tree": "tdm",
+   "tree_from": "files",
+   "tree_set": "world",
+   "doing": "dead",
+   "watched": false
+  },
+  {
+   "pid": 1,
+   "name": "Bot567",
+   "team": 1,
+   "alive": false,
+   "archetype": "camper",
+   "level": 7,
+   "health": 0,
+   "tree": "tdm",
+   "tree_from": "files",
+   "tree_set": "world",
+   "doing": "dead",
+   "watched": false
+  },
+  {
+   "pid": 2,
+   "name": "Bot34",
+   "team": 1,
+   "alive": false,
+   "archetype": "support",
+   "level": 3,
+   "health": 0,
+   "tree": "tdm",
+   "tree_from": "files",
+   "tree_set": "world",
+   "doing": "dead",
+   "watched": false
+  },
+  {
+   "pid": 3,
+   "name": "Bot151",
+   "team": 2,
+   "alive": false,
+   "archetype": "flanker",
+   "level": 5,
+   "health": 0,
+   "tree": "tdm",
+   "tree_from": "files",
+   "tree_set": "world",
+   "doing": "dead",
+   "watched": false
+  },
+  {
+   "pid": 4,
+   "name": "Bot236",
+   "team": 2,
+   "alive": false,
+   "archetype": "flanker",
+   "level": 3,
+   "health": 0,
+   "tree": "tdm",
+   "tree_from": "files",
+   "tree_set": "world",
+   "doing": "dead",
+   "watched": false
+  },
+  {
+   "pid": 5,
+   "name": "Bot13",
+   "team": 2,
+   "alive": false,
+   "archetype": "scout",
+   "level": 4,
+   "health": 0,
+   "tree": "tdm",
+   "tree_from": "files",
+   "tree_set": "world",
+   "doing": "dead",
+   "watched": false
+  }
+ ]
+}

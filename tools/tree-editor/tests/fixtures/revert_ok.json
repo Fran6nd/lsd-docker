@@ -1,0 +1,64 @@
+{
+ "format": "lsd-bt-apply",
+ "version": 1,
+ "ok": true,
+ "action": "revert",
+ "scope": "world",
+ "world": "tdm",
+ "bots": [
+  {
+   "pid": 0,
+   "name": "Bot82",
+   "team": 1,
+   "tree": "tdm",
+   "tree_from": "files",
+   "tree_set": "world",
+   "ok": true
+  },
+  {
+   "pid": 1,
+   "name": "Bot567",
+   "team": 1,
+   "tree": "tdm",
+   "tree_from": "files",
+   "tree_set": "world",
+   "ok": true
+  },
+  {
+   "pid": 2,
+   "name": "Bot34",
+   "team": 1,
+   "tree": "tdm",
+   "tree_from": "files",
+   "tree_set": "world",
+   "ok": true
+  },
+  {
+   "pid": 3,
+   "name": "Bot151",
+   "team": 2,
+   "tree": "tdm",
+   "tree_from": "files",
+   "tree_set": "world",
+   "ok": true
+  },
+  {
+   "pid": 4,
+   "name": "Bot236",
+   "team": 2,
+   "tree": "tdm",
+   "tree_from": "files",
+   "tree_set": "world",
+   "ok": true
+  },
+  {
+   "pid": 5,
+   "name": "Bot13",
+   "team": 2,
+   "tree": "tdm",
+   "tree_from": "files",
+   "tree_set": "world",
+   "ok": true
+  }
+ ]
+}

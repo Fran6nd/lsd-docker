@@ -1,0 +1,6 @@
+{
+ "format": "lsd-bt-text",
+ "version": 1,
+ "ok": true,
+ "text": "tree mine:\nselect\n\tdo seek                                   # go\n"
+}

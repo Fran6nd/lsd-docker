@@ -1,0 +1,9 @@
+{
+ "format": "lsd-bt-check",
+ "version": 1,
+ "ok": true,
+ "trees": [
+  "mine"
+ ],
+ "diagnostics": []
+}

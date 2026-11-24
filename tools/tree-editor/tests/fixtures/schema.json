@@ -1,0 +1,1886 @@
+{
+ "format": "lsd-bt-schema",
+ "version": 2,
+ "limits": {
+  "args": 4,
+  "name": 31,
+  "depth": 32,
+  "words_a_line": 16
+ },
+ "answers": [
+  "SUCCESS",
+  "FAILURE",
+  "RUNNING"
+ ],
+ "kinds": [
+  {
+   "name": "seq",
+   "children": "many",
+   "params": [],
+   "answers": "FAILURE at the first child that fails, RUNNING while one is, SUCCESS when all have succeeded",
+   "doc": "its children in order; resumes at the child that was RUNNING"
+  },
+  {
+   "name": "select",
+   "children": "many",
+   "params": [],
+   "answers": "the answer of the first child that does not fail; FAILURE when all fail",
+   "doc": "its children in order, the first that does not fail: a priority list; resumes at the child that was RUNNING"
+  },
+  {
+   "name": "pick",
+   "children": "options",
+   "params": [
+    {
+     "name": "every",
+     "type": "number",
+     "written": "every=<secs>",
+     "required": false,
+     "default": 2,
+     "min": 0,
+     "doc": "seconds between two choices; it also chooses again whenever the option chosen ends"
+    },
+    {
+     "name": "sticky",
+     "type": "number",
+     "written": "sticky=<x>",
+     "required": false,
+     "default": 0.25,
+     "min": 0,
+     "doc": "the option being done is worth this much more, as a fraction of its own worth"
+    },
+    {
+     "name": "noise",
+     "type": "number",
+     "written": "noise=<x>",
+     "required": false,
+     "default": 0.1,
+     "min": 0,
+     "max": 1,
+     "doc": "luck: each option's worth is multiplied by a draw within 1 +- this"
+    }
+   ],
+   "answers": "the answer of the option chosen; FAILURE when no option has a score above 0",
+   "doc": "a weighed choice among its options: the one worth most to this bot (score x trait weight x factor x luck) is ticked"
+  },
+  {
+   "name": "option",
+   "children": "one",
+   "parent": "pick",
+   "params": [
+    {
+     "name": "trait",
+     "type": "trait",
+     "written": "<trait>",
+     "required": true,
+     "doc": "whose character weighs it: the bot's weight for this trait multiplies the score"
+    },
+    {
+     "name": "score",
+     "type": "score",
+     "written": "<score> [args]",
+     "required": true,
+     "doc": "what bears on it: a score of the vocabulary, 0 to 1; at 0 the option cannot be chosen"
+    },
+    {
+     "name": "factor",
+     "type": "number",
+     "written": "x<factor>",
+     "required": false,
+     "default": 1,
+     "min": 0,
+     "doc": "the designer's thumb on the scale"
+    }
+   ],
+   "answers": "its child's",
+   "doc": "one choice of a pick: `option <trait> <score> [score's arguments] [x<factor>]`, only directly under a pick"
+  },
+  {
+   "name": "if",
+   "children": "none",
+   "params": [
+    {
+     "name": "cond",
+     "type": "cond",
+     "written": "<cond> [args]",
+     "required": true,
+     "doc": "the condition"
+    }
+   ],
+   "answers": "SUCCESS if the condition holds, else FAILURE",
+   "doc": "a condition of the vocabulary, with its arguments"
+  },
+  {
+   "name": "unless",
+   "children": "none",
+   "params": [
+    {
+     "name": "cond",
+     "type": "cond",
+     "written": "<cond> [args]",
+     "required": true,
+     "doc": "the condition"
+    }
+   ],
+   "answers": "FAILURE if the condition holds, else SUCCESS",
+   "doc": "a condition, the other way round"
+  },
+  {
+   "name": "do",
+   "children": "none",
+   "params": [
+    {
+     "name": "action",
+     "type": "action",
+     "written": "<action> [args]",
+     "required": true,
+     "doc": "the action"
+    }
+   ],
+   "answers": "the action's: RUNNING while it goes on, SUCCESS or FAILURE when it ends",
+   "doc": "an action of the vocabulary, with its arguments; stopped (told once) if its branch is abandoned while it is RUNNING"
+  },
+  {
+   "name": "wait",
+   "children": "none",
+   "params": [
+    {
+     "name": "seconds",
+     "type": "number",
+     "written": "<secs>",
+     "required": true,
+     "min": 0,
+     "doc": "how long, from the first tick that reaches it"
+    }
+   ],
+   "answers": "RUNNING for that long, then SUCCESS",
+   "doc": "let time pass"
+  },
+  {
+   "name": "invert",
+   "children": "one",
+   "params": [],
+   "answers": "its child's turned: SUCCESS for FAILURE, FAILURE for SUCCESS; RUNNING stays",
+   "doc": "turn the child's answer round"
+  },
+  {
+   "name": "always",
+   "children": "one",
+   "params": [],
+   "answers": "SUCCESS whatever the child answers; RUNNING stays",
+   "doc": "do the child and go on whatever came of it"
+  },
+  {
+   "name": "never",
+   "children": "one",
+   "params": [],
+   "answers": "FAILURE whatever the child answers; RUNNING stays",
+   "doc": "do the child and fail whatever came of it"
+  },
+  {
+   "name": "cooldown",
+   "children": "one",
+   "params": [
+    {
+     "name": "seconds",
+     "type": "number",
+     "written": "<secs>",
+     "required": true,
+     "min": 0,
+     "doc": "how long after the child answers SUCCESS or FAILURE"
+    }
+   ],
+   "answers": "its child's; then FAILURE, without asking the child, for that long after the child ended",
+   "doc": "not more often than this"
+  },
+  {
+   "name": "limit",
+   "children": "one",
+   "params": [
+    {
+     "name": "seconds",
+     "type": "number",
+     "written": "<secs>",
+     "required": true,
+     "min": 0,
+     "doc": "how long the child may stay RUNNING"
+    }
+   ],
+   "answers": "its child's; FAILURE if the child is still RUNNING after that long (the child is stopped)",
+   "doc": "not longer than this"
+  },
+  {
+   "name": "tree",
+   "children": "none",
+   "params": [
+    {
+     "name": "ref",
+     "type": "tree",
+     "written": "<name>",
+     "required": true,
+     "doc": "the tree's name"
+    }
+   ],
+   "answers": "the answer of the tree named",
+   "doc": "another tree by name, as if written here; `items` and `extras` are written by the engine"
+  }
+ ],
+ "conditions": [
+  {
+   "name": "enemy_visible",
+   "usage": "",
+   "args": [],
+   "doc": "an enemy is in this bot's sight now"
+  },
+  {
+   "name": "enemy_known",
+   "usage": "",
+   "args": [],
+   "doc": "an enemy is in sight, remembered, or told of by the team"
+  },
+  {
+   "name": "enemy_within",
+   "usage": "<voxels>",
+   "args": [
+    {
+     "name": "voxels",
+     "required": true,
+     "type": "number",
+     "min": 0
+    }
+   ],
+   "doc": "the nearest enemy in sight is nearer than that"
+  },
+  {
+   "name": "enemy_beyond",
+   "usage": "<voxels>",
+   "args": [
+    {
+     "name": "voxels",
+     "required": true,
+     "type": "number",
+     "min": 0
+    }
+   ],
+   "doc": "an enemy is in sight and the nearest is farther than that"
+  },
+  {
+   "name": "enemies_grouped",
+   "usage": "<count> <radius>",
+   "args": [
+    {
+     "name": "count",
+     "required": true,
+     "type": "number",
+     "min": 0
+    },
+    {
+     "name": "radius",
+     "required": true,
+     "type": "number",
+     "min": 0
+    }
+   ],
+   "doc": "that many known enemies stand within radius of one another"
+  },
+  {
+   "name": "target_in_cover",
+   "usage": "",
+   "args": [],
+   "doc": "the man being fought was seen under 5 s ago and is out of sight now"
+  },
+  {
+   "name": "outnumbered",
+   "usage": "",
+   "args": [],
+   "doc": "more enemies in sight than team-mates within 20, itself included"
+  },
+  {
+   "name": "health_below",
+   "usage": "<hp>",
+   "args": [
+    {
+     "name": "hp",
+     "required": true,
+     "type": "number",
+     "min": 0,
+     "max": 100
+    }
+   ],
+   "doc": "its health is under that (of 100)"
+  },
+  {
+   "name": "hurt_recently",
+   "usage": "[secs]",
+   "args": [
+    {
+     "name": "secs",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 3
+    }
+   ],
+   "doc": "it lost health within that many seconds (default 3)"
+  },
+  {
+   "name": "ammo_below",
+   "usage": "<fraction>",
+   "args": [
+    {
+     "name": "fraction",
+     "required": true,
+     "type": "number",
+     "min": 0,
+     "max": 1
+    }
+   ],
+   "doc": "rounds left, magazine and reserve, are under that fraction of a full load"
+  },
+  {
+   "name": "ammo_out",
+   "usage": "",
+   "args": [],
+   "doc": "no round left at all"
+  },
+  {
+   "name": "has_grenade",
+   "usage": "",
+   "args": [],
+   "doc": "it carries a grenade"
+  },
+  {
+   "name": "grenade_worth",
+   "usage": "",
+   "args": [],
+   "doc": "it has a grenade, is not just done throwing, and something is worth one (a group, a far man, a place just lost)"
+  },
+  {
+   "name": "grenade_near",
+   "usage": "",
+   "args": [],
+   "doc": "an enemy grenade it has noticed would hurt it where it stands"
+  },
+  {
+   "name": "heard_noise",
+   "usage": "",
+   "args": [],
+   "doc": "a noise it heard is still worth going to"
+  },
+  {
+   "name": "lost_enemy",
+   "usage": "",
+   "args": [],
+   "doc": "somebody left its sight and the place is still fresh"
+  },
+  {
+   "name": "has_search",
+   "usage": "",
+   "args": [],
+   "doc": "there is a place worth searching: a lost man, a hit's source, a noise, a told sighting"
+  },
+  {
+   "name": "alert",
+   "usage": "<calm|suspicious|engaged>",
+   "args": [
+    {
+     "name": "level",
+     "required": true,
+     "type": "enum",
+     "values": [
+      "calm",
+      "suspicious",
+      "engaged"
+     ]
+    }
+   ],
+   "doc": "its alertness is that"
+  },
+  {
+   "name": "ping_called",
+   "usage": "[enemy|help|go]",
+   "args": [
+    {
+     "name": "kind",
+     "required": false,
+     "type": "enum",
+     "values": [
+      "enemy",
+      "help",
+      "go"
+     ],
+     "default_note": "any kind"
+    }
+   ],
+   "doc": "a team-mate's ping was given to this bot to answer (of that kind, if said)"
+  },
+  {
+   "name": "has_order",
+   "usage": "",
+   "args": [],
+   "doc": "the server gave it an order that stands"
+  },
+  {
+   "name": "is_night",
+   "usage": "",
+   "args": [],
+   "doc": "it is night"
+  },
+  {
+   "name": "has_night_vision",
+   "usage": "",
+   "args": [],
+   "doc": "it sees by night as by day (the setting night_vision)"
+  },
+  {
+   "name": "lamp_on",
+   "usage": "",
+   "args": [],
+   "doc": "its flashlight is lit"
+  },
+  {
+   "name": "has_item",
+   "usage": "<name>",
+   "args": [
+    {
+     "name": "name",
+     "required": true,
+     "type": "text"
+    }
+   ],
+   "doc": "it holds at least one of that inventory item"
+  },
+  {
+   "name": "sky_clear",
+   "usage": "",
+   "args": [],
+   "doc": "nothing solid above its head (a thing that comes down from the sky needs it)"
+  },
+  {
+   "name": "allies_hurt_near",
+   "usage": "<radius>",
+   "args": [
+    {
+     "name": "radius",
+     "required": true,
+     "type": "number",
+     "min": 0
+    }
+   ],
+   "doc": "a team-mate under 50 health is within radius"
+  },
+  {
+   "name": "mate_within",
+   "usage": "<voxels>",
+   "args": [
+    {
+     "name": "voxels",
+     "required": true,
+     "type": "number",
+     "min": 0
+    }
+   ],
+   "doc": "a live team-mate is that near"
+  },
+  {
+   "name": "alone",
+   "usage": "[voxels]",
+   "args": [
+    {
+     "name": "voxels",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 25
+    }
+   ],
+   "doc": "no live team-mate within that (default 25)"
+  },
+  {
+   "name": "spotted_new",
+   "usage": "",
+   "args": [],
+   "doc": "it has just seen an enemy its team did not know of"
+  },
+  {
+   "name": "losing",
+   "usage": "",
+   "args": [],
+   "doc": "it is in a fight, under 45 health and outnumbered, or under 30 and just hit"
+  },
+  {
+   "name": "sniped",
+   "usage": "",
+   "args": [],
+   "doc": "it was hit within 3 s from more than 50 voxels away"
+  },
+  {
+   "name": "setting",
+   "usage": "<key> [value]",
+   "args": [
+    {
+     "name": "key",
+     "required": true,
+     "type": "text"
+    },
+    {
+     "name": "value",
+     "required": false,
+     "type": "text",
+     "default_note": "any value: the setting is set"
+    }
+   ],
+   "doc": "the gamemode's setting <key> is set (to <value>, if said): how a mode's tree reads the mode's own rules"
+  },
+  {
+   "name": "chance",
+   "usage": "<probability>",
+   "args": [
+    {
+     "name": "probability",
+     "required": true,
+     "type": "number",
+     "min": 0,
+     "max": 1
+    }
+   ],
+   "doc": "true that often, by the bot's own dice"
+  },
+  {
+   "name": "knows",
+   "usage": "<place>",
+   "args": [
+    {
+     "name": "place",
+     "required": true,
+     "type": "place"
+    }
+   ],
+   "doc": "the bot knows of such a place now"
+  },
+  {
+   "name": "at",
+   "usage": "<place> [voxels]",
+   "args": [
+    {
+     "name": "place",
+     "required": true,
+     "type": "place"
+    },
+    {
+     "name": "voxels",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 4
+    }
+   ],
+   "doc": "it is within that of the place (default 4)"
+  },
+  {
+   "name": "gun_is",
+   "usage": "<rifle|smg|shotgun>...",
+   "args": [
+    {
+     "name": "gun",
+     "required": true,
+     "type": "enum",
+     "values": [
+      "rifle",
+      "smg",
+      "shotgun"
+     ],
+     "repeat": true
+    }
+   ],
+   "doc": "its gun is one of those named"
+  },
+  {
+   "name": "under_fire",
+   "usage": "[secs]",
+   "args": [
+    {
+     "name": "secs",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 3
+    }
+   ],
+   "doc": "it was shot at within that many seconds (default 3): hurt by somebody, a round that passed within 2.5 voxels, a team-mate killed within 12"
+  },
+  {
+   "name": "in_cover",
+   "usage": "",
+   "args": [],
+   "doc": "what threatens it (the man it fights, where a hit came from) has no line of sight to its body as it stands"
+  },
+  {
+   "name": "in_harmful_water",
+   "usage": "",
+   "args": [],
+   "doc": "it is wading in water that hurts (the settings water=lethal or water.damage)"
+  },
+  {
+   "name": "carrying_intel",
+   "usage": "",
+   "args": [],
+   "doc": "it carries the other team's intel"
+  },
+  {
+   "name": "their_intel_home",
+   "usage": "",
+   "args": [],
+   "doc": "the other team's intel lies where the server put it"
+  },
+  {
+   "name": "their_intel_dropped",
+   "usage": "",
+   "args": [],
+   "doc": "the other team's intel lies where a carrier of this team fell"
+  },
+  {
+   "name": "their_intel_carried",
+   "usage": "",
+   "args": [],
+   "doc": "a team-mate carries the other team's intel"
+  },
+  {
+   "name": "our_intel_home",
+   "usage": "",
+   "args": [],
+   "doc": "this team's intel lies where the server put it"
+  },
+  {
+   "name": "our_intel_dropped",
+   "usage": "",
+   "args": [],
+   "doc": "this team's intel lies where its thief fell (it cannot be picked up by its own team: it is guarded there)"
+  },
+  {
+   "name": "our_intel_taken",
+   "usage": "",
+   "args": [],
+   "doc": "an enemy carries this team's intel (where he is is known to everybody: the place `thief`)"
+  },
+  {
+   "name": "near_own_base",
+   "usage": "[voxels]",
+   "args": [
+    {
+     "name": "voxels",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 20
+    }
+   ],
+   "doc": "it is within that of its team's base (default 20)"
+  },
+  {
+   "name": "near_their_base",
+   "usage": "[voxels]",
+   "args": [
+    {
+     "name": "voxels",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 20
+    }
+   ],
+   "doc": "it is within that of the other team's base (default 20)"
+  },
+  {
+   "name": "mates_near",
+   "usage": "<radius> [count]",
+   "args": [
+    {
+     "name": "radius",
+     "required": true,
+     "type": "number",
+     "min": 0
+    },
+    {
+     "name": "count",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 1
+    }
+   ],
+   "doc": "that many live team-mates (default 1) are within radius"
+  },
+  {
+   "name": "is_leader",
+   "usage": "",
+   "args": [],
+   "doc": "it is one of its team's leaders (drawn by lot by the engine; it is not told otherwise)"
+  },
+  {
+   "name": "has_leader",
+   "usage": "",
+   "args": [],
+   "doc": "it follows a living leader of its team: a bot or a person, the nearest with room (a loner never does)"
+  },
+  {
+   "name": "leader_near",
+   "usage": "[voxels]",
+   "args": [
+    {
+     "name": "voxels",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 12
+    }
+   ],
+   "doc": "its leader is within that (default 12)"
+  },
+  {
+   "name": "leader_fighting",
+   "usage": "",
+   "args": [],
+   "doc": "its leader has a man in his sights, is firing, or was hurt in the last 3 s"
+  },
+  {
+   "name": "watched",
+   "usage": "[place] [radius] [count]",
+   "args": [
+    {
+     "name": "place",
+     "required": false,
+     "type": "place",
+     "default": "own_intel"
+    },
+    {
+     "name": "radius",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 20
+    },
+    {
+     "name": "count",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 2
+    }
+   ],
+   "doc": "that many team-mates (default 2), not counting itself, are on guard (the action `guard`) within radius (default 20) of the place (default own_intel)"
+  }
+ ],
+ "scores": [
+  {
+   "name": "night_vision",
+   "usage": "",
+   "args": [],
+   "doc": "1 by night for a bot that has night vision"
+  },
+  {
+   "name": "hit_in_dark",
+   "usage": "",
+   "args": [],
+   "doc": "1 by night for a bot with no night vision that was hit in the last 8 s"
+  },
+  {
+   "name": "always",
+   "usage": "",
+   "args": [],
+   "doc": "1"
+  },
+  {
+   "name": "enemy_visible",
+   "usage": "",
+   "args": [],
+   "doc": "1 with an enemy in sight, else 0"
+  },
+  {
+   "name": "enemy_known",
+   "usage": "",
+   "args": [],
+   "doc": "how sure it is of an enemy it cannot see: 1 fresh, fading to 0; 0 with one in sight"
+  },
+  {
+   "name": "enemy_near",
+   "usage": "[voxels]",
+   "args": [
+    {
+     "name": "voxels",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 60
+    }
+   ],
+   "doc": "1 with an enemy in sight at arm's length, falling to 0 at that distance (default 60)"
+  },
+  {
+   "name": "hurt",
+   "usage": "",
+   "args": [],
+   "doc": "health lost: 0 unhurt, 1 nearly dead"
+  },
+  {
+   "name": "hurt_in_fight",
+   "usage": "",
+   "args": [],
+   "doc": "health lost, counted only with an enemy in sight or a hit from somewhere in the last 3 s; 0 for 6 s after a retreat"
+  },
+  {
+   "name": "healthy",
+   "usage": "",
+   "args": [],
+   "doc": "health left, 0 to 1"
+  },
+  {
+   "name": "search",
+   "usage": "",
+   "args": [],
+   "doc": "how fresh the place most worth searching is: 1 just now, 0 none"
+  },
+  {
+   "name": "ping_called",
+   "usage": "",
+   "args": [],
+   "doc": "1 while a team-mate's ping is this bot's to answer"
+  },
+  {
+   "name": "has_order",
+   "usage": "",
+   "args": [],
+   "doc": "1 while an order stands"
+  },
+  {
+   "name": "alone",
+   "usage": "[voxels]",
+   "args": [
+    {
+     "name": "voxels",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 40
+    }
+   ],
+   "doc": "0 beside a team-mate, rising to 1 at that distance (default 40) or with none alive"
+  },
+  {
+   "name": "grenade_worth",
+   "usage": "",
+   "args": [],
+   "doc": "1 when a grenade is worth throwing now (see the condition)"
+  },
+  {
+   "name": "grenade_near",
+   "usage": "",
+   "args": [],
+   "doc": "1 when an enemy grenade would hurt it here"
+  },
+  {
+   "name": "outnumbered",
+   "usage": "",
+   "args": [],
+   "doc": "0 when not; else how badly, up to 1"
+  },
+  {
+   "name": "night",
+   "usage": "",
+   "args": [],
+   "doc": "1 by night"
+  },
+  {
+   "name": "calm",
+   "usage": "",
+   "args": [],
+   "doc": "1 when nothing is known, 0.3 when suspicious, 0 engaged"
+  },
+  {
+   "name": "has_item",
+   "usage": "<name>",
+   "args": [
+    {
+     "name": "name",
+     "required": true,
+     "type": "text"
+    }
+   ],
+   "doc": "1 if it holds one"
+  },
+  {
+   "name": "ammo_low",
+   "usage": "",
+   "args": [],
+   "doc": "0 with a full load, 1 with none"
+  },
+  {
+   "name": "gun_is",
+   "usage": "<rifle|smg|shotgun>...",
+   "args": [
+    {
+     "name": "gun",
+     "required": true,
+     "type": "enum",
+     "values": [
+      "rifle",
+      "smg",
+      "shotgun"
+     ],
+     "repeat": true
+    }
+   ],
+   "doc": "1 if its gun is one of those named, else 0"
+  },
+  {
+   "name": "under_fire",
+   "usage": "[secs]",
+   "args": [
+    {
+     "name": "secs",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 4
+    }
+   ],
+   "doc": "1 just shot at (see the condition), falling to 0 over that many seconds (default 4)"
+  },
+  {
+   "name": "pressed",
+   "usage": "",
+   "args": [],
+   "doc": "how hard pressed in a fight: three parts health lost, one part enemies in sight beyond the team-mates within 20; 0 with nobody in sight and no round for 4 s"
+  },
+  {
+   "name": "standoff",
+   "usage": "",
+   "args": [],
+   "doc": "1 when the nearest enemy in sight is within half its gun's opening range and farther than it would close to: one to stand and shoot at"
+  },
+  {
+   "name": "enemy_far",
+   "usage": "[voxels]",
+   "args": [
+    {
+     "name": "voxels",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 60
+    }
+   ],
+   "doc": "0 with an enemy in sight at arm's length, rising to 1 at that distance (default 60); 0 with none in sight"
+  },
+  {
+   "name": "mate_near",
+   "usage": "[voxels]",
+   "args": [
+    {
+     "name": "voxels",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 40
+    }
+   ],
+   "doc": "1 beside a team-mate, falling to 0.2 at that distance (default 40); 0 with none alive or one it just gave up following"
+  },
+  {
+   "name": "harmful_water",
+   "usage": "",
+   "args": [],
+   "doc": "1 while it wades in water that hurts"
+  },
+  {
+   "name": "flank_open",
+   "usage": "",
+   "args": [],
+   "doc": "1 when the enemy's area (where the team last met him, else his base) is over 45 away and it has not just flanked"
+  },
+  {
+   "name": "rumour",
+   "usage": "",
+   "args": [],
+   "doc": "how fresh the freshest rumour of the enemy is -- a noise it heard, a team-mate's sighting, the team's last meeting -- that is over 10 away and it has not just been to: 1 just now, 0 none"
+  },
+  {
+   "name": "vantage",
+   "usage": "[rifle|smg|shotgun]...",
+   "args": [
+    {
+     "name": "gun",
+     "required": false,
+     "type": "enum",
+     "values": [
+      "rifle",
+      "smg",
+      "shotgun"
+     ],
+     "repeat": true,
+     "default_note": "any gun"
+    }
+   ],
+   "doc": "1 when the team knows a perch nobody has claimed (high, a long view toward the enemy, a way up) and its gun is one of those named (any, when none is)"
+  },
+  {
+   "name": "carrying_intel",
+   "usage": "",
+   "args": [],
+   "doc": "1 while it carries the other team's intel"
+  },
+  {
+   "name": "their_intel_home",
+   "usage": "",
+   "args": [],
+   "doc": "1 while the other team's intel lies where the server put it"
+  },
+  {
+   "name": "their_intel_dropped",
+   "usage": "",
+   "args": [],
+   "doc": "1 while it lies where a carrier fell"
+  },
+  {
+   "name": "their_intel_carried",
+   "usage": "",
+   "args": [],
+   "doc": "1 while a team-mate carries it"
+  },
+  {
+   "name": "our_intel_home",
+   "usage": "",
+   "args": [],
+   "doc": "1 while this team's intel lies where the server put it"
+  },
+  {
+   "name": "our_intel_dropped",
+   "usage": "",
+   "args": [],
+   "doc": "1 while it lies where its thief fell"
+  },
+  {
+   "name": "our_intel_taken",
+   "usage": "",
+   "args": [],
+   "doc": "1 while an enemy carries it"
+  },
+  {
+   "name": "near_own_base",
+   "usage": "[voxels]",
+   "args": [
+    {
+     "name": "voxels",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 40
+    }
+   ],
+   "doc": "1 at its team's base, falling to 0 at that distance (default 40)"
+  },
+  {
+   "name": "near_their_base",
+   "usage": "[voxels]",
+   "args": [
+    {
+     "name": "voxels",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 40
+    }
+   ],
+   "doc": "1 at the other team's base, falling to 0 at that distance (default 40)"
+  },
+  {
+   "name": "mates_near",
+   "usage": "<radius>",
+   "args": [
+    {
+     "name": "radius",
+     "required": true,
+     "type": "number",
+     "min": 0
+    }
+   ],
+   "doc": "0 with no team-mate within radius, 1 with three or more"
+  },
+  {
+   "name": "is_leader",
+   "usage": "",
+   "args": [],
+   "doc": "1 for a leader, else 0: for a tree to lean a leader toward going somewhere"
+  },
+  {
+   "name": "has_leader",
+   "usage": "",
+   "args": [],
+   "doc": "1 while it follows a living leader, else 0"
+  },
+  {
+   "name": "quiet",
+   "usage": "[secs]",
+   "args": [
+    {
+     "name": "secs",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 20
+    }
+   ],
+   "doc": "1 once it has had no enemy in sight for that many seconds of this life (default 20), else 0"
+  },
+  {
+   "name": "unwatched",
+   "usage": "[place] [radius]",
+   "args": [
+    {
+     "name": "place",
+     "required": false,
+     "type": "place",
+     "default": "own_intel"
+    },
+    {
+     "name": "radius",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 20
+    }
+   ],
+   "doc": "how short of team-mates a place is (default own_intel, within 20): 1 with none there, 0.5 with one, 0 with two or more; 0 with no such place"
+  },
+  {
+   "name": "unguarded",
+   "usage": "[place] [radius] [count] [dropped]",
+   "args": [
+    {
+     "name": "place",
+     "required": false,
+     "type": "place",
+     "default": "own_intel"
+    },
+    {
+     "name": "radius",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 20
+    },
+    {
+     "name": "count",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 2
+    },
+    {
+     "name": "only",
+     "required": false,
+     "type": "enum",
+     "values": [
+      "dropped"
+     ],
+     "default_note": "whatever its state, but for one somebody carries"
+    }
+   ],
+   "doc": "1 while fewer than count team-mates (default 2) are on guard within radius (default 20) of the place (default own_intel), else 0; 0 for an intel somebody carries; with the word `dropped`, only while that intel lies where a carrier fell"
+  }
+ ],
+ "actions": [
+  {
+   "name": "crouch",
+   "usage": "[secs]",
+   "args": [
+    {
+     "name": "secs",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default_note": "the flinch: 0.3 to 1 s by its caution, once for a burst of fire"
+    }
+   ],
+   "doc": "down where it stands, turned to what shot at it, shooting if it sees him. With no time said it is the flinch: 0.3 to 1 s by character, once for a burst of fire (asked again it succeeds at once)"
+  },
+  {
+   "name": "take_cover",
+   "usage": "",
+   "args": [],
+   "doc": "to the best cover from what threatens it (near, well hidden, a way out behind, no team-mate in it); there crouched if the cover is low, facing the threat, peeking to fire -- rarely and long for the careful, hardly stopping for the bold. No cover in reach: crouched where it stands, turned to the threat. SUCCESS after its time there (0.8 to 14 s by character); FAILURE with no threat"
+  },
+  {
+   "name": "advance_by_cover",
+   "usage": "[place] [radius]",
+   "args": [
+    {
+     "name": "place",
+     "required": false,
+     "type": "place",
+     "default": "enemy"
+    },
+    {
+     "name": "radius",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 3,
+     "default_note": "at the enemy, with no radius said: its own fighting distance"
+    }
+   ],
+   "doc": "toward a place (default: the enemy) from cover to cover, a pause at each by character; a run where no cover gains ground. SUCCESS there (at a man: at its own fighting distance); FAILURE no such place, no way"
+  },
+  {
+   "name": "fall_back_by_cover",
+   "usage": "[place]",
+   "args": [
+    {
+     "name": "place",
+     "required": false,
+     "type": "place",
+     "default": "own_base"
+    }
+   ],
+   "doc": "away from what threatens it toward a place (default own_base; with none, straight away), from cover to cover, not firing. SUCCESS out of sight with no round for 3 s, or there; FAILURE with no threat"
+  },
+  {
+   "name": "seek",
+   "usage": "",
+   "args": [],
+   "doc": "go and find the enemy: to his base by the direct way, shooting what it meets; there and nobody, on to where the team last met him, then back as far as the middle, and round again. With no bases, or no way to his, it roams. Always RUNNING: a tree's last resort"
+  },
+  {
+   "name": "flank",
+   "usage": "[place]",
+   "args": [
+    {
+     "name": "place",
+     "required": false,
+     "type": "place",
+     "default": "enemy_area"
+    }
+   ],
+   "doc": "to the place (default: the enemy's area) the long way round, by a side of its own choosing, so as to come at it from behind. SUCCESS there; FAILURE too near to go round, no ground either side, no way"
+  },
+  {
+   "name": "hunt_noise",
+   "usage": "",
+   "args": [],
+   "doc": "go to the freshest rumour of the enemy (see the score). SUCCESS on seeing the place from near; FAILURE none, no way"
+  },
+  {
+   "name": "take_high_ground",
+   "usage": "",
+   "args": [],
+   "doc": "claim the best free perch for its gun and go up to it. SUCCESS on it; FAILURE none free, no way up"
+  },
+  {
+   "name": "camp",
+   "usage": "[secs]",
+   "args": [
+    {
+     "name": "secs",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default_note": "its patience: 25 to 120 s by its caution and marksmanship"
+    }
+   ],
+   "doc": "stay where it is, crouched, sweeping the arc toward the enemy, firing at what appears. SUCCESS after two kills, when shot at, or when its patience is out (25 to 120 s by character, or secs): it then gives up its perch and takes another next time"
+  },
+  {
+   "name": "leave_water",
+   "usage": "",
+   "args": [],
+   "doc": "to the nearest dry ground. SUCCESS dry; RUNNING on the way; FAILURE none within 48"
+  },
+  {
+   "name": "fetch",
+   "usage": "",
+   "args": [],
+   "doc": "go to the other team's intel where it lies and walk onto it (the server gives it to whoever of the other team stands within 3 of it). SUCCESS carrying it; FAILURE none, somebody has it, no way"
+  },
+  {
+   "name": "carry_home",
+   "usage": "",
+   "args": [],
+   "doc": "the carrier runs for its own base by a route that keeps away from the enemies it knows of, shooting only at a man within 14. RUNNING while it carries; SUCCESS when it no longer does; FAILURE no base, no way"
+  },
+  {
+   "name": "escort",
+   "usage": "",
+   "args": [],
+   "doc": "stay by the team-mate who carries the intel: ahead of him toward the base and to a side, shooting what it sees. RUNNING; FAILURE nobody carries"
+  },
+  {
+   "name": "intercept",
+   "usage": "",
+   "args": [],
+   "doc": "cut off the enemy who carries this team's intel: to the point of his way home it can reach before he does, and fight him on sight. RUNNING; FAILURE nobody has it"
+  },
+  {
+   "name": "guard",
+   "usage": "[place] [secs]",
+   "args": [
+    {
+     "name": "place",
+     "required": false,
+     "type": "place",
+     "default": "own_intel"
+    },
+    {
+     "name": "secs",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 30
+    }
+   ],
+   "doc": "hold near a place (default own_intel) at a spot of its own on the side the enemy comes from, crouched if careful, watching that way, shooting what appears. SUCCESS after secs (default 30); FAILURE no such place, no way"
+  },
+  {
+   "name": "fight",
+   "usage": "",
+   "args": [],
+   "doc": "fight the enemy it has chosen (nearest in sight, kept until another is at half his distance): close to its own range, strafe, burst, reload, spade when it comes to that. RUNNING while he lives; SUCCESS on his death; FAILURE with nobody"
+  },
+  {
+   "name": "go_to",
+   "usage": "<place> [radius]",
+   "args": [
+    {
+     "name": "place",
+     "required": true,
+     "type": "place"
+    },
+    {
+     "name": "radius",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 2
+    }
+   ],
+   "doc": "walk to a place (jumping, digging, bridging as the mode allows), shooting what it meets on the way. SUCCESS there, FAILURE with no such place or no way"
+  },
+  {
+   "name": "retreat",
+   "usage": "",
+   "args": [],
+   "doc": "run to the nearest place the enemy cannot see, back turned. SUCCESS hidden (or after 10 s), FAILURE with nothing to run from"
+  },
+  {
+   "name": "investigate",
+   "usage": "",
+   "args": [],
+   "doc": "go to the place most worth searching, look round it, then forget it. SUCCESS looked, FAILURE none or no way"
+  },
+  {
+   "name": "roam",
+   "usage": "",
+   "args": [],
+   "doc": "walk to somewhere the team has not been lately: round where the enemy was last met, else between the two bases, else anywhere -- not round its own base. Always RUNNING: what a bot does in a world with nothing to seek"
+  },
+  {
+   "name": "follow",
+   "usage": "[mate|caller|order|leader]",
+   "args": [
+    {
+     "name": "who",
+     "required": false,
+     "type": "enum",
+     "values": [
+      "mate",
+      "caller",
+      "order",
+      "leader"
+     ],
+     "default": "mate"
+    }
+   ],
+   "doc": "keep a station 3 voxels from a player: the nearest team-mate who is going somewhere (default), the caller of the ping it answers, or the order's man. `leader`: fall in with its leader -- beside and behind him, never in front of his gun; where he is going, not at his heels; shooting what he shoots; stopping near him when he stops. RUNNING; FAILURE with nobody, or a man who stays put too long"
+  },
+  {
+   "name": "hold",
+   "usage": "[place] [secs]",
+   "args": [
+    {
+     "name": "place",
+     "required": false,
+     "type": "place",
+     "default": "self"
+    },
+    {
+     "name": "secs",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default": 8
+    }
+   ],
+   "doc": "go to the place (default: here) and watch from it, sweeping the head, crouched if careful. SUCCESS after secs (default 8)"
+  },
+  {
+   "name": "throw_grenade",
+   "usage": "[place]",
+   "args": [
+    {
+     "name": "place",
+     "required": false,
+     "type": "place",
+     "default_note": "what is worth one: a group, a far man, a place just lost"
+    }
+   ],
+   "doc": "throw at the place, or at what is worth one: stands, turns to the arc, lets go. SUCCESS thrown, FAILURE no arc, too near, none left"
+  },
+  {
+   "name": "evade",
+   "usage": "",
+   "args": [],
+   "doc": "run from the grenade that threatens it. RUNNING until it has burst"
+  },
+  {
+   "name": "ping",
+   "usage": "<place> <label>...",
+   "args": [
+    {
+     "name": "place",
+     "required": true,
+     "type": "place"
+    },
+    {
+     "name": "label",
+     "required": true,
+     "type": "text",
+     "repeat": true
+    }
+   ],
+   "doc": "ping the place for the team with one of the mode's labels (\"Enemy\", \"Need help\", \"Sniper\"). SUCCESS sent; FAILURE when the team has such a ping there, it pinged lately, or it is not one to say (teamwork)"
+  },
+  {
+   "name": "use",
+   "usage": "<item> [place] [guide_secs]",
+   "args": [
+    {
+     "name": "item",
+     "required": true,
+     "type": "text"
+    },
+    {
+     "name": "place",
+     "required": false,
+     "type": "place",
+     "default": "self"
+    },
+    {
+     "name": "guide_secs",
+     "required": false,
+     "type": "number",
+     "min": 0,
+     "default_note": "the item's own guide time (the setting item.<name>.guide), else none"
+    }
+   ],
+   "doc": "use an inventory item, on itself or aimed at a point (the server's \"inv <item> [x y z]\"). With `enemy` and a guide time the head stays on that man for it. SUCCESS asked; FAILURE none held, just used, nothing to aim at"
+  },
+  {
+   "name": "lamp",
+   "usage": "<on|off|auto>",
+   "args": [
+    {
+     "name": "mode",
+     "required": true,
+     "type": "enum",
+     "values": [
+      "on",
+      "off",
+      "auto"
+     ]
+    }
+   ],
+   "doc": "flashlight: lit, out (as a bot starts), or auto (lit by night). Never lit by day. SUCCESS at once"
+  },
+  {
+   "name": "obey",
+   "usage": "",
+   "args": [],
+   "doc": "do what the server's order says: go, hold, hunt a player, follow one. FAILURE with no order, SUCCESS when it is done"
+  },
+  {
+   "name": "look_around",
+   "usage": "",
+   "args": [],
+   "doc": "stand and look left, right and behind. SUCCESS after three looks"
+  },
+  {
+   "name": "reload",
+   "usage": "",
+   "args": [],
+   "doc": "reload now if the magazine is not full. SUCCESS asked, FAILURE nothing to do"
+  }
+ ],
+ "traits": [
+  {
+   "name": "none",
+   "doc": "always 1: an option nobody's character moves"
+  },
+  {
+   "name": "aggression",
+   "doc": "take the fight, close the distance"
+  },
+  {
+   "name": "caution",
+   "doc": "cover, retreat when hurt, keep range"
+  },
+  {
+   "name": "objective",
+   "doc": "the intel, the point, the tower -- the game"
+  },
+  {
+   "name": "teamwork",
+   "doc": "answer pings, escort, stay with the others"
+  },
+  {
+   "name": "builder",
+   "doc": "dig and build rather than walk round"
+  },
+  {
+   "name": "marksman",
+   "doc": "fight from far, hold an angle"
+  },
+  {
+   "name": "flank",
+   "doc": "go round rather than through"
+  },
+  {
+   "name": "stealth",
+   "doc": "sneak, lamp out, do not be heard"
+  },
+  {
+   "name": "curiosity",
+   "doc": "go and look: noises, last-seen places"
+  },
+  {
+   "name": "greed",
+   "doc": "use what it holds: items, grenades"
+  }
+ ],
+ "trait_range": [
+  0.2,
+  3
+ ],
+ "archetypes": [
+  {
+   "name": "soldier",
+   "doc": "the middle of everything",
+   "weights": {
+    "none": 1,
+    "aggression": 1,
+    "caution": 1,
+    "objective": 1,
+    "teamwork": 1,
+    "builder": 1,
+    "marksman": 1,
+    "flank": 1,
+    "stealth": 1,
+    "curiosity": 1,
+    "greed": 1
+   },
+   "spread": {
+    "none": 0,
+    "aggression": 0.25,
+    "caution": 0.25,
+    "objective": 0.25,
+    "teamwork": 0.25,
+    "builder": 0.25,
+    "marksman": 0.25,
+    "flank": 0.25,
+    "stealth": 0.25,
+    "curiosity": 0.25,
+    "greed": 0.25
+   }
+  },
+  {
+   "name": "camper",
+   "doc": "careful and a marksman: holds an angle, keeps its distance, seldom goes in",
+   "weights": {
+    "none": 1,
+    "aggression": 0.5,
+    "caution": 1.8,
+    "objective": 0.8,
+    "teamwork": 0.9,
+    "builder": 1,
+    "marksman": 1.8,
+    "flank": 0.5,
+    "stealth": 1.2,
+    "curiosity": 0.8,
+    "greed": 1
+   },
+   "spread": {
+    "none": 0,
+    "aggression": 0.3,
+    "caution": 0.4,
+    "objective": 0.3,
+    "teamwork": 0.3,
+    "builder": 0.3,
+    "marksman": 0.4,
+    "flank": 0.3,
+    "stealth": 0.3,
+    "curiosity": 0.3,
+    "greed": 0.3
+   }
+  },
+  {
+   "name": "pusher",
+   "doc": "bold and keen on the game: straight at the enemy and at the objective",
+   "weights": {
+    "none": 1,
+    "aggression": 1.9,
+    "caution": 0.6,
+    "objective": 1.6,
+    "teamwork": 1,
+    "builder": 0.8,
+    "marksman": 0.8,
+    "flank": 0.8,
+    "stealth": 0.5,
+    "curiosity": 0.9,
+    "greed": 1.3
+   },
+   "spread": {
+    "none": 0,
+    "aggression": 0.4,
+    "caution": 0.3,
+    "objective": 0.4,
+    "teamwork": 0.3,
+    "builder": 0.3,
+    "marksman": 0.3,
+    "flank": 0.3,
+    "stealth": 0.3,
+    "curiosity": 0.3,
+    "greed": 0.4
+   }
+  },
+  {
+   "name": "flanker",
+   "doc": "goes round, and quietly: comes at the enemy from where he is not looking",
+   "weights": {
+    "none": 1,
+    "aggression": 1.2,
+    "caution": 0.9,
+    "objective": 1,
+    "teamwork": 0.7,
+    "builder": 0.8,
+    "marksman": 0.9,
+    "flank": 1.9,
+    "stealth": 1.8,
+    "curiosity": 1.1,
+    "greed": 1
+   },
+   "spread": {
+    "none": 0,
+    "aggression": 0.3,
+    "caution": 0.3,
+    "objective": 0.3,
+    "teamwork": 0.3,
+    "builder": 0.3,
+    "marksman": 0.3,
+    "flank": 0.4,
+    "stealth": 0.4,
+    "curiosity": 0.3,
+    "greed": 0.3
+   }
+  },
+  {
+   "name": "support",
+   "doc": "with the others: answers their calls, escorts, digs and builds for them",
+   "weights": {
+    "none": 1,
+    "aggression": 0.8,
+    "caution": 1.1,
+    "objective": 1.1,
+    "teamwork": 1.9,
+    "builder": 1.6,
+    "marksman": 0.9,
+    "flank": 0.7,
+    "stealth": 0.9,
+    "curiosity": 0.9,
+    "greed": 1
+   },
+   "spread": {
+    "none": 0,
+    "aggression": 0.3,
+    "caution": 0.3,
+    "objective": 0.3,
+    "teamwork": 0.4,
+    "builder": 0.4,
+    "marksman": 0.3,
+    "flank": 0.3,
+    "stealth": 0.3,
+    "curiosity": 0.3,
+    "greed": 0.3
+   }
+  },
+  {
+   "name": "sapper",
+   "doc": "digs and builds rather than walk round",
+   "weights": {
+    "none": 1,
+    "aggression": 0.8,
+    "caution": 1,
+    "objective": 1,
+    "teamwork": 1,
+    "builder": 2.5,
+    "marksman": 0.8,
+    "flank": 0.9,
+    "stealth": 1,
+    "curiosity": 1,
+    "greed": 1.2
+   },
+   "spread": {
+    "none": 0,
+    "aggression": 0.3,
+    "caution": 0.3,
+    "objective": 0.3,
+    "teamwork": 0.3,
+    "builder": 0.4,
+    "marksman": 0.3,
+    "flank": 0.3,
+    "stealth": 0.3,
+    "curiosity": 0.3,
+    "greed": 0.3
+   }
+  },
+  {
+   "name": "scout",
+   "doc": "curious and quiet: goes to look at what it heard, alone if need be",
+   "weights": {
+    "none": 1,
+    "aggression": 0.8,
+    "caution": 0.9,
+    "objective": 0.9,
+    "teamwork": 0.8,
+    "builder": 0.7,
+    "marksman": 0.9,
+    "flank": 1.2,
+    "stealth": 1.7,
+    "curiosity": 1.9,
+    "greed": 0.9
+   },
+   "spread": {
+    "none": 0,
+    "aggression": 0.3,
+    "caution": 0.3,
+    "objective": 0.3,
+    "teamwork": 0.3,
+    "builder": 0.3,
+    "marksman": 0.3,
+    "flank": 0.3,
+    "stealth": 0.4,
+    "curiosity": 0.4,
+    "greed": 0.3
+   }
+  }
+ ],
+ "places": [
+  {
+   "name": "self",
+   "doc": "where it stands"
+  },
+  {
+   "name": "enemy",
+   "doc": "the man it fights, else the nearest in sight, else the nearest it knows of"
+  },
+  {
+   "name": "group",
+   "alias": "enemy_group",
+   "doc": "the middle of two or more known enemies within 6 of one another"
+  },
+  {
+   "name": "last_seen",
+   "doc": "where somebody left its sight, while that is fresh"
+  },
+  {
+   "name": "noise",
+   "doc": "what it heard, while that is fresh"
+  },
+  {
+   "name": "threat",
+   "doc": "where a hit seemed to come from, in the last 8 s"
+  },
+  {
+   "name": "search",
+   "doc": "the place most worth searching: the freshest of the last three, or a sighting it was told of"
+  },
+  {
+   "name": "ping",
+   "doc": "the ping it answers (the caller himself for a call for help)"
+  },
+  {
+   "name": "caller",
+   "doc": "the one whose ping it answers, where he is now"
+  },
+  {
+   "name": "order",
+   "doc": "where the server's order points (the man, for an order to hunt or follow)"
+  },
+  {
+   "name": "mate",
+   "doc": "the nearest team-mate"
+  },
+  {
+   "name": "leader",
+   "doc": "the leader it follows"
+  },
+  {
+   "name": "cover",
+   "doc": "the nearest place the enemy, or what last hit it, cannot see"
+  },
+  {
+   "name": "hot",
+   "doc": "where its team last met the other, in the last minute"
+  },
+  {
+   "name": "enemy_area",
+   "doc": "where the enemy is expected: `hot`, else his base"
+  },
+  {
+   "name": "rumour",
+   "doc": "the freshest rumour of the enemy (the score `rumour`)"
+  },
+  {
+   "name": "vantage",
+   "doc": "the best free perch for its gun"
+  },
+  {
+   "name": "own_base",
+   "doc": "its team's base"
+  },
+  {
+   "name": "enemy_base",
+   "alias": "their_base",
+   "doc": "the other team's base"
+  },
+  {
+   "name": "own_intel",
+   "alias": "our_intel",
+   "doc": "its team's intel, where it is now"
+  },
+  {
+   "name": "enemy_intel",
+   "alias": "their_intel",
+   "doc": "the other team's intel, where it is now"
+  },
+  {
+   "name": "thief",
+   "doc": "the enemy who carries this team's intel (the world shows a carrier to everybody)"
+  },
+  {
+   "name": "carrier",
+   "doc": "the team-mate who carries the other team's intel"
+  },
+  {
+   "name": "intercept",
+   "doc": "where to cut the thief off on his way home"
+  }
+ ]
+}

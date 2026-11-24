@@ -1,0 +1,244 @@
+{
+ "format": "lsd-bt-trees",
+ "version": 1,
+ "world": "tdm",
+ "trees": [
+  {
+   "name": "ctf",
+   "from": "builtin",
+   "file": "/opt/botd/trees/ctf.bt",
+   "line": 16,
+   "nodes": 20,
+   "refers": [
+    "ctf_under_fire",
+    "ctf_contact",
+    "ctf_duty",
+    "ctf_net"
+   ]
+  },
+  {
+   "name": "ctf_duty",
+   "from": "builtin",
+   "file": "/opt/botd/trees/ctf.bt",
+   "line": 40,
+   "nodes": 27,
+   "refers": [
+    "ctf_round",
+    "ctf_camp",
+    "ctf_answer",
+    "ctf_net",
+    "ctf_net"
+   ],
+   "about": "The game. Chosen for a good while; chosen again when an intel is taken, dropped or captured."
+  },
+  {
+   "name": "ctf_round",
+   "from": "builtin",
+   "file": "/opt/botd/trees/ctf.bt",
+   "line": 69,
+   "nodes": 4,
+   "refers": []
+  },
+  {
+   "name": "ctf_net",
+   "from": "builtin",
+   "file": "/opt/botd/trees/ctf.bt",
+   "line": 75,
+   "nodes": 5,
+   "refers": []
+  },
+  {
+   "name": "ctf_under_fire",
+   "from": "builtin",
+   "file": "/opt/botd/trees/ctf.bt",
+   "line": 83,
+   "nodes": 17,
+   "refers": [
+    "ctf_round",
+    "ctf_net"
+   ],
+   "about": "Shot at: down, then by character -- as in any game."
+  },
+  {
+   "name": "ctf_contact",
+   "from": "builtin",
+   "file": "/opt/botd/trees/ctf.bt",
+   "line": 103,
+   "nodes": 27,
+   "refers": [
+    "ctf_round",
+    "ctf_net",
+    "ctf_net"
+   ],
+   "about": "An enemy in sight."
+  },
+  {
+   "name": "ctf_camp",
+   "from": "builtin",
+   "file": "/opt/botd/trees/ctf.bt",
+   "line": 132,
+   "nodes": 3,
+   "refers": []
+  },
+  {
+   "name": "ctf_answer",
+   "from": "builtin",
+   "file": "/opt/botd/trees/ctf.bt",
+   "line": 137,
+   "nodes": 5,
+   "refers": []
+  },
+  {
+   "name": "ctf_also",
+   "from": "builtin",
+   "file": "/opt/botd/trees/ctf.bt",
+   "line": 145,
+   "nodes": 7,
+   "refers": [
+    "extras",
+    "items",
+    "ctf_callouts"
+   ],
+   "about": "Beside the above, at every decision."
+  },
+  {
+   "name": "ctf_callouts",
+   "from": "builtin",
+   "file": "/opt/botd/trees/ctf.bt",
+   "line": 155,
+   "nodes": 19,
+   "refers": [],
+   "about": "Tell the team, once (the labels are the server's ctf ping list)."
+  },
+  {
+   "name": "default",
+   "from": "builtin",
+   "file": "/opt/botd/trees/default.bt",
+   "line": 18,
+   "nodes": 20,
+   "refers": [
+    "default_cover"
+   ]
+  },
+  {
+   "name": "default_cover",
+   "from": "builtin",
+   "file": "/opt/botd/trees/default.bt",
+   "line": 40,
+   "nodes": 3,
+   "refers": []
+  },
+  {
+   "name": "default_also",
+   "from": "builtin",
+   "file": "/opt/botd/trees/default.bt",
+   "line": 45,
+   "nodes": 5,
+   "refers": [
+    "extras",
+    "items"
+   ]
+  },
+  {
+   "name": "parkour",
+   "from": "builtin",
+   "file": "/opt/botd/trees/parkour.bt",
+   "line": 15,
+   "nodes": 12,
+   "refers": []
+  },
+  {
+   "name": "parkour_also",
+   "from": "builtin",
+   "file": "/opt/botd/trees/parkour.bt",
+   "line": 30,
+   "nodes": 5,
+   "refers": [
+    "extras",
+    "items"
+   ],
+   "about": "Beside the above, at every decision."
+  },
+  {
+   "name": "tdm",
+   "from": "builtin",
+   "file": "/opt/botd/trees/tdm.bt",
+   "line": 13,
+   "nodes": 18,
+   "refers": [
+    "tdm_under_fire",
+    "tdm_contact",
+    "tdm_search"
+   ]
+  },
+  {
+   "name": "tdm_under_fire",
+   "from": "builtin",
+   "file": "/opt/botd/trees/tdm.bt",
+   "line": 35,
+   "nodes": 15,
+   "refers": [],
+   "about": "Shot at (hurt, a round close by, a mate dropped beside it): down at once, then one of these -- by caution, health, and the odds."
+  },
+  {
+   "name": "tdm_contact",
+   "from": "builtin",
+   "file": "/opt/botd/trees/tdm.bt",
+   "line": 53,
+   "nodes": 13,
+   "refers": [],
+   "about": "An enemy in sight, and not (or no longer) under fire."
+  },
+  {
+   "name": "tdm_search",
+   "from": "builtin",
+   "file": "/opt/botd/trees/tdm.bt",
+   "line": 70,
+   "nodes": 20,
+   "refers": [
+    "tdm_answer",
+    "tdm_camp",
+    "tdm_camp"
+   ],
+   "about": "Nobody in sight: every one of these heads for the enemy -- which, is the bot's character, its gun and its luck. Chosen for a good while."
+  },
+  {
+   "name": "tdm_camp",
+   "from": "builtin",
+   "file": "/opt/botd/trees/tdm.bt",
+   "line": 92,
+   "nodes": 3,
+   "refers": []
+  },
+  {
+   "name": "tdm_answer",
+   "from": "builtin",
+   "file": "/opt/botd/trees/tdm.bt",
+   "line": 97,
+   "nodes": 5,
+   "refers": []
+  },
+  {
+   "name": "tdm_also",
+   "from": "builtin",
+   "file": "/opt/botd/trees/tdm.bt",
+   "line": 105,
+   "nodes": 7,
+   "refers": [
+    "extras",
+    "items",
+    "tdm_callouts"
+   ],
+   "about": "Beside the above, at every decision."
+  },
+  {
+   "name": "tdm_callouts",
+   "from": "builtin",
+   "file": "/opt/botd/trees/tdm.bt",
+   "line": 116,
+   "nodes": 10,
+   "refers": [],
+   "about": "Tell the team -- once: `ping` fails when the team has such a ping there, and a bot low on teamwork lets the occasion pass."
+  }
+ ]
+}

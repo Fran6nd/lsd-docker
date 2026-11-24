@@ -1,0 +1,8 @@
+tree first:
+select
+	pick every=3
+		option aggression enemy_near x1.2     # an enemy close: fight him
+			do fight
+		option caution hurt
+			do retreat
+	do seek

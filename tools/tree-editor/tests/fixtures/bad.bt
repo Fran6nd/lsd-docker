@@ -1,0 +1,6 @@
+tree mine:
+select
+	seq
+		if enemy_within near
+		do figth
+	do go_to nowhere
