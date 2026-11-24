@@ -178,6 +178,21 @@ int bc_place_of(bc_bot *b, const char *name, bl_vec3 *out)
 		if (!bc_place_of(b, "enemy", &th) && !bc_place_of(b, "threat", &th)) return 0;
 		return bc_find_cover(b, th, out);
 	}
+	if (!strcmp(name, "thief") || !strcmp(name, "carrier") || !strcmp(name, "intercept"))
+		return bc_objective_place(b, name, out);
+	if (!strcmp(name, "enemy_area"))
+		return bc_enemy_area(b, out);
+	if (!strcmp(name, "rumour"))
+		return bc_rumour(b, out) > 0.0f;
+	if (!strcmp(name, "vantage")) {
+		int i = bc_perch_pick(b, 0);
+
+		if (i < 0 || team < 1 || team > 2) return 0;
+		out->x = (float)e->vantage[team - 1].p[i].n.x + 0.5f;
+		out->y = (float)e->vantage[team - 1].p[i].n.y + 0.5f;
+		out->z = (float)e->vantage[team - 1].p[i].n.z - 2.25f;
+		return 1;
+	}
 	if (team < 1 || team > 2)
 		return 0;
 	if (!strcmp(name, "hot")) {
@@ -188,10 +203,10 @@ int bc_place_of(bc_bot *b, const char *name, bl_vec3 *out)
 	{
 		const bl_object *o = NULL;
 
-		if (!strcmp(name, "enemy_base")) o = &e->w.tent[other - 1];
+		if (!strcmp(name, "enemy_base") || !strcmp(name, "their_base")) o = &e->w.tent[other - 1];
 		else if (!strcmp(name, "own_base")) o = &e->w.tent[team - 1];
-		else if (!strcmp(name, "enemy_intel")) o = &e->w.intel[other - 1];
-		else if (!strcmp(name, "own_intel")) o = &e->w.intel[team - 1];
+		else if (!strcmp(name, "enemy_intel") || !strcmp(name, "their_intel")) o = &e->w.intel[other - 1];
+		else if (!strcmp(name, "own_intel") || !strcmp(name, "our_intel")) o = &e->w.intel[team - 1];
 		if (!o || !o->present) return 0;
 		*out = o->pos;
 		return 1;
@@ -353,18 +368,21 @@ bt_status bc_do_roam(void *bot, const bt_args *a, float dt)
 	(void)a; (void)dt;
 	if (!b->roam.valid || e->now >= b->roam.until) {
 		if (!bc_roam_goal(b, &b->roam.goal)) {
-			/* no map, no floor: at least do not stand like a post */
+			/* nowhere found. Not "walk the way it faces": a bot in the sea
+			 * did that against a bank for minutes. To the nearest dry
+			 * floor if it is not on one; else it stands. */
 			const bl_player *me = bc_me(b);
+			bc_nav_node n;
 
-			b->wish.move = BC_MOVE_FREE;
-			b->wish.mx = me->ori.x;
-			b->wish.my = me->ori.y;
-			if (!bc_walk_safe(b, b->wish.mx, b->wish.my)) {
-				b->wish.mx = -me->ori.y;
-				b->wish.my = me->ori.x;
-				if (!bc_walk_safe(b, b->wish.mx, b->wish.my))
-					b->wish.mx = b->wish.my = 0.0f;
+			if (e->have_map && bc_nav_snap_dry(e->map, (int)floorf(me->pos.x), (int)floorf(me->pos.y),
+			                                   (int)floorf(me->pos.z + 2.75f), 64, &n) &&
+			    (n.x != (int)floorf(me->pos.x) || n.y != (int)floorf(me->pos.y))) {
+				bl_vec3 dry;
+
+				dry.x = (float)n.x + 0.5f; dry.y = (float)n.y + 0.5f; dry.z = (float)n.z - 2.25f;
+				bc_move_to(b, dry, 1.0f);
 			}
+			bc_fire_at_will(b);
 			return BT_RUNNING;
 		}
 		b->roam.valid = 1;
@@ -421,11 +439,43 @@ bt_status bc_do_follow(void *bot, const bt_args *a, float dt)
 		return b->ping.taken && e->now < b->ping.until ? follow_pid(b, b->ping.by) : BT_FAILURE;
 	if (!strcmp(who, "order"))
 		return b->order.order != BL_O_NONE ? follow_pid(b, b->order.target) : BT_FAILURE;
+	b->following = 1;
+	if (e->now < b->follow.cd_until)
+		return BT_FAILURE;
 	if (b->follow.leader < 0 || e->now >= b->follow.pick_at ||
 	    e->w.players[b->follow.leader].state != BL_ALIVE ||
 	    e->w.players[b->follow.leader].team != bc_me(b)->team) {
-		b->follow.leader = bc_nearest_mate(b, NULL);
+		/* the nearest team-mate who is not himself following somebody:
+		 * two that follow each other stand and wait for ever */
+		const bl_player *me = bc_me(b);
+		float best = 1e30f;
+		int i;
+
+		b->follow.leader = -1;
+		for (i = 0; i < BL_MAX_PLAYERS; i++) {
+			const bl_player *p = &e->w.players[i];
+			const bc_bot *o = bc_engine_bot(e, i);
+			float d;
+
+			if (i == b->pid || p->state != BL_ALIVE || p->team != me->team || (o && o->following))
+				continue;
+			d = flat_dist(p->pos, me->pos);
+			if (d < best) { best = d; b->follow.leader = i; }
+		}
 		b->follow.pick_at = e->now + 12.0;
+		b->follow.still_since = e->now;
+	}
+	if (b->follow.leader >= 0) {
+		const bl_player *p = &e->w.players[b->follow.leader];
+
+		/* a man who stays put is not going anywhere: after a while, its own way */
+		if (p->vel.x * p->vel.x + p->vel.y * p->vel.y > 0.001f || flat_dist(p->pos, bc_me(b)->pos) > 8.0f)
+			b->follow.still_since = e->now;
+		if (e->now - b->follow.still_since > 4.0 + 4.0 * (double)b->persona.trait[BC_T_TEAMWORK]) {
+			b->follow.leader = -1;
+			b->follow.cd_until = e->now + 20.0;
+			return BT_FAILURE;
+		}
 	}
 	return follow_pid(b, b->follow.leader);
 }

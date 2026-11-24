@@ -22,9 +22,12 @@
  *   edit=none|dig|build|all  * what a route may do to the map (none)
  *   spend=<n>                blocks a route may use (50)
  *   water=lethal|safe
+ *   water.damage=<n>         health a second a wading body loses (0)
  *   zone=x0 y0 x1 y1 [nodig] [nobuild]   a rectangle where routes do not
  *                            edit (both, when neither is said); zone=clear
  *   protect=x y z            a voxel the server will refuse to change
+ *   gaze=0|1                 1 (default): a travelling bot's head is its
+ *                            own (skill_look.c). 0: it faces as it steers
  *   ping_takers=<n>          how many bots answer one ping (2)
  *   ping_radius=<voxels>     and from how far (40; aosbot's numbers)
  *   item.<name>=<count>    * what a bot holds ("inf": without end)
@@ -79,6 +82,33 @@
  * and said if it does not compile, withdrawn by an empty value; with
  * none the tree is one leaf that succeeds. Keep an extra to actions
  * that end at once: one that stays RUNNING holds up those after it.
+ *
+ * THE NET UNDER EVERYTHING (act, watchdog). Whatever a skill or the
+ * follower does or fails to report, a bot must not stand pushing at
+ * something: 40 bots once stood for minutes wading against a bank with
+ * the forward key down. So, independent of every skill, the engine
+ * watches the BODY:
+ *   - PUSHING: movement keys down (and not waiting on an edit) without
+ *     the body getting a block away from where it was. Time with the
+ *     keys up does not count but does not clear it either, unless it
+ *     lasts a second (the first version cleared it on one think with no
+ *     keys, and every new plan has such a think: it never fired). After
+ *     1.5 s: a JUMP, and the route is planned again with the move it was
+ *     on priced as failed (which, where edits are allowed, is what makes
+ *     digging through or laying a step win). After 1.5 s more: a step
+ *     BACK, then a SIDESTEP with a jump. After 1.5 s more: OUT.
+ *   - GOING NOWHERE: on a route, not editing, and not leaving a circle of
+ *     4 voxels for 8 s (sliding along a bank, backing up and coming on
+ *     again). OUT at once.
+ *   - OUT: the goal fails and is remembered as having no way to it from
+ *     here (the team's, 30 s: skill_tactics.c), the place goes among the
+ *     team's bad places so plans shy from it, the keys come up, the tree
+ *     is entered afresh, and for 4 s the bot goes SOMEWHERE ELSE -- a
+ *     place it can walk straight to, away from what it pushed at, dry if
+ *     it can be -- before the tree's choice is taken up. Counted
+ *     (stats.stuck_resets) and said at level 1, once a minute a bot.
+ *   No crouch-jump: changing crouch in the air lifts a server-moved body
+ *   (body.h).
  *
  * WHAT IS ALLOCATED, AND WHEN. bc_engine_new: the map (2 MiB), the cull
  * scratch (7 MiB), the move table, the searches (5.5 MiB each, 2 to 4),
@@ -626,6 +656,8 @@ int bc_engine_map(bc_engine *e, const uint8_t *vxl, size_t bytes, uint32_t map_s
 	bc_board_clear(&e->board);
 	e->hot_at[0] = e->hot_at[1] = -1e9;
 	memset(e->nades, 0, sizeof e->nades);
+	bc_tactics_map(e);
+	memset(e->obj, 0, sizeof e->obj);
 	for (i = 0; i < BC_DANGER_MAX; i++)
 		e->danger_at[0][i] = e->danger_at[1][i] = -1e9;
 	for (i = 0; i < e->max_bots; i++)
@@ -679,6 +711,27 @@ static void bot_new_life(bc_bot *b, const bl_player *p)
 	memset(&b->evade, 0, sizeof b->evade);
 	memset(&b->guide, 0, sizeof b->guide);
 	memset(&b->ping, 0, sizeof b->ping);
+	memset(&b->gaze, 0, sizeof b->gaze);
+	b->cq.state = 0;
+	memset(&b->tc, 0, sizeof b->tc);
+	memset(&b->bd, 0, sizeof b->bd);
+	memset(&b->cr, 0, sizeof b->cr);
+	b->cr.flinched_for = -1e9;
+	memset(&b->flank, 0, sizeof b->flank);
+	memset(&b->hunt, 0, sizeof b->hunt);
+	memset(&b->camp, 0, sizeof b->camp);
+	b->camp.perch = b->camp.avoid = -1;
+	memset(&b->seek, 0, sizeof b->seek);
+	memset(&b->unstick, 0, sizeof b->unstick);
+	memset(&b->area, 0, sizeof b->area);
+	memset(&b->elsewhere, 0, sizeof b->elsewhere);
+	memset(&b->dry, 0, sizeof b->dry);
+	memset(&b->carry, 0, sizeof b->carry);
+	memset(&b->guard, 0, sizeof b->guard);
+	memset(&b->fetch, 0, sizeof b->fetch);
+	b->area.from = p->pos;
+	b->kills = 0;
+	b->following = 0;
 	b->follow.leader = -1;
 	b->follow.pick_at = 0.0;
 	b->cover.since = -1e9;
@@ -709,6 +762,7 @@ static void bot_died(bc_bot *b)
 
 	b->alive = 0;
 	bot_forget_route(b);
+	bc_tactics_bot_gone(b);
 	if (b->forest && b->bt) {
 		bot_ctx(b, &c, 0.0f);
 		bt_reset(b->forest, b->bt, &c);
@@ -754,6 +808,7 @@ static void ev_bot(bc_engine *e, int pid, const bl_ev_bot *ev)
 		b->mv.search = -1;
 		b->fight.target = -1;
 		b->follow.leader = -1;
+		b->camp.perch = b->camp.avoid = -1;
 		/* decisions staggered across the bots */
 		b->decide_acc = DECIDE_PERIOD * (double)(idx % 4) / 4.0;
 	}
@@ -771,6 +826,7 @@ static void ev_unbot(bc_engine *e, int pid)
 		return;
 	bot_leave_tree(b);
 	bc_engine_search_release(e, b);
+	bc_tactics_bot_gone(b);
 	b->used = 0;
 	b->alive = 0;
 	e->by_pid[pid] = -1;
@@ -925,6 +981,7 @@ static void ev_set(bc_engine *e, int pid, const char *text)
 
 		if (b) b->edit = (int8_t)v;
 		else { e->may_dig = v & 1; e->may_build = (v >> 1) & 1; }
+		memset(e->unreach, 0, sizeof e->unreach);   /* what had no way may have one now */
 		return;
 	}
 	if (!strcmp(key, "night_vision")) {
@@ -955,6 +1012,13 @@ static void ev_set(bc_engine *e, int pid, const char *text)
 		e->spend = atoi(val);
 	} else if (!strcmp(key, "water")) {
 		e->water_lethal = !strcmp(val, "lethal");
+		memset(e->unreach, 0, sizeof e->unreach);
+	} else if (!strcmp(key, "water.damage")) {
+		e->water_damage = (float)atof(val);
+		if (!(e->water_damage > 0.0f)) e->water_damage = 0.0f;
+		memset(e->unreach, 0, sizeof e->unreach);
+	} else if (!strcmp(key, "gaze")) {
+		e->gaze_off = !atoi(val);
 	} else if (!strcmp(key, "ping_takers")) {
 		e->ping_takers = atoi(val);
 	} else if (!strcmp(key, "ping_radius")) {
@@ -1143,6 +1207,31 @@ void bc_engine_event(bc_engine *e, const bl_record *rec)
 		e->danger[team - 1][old].weight = 3.0f;
 		e->danger_at[team - 1][old] = e->now;
 		e->board.spot[2 - team][pid].at = e->board.spot[2 - team][pid].since = -1e9;
+		{
+			bl_ev_kill ev;
+			bc_bot *kb;
+
+			if (n < sizeof ev) break;
+			memcpy(&ev, pl, sizeof ev);
+			kb = ev.killer != pid ? bc_engine_bot(e, ev.killer) : NULL;
+			if (kb && kb->alive) kb->kills++;
+			/* a man dropping beside a bot tells it it is under fire */
+			if (ev.killer != BL_NO_PLAYER && e->w.players[ev.killer].team != team)
+				for (i = 0; i < e->max_bots; i++) {
+					bc_bot *b = &e->bots[i];
+					const bl_player *m;
+					float dx, dy;
+
+					if (!b->used || !b->alive || b->pid == pid) continue;
+					m = &e->w.players[b->pid];
+					if (m->team != team) continue;
+					dx = m->pos.x - e->w.players[pid].pos.x; dy = m->pos.y - e->w.players[pid].pos.y;
+					if (dx * dx + dy * dy > 12.0f * 12.0f) continue;
+					bc_senses_shot_at(&b->senses, &b->rng, &e->w, b->pid, b->level,
+					                  e->w.players[ev.killer].pos, ev.killer, 2, e->now);
+					if (b->senses.fire_since == e->now) b->jolt = 1;
+				}
+		}
 		break;
 	}
 	case BL_EV_HURT: {
@@ -1155,8 +1244,8 @@ void bc_engine_event(bc_engine *e, const bl_record *rec)
 		b->hit = 1;
 		b->hit_from = ev.from;
 		b->hit_from_valid = b->senses.threat.valid && b->senses.threat.at == e->now;
-		if (b->senses.n_visible == 0)
-			b->jolt = 1;            /* hit from nowhere */
+		if (b->senses.n_visible == 0 || b->senses.fire_since == e->now)
+			b->jolt = 1;            /* hit from nowhere, or the first of a burst */
 		break;
 	}
 	case BL_EV_SOUND: {
@@ -1165,6 +1254,19 @@ void bc_engine_event(bc_engine *e, const bl_record *rec)
 		if (n < sizeof ev) break;
 		memcpy(&ev, pl, sizeof ev);
 		noise_for_all(e, ev.kind, ev.pos, pid);
+		/* a round that passes close is being shot at, hit or not */
+		if (ev.kind == BL_S_SHOT && pid != BL_NO_PLAYER && e->have_world) {
+			int i;
+
+			for (i = 0; i < e->max_bots; i++) {
+				bc_bot *b = &e->bots[i];
+
+				if (!b->used || !b->alive || !bc_senses_near_miss(&e->w, b->pid, pid, 2.5f))
+					continue;
+				bc_senses_shot_at(&b->senses, &b->rng, &e->w, b->pid, b->level, ev.pos, pid, 1, e->now);
+				if (b->senses.fire_since == e->now) b->jolt = 1;
+			}
+		}
 		break;
 	}
 	case BL_EV_GRENADE: {
@@ -1244,6 +1346,13 @@ static void decide(bc_engine *e, bc_bot *b, float dt)
 	bc_fight_select(b);
 	if (b->ping.taken && e->now >= b->ping.until)
 		b->ping.taken = 0;
+	if (me->team >= 1 && me->team <= 2) {
+		/* where the team has been: roaming prefers where it has not */
+		int vx = (int)me->pos.x / (BC_MAP_X / BC_VISIT_N), vy = (int)me->pos.y / (BC_MAP_Y / BC_VISIT_N);
+
+		if (vx >= 0 && vx < BC_VISIT_N && vy >= 0 && vy < BC_VISIT_N)
+			e->visit[me->team - 1][vy * BC_VISIT_N + vx] = (float)e->now + 1.0f;
+	}
 	{
 		int nade = bc_grenade_threat(b, NULL) >= 25.0f;
 
@@ -1261,6 +1370,7 @@ static void decide(bc_engine *e, bc_bot *b, float dt)
 	b->wish.fire_pid = b->wish.look_pid = -1;
 	b->wish.crouch = b->wish.sneak = b->wish.jump = b->wish.sprint = 0;
 	b->wish.mx = b->wish.my = 0.0f;
+	b->following = 0;
 
 	if (b->forest && b->bt) {
 		if (b->jolt) {
@@ -1272,8 +1382,25 @@ static void decide(bc_engine *e, bc_bot *b, float dt)
 			bot_ctx(b, &c, 0.0f);
 			bt_tick(b->forest, b->tree_also, b->bt, &c);
 		}
-		bot_ctx(b, &c, dt);
-		bt_tick(b->forest, b->tree, b->bt, &c);
+		if (e->now < b->elsewhere.until) {
+			/* just dropped a goal it was stuck on: somewhere else first */
+			if (b->elsewhere.free) {
+				b->wish.move = BC_MOVE_FREE;
+				if (bc_walk_safe(b, b->elsewhere.mx, b->elsewhere.my)) {
+					b->wish.mx = b->elsewhere.mx;
+					b->wish.my = b->elsewhere.my;
+				}
+			} else {
+				int st = bc_move_to(b, b->elsewhere.goal, 1.0f);
+
+				if (st == BC_MV_ARRIVED || st == BC_MV_FAILED)
+					b->elsewhere.until = 0.0;
+			}
+			bc_fire_at_will(b);
+		} else {
+			bot_ctx(b, &c, dt);
+			bt_tick(b->forest, b->tree, b->bt, &c);
+		}
 	}
 	e->stats.decisions++;
 }
@@ -1301,6 +1428,233 @@ static uint8_t remap_keys(uint8_t keys, bc_v3 from, bl_vec3 to, int aiming)
 	return k;
 }
 
+/* Somewhere else to go for a moment: a place it can walk straight to,
+ * away from `px, py` (what it was pushing at), dry if it can be. */
+static void pick_elsewhere(bc_bot *b, float px, float py)
+{
+	bc_engine *e = b->e;
+	const bl_player *me = bc_me(b);
+	float best = -1e30f;
+	int k, z0 = (int)floorf(me->pos.z + 2.75f), found = 0;
+	bc_nav_node n;
+
+	if (bc_nav_snap(e->map, (int)floorf(me->pos.x), (int)floorf(me->pos.y), z0, 1, &n))
+		z0 = n.z;
+	for (k = 0; k < 12; k++) {
+		float a = (float)k * (6.2831853f / 12.0f), cx = cosf(a), cy = sinf(a), sc;
+		int z = z0, i, lx = -1, ly = -1, lz = 0, dry = 0;
+
+		for (i = 1; i <= 10; i++) {
+			int x = (int)floorf(me->pos.x + cx * (float)i), y = (int)floorf(me->pos.y + cy * (float)i), fz;
+
+			if (x < 1 || y < 1 || x > BC_MAP_X - 2 || y > BC_MAP_Y - 2)
+				break;
+			if (bc_map_is_water(e->map, x, y)) {
+				if (z < BC_MAP_WATER_Z - 1) break;      /* a drop into the sea */
+				fz = BC_MAP_WATER_Z;
+			} else if ((fz = bc_floor_near(e->map, x, y, z)) < 0) {
+				break;
+			}
+			z = fz;
+			if (i >= 5) { lx = x; ly = y; lz = z; dry = fz != BC_MAP_WATER_Z; }
+		}
+		if (lx < 0)
+			continue;
+		sc = -4.0f * (cx * px + cy * py) + (dry ? 3.0f : 0.0f) + bc_frand(b);
+		if (sc > best) {
+			best = sc;
+			b->elsewhere.goal.x = (float)lx + 0.5f;
+			b->elsewhere.goal.y = (float)ly + 0.5f;
+			b->elsewhere.goal.z = (float)lz - 2.25f;
+			found = 1;
+		}
+	}
+	b->elsewhere.free = (uint8_t)!found;
+	b->elsewhere.mx = -px;
+	b->elsewhere.my = -py;
+	b->elsewhere.until = e->now + (found ? 4.0 : 1.5);
+}
+
+/* OUT (see the top of the file): the goal is dropped, the tree decides again. */
+static void stuck_out(bc_engine *e, bc_bot *b, const bc_body *body, const char *why)
+{
+	const bl_player *me = bc_me(b);
+	bc_mover *mv = &b->mv;
+	float px = me->ori.x, py = me->ori.y, l;
+	int team = me->team;
+
+	e->stats.stuck_resets++;
+	b->stuck_outs++;
+	if (e->now - b->stuck_said_at > 60.0 || b->stuck_said_at == 0.0) {
+		char d[200];
+
+		b->stuck_said_at = e->now;
+		bc_engine_describe(e, b->pid, d, sizeof d);
+		bc_engine_log(e, 1, "bot #%d stuck at %.0f,%.0f,%.0f (%s) doing %s", b->pid, (double)me->pos.x,
+		              (double)me->pos.y, (double)me->pos.z, why, d);
+	}
+	if (mv->goal_set && b->wish.move == BC_MOVE_GOTO) {
+		bc_nav_node from, to;
+		int kind;
+
+		px = (float)mv->goal.x + 0.5f - me->pos.x;
+		py = (float)mv->goal.y + 0.5f - me->pos.y;
+		if (mv->has_route && bc_nav_follow_failed(&mv->follow, &mv->route, &from, &to, &kind))
+			bc_nav_fail_note(&e->fail, from, to, kind, e->now, 30.0);
+		if (!bc_nav_node_of_body(e->map, body, &from)) {
+			from.x = (int16_t)floorf(me->pos.x); from.y = (int16_t)floorf(me->pos.y);
+			from.z = (int16_t)floorf(me->pos.z + 2.75f);
+		}
+		bc_unreach_note(b, from, mv->goal);
+		mv->has_route = 0;
+		mv->state = BC_MV_FAILED;
+		mv->retry_at = e->now + 20.0;
+		mv->gave[mv->gave_n & 3] = mv->goal;
+		mv->gave_until[mv->gave_n & 3] = mv->retry_at;
+		mv->gave_n++;
+		bc_engine_search_release(e, b);
+	}
+	if (team >= 1 && team <= 2) {
+		/* a bad place: the team's plans shy from it for a while */
+		int i, old = 0;
+
+		for (i = 1; i < BC_DANGER_MAX; i++)
+			if (e->danger_at[team - 1][i] < e->danger_at[team - 1][old]) old = i;
+		e->danger[team - 1][old].x = me->pos.x;
+		e->danger[team - 1][old].y = me->pos.y;
+		e->danger[team - 1][old].radius = 5.0f;
+		e->danger[team - 1][old].weight = 4.0f;
+		e->danger_at[team - 1][old] = e->now;
+	}
+	l = sqrtf(px * px + py * py);
+	if (l < 1e-3f) { px = 1.0f; py = 0.0f; l = 1.0f; }
+	pick_elsewhere(b, px / l, py / l);
+	b->jolt = 1;
+	b->roam.valid = 0;
+	b->cover.valid = 0;
+	b->cq.state = 0;
+	b->seek.fails++;
+	b->unstick.run = 0;
+	b->unstick.push = 0.0;
+	b->unstick.until = 0.0;
+	b->area.acc = 0.0;
+	b->area.from = me->pos;
+}
+
+/* THE NET UNDER EVERYTHING (see the top of the file). May change the keys. */
+static void watchdog(bc_engine *e, bc_bot *b, const bc_body *body, int nav, const bc_nav_cmd *cmd, uint8_t *keys)
+{
+	const bl_player *me = bc_me(b);
+	float dt = e->world_dt_last;
+	int editing = nav && cmd->edit != BC_NAV_EDIT_NONE, building = 0;
+	int pushing = (*keys & 15) != 0 && !editing;
+	float dx = me->pos.x - b->anchor.x, dy = me->pos.y - b->anchor.y, dz = me->pos.z - b->anchor.z;
+
+	if (nav && cmd->step >= 0 && cmd->step < b->mv.route.n) {
+		int kind = b->mv.route.steps[cmd->step].kind;
+
+		building = editing || kind == BC_NAV_DIG || kind == BC_NAV_BUILD || kind == BC_NAV_PILLAR;
+	}
+
+	/* --- pushing */
+	if (dx * dx + dy * dy + dz * dz > 1.0f) {
+		b->anchor = me->pos;
+		b->anchor_at = e->now;
+		b->unstick.push = 0.0;
+	}
+	if (pushing) {
+		b->unstick.push += (double)dt;
+		b->unstick.idle = 0.0;
+	} else {
+		b->unstick.idle += (double)dt;
+		if (b->unstick.idle > 1.0 || editing)
+			b->unstick.push = 0.0;
+	}
+	if (b->unstick.run) {
+		float ex = me->pos.x - b->unstick.place.x, ey = me->pos.y - b->unstick.place.y;
+
+		if (ex * ex + ey * ey > 3.0f * 3.0f || e->now - b->unstick.fired_at > 8.0)
+			b->unstick.run = 0;         /* it got away */
+	}
+	if (b->unstick.push > 1.5) {
+		b->unstick.push = 0.0;
+		b->unstick.fired_at = e->now;
+		if (b->unstick.run == 0)
+			b->unstick.place = me->pos;
+		b->unstick.run++;
+		b->stuck++;
+		e->stats.stuck++;
+		if (b->unstick.run >= 3) {
+			stuck_out(e, b, body, "pushing");
+			*keys = 0;
+			return;
+		}
+		e->stats.stuck_tries++;
+		b->unstick.mode = b->unstick.run;
+		b->unstick.keys0 = (uint8_t)(*keys & 15);
+		b->unstick.until = e->now + (b->unstick.run == 1 ? 0.3 : 1.0);
+		b->fight.strafe_dir = -b->fight.strafe_dir;
+		b->fight.strafe_until = e->now + 0.8;
+		if (b->unstick.run >= 2 && (b->mv.state == BC_MV_FOLLOWING || b->mv.has_route)) {
+			bc_nav_node from, to;
+			int kind;
+
+			/* the move it was on did not work: the next plan pays for it */
+			if (b->mv.has_route && bc_nav_follow_failed(&b->mv.follow, &b->mv.route, &from, &to, &kind))
+				bc_nav_fail_note(&e->fail, from, to, kind, e->now, 30.0);
+			b->mv.has_route = 0;
+			b->mv.state = BC_MV_PLANNING;
+			b->mv.plan_since = e->now;
+			b->mv.braking = 0;
+			b->mv.again = 1;
+		}
+		bc_engine_log(e, 0, "bot #%d: held at %.1f %.1f %.1f with keys down, try %d",
+		              b->pid, (double)me->pos.x, (double)me->pos.y, (double)me->pos.z, b->unstick.run);
+	}
+
+	/* --- going nowhere on a route */
+	dx = me->pos.x - b->area.from.x; dy = me->pos.y - b->area.from.y;
+	if (dx * dx + dy * dy > 4.0f * 4.0f || !nav || building || b->wish.move != BC_MOVE_GOTO) {
+		if (dx * dx + dy * dy > 4.0f * 4.0f || building)
+			b->area.from = me->pos;
+		if (dx * dx + dy * dy > 4.0f * 4.0f || building || b->wish.move != BC_MOVE_GOTO)
+			b->area.acc = 0.0;
+	} else if (pushing) {
+		b->area.acc += (double)dt;
+		if (b->area.acc > 8.0) {
+			stuck_out(e, b, body, "going nowhere");
+			*keys = 0;
+			return;
+		}
+	}
+
+	/* --- what is being tried */
+	if (e->now < b->unstick.until && !body->airborne) {
+		uint8_t k = *keys, mv = (uint8_t)(k & 15), rest = (uint8_t)(k & (BL_K_CROUCH | BL_K_SNEAK));
+
+		if (!mv) mv = b->unstick.keys0;     /* between two routes: what it was pressing */
+		if (b->unstick.mode == 1) {
+			*keys = (uint8_t)(mv | rest | BL_K_JUMP);
+		} else if (b->unstick.until - e->now > 0.55) {
+			/* a step back from it */
+			uint8_t back = 0;
+
+			if (mv & BL_K_FORWARD) back |= BL_K_BACK;
+			if (mv & BL_K_BACK) back |= BL_K_FORWARD;
+			if (mv & BL_K_LEFT) back |= BL_K_RIGHT;
+			if (mv & BL_K_RIGHT) back |= BL_K_LEFT;
+			*keys = (uint8_t)(back | rest);
+		} else {
+			/* and at it again from the side, with a jump */
+			uint8_t side = b->flank_side > 0 ? BL_K_RIGHT : BL_K_LEFT;
+
+			*keys = (uint8_t)((mv & (BL_K_FORWARD | BL_K_BACK)) | side | rest);
+			if (b->unstick.until - e->now > 0.45)
+				*keys |= BL_K_JUMP;
+		}
+	}
+}
+
 static void act(bc_engine *e, bc_bot *b, float dt)
 {
 	const bl_player *me = bc_me(b);
@@ -1311,7 +1665,7 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 	bc_aim_v3 eye, cur;
 	bl_vec3 ori, look_at = b->wish.look_at;
 	uint8_t keys = 0, mouse = 0, flags = BL_I_VALID, tool = b->wish.tool;
-	int nav, precise = 0, look = b->wish.look, look_pid = b->wish.look_pid, on_target = 0;
+	int nav, precise = 0, flying = 0, look = b->wish.look, look_pid = b->wish.look_pid, on_target = 0;
 	float dist = 1e9f, dx, dy, dz;
 
 	memset(&out, 0, sizeof out);
@@ -1324,6 +1678,10 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 
 		precise = cmd.edit != BC_NAV_EDIT_NONE ||
 		          !(kind == BC_NAV_WALK || kind == BC_NAV_SPRINT || kind == BC_NAV_CROUCH);
+		/* off the ground on a jump or a drop the keys hardly steer the
+		 * body: the head may stay on a man (below) */
+		flying = cmd.edit == BC_NAV_EDIT_NONE && body.airborne &&
+		         (kind == BC_NAV_JUMP || kind == BC_NAV_RUNJUMP || kind == BC_NAV_DROP);
 	}
 
 	/* --- an item's aim, kept on its man for the time it asked */
@@ -1342,6 +1700,17 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 	}
 	if (look == BC_LOOK_TARGET && (look_pid < 0 || e->w.players[look_pid].state != BL_ALIVE))
 		look = BC_LOOK_AHEAD;
+	/* a man in its sights while it is in the air: it keeps aiming at him,
+	 * and may fire (it used to look where it jumped and start over on
+	 * landing) */
+	if (precise && flying && look == BC_LOOK_TARGET)
+		precise = 0;
+	/* travelling with nothing to aim at: the head is its own (skill_look.c) */
+	b->gaze.free = 0;
+	if (nav && !precise && look == BC_LOOK_AHEAD && !e->gaze_off && bc_look_travel(b, &cmd, &look_at)) {
+		look = BC_LOOK_POINT;
+		b->gaze.free = 1;
+	}
 
 	/* --- the head */
 	eye.x = me->pos.x; eye.y = me->pos.y; eye.z = me->pos.z;
@@ -1431,31 +1800,7 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 	if (e->w.night && b->lamp != BC_LAMP_OFF)
 		flags |= BL_I_LAMP;         /* never by day; and never unless a tree lit it */
 
-	/* --- held in one place with keys down? (the follower has its own
-	 * contract; this is the net under everything else) */
-	dx = me->pos.x - b->anchor.x; dy = me->pos.y - b->anchor.y; dz = me->pos.z - b->anchor.z;
-	if (dx * dx + dy * dy + dz * dz > 0.75f * 0.75f || !(keys & 15) ||
-	    (nav && cmd.edit != BC_NAV_EDIT_NONE)) {
-		b->anchor = me->pos;
-		b->anchor_at = e->now;
-	} else if (e->now - b->anchor_at > 2.5) {
-		b->stuck++;
-		e->stats.stuck++;
-		b->anchor_at = e->now;
-		b->roam.valid = 0;
-		b->cover.valid = 0;
-		b->fight.strafe_dir = -b->fight.strafe_dir;
-		b->fight.strafe_until = e->now + 0.8;
-		if (b->mv.state == BC_MV_FOLLOWING || b->mv.has_route) {
-			b->mv.has_route = 0;
-			b->mv.state = BC_MV_PLANNING;
-			b->mv.plan_since = e->now;
-			b->mv.braking = 1;
-			b->mv.again = 1;
-		}
-		bc_engine_log(e, 0, "bot #%d: held at %.1f %.1f %.1f with keys down, letting go",
-		              b->pid, (double)me->pos.x, (double)me->pos.y, (double)me->pos.z);
-	}
+	watchdog(e, b, &body, nav, &cmd, &keys);
 
 	b->out.life = me->life;
 	b->out.keys = keys;
@@ -1490,6 +1835,7 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 	memcpy(&e->w, world, sizeof e->w);
 	e->last_tick = world->tick;
 	e->have_world = 1;
+	bc_objective_world(e);
 	e->budget_left = budget > 0 ? budget : 0;
 	dtw = e->world_dt > 0.25f ? 0.25f : e->world_dt;
 	e->world_dt = 0.0f;
@@ -1530,8 +1876,11 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 	}
 
 	/* PLAN */
-	if (e->have_map)
+	e->world_dt_last = dtw;
+	if (e->have_map) {
 		bc_movers_plan(e);
+		bc_tactics_think(e);
+	}
 
 	/* ACT */
 	for (i = 0; i < e->max_bots; i++) {

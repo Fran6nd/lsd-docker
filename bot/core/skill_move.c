@@ -139,6 +139,26 @@ int bc_move_to(bc_bot *b, bl_vec3 pos, float radius)
 				return BC_MV_FAILED;
 			}
 
+		{
+			/* a goal the team found no way to from about here: not planned again */
+			const bl_player *me = bc_me(b);
+			bc_nav_node from;
+			double until;
+
+			from.x = (int16_t)floorf(me->pos.x); from.y = (int16_t)floorf(me->pos.y);
+			from.z = (int16_t)floorf(me->pos.z + 2.75f);
+			until = bc_unreach_until(b, from, n);
+			if (until > e->now) {
+				bc_engine_search_release(e, b);
+				mv->goal = n;
+				mv->radius = (int16_t)r;
+				mv->goal_set = 1;
+				mv->has_route = 0;
+				mv->state = BC_MV_FAILED;
+				mv->retry_at = until;
+				return BC_MV_FAILED;
+			}
+		}
 		bc_engine_search_release(e, b);
 		if (!near)
 			mv->has_route = 0;
@@ -152,6 +172,19 @@ int bc_move_to(bc_bot *b, bl_vec3 pos, float radius)
 		mv->again = 0;
 	}
 	return mv->state;
+}
+
+void bc_move_replan(bc_bot *b)
+{
+	bc_mover *mv = &b->mv;
+
+	if (!mv->goal_set || mv->state != BC_MV_FOLLOWING)
+		return;
+	bc_engine_search_release(b->e, b);
+	mv->state = BC_MV_PLANNING;     /* has_route stays: it walks on meanwhile */
+	mv->plan_since = b->e->now;
+	mv->again = 1;
+	mv->braking = 0;
 }
 
 /* --- PLAN -------------------------------------------------------------- */
@@ -173,7 +206,12 @@ static void fill_policy(bc_bot *b)
 		dig = build = 0;
 	p->may_dig = (uint8_t)dig;
 	p->may_build = (uint8_t)build;
-	p->water_lethal = e->water_lethal;
+	/* water that hurts: nav prices it by the second, lets a body already
+	 * in it out by the nearest bank, and never enters it when lethal */
+	p->water_damage = e->water_damage;
+	if (me->hp > 0 && me->hp < 100)
+		p->water_damage = e->water_damage * 100.0f / (float)me->hp;     /* a hurt bot is more careful of it */
+	p->water_lethal = (uint8_t)(e->water_damage >= 30.0f || (e->water_lethal && !(e->water_damage > 0.0f)));
 	p->blocks = (uint8_t)(me->blocks < e->spend ? me->blocks : e->spend);
 	/* aosbot's cadences (Dig.cpp), never under the server's */
 	p->dig_secs = 0.70f - 0.40f * lv->dig;
@@ -187,6 +225,10 @@ static void fill_policy(bc_bot *b)
 		for (i = 0; i < BC_DANGER_MAX; i++)
 			if (e->now - e->danger_at[team - 1][i] < 35.0)   /* aosbot: 35 s */
 				b->mv.danger[n++] = e->danger[team - 1][i];
+	if (b->flank.avoid_on)
+		b->mv.danger[n++] = b->flank.avoid;     /* a flank: not through the middle */
+	for (i = 0; i < b->carry.n && i < BC_AVOID_MAX; i++)
+		b->mv.danger[n++] = b->carry.avoid[i];  /* a carrier: not past those men */
 	p->danger = b->mv.danger;
 	p->ndanger = n;
 }
@@ -211,6 +253,7 @@ static void plan_done(bc_bot *b, int st)
 			mv->state = BC_MV_FAILED;
 			mv->has_route = 0;
 			mv->retry_at = e->now + UNREACHABLE_SECS;
+			bc_unreach_note(b, mv->plan_from, mv->goal);    /* the team need not find it out again */
 			return;
 		}
 		mv->partial_tries++;
@@ -277,6 +320,7 @@ void bc_movers_plan(bc_engine *e)
 			continue;
 		}
 		e->search_owner[s] = order[i];
+		mv->plan_from = cur;
 		mv->search = (int8_t)s;
 		mv->plan_rev = e->map->rev;
 		mv->expansions = 0;
@@ -454,6 +498,12 @@ int bc_mover_act(bc_bot *b, const bc_body *body, bc_nav_cmd *cmd)
 		mv->gave[mv->gave_n & 3] = mv->goal;
 		mv->gave_until[mv->gave_n & 3] = mv->retry_at;
 		mv->gave_n++;
+		{
+			bc_nav_node from;
+
+			if (bc_nav_node_of_body(e->map, body, &from))
+				bc_unreach_note(b, from, mv->goal);
+		}
 		bc_engine_search_release(e, b);
 		bc_engine_log(e, 0, "bot #%d: gave up on %d %d %d", b->pid, mv->goal.x, mv->goal.y, mv->goal.z);
 		return 0;
@@ -558,56 +608,67 @@ int bc_roam_goal(bc_bot *b, bl_vec3 *out)
 {
 	bc_engine *e = b->e;
 	const bl_player *me = bc_me(b);
-	int team = me->team, other = team == 1 ? 2 : 1, tries, have = 0;
-	bl_vec3 base = me->pos;
+	int team = me->team, other = team == 1 ? 2 : 1, tries, found = 0, own = 0;
+	bl_vec3 base = me->pos, home = me->pos;
+	float best = -1e30f, spread = 60.0f;
 
 	if (!e->have_map)
 		return 0;
 	if (team >= 1 && team <= 2) {
 		if (e->now - e->hot_at[team - 1] < 60.0) {
 			base = e->hot[team - 1];
-			have = 1;
-		} else if (e->w.tent[other - 1].present) {
-			base = e->w.tent[other - 1].pos;
-			have = 1;
+			spread = 24.0f;
+		} else if (e->w.tent[other - 1].present && e->w.tent[team - 1].present) {
+			/* the ground between the two bases: where the other team will be met */
+			base.x = 0.5f * (e->w.tent[0].pos.x + e->w.tent[1].pos.x);
+			base.y = 0.5f * (e->w.tent[0].pos.y + e->w.tent[1].pos.y);
+			spread = 45.0f;
+		}
+		if (e->w.tent[team - 1].present) {
+			home = e->w.tent[team - 1].pos;
+			own = 1;
 		}
 	}
-	if (have) {
-		float dx = base.x - me->pos.x, dy = base.y - me->pos.y;
-
-		if (dx * dx + dy * dy < 14.0f * 14.0f)
-			have = 0;       /* already there, and nobody: look elsewhere */
-	}
+	/* of eight places, the one the team has been to least lately -- not
+	 * the one nearest its own base (bots used to wander round their tent) */
 	for (tries = 0; tries < 8; tries++) {
-		float spread = have ? 18.0f : 45.0f, x, y;
-		bc_nav_node n;
+		float x, y, age, sc, hx, hy;
+		bc_nav_node n, from;
+		int vx, vy;
 
 		x = base.x + bc_rng_range(&b->rng, -spread, spread);
 		y = base.y + bc_rng_range(&b->rng, -spread, spread);
-		if (have) {
-			/* a flanker comes at the place from the side */
-			float dx = base.x - me->pos.x, dy = base.y - me->pos.y;
-			float l = sqrtf(dx * dx + dy * dy), w = (b->persona.trait[BC_T_FLANK] - 1.0f) * 24.0f;
-
-			if (l > 30.0f && w > 0.0f) {
-				x += -dy / l * w * (float)b->flank_side;
-				y += dx / l * w * (float)b->flank_side;
-			}
-		}
 		if (x < 2.0f) x = 2.0f;
 		if (x > 509.0f) x = 509.0f;
 		if (y < 2.0f) y = 2.0f;
 		if (y > 509.0f) y = 509.0f;
 		/* the floor nearest the bot's own level: the topmost one sent
 		 * aosbot's bots to the rooftops */
-		if (!bc_nav_snap(e->map, (int)x, (int)y, (int)floorf(me->pos.z + 2.75f), 4, &n))
+		if (!bc_nav_snap_dry(e->map, (int)x, (int)y, (int)floorf(me->pos.z + 2.75f), 48, &n))
+			continue;       /* nothing but sea */
+		from.x = (int16_t)floorf(me->pos.x); from.y = (int16_t)floorf(me->pos.y);
+		from.z = (int16_t)floorf(me->pos.z + 2.75f);
+		if (bc_unreach_until(b, from, n) > e->now)
+			continue;       /* no way there, the team knows */
+		hx = (float)n.x - me->pos.x; hy = (float)n.y - me->pos.y;
+		if (hx * hx + hy * hy < 12.0f * 12.0f)
 			continue;
-		if (bc_map_is_water(e->map, n.x, n.y))
-			continue;       /* the sea */
-		out->x = (float)n.x + 0.5f;
-		out->y = (float)n.y + 0.5f;
-		out->z = (float)n.z - 2.25f;
-		return 1;
+		vx = n.x / (BC_MAP_X / BC_VISIT_N); vy = n.y / (BC_MAP_Y / BC_VISIT_N);
+		age = team >= 1 && team <= 2 && e->visit[team - 1][vy * BC_VISIT_N + vx] > 0.0f
+		      ? (float)e->now + 1.0f - e->visit[team - 1][vy * BC_VISIT_N + vx] : 120.0f;
+		sc = (age > 120.0f ? 120.0f : age) / 40.0f + bc_frand(b);
+		if (own) {
+			hx = (float)n.x - home.x; hy = (float)n.y - home.y;
+			if (hx * hx + hy * hy < 40.0f * 40.0f)
+				sc -= 2.0f;
+		}
+		if (sc > best) {
+			best = sc;
+			out->x = (float)n.x + 0.5f;
+			out->y = (float)n.y + 0.5f;
+			out->z = (float)n.z - 2.25f;
+			found = 1;
+		}
 	}
-	return 0;
+	return found;
 }

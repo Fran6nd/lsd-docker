@@ -67,6 +67,11 @@
  * by up to 40 degrees at level 1 and 4 at level 10 -- the error is on the
  * BEARING, so a poor bot turns to the wrong doorway and stays there.
  *
+ * BEING SHOT AT (new) is wider than being hurt: a round passing within
+ * 2.5 voxels, a shot going off within 6, a team-mate killed within 12.
+ * It gives the same kind of place as a hit, less surely (bc_senses_shot_at),
+ * and is what `under_fire` reads: the reason to duck, find cover, fall back.
+ *
  * ALERTNESS, what the three above add up to:
  *    CALM         nothing known
  *    SUSPICIOUS   heard something, was hurt, or lost somebody: there is
@@ -147,6 +152,10 @@ typedef struct bc_senses {
 	bc_place lost;          /* where the last man to leave sight was heading */
 	double last_sight;      /* when anybody was last in sight */
 	double hurt_at;
+	double shot_at;         /* last shot at: hurt by somebody, a round that
+	                           passed close, a team-mate killed nearby */
+	double fire_since;      /* when this burst of fire began (4 s of quiet
+	                           end one) */
 	double spotted_new_at;  /* saw somebody the team's board did not know */
 	uint8_t alert;          /* bc_alert */
 	uint8_t pad_[7];
@@ -214,6 +223,20 @@ int bc_senses_hear(bc_senses *s, const bc_sense_cfg *c, const bl_world *w, int s
  * nothing. */
 void bc_senses_hurt(bc_senses *s, bc_rng *rng, const bl_world *w, int self, int level,
                     bl_vec3 from, int by, double now);
+
+/* BEING SHOT AT is more than being hurt: a round that passes close and
+ * a team-mate dropping beside it tell a bot the same thing. `kind` 0 a
+ * hit (bc_senses_hurt calls this itself), 1 a near miss, 2 a mate killed
+ * nearby. `from` is where the server says it came from; what the bot
+ * takes it for has the hit's bearing error, half as much again for a
+ * near miss or a dead mate (nothing was felt). It does not replace a
+ * hit's own place within a second of it. */
+void bc_senses_shot_at(bc_senses *s, bc_rng *rng, const bl_world *w, int self, int level,
+                       bl_vec3 from, int by, int kind, double now);
+
+/* Did a round fired by `by` (his place and facing as the world has them)
+ * pass within `miss` voxels of `self`, or go off within 6 of it? */
+int bc_senses_near_miss(const bl_world *w, int self, int by, float miss);
 
 /* How far a noise of this kind carries to a bot of this level. */
 float bc_hear_range(int kind, int level);

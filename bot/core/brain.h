@@ -49,8 +49,17 @@ enum {
 	BC_GRENADES_MAX = 16,
 	BC_DANGER_MAX = 4,
 	BC_SEARCH_MAX = 4,
-	BC_CHANGE_CELLS = 2048
+	BC_CHANGE_CELLS = 2048,
+	BC_UNREACH_MAX = 16,        /* a team's memory of goals with no way to them */
+	BC_PERCH_MAX = 16,          /* a team's vantage points on this map */
+	BC_COVER_R = 14,            /* the cover search's reach, columns */
+	BC_COVER_W = 2 * BC_COVER_R + 1,
+	BC_COVER_QUEUE = 660,
+	BC_VISIT_N = 32,            /* the visit grid: 32 x 32 cells of 16 columns */
+	BC_AVOID_MAX = 3            /* enemies a carrier's route keeps away from */
 };
+
+enum { BC_COVER_HIDE = 0, BC_COVER_ADVANCE, BC_COVER_BACK };
 
 enum { BC_MOVE_NONE = 0, BC_MOVE_GOTO, BC_MOVE_FREE };
 enum { BC_LOOK_AHEAD = 0, BC_LOOK_POINT, BC_LOOK_TARGET };
@@ -87,6 +96,7 @@ typedef struct bc_mover {
 	bc_nav_node gave[4];    /* goals the follower gave up on, lately */
 	double gave_until[4];
 	bc_nav_node goal;
+	bc_nav_node plan_from;  /* where the plan in hand started */
 	int16_t radius;
 	double plan_since;      /* when it began to wait for a route */
 	double retry_at;        /* a failed goal is not searched again before */
@@ -100,7 +110,7 @@ typedef struct bc_mover {
 	uint8_t pad_[3];
 	bc_nav_cmd cmd;
 	bc_nav_policy pol;
-	bc_nav_danger danger[BC_DANGER_MAX];
+	bc_nav_danger danger[BC_DANGER_MAX + 1 + BC_AVOID_MAX];    /* the team's, a flank's, the men a carrier avoids */
 	bc_nav_follow follow;
 	bc_nav_route route;
 } bc_mover;
@@ -118,6 +128,36 @@ typedef struct bc_fight {
 	double chase_at;
 	double sprint_was;
 } bc_fight;
+
+/* The head while travelling with nothing to aim at (skill_look.c). */
+typedef struct bc_gaze {
+	double next_at;         /* the next glance is due */
+	double until;           /* the glance in hand ends; 0: none */
+	bl_vec3 at;             /* what it looks at */
+	uint8_t kind;           /* 1 a place worth a look, 2 an opening beside, 3 over a shoulder */
+	uint8_t free;           /* the head was its own on the last act */
+	uint8_t was_alert, pad_;
+	uint32_t glances;
+} bc_gaze;
+
+/* One search for cover (skill_cover.c): a flood over the floor a body
+ * can walk, outward from where the bot stands, a few cells a decision. */
+typedef struct bc_cover_q {
+	uint8_t state;          /* 0 none, 1 searching, 2 done */
+	uint8_t found, crouch, mode;
+	uint8_t best_d, has_toward;
+	int16_t radius;
+	bl_vec3 threat, toward, me;
+	float me_td, me_dd;     /* the bot's distance to the threat, to `toward` */
+	bc_nav_node origin;
+	uint16_t head, tail;
+	float best_score;
+	bl_vec3 best;           /* the eye of a body standing in the cell found */
+	double at;              /* when it was done */
+	uint32_t cells;         /* examined, for the numbers */
+	uint8_t q[BC_COVER_QUEUE][4];       /* dx + R, dy + R, z, steps */
+	uint64_t seen[(BC_COVER_W * BC_COVER_W + 63) / 64];
+} bc_cover_q;
 
 /* What a bot holds of one item: the server says (item.<name>=<count>). */
 typedef struct bc_item {
@@ -182,12 +222,32 @@ typedef struct bc_bot {
 	struct { uint8_t phase, what, looks; double until; bl_vec3 place; float base_yaw; } inv;
 	struct { uint8_t valid; bl_vec3 goal; double until; } roam;
 	struct { uint8_t valid; bl_vec3 goal; double until, since; } cover;
-	struct { int leader; double pick_at; } follow;
+	struct { int leader; double pick_at, still_since, cd_until; } follow;
 	struct { uint8_t started; double until; bl_vec3 place; } hold;
 	struct { double until; int pid; bl_vec3 at; } guide;   /* an item's aim, kept */
 	struct { uint8_t phase; bl_vec3 vel; float fuse; double release_at, give_up_at, cd_until; } nade;
 	struct { double cd_until; uint32_t taken; bl_vec3 pos; uint8_t kind, by; double until; } ping;
 	struct { double until; bl_vec3 from; } evade;
+	/* looking, cover, and what a bot does with nothing known (skill_look.c,
+	 * skill_cover.c, skill_tactics.c) */
+	bc_gaze gaze;
+	bc_cover_q cq;
+	struct { uint8_t phase, crouch, tries, peeking, has_peek, pad_[3];
+	         double until, peek_at, peek_until, seen_since, go_since; bl_vec3 goal, peek; } tc;
+	struct { uint8_t phase, crouch, bounds, mode; double until, since, quiet_since; bl_vec3 goal, dest; } bd;
+	struct { double until, flinched_for; } cr;
+	struct { uint8_t phase, tries, n, pad_; int8_t side; double cd_until, leg_since;
+	         bl_vec3 w[3]; bc_nav_danger avoid; uint8_t avoid_on; } flank;
+	struct { uint8_t phase, pad_[7]; bl_vec3 place, done_pos; double done_until, cd_until; } hunt;
+	struct { int8_t perch, avoid; uint8_t camping, pad_; uint32_t kills0;
+	         double cd_until, since, patience_until; } camp;
+	struct { uint8_t leg, fails, pad_[6]; double leg_since, roam_until; } seek;
+	/* the objects of the game (skill_objective.c) */
+	struct { uint8_t n, pad_[7]; bc_nav_danger avoid[BC_AVOID_MAX]; double plan_at; } carry;
+	struct { uint8_t started, pad_[7]; double until; bl_vec3 spot, place; } guard;
+	struct { double stand_since; } fetch;
+	uint32_t kills;         /* this life's */
+	uint8_t following;      /* the follow skill ran at the last decision */
 	bc_order order;
 	uint8_t lamp;           /* BC_LAMP_* */
 	uint8_t night_vision;   /* the setting night_vision, this bot's */
@@ -195,10 +255,17 @@ typedef struct bc_bot {
 	bc_item items[BC_ITEMS_MAX];
 	double use_at;
 
-	/* being stuck: the last place it really moved from */
+	/* being stuck (engine.c, THE NET UNDER EVERYTHING): the last place it
+	 * really moved from, how long it has pushed there, what is being tried */
 	bl_vec3 anchor;
 	double anchor_at, unstick_until;
 	uint32_t stuck;         /* times the watchdog had to act */
+	struct { double push, idle, until, fired_at; uint8_t run, mode, keys0, pad_[5]; bl_vec3 place; } unstick;
+	struct { bl_vec3 from; double acc; } area;  /* on a route and not leaving a small place */
+	struct { double until; bl_vec3 goal; float mx, my; uint8_t free, pad_[3]; } elsewhere;
+	double stuck_said_at;
+	uint32_t stuck_outs;    /* times a goal was dropped for it */
+	struct { uint8_t tries, pad_[7]; bl_vec3 goal; double until; bl_vec3 bad[4]; } dry;
 
 	bl_intent out;          /* the last intent written */
 	uint8_t keys_prev;      /* for the keys' hysteresis */
@@ -216,11 +283,51 @@ typedef struct bc_nade {
 	uint8_t team, valid, pad_[6];
 } bc_nade;
 
+/* One of the two objects a team may carry off (bl_world.intel): what the
+ * engine makes of what the world shows of it. */
+enum { BC_OBJ_HOME = 0, BC_OBJ_CARRIED, BC_OBJ_DROPPED };
+typedef struct bc_objstate {
+	uint8_t state, holder, pad_[6];
+	bl_vec3 pos;
+	double since;
+	uint16_t score;         /* the carrier's team's, when he took it */
+} bc_objstate;
+
+/* A goal a team's bot found no way to, and from about where. */
+typedef struct bc_unreach {
+	bc_nav_node from, to;
+	double until;
+	uint8_t caps, pad_[7];  /* what its routes might do then: bit 0 dig, bit 1 build */
+} bc_unreach;
+
+/* A place to shoot from: notably higher than what is round it, with a
+ * long open view to where the enemy is expected, and a way up. */
+typedef struct bc_perch {
+	bc_nav_node n;
+	float score;
+	int16_t claim;          /* the pid that has it, or -1 */
+	uint8_t valid, pad_;
+	double claim_until, bad_until;
+} bc_perch;
+
+typedef struct bc_vantage {
+	bc_perch p[BC_PERCH_MAX];
+	bl_vec3 from, toward;   /* the team's side and the enemy's, when scanned */
+	int16_t x0, y0, x1, y1; /* the box scanned */
+	uint32_t k;             /* columns looked at so far */
+	uint32_t map_seq;
+	uint8_t started, done, pad_[6];
+	double done_at;
+} bc_vantage;
+
 typedef struct bc_engine_stats {
 	uint32_t thinks, decisions, plans, plan_fails, replans, stuck;
 	uint32_t expansions;        /* in all */
 	uint32_t last_expansions;   /* in the last think */
 	uint32_t pings, grenades, edits, uses;
+	uint32_t glances, cover_cells, covers, perch_columns, unreach_hits;
+	uint32_t stuck_tries;       /* the watchdog tried a jump, a step back, a sidestep */
+	uint32_t stuck_resets;      /* ... and dropped the goal: the tree decided again */
 } bc_engine_stats;
 
 struct bc_engine {
@@ -235,6 +342,8 @@ struct bc_engine {
 	uint32_t map_seq;
 	uint8_t cull_personality;
 	uint8_t may_dig, may_build, water_lethal;
+	float water_damage;         /* health a second lost wading (water.damage) */
+	uint8_t gaze_off;           /* gaze=0: heads follow the steering */
 	int spend;                  /* blocks a bot may spend on a route */
 
 	bc_nav_moves *moves;
@@ -257,6 +366,10 @@ struct bc_engine {
 	bl_vec3 hot[2];             /* where a team last met the other */
 	double hot_at[2];
 	bc_nade nades[BC_GRENADES_MAX];
+	bc_objstate obj[2];         /* [team - 1]: that team's own */
+	bc_unreach unreach[2][BC_UNREACH_MAX];
+	bc_vantage vantage[2];
+	float visit[2][BC_VISIT_N * BC_VISIT_N];    /* when a team's man was last in a cell; 0: never */
 
 	bc_itemdef idefs[BC_ITEMDEFS_MAX];
 	int nidefs;
@@ -272,6 +385,7 @@ struct bc_engine {
 
 	double now;
 	float world_dt;             /* thought time since the last new world */
+	float world_dt_last;        /* and what it came to for the world in hand */
 	bl_world w;                 /* the newest world, copied */
 	uint32_t last_tick;
 	int have_world;
@@ -316,6 +430,12 @@ int bc_find_cover(bc_bot *b, bl_vec3 threat, bl_vec3 *out);
 int bc_roam_goal(bc_bot *b, bl_vec3 *out);
 void bc_body_of(const bl_player *p, bc_body *body);
 
+/* a body is wading in water that hurts */
+int bc_in_harmful_water(const bc_bot *b);
+/* the floor a body can walk to in column (x, y) from a floor at z: within
+ * one voxel, not the sea. -1 if none. */
+int bc_floor_near(const bc_map *m, int x, int y, int z);
+
 /* --- skill_fight.c ----------------------------------------------------- */
 
 /* DECIDE, before the tree: whom this bot is fighting (fight.target). */
@@ -343,6 +463,60 @@ bc_item *bc_item_find(bc_bot *b, const char *name, int make);
 int bc_enemy_group(bc_bot *b, int n, float radius, bl_vec3 *out);
 int bc_mates_within(const bc_bot *b, bl_vec3 at, float radius);
 int bc_nearest_mate(const bc_bot *b, float *dist);
+
+/* --- skill_look.c ------------------------------------------------------ */
+
+/* ACT, on a plain stretch of route with nothing to aim at: where the head
+ * looks. 0 when the follower must keep it (see the file). */
+int bc_look_travel(bc_bot *b, const bc_nav_cmd *cmd, bl_vec3 *at);
+
+/* --- skill_cover.c ----------------------------------------------------- */
+
+/* Search for cover from `threat` (an eye), `budget` cells examined a
+ * call: 0 while it searches, 1 when done -- then b->cq.found says whether
+ * there is one, b->cq.best where, b->cq.crouch whether it only hides a
+ * crouched body. `toward` (or NULL) is where the bot is going: with
+ * BC_COVER_ADVANCE and BC_COVER_BACK only cover that brings it nearer
+ * counts. Asked again with the same things it goes on, or answers from
+ * what it found under a second ago. */
+int bc_cover_query(bc_bot *b, bl_vec3 threat, int mode, const bl_vec3 *toward, int radius, int budget);
+/* What this bot is hiding from or would: the man it fights, where a hit
+ * came from, the nearest enemy it knows of. 0 with none. */
+int bc_threat_place(bc_bot *b, bl_vec3 *out);
+/* Can an eye at `threat` see this bot's body as it stands? */
+int bc_exposed_to(const bc_bot *b, bl_vec3 threat);
+
+/* --- skill_tactics.c --------------------------------------------------- */
+
+/* PLAN: the vantage scans, a few columns a think. */
+void bc_tactics_think(bc_engine *e);
+void bc_tactics_map(bc_engine *e);          /* a new map: forget */
+void bc_tactics_bot_gone(bc_bot *b);        /* died or left: its claims go */
+void bc_unreach_note(bc_bot *b, bc_nav_node from, bc_nav_node to);
+double bc_unreach_until(bc_bot *b, bc_nav_node from, bc_nav_node to);
+/* where the enemy is expected: where the team last met him (under a
+ * minute ago), else his base. 0 with neither. */
+int bc_enemy_area(bc_bot *b, bl_vec3 *out);
+/* the best free perch for this bot, or -1; with `claim` it is taken */
+int bc_perch_pick(bc_bot *b, int claim);
+/* the freshest rumour of the enemy: a noise, a team-mate's sighting, the
+ * last meeting. Returns its freshness 0..1 (0: none). */
+float bc_rumour(bc_bot *b, bl_vec3 *out);
+int bc_flank_open(bc_bot *b);
+
+/* --- skill_objective.c ------------------------------------------------- */
+
+/* A new world: what became of the two objects. A change is news to
+ * everybody: every bot's tree is entered afresh. */
+void bc_objective_world(bc_engine *e);
+/* 0 home, 1 carried, 2 dropped, -1 none: `own` this bot's team's or the other's */
+int bc_obj_state(const bc_bot *b, int own);
+int bc_carrying(const bc_bot *b);
+/* "thief" (who carries this team's), "carrier" (the team-mate who carries
+ * the other's), "intercept" (where to cut the thief off) */
+int bc_objective_place(bc_bot *b, const char *name, bl_vec3 *out);
+/* ask for another route to the goal in hand, walking the old one meanwhile */
+void bc_move_replan(bc_bot *b);
 
 /* --- skill_grenade.c --------------------------------------------------- */
 

@@ -1,34 +1,94 @@
 # tdm.bt -- team deathmatch: find the other team and fight it.
 #
-# One weighed choice, made again every second and a half. What each option
-# is worth is its score (the situation, 0..1) x the bot's own weight for
-# the trait named x the factor: so a careful bot breaks off where a pusher
-# fights on, one bot answers a ping and another keeps hunting. Words:
-# core/vocab.h. An option's score must be 0 when its action cannot be done.
+# Words: core/vocab.h. Grammar: core/bt.h. How to read it:
+#   - The top `pick` is a PRIORITY LIST (trait `none`, factors far apart):
+#     it looks again every second, and at once when something happens (an
+#     enemy comes into sight, the first round of a burst lands).
+#   - Each `tree tdm_...` under it is a WEIGHED choice: an option is worth
+#     its score (the situation, 0..1) x the bot's own weight for the trait
+#     named x the factor x a little luck. So twelve bots with one tree do
+#     twelve things. An option's score must be 0 when it cannot be done.
+#   - With nothing else to do a bot goes to the ENEMY'S BASE (`seek`).
 
 tree tdm:
 select
-	pick every=1.5 sticky=0.3 noise=0.15
-		option none grenade_near x50          # a grenade at its feet: run
+	pick every=1 sticky=0.2 noise=0
+		option none grenade_near x100         # a grenade at its feet: run
 			do evade
-		option none has_order x20             # the server said so
+		option none harmful_water x60         # wading in water that hurts: out, first
+			do leave_water
+		option none has_order x30             # the server said so
 			do obey
-		option caution hurt_in_fight x1.4     # hurt: out of his sight -- the careful sooner
-			do retreat
-		option aggression enemy_visible       # the point of the game
-			do fight
-		option greed grenade_worth x0.8       # a group, a far man, one behind a wall
-			do throw_grenade
-		option teamwork ping_called x0.6      # a team-mate called
-			tree tdm_answer
-		option curiosity search x0.7          # a noise, a man lost, a hit, a told sighting
+		option none under_fire x10            # being shot at
+			tree tdm_under_fire
+		option none enemy_visible x5          # somebody in sight
+			tree tdm_contact
+		option curiosity search x2.5          # a noise, a man just lost, a hit: go and look
 			do investigate
-		option teamwork alone x0.35           # stay with the others, or not: by character
-			do follow mate
-		option none always x0.25              # nothing known: go and find them
-			do roam
+		option none always                    # nobody in sight, nothing heard
+			tree tdm_search
 	limit 1
-		do roam
+		do seek                               # the net: the enemy's base
+
+# Shot at (hurt, a round close by, a mate dropped beside it): down at
+# once, then one of these -- by caution, health, and the odds.
+tree tdm_under_fire:
+seq
+	do crouch                                 # the flinch, facing the shot
+	pick every=2.5 sticky=0.5 noise=0.2
+		option aggression enemy_visible       # fight back from where it stands
+			do fight
+		option caution under_fire x1.1        # to cover, and fight from it
+			do take_cover
+		option caution pressed x1.4           # hurt or outnumbered: back, from cover to cover
+			do fall_back_by_cover
+		option greed grenade_worth x0.6       # he is behind something: a grenade
+			do throw_grenade
+		option curiosity search x0.5          # did not see who: go and look, by cover
+			do advance_by_cover search
+		option none always x0.1               # nothing known of the shot: on with the game
+			do seek
+
+# An enemy in sight, and not (or no longer) under fire.
+tree tdm_contact:
+pick every=1.5 sticky=0.3 noise=0.15
+	option caution pressed x1.8               # hurt or outnumbered: break off
+		do fall_back_by_cover
+	option aggression enemy_visible           # fight him: close to its own range, strafe
+		do fight
+	option marksman standoff x1.1             # in reach and far enough: stand and shoot
+		do hold self 4
+	option caution enemy_far 70 x0.9          # far: close on him from cover to cover
+		do advance_by_cover enemy
+	option flank enemy_far 80 x0.6            # far: round him, the long way
+		do flank enemy
+	option greed grenade_worth x0.8           # a group, a far man, one behind a wall
+		do throw_grenade
+
+# Nobody in sight: every one of these heads for the enemy -- which, is
+# the bot's character, its gun and its luck. Chosen for a good while.
+tree tdm_search:
+pick every=25 sticky=1.5 noise=0.35
+	option teamwork ping_called x3            # a team-mate called
+		tree tdm_answer
+	option curiosity rumour x0.9              # gunfire somewhere, the team saw them there
+		do hunt_noise
+	option flank flank_open x0.7              # round to the enemy's base, from behind
+		do flank
+	option marksman vantage rifle x1.1        # a rifle goes high and waits
+		tree tdm_camp
+	option marksman vantage smg x0.6          # an smg sometimes; a shotgun never
+		tree tdm_camp
+	option teamwork mate_near 40 x0.5         # go with a team-mate
+		limit 20
+			do follow mate
+	option aggression always x0.7             # straight at the enemy's base
+		do seek
+
+tree tdm_camp:
+seq
+	do take_high_ground                       # claim a perch (two never take the same) and go up
+	do camp                                   # until two kills, shot at, or out of patience
 
 tree tdm_answer:
 select

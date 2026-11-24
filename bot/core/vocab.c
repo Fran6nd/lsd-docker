@@ -589,6 +589,124 @@ static float s_hit_in_dark(void *bot, const bt_args *a)
 	return b->e->w.night && !b->night_vision && b->e->now - b->senses.hurt_at < 8.0 ? 1.0f : 0.0f;
 }
 
+
+static int gun_named(const bc_bot *b, const bt_args *a, int dflt)
+{
+	static const char *const names[3] = { "rifle", "smg", "shotgun" };
+	int gun = bc_me(b)->gun, i;
+
+	if (!a || a->count == 0)
+		return dflt;
+	for (i = 0; i < a->count; i++)
+		if (gun <= 2 && !strcmp(a->text[i], names[gun]))
+			return 1;
+	return 0;
+}
+
+static float fire_fresh(const bc_bot *b, float secs)
+{
+	float v = 1.0f - (float)(b->e->now - b->senses.shot_at) / secs;
+
+	return v < 0.0f ? 0.0f : v;
+}
+
+/* how hard pressed: health lost, and enemies in sight against mates near */
+static float pressed(const bc_bot *b)
+{
+	const bl_player *me = bc_me(b);
+
+	if (b->senses.n_visible == 0 && b->e->now - b->senses.shot_at > 4.0)
+		return 0.0f;
+	if (b->e->now - b->cover.since < 6.0 && !b->cover.valid)
+		return 0.0f;
+	return clamp01(0.75f * (1.0f - (float)me->hp / 100.0f) +
+	               0.25f * (float)(b->senses.n_visible - 1 - bc_mates_within(b, me->pos, 20.0f)));
+}
+
+/* the man it would fight is in its gun's reach and beyond its own
+ * holding distance: one to stand off and shoot */
+static float standoff(const bc_bot *b)
+{
+	float d = near_enemy(b);
+
+	return d < 0.55f * bc_engage_range(b) && d > 1.35f * bc_hold_range(b) ? 1.0f : 0.0f;
+}
+
+static int c_gun_is(void *bot, const bt_args *a) { return gun_named(bot, a, 0); }
+static int c_under_fire(void *bot, const bt_args *a) { bc_bot *b = bot; return b->e->now - b->senses.shot_at < (double)arg(a, 0, 3.0f); }
+static int c_in_cover(void *bot, const bt_args *a) { bc_bot *b = bot; bl_vec3 th; (void)a; return bc_threat_place(b, &th) && !bc_exposed_to(b, th); }
+static int c_in_harmful_water(void *bot, const bt_args *a) { (void)a; return bc_in_harmful_water(bot); }
+static float s_gun_is(void *bot, const bt_args *a) { return gun_named(bot, a, 0) ? 1.0f : 0.0f; }
+static float s_under_fire(void *bot, const bt_args *a) { return fire_fresh(bot, arg(a, 0, 4.0f)); }
+static float s_pressed(void *bot, const bt_args *a) { (void)a; return pressed(bot); }
+static float s_standoff(void *bot, const bt_args *a) { (void)a; return standoff(bot); }
+static float s_harmful_water(void *bot, const bt_args *a) { (void)a; return bc_in_harmful_water(bot) ? 1.0f : 0.0f; }
+static float s_flank_open(void *bot, const bt_args *a) { (void)a; return bc_flank_open(bot) ? 1.0f : 0.0f; }
+static float s_rumour(void *bot, const bt_args *a) { bc_bot *b = bot; (void)a; return b->e->now < b->hunt.cd_until ? 0.0f : bc_rumour(b, NULL); }
+
+static float s_enemy_far(void *bot, const bt_args *a)
+{
+	bc_bot *b = bot;
+	float d = near_enemy(b), r = arg(a, 0, 60.0f);
+
+	return b->senses.n_visible == 0 ? 0.0f : clamp01(d / r);
+}
+
+static float s_mate_near(void *bot, const bt_args *a)
+{
+	bc_bot *b = bot;
+	float d, r = arg(a, 0, 40.0f);
+
+	if (bc_nearest_mate(b, &d) < 0 || b->e->now < b->follow.cd_until)
+		return 0.0f;
+	return clamp01(1.0f - d / r) * 0.8f + 0.2f;
+}
+
+static float s_vantage(void *bot, const bt_args *a)
+{
+	bc_bot *b = bot;
+
+	if (!gun_named(b, a, 1) || b->e->now < b->camp.cd_until || bc_in_harmful_water(b))
+		return 0.0f;
+	return bc_perch_pick(b, 0) >= 0 ? 1.0f : 0.0f;
+}
+
+
+static int obj_is(void *bot, int own, int state) { return bc_obj_state(bot, own) == state; }
+static int c_carrying_intel(void *bot, const bt_args *a) { (void)a; return bc_carrying(bot); }
+static int c_their_intel_home(void *bot, const bt_args *a) { (void)a; return obj_is(bot, 0, BC_OBJ_HOME); }
+static int c_their_intel_dropped(void *bot, const bt_args *a) { (void)a; return obj_is(bot, 0, BC_OBJ_DROPPED); }
+static int c_their_intel_carried(void *bot, const bt_args *a) { (void)a; return obj_is(bot, 0, BC_OBJ_CARRIED) && !bc_carrying(bot); }
+static int c_our_intel_home(void *bot, const bt_args *a) { (void)a; return obj_is(bot, 1, BC_OBJ_HOME); }
+static int c_our_intel_dropped(void *bot, const bt_args *a) { (void)a; return obj_is(bot, 1, BC_OBJ_DROPPED); }
+static int c_our_intel_taken(void *bot, const bt_args *a) { (void)a; return obj_is(bot, 1, BC_OBJ_CARRIED); }
+static float s_carrying_intel(void *bot, const bt_args *a) { return (float)c_carrying_intel(bot, a); }
+static float s_their_intel_home(void *bot, const bt_args *a) { return (float)c_their_intel_home(bot, a); }
+static float s_their_intel_dropped(void *bot, const bt_args *a) { return (float)c_their_intel_dropped(bot, a); }
+static float s_their_intel_carried(void *bot, const bt_args *a) { return (float)c_their_intel_carried(bot, a); }
+static float s_our_intel_home(void *bot, const bt_args *a) { return (float)c_our_intel_home(bot, a); }
+static float s_our_intel_dropped(void *bot, const bt_args *a) { return (float)c_our_intel_dropped(bot, a); }
+static float s_our_intel_taken(void *bot, const bt_args *a) { return (float)c_our_intel_taken(bot, a); }
+
+static float place_near(bc_bot *b, const char *name, float r)
+{
+	const bl_player *me = bc_me(b);
+	bl_vec3 p;
+	float dx, dy;
+
+	if (!bc_place_of(b, name, &p))
+		return 0.0f;
+	dx = p.x - me->pos.x; dy = p.y - me->pos.y;
+	return clamp01(1.0f - sqrtf(dx * dx + dy * dy) / r);
+}
+
+static int c_near_own_base(void *bot, const bt_args *a) { return place_near(bot, "own_base", arg(a, 0, 20.0f)) > 0.0f; }
+static int c_near_their_base(void *bot, const bt_args *a) { return place_near(bot, "enemy_base", arg(a, 0, 20.0f)) > 0.0f; }
+static float s_near_own_base(void *bot, const bt_args *a) { return place_near(bot, "own_base", arg(a, 0, 40.0f)); }
+static float s_near_their_base(void *bot, const bt_args *a) { return place_near(bot, "enemy_base", arg(a, 0, 40.0f)); }
+static int c_mates_near(void *bot, const bt_args *a) { bc_bot *b = bot; return bc_mates_within(b, bc_me(b)->pos, arg(a, 0, 15.0f)) >= (int)arg(a, 1, 1.0f); }
+static float s_mates_near(void *bot, const bt_args *a) { bc_bot *b = bot; return clamp01((float)bc_mates_within(b, bc_me(b)->pos, arg(a, 0, 15.0f)) / 3.0f); }
+
 enum { VK_C, VK_S, VK_A };
 
 typedef struct word {
@@ -656,11 +774,60 @@ static const word WORDS[] = {
 	{ VK_S, "calm", "", "1 when nothing is known, 0.3 when suspicious, 0 engaged", NULL, s_calm, NULL, NULL },
 	{ VK_S, "has_item", "<name>", "1 if it holds one", NULL, s_has_item, NULL, NULL },
 	{ VK_S, "ammo_low", "", "0 with a full load, 1 with none", NULL, s_ammo_low, NULL, NULL },
+	{ VK_C, "gun_is", "<rifle|smg|shotgun>...", "its gun is one of those named", c_gun_is, NULL, NULL, NULL },
+	{ VK_C, "under_fire", "[secs]", "it was shot at within that many seconds (default 3): hurt by somebody, a round that passed within 2.5 voxels, a team-mate killed within 12", c_under_fire, NULL, NULL, NULL },
+	{ VK_C, "in_cover", "", "what threatens it (the man it fights, where a hit came from) has no line of sight to its body as it stands", c_in_cover, NULL, NULL, NULL },
+	{ VK_C, "in_harmful_water", "", "it is wading in water that hurts (the settings water=lethal or water.damage)", c_in_harmful_water, NULL, NULL, NULL },
+	{ VK_S, "gun_is", "<rifle|smg|shotgun>...", "1 if its gun is one of those named, else 0", NULL, s_gun_is, NULL, NULL },
+	{ VK_S, "under_fire", "[secs]", "1 just shot at (see the condition), falling to 0 over that many seconds (default 4)", NULL, s_under_fire, NULL, NULL },
+	{ VK_S, "pressed", "", "how hard pressed in a fight: three parts health lost, one part enemies in sight beyond the team-mates within 20; 0 with nobody in sight and no round for 4 s", NULL, s_pressed, NULL, NULL },
+	{ VK_S, "standoff", "", "1 when the nearest enemy in sight is within half its gun's opening range and farther than it would close to: one to stand and shoot at", NULL, s_standoff, NULL, NULL },
+	{ VK_S, "enemy_far", "[voxels]", "0 with an enemy in sight at arm's length, rising to 1 at that distance (default 60); 0 with none in sight", NULL, s_enemy_far, NULL, NULL },
+	{ VK_S, "mate_near", "[voxels]", "1 beside a team-mate, falling to 0.2 at that distance (default 40); 0 with none alive or one it just gave up following", NULL, s_mate_near, NULL, NULL },
+	{ VK_S, "harmful_water", "", "1 while it wades in water that hurts", NULL, s_harmful_water, NULL, NULL },
+	{ VK_S, "flank_open", "", "1 when the enemy's area (where the team last met him, else his base) is over 45 away and it has not just flanked", NULL, s_flank_open, NULL, NULL },
+	{ VK_S, "rumour", "", "how fresh the freshest rumour of the enemy is -- a noise it heard, a team-mate's sighting, the team's last meeting -- that is over 10 away and it has not just been to: 1 just now, 0 none", NULL, s_rumour, NULL, NULL },
+	{ VK_S, "vantage", "[rifle|smg|shotgun]...", "1 when the team knows a perch nobody has claimed (high, a long view toward the enemy, a way up) and its gun is one of those named (any, when none is)", NULL, s_vantage, NULL, NULL },
+	{ VK_A, "crouch", "[secs]", "down where it stands, turned to what shot at it, shooting if it sees him. With no time said it is the flinch: 0.3 to 1 s by character, once for a burst of fire (asked again it succeeds at once)", NULL, NULL, bc_do_crouch, bc_do_cover_stop },
+	{ VK_A, "take_cover", "", "to the best cover from what threatens it (near, well hidden, a way out behind, no team-mate in it); there crouched if the cover is low, facing the threat, peeking to fire -- rarely and long for the careful, hardly stopping for the bold. No cover in reach: crouched where it stands, turned to the threat. SUCCESS after its time there (0.8 to 14 s by character); FAILURE with no threat", NULL, NULL, bc_do_take_cover, bc_do_cover_stop },
+	{ VK_A, "advance_by_cover", "[place] [radius]", "toward a place (default: the enemy) from cover to cover, a pause at each by character; a run where no cover gains ground. SUCCESS there (at a man: at its own fighting distance); FAILURE no such place, no way", NULL, NULL, bc_do_advance_by_cover, bc_do_cover_stop },
+	{ VK_A, "fall_back_by_cover", "[place]", "away from what threatens it toward a place (default own_base; with none, straight away), from cover to cover, not firing. SUCCESS out of sight with no round for 3 s, or there; FAILURE with no threat", NULL, NULL, bc_do_fall_back_by_cover, bc_do_cover_stop },
+	{ VK_A, "seek", "", "go and find the enemy: to his base by the direct way, shooting what it meets; there and nobody, on to where the team last met him, then back as far as the middle, and round again. With no bases, or no way to his, it roams. Always RUNNING: a tree's last resort", NULL, NULL, bc_do_seek, bc_do_stop },
+	{ VK_A, "flank", "[place]", "to the place (default: the enemy's area) the long way round, by a side of its own choosing, so as to come at it from behind. SUCCESS there; FAILURE too near to go round, no ground either side, no way", NULL, NULL, bc_do_flank, bc_do_tactics_stop },
+	{ VK_A, "hunt_noise", "", "go to the freshest rumour of the enemy (see the score). SUCCESS on seeing the place from near; FAILURE none, no way", NULL, NULL, bc_do_hunt_noise, bc_do_tactics_stop },
+	{ VK_A, "take_high_ground", "", "claim the best free perch for its gun and go up to it. SUCCESS on it; FAILURE none free, no way up", NULL, NULL, bc_do_take_high_ground, bc_do_tactics_stop },
+	{ VK_A, "camp", "[secs]", "stay where it is, crouched, sweeping the arc toward the enemy, firing at what appears. SUCCESS after two kills, when shot at, or when its patience is out (25 to 120 s by character, or secs): it then gives up its perch and takes another next time", NULL, NULL, bc_do_camp, bc_do_tactics_stop },
+	{ VK_A, "leave_water", "", "to the nearest dry ground. SUCCESS dry; RUNNING on the way; FAILURE none within 48", NULL, NULL, bc_do_leave_water, bc_do_tactics_stop },
+	{ VK_C, "carrying_intel", "", "it carries the other team's intel", c_carrying_intel, NULL, NULL, NULL },
+	{ VK_C, "their_intel_home", "", "the other team's intel lies where the server put it", c_their_intel_home, NULL, NULL, NULL },
+	{ VK_C, "their_intel_dropped", "", "the other team's intel lies where a carrier of this team fell", c_their_intel_dropped, NULL, NULL, NULL },
+	{ VK_C, "their_intel_carried", "", "a team-mate carries the other team's intel", c_their_intel_carried, NULL, NULL, NULL },
+	{ VK_C, "our_intel_home", "", "this team's intel lies where the server put it", c_our_intel_home, NULL, NULL, NULL },
+	{ VK_C, "our_intel_dropped", "", "this team's intel lies where its thief fell (it cannot be picked up by its own team: it is guarded there)", c_our_intel_dropped, NULL, NULL, NULL },
+	{ VK_C, "our_intel_taken", "", "an enemy carries this team's intel (where he is is known to everybody: the place `thief`)", c_our_intel_taken, NULL, NULL, NULL },
+	{ VK_C, "near_own_base", "[voxels]", "it is within that of its team's base (default 20)", c_near_own_base, NULL, NULL, NULL },
+	{ VK_C, "near_their_base", "[voxels]", "it is within that of the other team's base (default 20)", c_near_their_base, NULL, NULL, NULL },
+	{ VK_C, "mates_near", "<radius> [count]", "that many live team-mates (default 1) are within radius", c_mates_near, NULL, NULL, NULL },
+	{ VK_S, "carrying_intel", "", "1 while it carries the other team's intel", NULL, s_carrying_intel, NULL, NULL },
+	{ VK_S, "their_intel_home", "", "1 while the other team's intel lies where the server put it", NULL, s_their_intel_home, NULL, NULL },
+	{ VK_S, "their_intel_dropped", "", "1 while it lies where a carrier fell", NULL, s_their_intel_dropped, NULL, NULL },
+	{ VK_S, "their_intel_carried", "", "1 while a team-mate carries it", NULL, s_their_intel_carried, NULL, NULL },
+	{ VK_S, "our_intel_home", "", "1 while this team's intel lies where the server put it", NULL, s_our_intel_home, NULL, NULL },
+	{ VK_S, "our_intel_dropped", "", "1 while it lies where its thief fell", NULL, s_our_intel_dropped, NULL, NULL },
+	{ VK_S, "our_intel_taken", "", "1 while an enemy carries it", NULL, s_our_intel_taken, NULL, NULL },
+	{ VK_S, "near_own_base", "[voxels]", "1 at its team's base, falling to 0 at that distance (default 40)", NULL, s_near_own_base, NULL, NULL },
+	{ VK_S, "near_their_base", "[voxels]", "1 at the other team's base, falling to 0 at that distance (default 40)", NULL, s_near_their_base, NULL, NULL },
+	{ VK_S, "mates_near", "<radius>", "0 with no team-mate within radius, 1 with three or more", NULL, s_mates_near, NULL, NULL },
+	{ VK_A, "fetch", "", "go to the other team's intel where it lies and walk onto it (the server gives it to whoever of the other team stands within 3 of it). SUCCESS carrying it; FAILURE none, somebody has it, no way", NULL, NULL, bc_do_fetch, bc_do_objective_stop },
+	{ VK_A, "carry_home", "", "the carrier runs for its own base by a route that keeps away from the enemies it knows of, shooting only at a man within 14. RUNNING while it carries; SUCCESS when it no longer does; FAILURE no base, no way", NULL, NULL, bc_do_carry_home, bc_do_objective_stop },
+	{ VK_A, "escort", "", "stay by the team-mate who carries the intel: ahead of him toward the base and to a side, shooting what it sees. RUNNING; FAILURE nobody carries", NULL, NULL, bc_do_escort, bc_do_objective_stop },
+	{ VK_A, "intercept", "", "cut off the enemy who carries this team's intel: to the point of his way home it can reach before he does, and fight him on sight. RUNNING; FAILURE nobody has it", NULL, NULL, bc_do_intercept, bc_do_objective_stop },
+	{ VK_A, "guard", "[place] [secs]", "hold near a place (default own_intel) at a spot of its own on the side the enemy comes from, crouched if careful, watching that way, shooting what appears. SUCCESS after secs (default 30); FAILURE no such place, no way", NULL, NULL, bc_do_guard, bc_do_objective_stop },
 	{ VK_A, "fight", "", "fight the enemy it has chosen (nearest in sight, kept until another is at half his distance): close to its own range, strafe, burst, reload, spade when it comes to that. RUNNING while he lives; SUCCESS on his death; FAILURE with nobody", NULL, NULL, bc_do_fight, bc_do_stop },
 	{ VK_A, "go_to", "<place> [radius]", "walk to a place (jumping, digging, bridging as the mode allows), shooting what it meets on the way. SUCCESS there, FAILURE with no such place or no way", NULL, NULL, bc_do_go_to, bc_do_stop },
 	{ VK_A, "retreat", "", "run to the nearest place the enemy cannot see, back turned. SUCCESS hidden (or after 10 s), FAILURE with nothing to run from", NULL, NULL, bc_do_retreat, bc_do_stop },
 	{ VK_A, "investigate", "", "go to the place most worth searching, look round it, then forget it. SUCCESS looked, FAILURE none or no way", NULL, NULL, bc_do_investigate, bc_do_stop },
-	{ VK_A, "roam", "", "walk to where the enemy was last met, else his base, else anywhere. Always RUNNING: this is what a bot does rather than stand", NULL, NULL, bc_do_roam, bc_do_stop },
+	{ VK_A, "roam", "", "walk to somewhere the team has not been lately: round where the enemy was last met, else between the two bases, else anywhere -- not round its own base. Always RUNNING: what a bot does in a world with nothing to seek", NULL, NULL, bc_do_roam, bc_do_stop },
 	{ VK_A, "follow", "[mate|caller|order]", "keep a station 3 voxels from a player: the nearest team-mate (default), the caller of the ping it answers, or the order's man. RUNNING; FAILURE with nobody", NULL, NULL, bc_do_follow, bc_do_stop },
 	{ VK_A, "hold", "[place] [secs]", "go to the place (default: here) and watch from it, sweeping the head, crouched if careful. SUCCESS after secs (default 8)", NULL, NULL, bc_do_hold, bc_do_stop },
 	{ VK_A, "throw_grenade", "[place]", "throw at the place, or at what is worth one: stands, turns to the arc, lets go. SUCCESS thrown, FAILURE no arc, too near, none left", NULL, NULL, bc_do_throw, bc_do_stop },

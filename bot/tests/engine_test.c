@@ -159,12 +159,12 @@ static void test_vocab_and_trees(void)
 	bs_set(s, BL_NO_PLAYER, "tree=tdm");
 	bs_run(s, 1.0);
 	bc_engine_describe(s->e, 0, d, sizeof d);
-	CHECK(strstr(d, "roam") != NULL);
+	CHECK(strstr(d, "seek") != NULL);             /* (no bases in this world: seek roams) */
 	CHECK(!bc_engine_trees(s->e, "tree tdm:\ndo no_such_thing\n", err, sizeof err));
 	CHECK(strstr(err, "line 2") != NULL);
 	bs_run(s, 1.0);
 	bc_engine_describe(s->e, 0, d, sizeof d);
-	CHECK(strstr(d, "roam") != NULL);           /* the old tree still runs */
+	CHECK(strstr(d, "seek") != NULL);           /* the old tree still runs */
 	{
 		const char *dirs[2] = { "trees", "../trees" };
 		char path[256];
@@ -193,7 +193,7 @@ static void test_vocab_and_trees(void)
 	CHECK(bc_engine_trees(s->e, "tree tdm:\ndo hold self 99\n", err, sizeof err));
 	bs_run(s, 1.0);
 	bc_engine_describe(s->e, 0, d, sizeof d);
-	CHECK(strstr(d, "hold") != NULL && !strstr(d, "roam"));
+	CHECK(strstr(d, "hold") != NULL && !strstr(d, "seek"));
 	/* a tree nobody has falls back on "default": here none, so the engine's own */
 	bs_set(s, BL_NO_PLAYER, "tree=nonesuch");
 	bs_run(s, 1.5);
@@ -235,6 +235,15 @@ static void test_team_fight(int per_team, int night, const char *name)
 	printf("  %u plans (%u failed, %u again), %u expansions; think %.1f us a call, worst %.0f us\n",
 	       (unsigned)st->plans, (unsigned)st->plan_fails, (unsigned)st->replans, (unsigned)st->expansions,
 	       s->think_us / (double)s->thinks, s->think_max_us);
+	if (alive_of(s, 1) && alive_of(s, 2))
+		for (i = 0; i < BL_MAX_PLAYERS; i++)
+			if (s->p[i].used && s->p[i].alive) {
+				char d[300];
+
+				bc_engine_describe(s->e, i, d, sizeof d);
+				printf("    #%d team %d at %.0f %.0f hp %d: %s\n", i, s->p[i].team, (double)s->p[i].body.pos.x,
+				       (double)s->p[i].body.pos.y, s->p[i].hp, d);
+			}
 	CHECK(alive_of(s, 1) == 0 || alive_of(s, 2) == 0);         /* fought to a result */
 	CHECK(s->kills[1] + s->kills[2] >= per_team);
 	CHECK(stuck == 0);
@@ -356,7 +365,7 @@ static void test_cautious_retreat(void)
 	int kind, n[2] = { 0, 0 }, of[2] = { 0, 0 };
 	uint32_t seed[2] = { 1, 1 };
 
-	printf("hurt bots retreat more often when cautious\n");
+	printf("hurt bots break off (to cover, or back by cover) more often when cautious\n");
 	bs_start(s);
 	bs_set(s, BL_NO_PLAYER, "tree=tdm");
 	for (kind = 0; kind < 2; kind++) {
@@ -375,7 +384,7 @@ static void test_cautious_retreat(void)
 				bs_step(s);
 				s->p[1].hp = 100;
 				leaf_of(s, 0, leaf, sizeof leaf);
-				if (!strcmp(leaf, "retreat")) did = 1;
+				if (!strcmp(leaf, "take_cover") || !strcmp(leaf, "fall_back_by_cover")) did = 1;
 			}
 			n[kind] += did;
 			of[kind]++;
@@ -932,6 +941,7 @@ int main(void)
 	printf("cost (this machine, -O2; a flat field with walls, NOT a real map)\n");
 	test_cost(6);
 	test_cost(16);
+	test_cost(20);
 	test_real_maps();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;

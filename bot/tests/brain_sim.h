@@ -16,6 +16,14 @@
  *   - the world written every `world_every` ticks (2: the 30 a second of
  *     botlink_world_hz), the engine thought every tick
  *
+ *   - with `ctf` set, lsd/scripts/ctf.lua's rules for the two intels: an
+ *     intel on the ground goes to the first living player of the OTHER
+ *     team within 3 across of it (eye 4 above to 1 below), unless a drop
+ *     was under 2 s ago; a carrier within the same cylinder of his OWN
+ *     tent captures (his team scores, the intel goes back to a random
+ *     place in its zone); a carrier who dies drops it on the floor where
+ *     he stood. Nobody can touch his own team's intel.
+ *
  * NOT the server: no recoil climb (bots here shoot a little straighter
  * than on LSd), a spade hit is a flat 50, a grenade is flown by the
  * engine's own bc_grenade_fly, and nobody respawns unless asked.
@@ -68,8 +76,16 @@ typedef struct bs_sim {
 	double time;
 	int night, world_every, budget;
 	double respawn;             /* seconds; < 0: the dead stay dead */
+	double water_dps;           /* health a second a wading body loses */
+	double wet[BL_MAX_PLAYERS];
+	int drowned;
 	int have_tents;
 	bl_vec3 tent[2];
+	/* lsd/scripts/ctf.lua */
+	int ctf, intel_holder[2], caps[3], pickups[3], drops;
+	bl_vec3 intel[2];           /* [team - 1]: that team's own, where it lies */
+	int intel_zone[2][4];       /* x0 y0 x1 y1: where it is put back */
+	double drop_timeout;
 	/* a box where the server refuses digs, and says nothing */
 	int prot, px0, py0, px1, py1;
 
@@ -283,10 +299,15 @@ static inline char *bs_trees(void)
 		snprintf(path, sizeof path, "%s/tdm.bt", dirs[d]);
 		b = bs_slurp(path);
 		if (a && b) {
-			all = malloc(strlen(a) + strlen(b) + 1);
+			char *c;
+
+			snprintf(path, sizeof path, "%s/ctf.bt", dirs[d]);
+			c = bs_slurp(path);
+			all = malloc(strlen(a) + strlen(b) + (c ? strlen(c) : 0) + 1);
 			strcpy(all, a);
 			strcat(all, b);
-			free(a); free(b);
+			if (c) strcat(all, c);
+			free(a); free(b); free(c);
 			return all;
 		}
 		free(a); free(b);
@@ -406,6 +427,19 @@ static inline void bs_hurt(bs_sim *s, int pid, int dmg, int by, bl_vec3 from, in
 	bs_push(s, BL_EV_HURT, pid, &h, sizeof h);
 	if (p->hp <= 0) {
 		bl_ev_kill k;
+		int t;
+
+		/* ctf.lua after_player_destroy: try_drop */
+		for (t = 0; t < 2; t++)
+			if (s->ctf && s->intel_holder[t] == pid) {
+				s->intel_holder[t] = -1;
+				s->intel[t].x = floorf(p->body.pos.x) + 0.5f;
+				s->intel[t].y = floorf(p->body.pos.y) + 0.5f;
+				s->intel[t].z = (float)bc_map_floor_at_or_below(s->truth, (int)p->body.pos.x, (int)p->body.pos.y,
+				                                                (int)ceilf(p->body.pos.z));
+				s->drop_timeout = s->time + 2.0;
+				s->drops++;
+			}
 
 		memset(&k, 0, sizeof k);
 		k.killer = (uint8_t)by;
@@ -712,10 +746,21 @@ static inline void bs_write_world(bs_sim *s)
 	w->time = s->time;
 	w->map_seq = 1;
 	w->night = (uint8_t)s->night;
-	w->score[0] = (uint16_t)s->kills[1];
-	w->score[1] = (uint16_t)s->kills[2];
+	w->score[0] = (uint16_t)(s->ctf ? s->caps[1] : s->kills[1]);
+	w->score[1] = (uint16_t)(s->ctf ? s->caps[2] : s->kills[2]);
 	for (i = 0; i < 2; i++) {
 		w->intel[i].holder = w->tent[i].holder = BL_NO_PLAYER;
+		if (s->ctf) {
+			/* lib_botlink fill_object: a held one is where its holder is */
+			w->intel[i].present = 1;
+			w->intel[i].pos = s->intel[i];
+			if (s->intel_holder[i] >= 0) {
+				const bc_body *hb = &s->p[s->intel_holder[i]].body;
+
+				w->intel[i].holder = (uint8_t)s->intel_holder[i];
+				w->intel[i].pos.x = hb->pos.x; w->intel[i].pos.y = hb->pos.y; w->intel[i].pos.z = hb->pos.z;
+			}
+		}
 		if (s->have_tents) {
 			w->tent[i].pos = s->tent[i];
 			w->tent[i].present = 1;
@@ -784,6 +829,62 @@ static inline void bs_rec_start(bs_sim *s, int thinks, int pids)
 	s->rec_ev = malloc(s->rec_ev_cap);
 	s->rec_ev_end = malloc(sizeof(size_t) * (size_t)thinks);
 	s->rec_out = calloc((size_t)thinks * (size_t)pids, sizeof(bl_intent));
+}
+
+/* lib_ctf within_cylinder: 3 across, the eye 4 above to 1 below */
+static inline int bs_in_cylinder(const bc_body *b, bl_vec3 at)
+{
+	float dx = b->pos.x - at.x, dy = b->pos.y - at.y, dz = b->pos.z - at.z;
+
+	return sqrtf(dx * dx + dy * dy) <= 3.0f && dz >= -4.0f && dz <= 1.0f;
+}
+
+static inline void bs_intel_home(bs_sim *s, int t)
+{
+	const int *z = s->intel_zone[t];
+	int x = z[0] + (int)bc_rng_below(&s->rng, (uint32_t)(z[2] - z[0] + 1));
+	int y = z[1] + (int)bc_rng_below(&s->rng, (uint32_t)(z[3] - z[1] + 1));
+
+	s->intel_holder[t] = -1;
+	s->intel[t].x = (float)x + 0.5f;
+	s->intel[t].y = (float)y + 0.5f;
+	s->intel[t].z = (float)bc_map_floor_at_or_below(s->truth, x, y, 0);
+}
+
+/* A game of ctf: tents as they are, each intel put in its zone. */
+static inline void bs_ctf(bs_sim *s, int ax0, int ay0, int ax1, int ay1, int bx0, int by0, int bx1, int by1)
+{
+	s->ctf = 1;
+	s->intel_zone[0][0] = ax0; s->intel_zone[0][1] = ay0; s->intel_zone[0][2] = ax1; s->intel_zone[0][3] = ay1;
+	s->intel_zone[1][0] = bx0; s->intel_zone[1][1] = by0; s->intel_zone[1][2] = bx1; s->intel_zone[1][3] = by1;
+	bs_intel_home(s, 0);
+	bs_intel_home(s, 1);
+}
+
+/* ctf.lua after.tick */
+static inline void bs_ctf_tick(bs_sim *s)
+{
+	int t, i;
+
+	for (t = 0; t < 2; t++) {
+		int h = s->intel_holder[t];
+
+		if (h >= 0) {
+			int team = s->p[h].team;
+
+			if (s->have_tents && bs_in_cylinder(&s->p[h].body, s->tent[team - 1])) {
+				s->caps[team]++;
+				bs_intel_home(s, t);
+			}
+		} else if (s->time >= s->drop_timeout) {
+			for (i = 0; i < BL_MAX_PLAYERS; i++)
+				if (s->p[i].used && s->p[i].alive && s->p[i].team != t + 1 && bs_in_cylinder(&s->p[i].body, s->intel[t])) {
+					s->intel_holder[t] = i;
+					s->pickups[s->p[i].team]++;
+					break;
+				}
+		}
+	}
 }
 
 /* Feed queued events to an engine and think once. */
@@ -860,6 +961,19 @@ static inline void bs_step(bs_sim *s)
 			at.x = p->body.pos.x; at.y = p->body.pos.y; at.z = p->body.pos.z;
 			bs_hurt(s, i, dmg, BL_NO_PLAYER, at, 4);
 		}
+		if (s->water_dps > 0.0 && p->body.wade) {
+			/* lib_ctf / tdm water damage: a point at a time */
+			s->wet[i] += s->water_dps / 60.0;
+			if (s->wet[i] >= 1.0) {
+				bl_vec3 at;
+				int was = p->alive;
+
+				at.x = p->body.pos.x; at.y = p->body.pos.y; at.z = p->body.pos.z;
+				s->wet[i] -= 1.0;
+				bs_hurt(s, i, 1, BL_NO_PLAYER, at, 4);
+				if (was && !p->alive) s->drowned++;
+			}
+		}
 		cx = (int)floorf(p->body.pos.x); cy = (int)floorf(p->body.pos.y); cz = (int)floorf(p->body.pos.z);
 		if (cx == p->cx && cy == p->cy && cz == p->cz && (p->script_keys & 15)) {
 			p->hold += 1.0 / 60.0;
@@ -870,6 +984,8 @@ static inline void bs_step(bs_sim *s)
 			p->cx = cx; p->cy = cy; p->cz = cz;
 		}
 	}
+	if (s->ctf)
+		bs_ctf_tick(s);
 	s->tick++;
 	s->time += 1.0 / 60.0;
 	if (s->tick % (uint32_t)s->world_every == 0 || s->tick == 1)

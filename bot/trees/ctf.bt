@@ -1,0 +1,150 @@
+# ctf.bt -- capture the flag: bring their intel to our base, keep ours.
+#
+# Words: core/vocab.h. Grammar: core/bt.h. The server's rules, as
+# core/skill_objective.c has them: walking onto their intel picks it up,
+# carrying it into our base captures, a dead carrier drops it where he
+# stood, and nobody can touch his own team's intel (ours, dropped, can
+# only be guarded where it lies).
+#
+# The top `pick` is a PRIORITY LIST looked at every second; `ctf_duty`
+# under it is the WEIGHED choice that splits a team by character:
+# objective and aggression go for their intel, flank goes for it the long
+# way, caution and marksman guard ours, teamwork escorts the carrier --
+# and when ours is taken the weight shifts to cutting the thief off.
+# Whenever an intel changes hands every bot chooses again.
+
+tree ctf:
+select
+	pick every=1 sticky=0.2 noise=0
+		option none grenade_near x100         # a grenade at its feet: run
+			do evade
+		option none harmful_water x60         # wading in water that hurts: out, first
+			do leave_water
+		option none carrying_intel x40        # it has their intel: home, and nothing else
+			do carry_home
+		option none has_order x30             # the server said so
+			do obey
+		option none under_fire x10            # being shot at
+			tree ctf_under_fire
+		option none enemy_visible x5          # somebody in sight
+			tree ctf_contact
+		option curiosity search x1.2          # a noise, a man just lost: a look, if it is curious
+			do investigate
+		option none always                    # the game
+			tree ctf_duty
+	limit 1
+		tree ctf_net
+
+# The game. Chosen for a good while; chosen again when an intel is taken,
+# dropped or captured.
+tree ctf_duty:
+pick every=20 sticky=1.5 noise=0.3
+	option aggression our_intel_taken x2.2    # ours is being carried off: cut the thief off
+		do intercept
+	option objective our_intel_taken x1.2     # (the keen on the game too)
+		do intercept
+	option teamwork their_intel_carried x1.8  # a mate has theirs: go with him
+		do escort
+	option objective their_intel_dropped x2   # theirs lies where our carrier fell: pick it up
+		do fetch
+	option objective their_intel_home x1.2    # go and take theirs
+		do fetch
+	option aggression their_intel_home x0.6   # (the bold too)
+		do fetch
+	option flank their_intel_home x0.5        # take theirs, coming at it the long way round
+		seq
+			do flank their_intel
+			do fetch
+	option caution our_intel_dropped x1.6     # ours lies in the open: stand over it
+		do guard our_intel 30
+	option caution our_intel_home x0.6        # keep ours
+		do guard our_intel 40
+	option marksman vantage rifle smg x0.7    # watch from a height
+		tree ctf_camp
+	option teamwork ping_called x3            # a team-mate called
+		tree ctf_answer
+	option none always x0.25                  # nothing else: toward their intel
+		tree ctf_net
+
+tree ctf_net:
+select
+	do fetch                                  # their intel, where it lies
+	do escort                                 # a mate has it: with him
+	do intercept                              # ours is taken: at the thief
+	do seek                                   # no intel in this world: their base
+
+# Shot at: down, then by character -- as in any game.
+tree ctf_under_fire:
+seq
+	do crouch                                 # the flinch, facing the shot
+	pick every=2.5 sticky=0.5 noise=0.2
+		option aggression enemy_visible       # fight back from where it stands
+			do fight
+		option caution under_fire x1.1        # to cover, and fight from it
+			do take_cover
+		option caution pressed x1.4           # hurt or outnumbered: back, from cover to cover
+			do fall_back_by_cover
+		option curiosity search x0.5          # did not see who: go and look, by cover
+			do advance_by_cover search
+		option none always x0.1               # nothing known of the shot: on with the game
+			tree ctf_net
+
+# An enemy in sight.
+tree ctf_contact:
+pick every=1.5 sticky=0.3 noise=0.15
+	option aggression our_intel_taken x3      # the thief first, whoever else is about
+		do intercept
+	option caution pressed x1.8               # hurt or outnumbered: break off
+		do fall_back_by_cover
+	option aggression enemy_visible           # fight him
+		do fight
+	option marksman standoff x1.1             # in reach and far enough: stand and shoot
+		do hold self 4
+	option caution enemy_far 70 x0.9          # far: close on him from cover to cover
+		do advance_by_cover enemy
+	option greed grenade_worth x0.8           # a group, a far man, one behind a wall
+		do throw_grenade
+
+tree ctf_camp:
+seq
+	do take_high_ground                       # claim a perch and go up
+	do camp 40                                # watch from it a while
+
+tree ctf_answer:
+select
+	seq
+		if ping_called help                   # he wants company: stay by him
+		do follow caller
+	do go_to ping 4                           # anything else is a place: go there
+
+# Beside the above, at every decision.
+tree ctf_also:
+seq
+	always
+		tree extras                           # what the server's scripts add (night and lamps, if it has them)
+	always
+		tree items                            # whatever it holds, used as each item says
+	always
+		tree ctf_callouts
+
+# Tell the team, once (the labels are the server's ctf ping list).
+tree ctf_callouts:
+select
+	seq
+		if our_intel_taken                    # the thief is near: say where
+		if at thief 40
+		do ping thief Enemy
+	seq
+		if their_intel_dropped                # theirs lies here for the taking
+		if at their_intel 30
+		do ping their_intel Intel here
+	seq
+		if our_intel_dropped                  # ours lies here: come and stand over it
+		if at our_intel 30
+		do ping our_intel Defend
+	seq
+		if spotted_new                        # enemies the team did not know of
+		do ping enemy Enemy
+	seq
+		if sniped                             # hit from far away
+		do ping threat Sniper

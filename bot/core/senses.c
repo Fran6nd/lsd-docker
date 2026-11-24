@@ -212,6 +212,7 @@ void bc_senses_reset(bc_senses *s)
 		s->k[i].seen_at = s->k[i].told_at = s->k[i].dismissed = -1e9;
 	s->nearest = s->nearest_known = -1;
 	s->last_sight = s->hurt_at = s->spotted_new_at = -1e9;
+	s->shot_at = s->fire_since = -1e9;
 }
 
 static int is_enemy(const bl_world *w, int self, int i)
@@ -393,25 +394,20 @@ int bc_senses_hear(bc_senses *s, const bc_sense_cfg *c, const bl_world *w, int s
 	return 1;
 }
 
-void bc_senses_hurt(bc_senses *s, bc_rng *rng, const bl_world *w, int self, int level,
-                    bl_vec3 from, int by, double now)
+static void threat_from(bc_senses *s, bc_rng *rng, const bl_world *w, int self, int level,
+                        bl_vec3 from, int by, float slack, double now)
 {
 	const bl_player *me = &w->players[self];
 	float dx = from.x - me->pos.x, dy = from.y - me->pos.y;
 	float flat = sqrtf(dx * dx + dy * dy);
 	float sense, err, a, ca, sa;
 
-	s->hurt_at = now;
-	if (flat < 0.5f && fabsf(from.z - me->pos.z) < 0.5f)
-		return;                 /* a fall, the sea: from nowhere */
-	if (by != BL_NO_PLAYER && w->players[by].team == me->team)
-		return;
 	if (level < 1) level = 1;
 	if (level > 10) level = 10;
 	/* aosbot: bearing error 40 - 36 * threat_sense degrees */
 	sense = 0.06f + 0.10f * (float)(level - 1);
 	if (sense > 0.96f) sense = 0.96f;
-	err = (40.0f - 36.0f * sense) * 3.14159265f / 180.0f;
+	err = (40.0f - 36.0f * sense) * slack * 3.14159265f / 180.0f;
 	a = bc_rng_range(rng, -1.0f, 1.0f) * err;
 	ca = cosf(a);
 	sa = sinf(a);
@@ -421,9 +417,76 @@ void bc_senses_hurt(bc_senses *s, bc_rng *rng, const bl_world *w, int self, int 
 	s->threat.at = now;
 	s->threat.valid = 1;
 	s->threat.by = (uint8_t)by;
+	s->threat.kind = 0;
 	s->threat_dist = flat;
 	if (s->alert == BC_ALERT_CALM)
 		s->alert = BC_ALERT_SUSPICIOUS;
+}
+
+static void under_fire(bc_senses *s, double now)
+{
+	if (now - s->shot_at > 4.0)
+		s->fire_since = now;
+	s->shot_at = now;
+}
+
+void bc_senses_hurt(bc_senses *s, bc_rng *rng, const bl_world *w, int self, int level,
+                    bl_vec3 from, int by, double now)
+{
+	const bl_player *me = &w->players[self];
+	float dx = from.x - me->pos.x, dy = from.y - me->pos.y;
+	float flat = sqrtf(dx * dx + dy * dy);
+
+	s->hurt_at = now;
+	if (flat < 0.5f && fabsf(from.z - me->pos.z) < 0.5f)
+		return;                 /* a fall, the sea: from nowhere */
+	if (by != BL_NO_PLAYER && w->players[by].team == me->team)
+		return;
+	under_fire(s, now);
+	threat_from(s, rng, w, self, level, from, by, 1.0f, now);
+}
+
+void bc_senses_shot_at(bc_senses *s, bc_rng *rng, const bl_world *w, int self, int level,
+                       bl_vec3 from, int by, int kind, double now)
+{
+	const bl_player *me = &w->players[self];
+
+	if (by != BL_NO_PLAYER && w->players[by].team == me->team)
+		return;
+	under_fire(s, now);
+	/* a hit's own reading stands; so does a man in plain sight */
+	if (s->threat.valid && s->threat.kind == 0 && now - s->threat.at < 1.0)
+		return;
+	if (by != BL_NO_PLAYER && s->k[by].visible) {
+		s->threat.pos = s->k[by].pos;
+		s->threat.at = now;
+		s->threat.valid = 1;
+		s->threat.by = (uint8_t)by;
+		s->threat.kind = (uint8_t)kind;
+		return;
+	}
+	threat_from(s, rng, w, self, level, from, by, 1.5f, now);
+	s->threat.kind = (uint8_t)kind;
+}
+
+int bc_senses_near_miss(const bl_world *w, int self, int by, float miss)
+{
+	const bl_player *me = &w->players[self], *p;
+	float dx, dy, dz, t, ox, oy, oz;
+
+	if (by == BL_NO_PLAYER || by == self)
+		return 0;
+	p = &w->players[by];
+	if (p->state != BL_ALIVE || p->team == me->team || me->state != BL_ALIVE)
+		return 0;
+	dx = me->pos.x - p->pos.x; dy = me->pos.y - p->pos.y; dz = me->pos.z + 1.0f - p->pos.z;
+	if (dx * dx + dy * dy + dz * dz < 6.0f * 6.0f)
+		return 1;
+	t = dx * p->ori.x + dy * p->ori.y + dz * p->ori.z;
+	if (t <= 0.0f || t > 128.0f)
+		return 0;
+	ox = dx - p->ori.x * t; oy = dy - p->ori.y * t; oz = dz - p->ori.z * t;
+	return ox * ox + oy * oy + oz * oz <= miss * miss;
 }
 
 float bc_senses_confidence(const bc_senses *s, const bc_sense_cfg *c, int pid, double now)

@@ -143,6 +143,27 @@ bt_status bc_do_lamp(void *bot, const bt_args *a, float dt);
 bt_status bc_do_obey(void *bot, const bt_args *a, float dt);
 bt_status bc_do_look_around(void *bot, const bt_args *a, float dt);
 bt_status bc_do_reload(void *bot, const bt_args *a, float dt);
+/* skill_cover.c */
+bt_status bc_do_crouch(void *bot, const bt_args *a, float dt);
+bt_status bc_do_take_cover(void *bot, const bt_args *a, float dt);
+bt_status bc_do_advance_by_cover(void *bot, const bt_args *a, float dt);
+bt_status bc_do_fall_back_by_cover(void *bot, const bt_args *a, float dt);
+void bc_do_cover_stop(void *bot, const bt_args *a);
+/* skill_tactics.c */
+bt_status bc_do_seek(void *bot, const bt_args *a, float dt);
+bt_status bc_do_flank(void *bot, const bt_args *a, float dt);
+bt_status bc_do_hunt_noise(void *bot, const bt_args *a, float dt);
+bt_status bc_do_take_high_ground(void *bot, const bt_args *a, float dt);
+bt_status bc_do_camp(void *bot, const bt_args *a, float dt);
+bt_status bc_do_leave_water(void *bot, const bt_args *a, float dt);
+void bc_do_tactics_stop(void *bot, const bt_args *a);
+/* skill_objective.c */
+bt_status bc_do_fetch(void *bot, const bt_args *a, float dt);
+bt_status bc_do_carry_home(void *bot, const bt_args *a, float dt);
+bt_status bc_do_escort(void *bot, const bt_args *a, float dt);
+bt_status bc_do_intercept(void *bot, const bt_args *a, float dt);
+bt_status bc_do_guard(void *bot, const bt_args *a, float dt);
+void bc_do_objective_stop(void *bot, const bt_args *a);
 /* what every moving action does when its branch is left: lets go */
 void bc_do_stop(void *bot, const bt_args *a);
 

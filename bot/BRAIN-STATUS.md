@@ -1,5 +1,77 @@
 # The brain: senses, skills, vocabulary, engine, trees -- where it stands
 
+## CHECKPOINT 1 (2026-11-24): the head, cover, the net under a stuck body, water
+
+`make -C bot test` is green (new: `tests/behaviour_test.c`, 23 checks). In
+this state, and safe to put live:
+
+- **The head while travelling is the bot's own** (`core/skill_look.c`):
+  ahead along the route, glances at openings, at where a noise came from,
+  over a shoulder. `gaze=0` (a setting) gives the old steering-locked head
+  back, for comparing live. 24 bots walking past a still man in a corner
+  behind their route: 0 see him with the locked head, 8 with their own,
+  24 of 24 once he fires a shot.
+- **Being shot at** is known (hurt, a round passing within 2.5, a mate
+  killed within 12): `crouch` at once (0.07 s), `take_cover` (behind a
+  wall 6 voxels off and at rest 3.2 s after the hit; with none: crouched,
+  turned to the shot), `advance_by_cover`, `fall_back_by_cover`. Cover is
+  a budgeted flood (`core/skill_cover.c`).
+- **THE LIVE BUG (bots wading against a bank for minutes).** The old
+  watchdog cleared its timer on any think with no key down, and every new
+  plan has one: it never fired. The new one (engine.c, THE NET UNDER
+  EVERYTHING) watches the body, whatever the skill or the follower says:
+  1.5 s pushing -> a jump; 1.5 more -> a step back, a sidestep and a jump,
+  and a new plan with the failed move priced; 1.5 more -> the goal is
+  DROPPED, remembered as unreachable for the team (30 s), the tree is
+  entered afresh and the bot goes somewhere else for 4 s. Also: 8 s on a
+  route without leaving a 4-voxel circle. Counted (`stats.stuck_tries`,
+  `stuck_resets`); one level-1 line a bot a minute: "bot #12 stuck at
+  x,y,z (pushing) doing <describe>". Scenario (6 bots wading at a bank the
+  server made a voxel higher than the engine knows): longest in one cell
+  with keys down 1.5 s, 15 goals dropped in 60 s, 5 of 6 out by the other
+  banks.
+- **Water that hurts** (`water.damage=<n>`, or `water=lethal`): the
+  setting is taken, given to nav's policy, and `leave_water` is above
+  everything but a grenade in tdm.bt and default.bt. 6 bots spawned in it
+  at 10 a second: all make for dry ground first, dry in 3.4 s, none dies.
+- tdm.bt and default.bt are rewritten: the last resort is `seek` (the
+  ENEMY'S BASE), not roam. flank / hunt_noise / take_high_ground / camp
+  exist and are in tdm.bt but have no scenario of their own yet.
+
+### Added since, same day (still green; `tests/ctf_test.c`, 14 checks)
+
+- **ctf, first half.** `trees/ctf.bt` (the tree is named `ctf`),
+  `core/skill_objective.c`: fetch, carry_home, escort, intercept, guard;
+  the words carrying_intel, their_intel_home/_dropped/_carried,
+  our_intel_home/_dropped/_taken, near_own_base, near_their_base,
+  mates_near; the places their_intel, our_intel, their_base, thief,
+  carrier, intercept. THE SERVER'S RULES WERE READ (ctf.lua, lib_ctf.lua,
+  lib_bot.lua, main.c) and a bot needs nothing special: the pickup loop is
+  over every connected player and bot_create connects its bot; pickup is
+  walking within 3 of the other team's intel, capture is carrying it
+  within 3 of one's own tent, death drops it on the spot, 2 s without any
+  pickup after a drop, and a team can never touch its own intel (a dropped
+  one of ours can only be guarded). brain_sim.h plays those rules.
+  WORKS: a lone bot picks up after 11 s and captures after 22 s, and again;
+  the carrier is on `carry_home` every tick it carries and gets home in
+  11.6 s with a man off its line against 10.7 with nobody; a thief is run
+  down by 4 of 5 and his dropped intel is then guarded by 4; replay holds.
+  **NOT DONE (printed "NOT YET" by the test, not asserted):** 6 against 6
+  does not reach a capture -- the teams meet in the middle and fight there
+  as in tdm; with nothing in sight 166 of 200 characters fetch (guard 23,
+  flank 11): the weights are untuned; "ours taken" does not shift the
+  split to the thief in the 200-character scene; nobody was seen heading
+  for a place AHEAD of the thief.
+- nav's asks done: roam snaps to dry ground (`bc_nav_snap_dry`) and no
+  longer walks "the way it faces" when it finds nowhere; the policy gets
+  `water_damage` (scaled up for a hurt bot) and `water_lethal` only at 30
+  a second or when the damage is unknown.
+
+Not yet: ctf team play (above), leaders, the scenarios for flank / high
+ground / cover-to-cover, the numbers table. The sections below are the previous agent's and
+are being brought up to date as the work goes; where they disagree with
+the above, the above is right.
+
 A checkpoint for whoever continues. `make -C bot test` builds with no
 warning and every test passes on macOS arm64 (Apple clang 17) and on
 Linux x86-64 (Alpine, GCC, emulated; see (c)). `make -C bot` links
