@@ -49,19 +49,21 @@ pick every=20 sticky=1.5 noise=0.3
 		do fetch
 	option objective their_intel_home         # go and take theirs
 		do fetch
-	option flank their_intel_home x0.8        # take theirs, coming at it the long way round
+	option flank their_intel_home x1.1        # take theirs, coming at it the long way round
 		tree ctf_round
 	option caution our_intel_dropped x1.6     # ours lies in the open: stand over it
 		do guard our_intel 30
-	option caution our_intel_home x0.9        # keep ours
+	option teamwork our_intel_dropped x1.1    # (the team-minded too: it is where they will come)
+		do guard our_intel 30
+	option caution unwatched our_intel 20     # keep ours -- two at most: the rest have a game to win
 		do guard our_intel 40
 	option marksman vantage rifle smg x0.7    # watch from a height
 		tree ctf_camp
 	option teamwork ping_called x3            # a team-mate called
 		tree ctf_answer
-	option teamwork has_leader x1.1           # fall in with its leader: where he goes, the squad goes
+	option teamwork has_leader x1.6           # fall in with its leader: where he goes, the squad goes
 		do follow leader
-	option objective is_leader x1.5           # a leader goes for their intel: the squad is behind it
+	option none is_leader x2.5                # a leader goes for their intel: the squad is behind it
 		tree ctf_net
 	option none always x0.25                  # nothing else: toward their intel
 		tree ctf_net
@@ -104,24 +106,30 @@ tree ctf_contact:
 pick every=1.5 sticky=0.3 noise=0.15
 	option aggression our_intel_taken x3      # the thief first, whoever else is about
 		do intercept
-	option objective their_intel_home x0.9    # the keen on the game do not stop for a fight: on, shooting
+	option objective their_intel_home x1.1    # the keen on the game do not stop for a fight: on, shooting
 		do fetch
 	option teamwork their_intel_carried x1.4  # a mate carries theirs: stay by him, shooting
 		do escort
-	option flank their_intel_home x0.7        # leave the fight to the others: round the side for their intel
+	option flank their_intel_home x0.9        # leave the fight to the others: round the side for their intel
 		tree ctf_round
 	option objective their_intel_dropped x1.5
 		do fetch
 	option caution pressed x1.3               # hurt or outnumbered: break off
 		do fall_back_by_cover
-	option aggression enemy_visible           # fight him
+	option aggression enemy_near 45 x1.8      # a man near: fight him (one far off is not worth the stop)
 		do fight
-	option marksman standoff x1.1             # in reach and far enough: stand and shoot
+	option caution enemy_near 25 x1.2         # (the careful too, when he is on top of them)
+		do fight
+	option marksman standoff x0.8             # in reach and far enough: stand and shoot
 		do hold self 4
-	option caution enemy_far 70 x0.9          # far: close on him from cover to cover
-		do advance_by_cover enemy
 	option greed grenade_worth x0.8           # a group, a far man, one behind a wall
 		do throw_grenade
+	option teamwork has_leader x1.2           # with its squad: it shoots what its leader shoots
+		do follow leader
+	option none is_leader x1.4                # a leader keeps on for their intel
+		tree ctf_net
+	option none always x0.3                   # nobody near, nothing to do about him: the game
+		tree ctf_net
 
 tree ctf_camp:
 seq

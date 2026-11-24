@@ -827,6 +827,164 @@ static void test_settings(void)
 	bs_free(s);
 }
 
+/* --- a bot with a tree of its own (a gamemode's NPC), changed in play --- */
+
+static int stops_seen;
+
+static void test_own_tree(void)
+{
+	bs_sim *s = arena(4);
+	bc_bot *a, *b;
+	char d[300];
+	int log2_before, i;
+
+	printf("a tree for one bot, replaced in play\n");
+	bs_start(s);
+	bs_add(s, 0, 1, 1, 5, 0, 31, 215.5f, 250.5f, 1, 0);
+	bs_add(s, 1, 1, 1, 5, 0, 32, 215.5f, 262.5f, 1, 0);
+	bs_add(s, 2, 1, 1, 5, 0, 33, 215.5f, 256.5f, 1, 0);
+	bs_set(s, BL_NO_PLAYER, "tree=tdm");                        /* the world's */
+	bs_set(s, BL_NO_PLAYER, "item.medkit.tree=seq\n\tif health_below 40\n\tdo use medkit");
+	bs_set(s, 0, "tree=default");                               /* #0: a built-in name */
+	bs_set(s, 1, "tree=tree guard_post:\ndo hold self 99\ntree guard_post_also:\nseq\n\talways\n\t\ttree items\n");  /* #1: its own text */
+	bs_run(s, 1.0);
+	a = bc_engine_bot(s->e, 0);
+	b = bc_engine_bot(s->e, 1);
+	CHECK(a && b && b->own != NULL && a->own == NULL);
+	CHECK(a->forest != b->forest && b->forest == b->own);
+	bc_engine_describe(s->e, 1, d, sizeof d);
+	CHECK(strstr(d, "hold") != NULL);
+	bc_engine_describe(s->e, 2, d, sizeof d);
+	CHECK(strstr(d, "pick:") != NULL && !strstr(d, "hold"));    /* the third runs the world's tree */
+	CHECK(!strcmp(a->tree_name, "default") && !strcmp(b->tree_name, "guard_post"));
+	/* its own "_also" and the items tree work for it */
+	s->on_command = on_command;
+	heal_on_medkit = 1;
+	bs_set(s, 1, "item.medkit=1");
+	bs_run(s, 0.5);
+	s->p[1].hp = 30;
+	bs_run(s, 2.0);
+	CHECK(s->p[1].cmds == 1 && !strcmp(s->p[1].last_cmd, "inv medkit"));
+	/* replaced while `hold` is RUNNING: text -> a name */
+	bs_set(s, 1, "tree=tdm");
+	bs_run(s, 1.0);
+	CHECK(b->own == NULL && b->own_text == NULL);
+	bc_engine_describe(s->e, 1, d, sizeof d);
+	CHECK(!strstr(d, "hold") && strstr(d, "pick:") != NULL);
+	/* a name -> another text, twice over (the first is freed) */
+	bs_set(s, 1, "tree=tree a1:\ndo hold self 50\n");
+	bs_run(s, 0.5);
+	bs_set(s, 1, "tree=tree a2:\ndo look_around\n");
+	bs_run(s, 0.5);
+	CHECK(b->own != NULL && !strcmp(b->tree_name, "a2"));
+	bc_engine_describe(s->e, 1, d, sizeof d);
+	CHECK(strstr(d, "look_around") != NULL);
+	/* a text that does not compile: said with its line, and nothing changes */
+	log2_before = s->log2_n;
+	bs_set(s, 1, "tree=tree bad:\nseq\n\tdo no_such_thing\n");
+	bs_run(s, 0.5);
+	CHECK(s->log2_n == log2_before + 1 && strstr(s->log2, "bot #1") && strstr(s->log2, "line 3"));
+	CHECK(!strcmp(b->tree_name, "a2"));
+	bc_engine_describe(s->e, 1, d, sizeof d);
+	CHECK(strstr(d, "look_around") != NULL);
+	/* the item fragments change under it: its own text is compiled again, and it goes on */
+	bs_set(s, BL_NO_PLAYER, "item.rocket.tree=seq\n\tif enemy_visible\n\tdo use rocket enemy");
+	bs_run(s, 0.5);
+	CHECK(b->own != NULL && b->forest == b->own);
+	bc_engine_describe(s->e, 1, d, sizeof d);
+	CHECK(strstr(d, "look_around") != NULL);
+	/* a name nobody has: said, and it runs the world's */
+	bs_set(s, 1, "tree=nonesuch");
+	bs_run(s, 1.0);
+	CHECK(b->own == NULL && b->tree_name[0] == 0);
+	bc_engine_describe(s->e, 1, d, sizeof d);
+	CHECK(strstr(d, "pick:") != NULL);
+	/* empty: back to the world's tree; and the others never moved */
+	bs_set(s, 1, "tree=tree a3:\ndo hold self 50\n");
+	bs_run(s, 0.5);
+	bs_set(s, 1, "tree=");
+	bs_run(s, 1.0);
+	CHECK(b->own == NULL && b->tree_name[0] == 0 && b->forest == bc_engine_bot(s->e, 2)->forest);
+	CHECK(!strcmp(a->tree_name, "default"));
+	/* many changes in a row, an action RUNNING each time: no crash, and it still thinks */
+	for (i = 0; i < 40; i++) {
+		char text[96];
+
+		snprintf(text, sizeof text, i % 3 == 2 ? "tree=tdm" : "tree=tree r%d:\ndo hold self 50\n", i);
+		bs_set(s, 1, text);
+		bs_run(s, 0.1);
+	}
+	bs_run(s, 1.0);
+	CHECK(b->alive && (s->intents[1].flags & BL_I_VALID));
+	/* the bot goes: its text goes with it */
+	bs_set(s, 1, "tree=tree a4:\ndo hold self 50\n");
+	bs_run(s, 0.3);
+	bs_push(s, BL_EV_UNBOT, 1, NULL, 0);
+	bs_run(s, 0.2);
+	CHECK(bc_engine_bot(s->e, 1) == NULL && s->e->bots[1].own == NULL && s->e->bots[1].own_text == NULL);
+	(void)stops_seen;
+	bs_free(s);
+}
+
+static void test_traits(void)
+{
+	bs_sim *s = arena(4);
+	int pass, k, fight[3] = { 0, 0, 0 };
+	float sum[3] = { 0, 0, 0 }, one = 0.0f;
+	bc_bot *b;
+
+	printf("traits=: the lot leans, each keeps its own\n");
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "tree=tdm");
+	bs_set(s, BL_NO_PLAYER, "leaders.per=0");
+	for (pass = 0; pass < 3; pass++) {
+		bs_set(s, BL_NO_PLAYER, pass == 0 ? "traits=" : pass == 1 ? "traits=aggression:2,caution:0.5,nonsense:3"
+		                                              : "traits=aggression:0.5,caution:2");
+		for (k = 0; k < 200; k++) {
+			char leaf[64];
+			int i, did = 0;
+
+			/* hit down to 55 with the man in sight: fight on, or break off */
+			bs_add(s, 0, 1, 1, 5, 0, 23000u + (uint32_t)k, 220.5f, 264.5f, 1, 0);
+			bs_add(s, 1, 0, 2, 5, 0, 1, 246.5f, 264.5f, -1, 0);
+			bs_run(s, 0.3);
+			b = bc_engine_bot(s->e, 0);
+			sum[pass] += b->persona.trait[BC_T_AGGRESSION];
+			bs_hurt(s, 0, 45, 1, s->w.players[1].pos, 0);
+			for (i = 0; i < 90; i++) {
+				bs_step(s);
+				s->p[1].hp = 100;
+				leaf_of(s, 0, leaf, sizeof leaf);
+				if (!strcmp(leaf, "fight")) did = 1;
+			}
+			fight[pass] += did;
+		}
+	}
+	printf("  200 bots hit with a man in sight; mean aggression %.2f, %.2f with traits=aggression:2,caution:0.5, %.2f with aggression:0.5,caution:2;\n"
+	       "  they fight on: %d, %d, %d of 200; the name nobody knows was said: %s\n", (double)(sum[0] / 200.0f),
+	       (double)(sum[1] / 200.0f), (double)(sum[2] / 200.0f), fight[0], fight[1], fight[2], s->log2);
+	CHECK(sum[1] > sum[0] * 1.5f && sum[2] < sum[0] * 0.7f);
+	CHECK(fight[1] > fight[0] + 20 && fight[2] < fight[0] - 20);
+	CHECK(strstr(s->log2, "nonsense") != NULL);
+	/* for one bot, on top of everybody's; and cleared */
+	bs_set(s, BL_NO_PLAYER, "traits=");
+	bs_add(s, 0, 1, 1, 5, 0, 23000u, 220.5f, 256.5f, 1, 0);
+	bs_run(s, 0.2);
+	b = bc_engine_bot(s->e, 0);
+	one = b->persona.trait[BC_T_STEALTH];
+	bs_set(s, 0, "traits=stealth:1.5");
+	bs_run(s, 0.1);
+	CHECK(fabsf(b->persona.trait[BC_T_STEALTH] - (one * 1.5f > 3.0f ? 3.0f : one * 1.5f)) < 1e-4f);
+	bs_set(s, BL_NO_PLAYER, "traits=stealth:100");
+	bs_run(s, 0.1);
+	CHECK(b->persona.trait[BC_T_STEALTH] == 3.0f);              /* persona.h's range holds */
+	bs_set(s, 0, "traits=");
+	bs_set(s, BL_NO_PLAYER, "traits=");
+	bs_run(s, 0.1);
+	CHECK(fabsf(b->persona.trait[BC_T_STEALTH] - one) < 1e-5f);
+	bs_free(s);
+}
+
 static void test_cost(int per_team)
 {
 	bs_sim *s = arena(per_team * 2);
@@ -941,6 +1099,8 @@ int main(void)
 	test_replay();
 	test_items();
 	test_settings();
+	test_own_tree();
+	test_traits();
 	printf("cost (this machine, -O2; a flat field with walls, NOT a real map)\n");
 	test_cost(6);
 	test_cost(16);

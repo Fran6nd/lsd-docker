@@ -9,7 +9,22 @@
  *   tree=<name>            * the tree to run ("default" when unset). A
  *                            value of several lines is the TEXT of trees
  *                            (bt.h), compiled beside the built-in ones;
- *                            the first tree in it is the one run.
+ *                            the first tree in it is the one run. FOR ONE
+ *                            BOT the text is that bot's own (a gamemode's
+ *                            NPC with a role of its own): compiled and
+ *                            kept for it alone, replaced by its next
+ *                            tree=, freed with the bot; an empty value
+ *                            gives it back the world's tree. A text that
+ *                            does not compile changes nothing and is said
+ *                            with its line. Changing a tree in play stops
+ *                            whatever action was RUNNING, once.
+ *   traits=<trait>:<f>,... * every named trait's weight (persona.h) is
+ *                            MULTIPLIED by f, on top of what each bot
+ *                            rolled, within persona's range (0.2 to 3):
+ *                            the bots keep their differences, the lot
+ *                            leans. For everybody and for one bot the two
+ *                            multiply. Empty clears. A name nobody knows
+ *                            is said and left out.
  *   cull=voxlap|openspades   the server's floating-block personality
  *   archetypes=camper:2,pusher:3,...   the mix characters are drawn from
  *   sight, fov, notice, memory, relay, board, noise_secs   the senses
@@ -445,6 +460,8 @@ static void bot_bind(bc_engine *e, bc_bot *b)
 	size_t need;
 
 	fs[0] = e->custom; fs[1] = e->builtin; fs[2] = e->fallback;
+	if (b->own && (tree = bt_forest_find(b->own, name)) >= 0)
+		f = b->own;             /* its own text first */
 	for (i = 0; i < 3 && tree < 0; i++)
 		if (fs[i] && (tree = bt_forest_find(fs[i], name)) >= 0) f = fs[i];
 	for (i = 1; i < 3 && tree < 0; i++)
@@ -534,6 +551,37 @@ static void recompile(bc_engine *e)
 		f = compile_all(e, e->custom_text, err, sizeof err);
 		if (f) swap_forest(e, &e->custom, f);
 	}
+	{
+		/* and each bot's own text */
+		int i;
+
+		for (i = 0; i < e->max_bots; i++) {
+			bc_bot *b = &e->bots[i];
+
+			if (!b->used || !b->own_text)
+				continue;
+			f = compile_all(e, b->own_text, err, sizeof err);
+			if (!f)
+				continue;
+			bot_leave_tree(b);
+			bt_forest_free(b->own);
+			b->own = f;
+			bot_bind(e, b);
+		}
+	}
+}
+
+/* A bot's own compiled text goes (it leaves it first). */
+static void bot_drop_own(bc_bot *b)
+{
+	if (b->own) {
+		if (b->forest == b->own)
+			bot_leave_tree(b);
+		bt_forest_free(b->own);
+		b->own = NULL;
+	}
+	free(b->own_text);
+	b->own_text = NULL;
 }
 
 /* ====================================================================== */
@@ -621,6 +669,8 @@ void bc_engine_free(bc_engine *e)
 		for (i = 0; i < e->max_bots; i++) {
 			if (e->bots[i].used)
 				bot_leave_tree(&e->bots[i]);
+			if (e->bots[i].own) bt_forest_free(e->bots[i].own);
+			free(e->bots[i].own_text);
 			free(e->bots[i].bt);
 		}
 	if (e->builtin) bt_forest_free(e->builtin);
@@ -701,6 +751,53 @@ static void roll_persona(bc_engine *e, bc_bot *b)
 	 * can be drawn again when the mix arrives after the bot */
 	bc_rng_seed(&r, b->seed, 0x70657273);
 	bc_persona_roll(&b->persona, &r, e->have_archetypes ? e->archetypes : NULL, b->level);
+	{
+		/* traits=: the lot leans, each keeps its own roll under it */
+		int t;
+
+		for (t = 1; t < BC_T_COUNT; t++) {
+			float v = b->persona.trait[t];
+
+			if (e->trait_mul[t] > 0.0f) v *= e->trait_mul[t];
+			if (b->trait_mul[t] > 0.0f) v *= b->trait_mul[t];
+			b->persona.trait[t] = v < 0.2f ? 0.2f : v > 3.0f ? 3.0f : v;
+		}
+	}
+}
+
+/* "aggression:2,caution:0.5" into factors (0: not named). Names nobody
+ * knows are said and left out. */
+static void parse_traits(bc_engine *e, const char *val, float *mul)
+{
+	const char *q = val;
+	int t;
+
+	for (t = 0; t < BC_T_COUNT; t++)
+		mul[t] = 0.0f;
+	while (*q) {
+		char name[32];
+		size_t n = 0;
+		float f = 1.0f;
+
+		while (*q == ' ' || *q == ',') q++;
+		while (*q && *q != ':' && *q != ',' && n + 1 < sizeof name) name[n++] = *q++;
+		name[n] = 0;
+		while (n && name[n - 1] == ' ') name[--n] = 0;
+		if (*q == ':') {
+			char *end;
+
+			f = (float)strtod(q + 1, &end);
+			q = end;
+		}
+		while (*q && *q != ',') q++;
+		if (!n)
+			continue;
+		t = bc_trait_by_name(name);
+		if (t <= 0 || !(f > 0.0f))
+			bc_engine_log(e, 2, "traits=: %s: %s", name, t <= 0 ? "no trait of that name" : "its factor must be over 0");
+		else
+			mul[t] = f;
+	}
 }
 
 static void bot_new_life(bc_bot *b, const bl_player *p)
@@ -812,6 +909,7 @@ static void ev_bot(bc_engine *e, int pid, const bl_ev_bot *ev)
 	} else {
 		bot_leave_tree(b);
 		bc_engine_search_release(e, b);
+		bot_drop_own(b);
 	}
 	{
 		bt_state *bt = b->bt;
@@ -850,6 +948,7 @@ static void ev_unbot(bc_engine *e, int pid)
 	bot_leave_tree(b);
 	bc_engine_search_release(e, b);
 	bc_tactics_bot_gone(b);
+	bot_drop_own(b);
 	b->used = 0;
 	b->alive = 0;
 	e->by_pid[pid] = -1;
@@ -932,6 +1031,53 @@ static void set_tree(bc_engine *e, bc_bot *b, const char *val)
 {
 	char name[BT_NAME_MAX] = "";
 
+	if (b) {
+		/* ONE BOT'S OWN TREE: a name, its own text, or (empty) the world's again */
+		if (strchr(val, '\n')) {
+			const char *h = strncmp(val, "tree ", 5) ? strstr(val, "\ntree ") : val;
+			char err[200];
+			bt_forest *f = compile_all(e, val, err, sizeof err);
+			char *text;
+
+			if (!f) {
+				bc_engine_log(e, 2, "bot #%d: tree= does not compile, it keeps its tree: %s", b->pid, err);
+				return;
+			}
+			text = dup_text(val);
+			if (!text) {
+				bt_forest_free(f);
+				return;
+			}
+			bot_drop_own(b);
+			b->own = f;
+			b->own_text = text;
+			strcpy(name, "main");
+			if (h) {
+				size_t n;
+
+				h += h == val ? 5 : 6;
+				n = strcspn(h, ":\n");
+				if (n > 0 && n < sizeof name) {
+					memcpy(name, h, n);
+					name[n] = 0;
+				}
+			}
+			strcpy(b->tree_name, name);
+			bot_bind(e, b);
+			return;
+		}
+		bot_drop_own(b);
+		if (strlen(val) < sizeof name)
+			strcpy(name, val);
+		if (name[0] && !(e->custom && bt_forest_find(e->custom, name) >= 0) &&
+		    !(e->builtin && bt_forest_find(e->builtin, name) >= 0)) {
+			bc_engine_log(e, 1, "bot #%d: tree=%s: no tree of that name, it runs the world's", b->pid, name);
+			name[0] = 0;
+		}
+		strcpy(b->tree_name, name);
+		bot_bind(e, b);
+		return;
+	}
 	if (strchr(val, '\n')) {
 		/* the text of trees: the first one in it is the one run */
 		const char *h = strncmp(val, "tree ", 5) ? strstr(val, "\ntree ") : val;
@@ -1005,6 +1151,14 @@ static void ev_set(bc_engine *e, int pid, const char *text)
 		if (b) b->edit = (int8_t)v;
 		else { e->may_dig = v & 1; e->may_build = (v >> 1) & 1; }
 		memset(e->unreach, 0, sizeof e->unreach);   /* what had no way may have one now */
+		return;
+	}
+	if (!strcmp(key, "traits")) {
+		if (b) parse_traits(e, val, b->trait_mul);
+		else parse_traits(e, val, e->trait_mul);
+		for (i = 0; i < e->max_bots; i++)
+			if (e->bots[i].used && (!b || b == &e->bots[i]))
+				roll_persona(e, &e->bots[i]);
 		return;
 	}
 	if (!strcmp(key, "night_vision")) {

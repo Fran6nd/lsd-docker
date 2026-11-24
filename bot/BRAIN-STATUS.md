@@ -1,5 +1,64 @@
 # The brain: senses, skills, vocabulary, engine, trees -- where it stands
 
+## CHECKPOINT npc (2026-11-25, later still): a tree for one bot, traits=, the operator's trees
+
+`make -C bot test` is green, no warnings (engine_test 184 checks,
+botd_test 72).
+
+- **A TREE FOR ONE BOT** (`tree=` sent for a pid: a gamemode's NPC with a
+  role of its own). A name, or TEXT -- which is now that bot's own:
+  compiled and kept for it alone (it used to replace the one custom
+  forest for everybody), replaced by its next `tree=`, freed with the
+  bot. Empty gives it back the world's tree; a name nobody has is said
+  and gives it the world's; a text that does not compile is said with its
+  line ("bot #1: tree= does not compile, it keeps its tree: line 3: ...")
+  and changes nothing. Its own `<name>_also`, `tree items` and `tree
+  extras` work, and when an item's fragment changes its text is compiled
+  again. Scenario: three bots, the world on tdm, one on `default`, one on
+  its own text; then name -> text -> text -> bad text -> name nobody has
+  -> text -> empty, 40 changes in a row with an action RUNNING each time,
+  the bot removed with a text of its own. `leaks --atExit` on the whole
+  engine_test: 0 leaks.
+- **`traits=<trait>:<factor>,...`** (for everybody, or one bot; the two
+  multiply): each named trait's weight is multiplied, on top of what the
+  bot rolled, within 0.2 to 3. Empty clears. A name nobody knows is said
+  ("traits=: nonsense: no trait of that name") and left out. Applies to
+  bots made before and after. 200 bots hit with a man in sight: 125
+  fight on; 189 with `traits=aggression:2,caution:0.5`; 18 with
+  `aggression:0.5,caution:2`.
+- **botd reads the operator's trees**: after the built-in directory,
+  every *.bt of `$LSD_DATA/trees` (LSD_DATA: /data), or `--user-trees
+  DIR`. A tree there with a built-in's name replaces it; other names are
+  added. A file that does not compile is said ("botd: tree error: file:
+  line N: ...", the line being the line in HIS file) and skipped, the
+  built-in staying. Read again at every map load, and the log says which
+  were loaded ("user trees loaded from DIR: a.bt (a), n.bt (n)").
+
+### THE BENCH (`tests/bench.c`): the numbers a change is judged by
+
+```
+make -C bot build/tests/bench
+bot/build/tests/bench                          # every built-in scene (about 2 minutes)
+bot/build/tests/bench arena40 sea40            # those scenes
+bot/build/tests/bench ctf:10                   # ctf, 10 a side, 300 s
+bot/build/tests/bench map:/path/prisonbreakv1.vxl 120
+bot/build/tests/bench > before.txt ; ...change... ; bot/build/tests/bench > after.txt ; diff before.txt after.txt
+```
+
+Not a test (nothing asserted, not in `make test`). One line a metric,
+`<scene> <metric> <value> <unit>`; everything but the two `think_*` lines
+is the same on every machine and run. Scenes: `arena12/32/40` (flat field
+with walls, tdm, respawning, 60 s), `fight6/20` (to the last man),
+`sea40` (two islands, both bases in the water), `ctf:<n>` (a town of
+walls, 300 s), `map:<file.vxl> [secs]` (40 bots, tdm, bases at the dry
+ground nearest 128,256 and 384,256). Metrics: `think_mean_us`,
+`think_worst_us`, `no_key_pct` (living bot-time with no movement key and
+no trigger), `waiting_pct` (of it, standing waiting for a route),
+`longest_idle_s`, `wading_pct`, `plans`, `plans_capped`, `plans_no_way`,
+`expansions_per_plan`, `kills`, `stuck`, `goals_dropped`, and `result_s`
+(fights), `captures`, `first_capture_s`, `pickups`, `drops` (ctf). bench.c's
+header says the same.
+
 ## CHECKPOINT scenarios (2026-11-25, later): every behaviour has its scenario
 
 `make -C bot test` is green, no warnings. New: `tests/tactics_test.c` (47

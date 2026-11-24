@@ -32,7 +32,17 @@
  *   mate          the nearest team-mate
  *   cover         the nearest place the enemy cannot see
  *   hot           where its team last met the other
- *   own_base, enemy_base, own_intel, enemy_intel   the game's objects
+ *   enemy_area    where the enemy is expected: `hot` if under a minute
+ *                 old, else his base
+ *   rumour        the freshest rumour of the enemy (the score `rumour`)
+ *   vantage       the best free perch for its gun
+ *   leader        the leader it follows
+ *   own_base, enemy_base (their_base), own_intel (our_intel),
+ *   enemy_intel (their_intel)     the game's objects, where they are now
+ *   thief         the enemy who carries this team's intel (the world
+ *                 shows a carrier to everybody: his true place)
+ *   carrier       the team-mate who carries the other team's
+ *   intercept     where to cut the thief off on his way home
  *
  * TWO TREES A BOT. The tree named by the setting `tree` (say "tdm") is
  * the bot's MAIN tree: what it is doing. If the same text also has a
@@ -48,6 +58,16 @@
  * THE EXTRAS TREE, `tree extras`, likewise: what the server's scripts
  * add to every bot (extra.<name>.tree), each part ticked at every
  * decision.
+ *
+ * BEING SHOT AT (`under_fire`) is being hurt by somebody, a round passing
+ * within 2.5 voxels, or a team-mate killed within 12 (senses.h). COVER is
+ * a place a threat cannot see a body standing in -- or only crouched
+ * (skill_cover.c). A PERCH is a high place with a long view toward the
+ * enemy and a way up, one bot at a time (skill_tactics.c). A LEADER is a
+ * team member the engine drew by lot, bot or person, whom other bots may
+ * follow (skill_squad.c). THE INTEL is one of the two objects the world
+ * shows that a team may carry off (skill_objective.c has the server's
+ * rules for them). None of these names a gamemode.
  *
  * NIGHT AND LAMPS ARE NOT THE ENGINE'S. The words is_night, lamp_on,
  * has_night_vision, night, night_vision, hit_in_dark and `do lamp` are
@@ -118,8 +138,52 @@
  *                                      the places below)
  *   at <place> [voxels]                it is within that of the place (default
  *                                      4)
+ *   gun_is <rifle|smg|shotgun>...      its gun is one of those named
+ *   under_fire [secs]                  it was shot at within that many seconds
+ *                                      (default 3): hurt by somebody, a round
+ *                                      that passed within 2.5 voxels, a team-
+ *                                      mate killed within 12
+ *   in_cover                           what threatens it (the man it fights,
+ *                                      where a hit came from) has no line of
+ *                                      sight to its body as it stands
+ *   in_harmful_water                   it is wading in water that hurts (the
+ *                                      settings water=lethal or water.damage)
+ *   carrying_intel                     it carries the other team's intel
+ *   their_intel_home                   the other team's intel lies where the
+ *                                      server put it
+ *   their_intel_dropped                the other team's intel lies where a
+ *                                      carrier of this team fell
+ *   their_intel_carried                a team-mate carries the other team's
+ *                                      intel
+ *   our_intel_home                     this team's intel lies where the server
+ *                                      put it
+ *   our_intel_dropped                  this team's intel lies where its thief
+ *                                      fell (it cannot be picked up by its own
+ *                                      team: it is guarded there)
+ *   our_intel_taken                    an enemy carries this team's intel
+ *                                      (where he is is known to everybody: the
+ *                                      place `thief`)
+ *   near_own_base [voxels]             it is within that of its team's base
+ *                                      (default 20)
+ *   near_their_base [voxels]           it is within that of the other team's
+ *                                      base (default 20)
+ *   mates_near <radius> [count]        that many live team-mates (default 1)
+ *                                      are within radius
+ *   is_leader                          it is one of its team's leaders (drawn
+ *                                      by lot by the engine; it is not told
+ *                                      otherwise)
+ *   has_leader                         it follows a living leader of its team:
+ *                                      a bot or a person, the nearest with room
+ *                                      (a loner never does)
+ *   leader_near [voxels]               its leader is within that (default 12)
+ *   leader_fighting                    its leader has a man in his sights, is
+ *                                      firing, or was hurt in the last 3 s
  *
  * SCORES  (option <trait> <score>), each 0..1
+ *   night_vision                       1 by night for a bot that has night
+ *                                      vision
+ *   hit_in_dark                        1 by night for a bot with no night
+ *                                      vision that was hit in the last 8 s
  *   always                             1
  *   enemy_visible                      1 with an enemy in sight, else 0
  *   enemy_known                        how sure it is of an enemy it cannot
@@ -146,16 +210,154 @@
  *   grenade_near                       1 when an enemy grenade would hurt it
  *                                      here
  *   outnumbered                        0 when not; else how badly, up to 1
- *   night_vision                       1 by night for a bot that has night vision
- *   hit_in_dark                        1 by night for a bot with no night vision
- *                                      and its lamp out, hit in the last 5 s
  *   night                              1 by night
  *   calm                               1 when nothing is known, 0.3 when
  *                                      suspicious, 0 engaged
  *   has_item <name>                    1 if it holds one
  *   ammo_low                           0 with a full load, 1 with none
+ *   gun_is <rifle|smg|shotgun>...      1 if its gun is one of those named, else
+ *                                      0
+ *   under_fire [secs]                  1 just shot at (see the condition),
+ *                                      falling to 0 over that many seconds
+ *                                      (default 4)
+ *   pressed                            how hard pressed in a fight: three parts
+ *                                      health lost, one part enemies in sight
+ *                                      beyond the team-mates within 20; 0 with
+ *                                      nobody in sight and no round for 4 s
+ *   standoff                           1 when the nearest enemy in sight is
+ *                                      within half its gun's opening range and
+ *                                      farther than it would close to: one to
+ *                                      stand and shoot at
+ *   enemy_far [voxels]                 0 with an enemy in sight at arm's
+ *                                      length, rising to 1 at that distance
+ *                                      (default 60); 0 with none in sight
+ *   mate_near [voxels]                 1 beside a team-mate, falling to 0.2 at
+ *                                      that distance (default 40); 0 with none
+ *                                      alive or one it just gave up following
+ *   harmful_water                      1 while it wades in water that hurts
+ *   flank_open                         1 when the enemy's area (where the team
+ *                                      last met him, else his base) is over 45
+ *                                      away and it has not just flanked
+ *   rumour                             how fresh the freshest rumour of the
+ *                                      enemy is -- a noise it heard, a team-
+ *                                      mate's sighting, the team's last meeting
+ *                                      -- that is over 10 away and it has not
+ *                                      just been to: 1 just now, 0 none
+ *   vantage [rifle|smg|shotgun]...     1 when the team knows a perch nobody has
+ *                                      claimed (high, a long view toward the
+ *                                      enemy, a way up) and its gun is one of
+ *                                      those named (any, when none is)
+ *   carrying_intel                     1 while it carries the other team's
+ *                                      intel
+ *   their_intel_home                   1 while the other team's intel lies
+ *                                      where the server put it
+ *   their_intel_dropped                1 while it lies where a carrier fell
+ *   their_intel_carried                1 while a team-mate carries it
+ *   our_intel_home                     1 while this team's intel lies where the
+ *                                      server put it
+ *   our_intel_dropped                  1 while it lies where its thief fell
+ *   our_intel_taken                    1 while an enemy carries it
+ *   near_own_base [voxels]             1 at its team's base, falling to 0 at
+ *                                      that distance (default 40)
+ *   near_their_base [voxels]           1 at the other team's base, falling to 0
+ *                                      at that distance (default 40)
+ *   mates_near <radius>                0 with no team-mate within radius, 1
+ *                                      with three or more
+ *   is_leader                          1 for a leader, else 0: for a tree to
+ *                                      lean a leader toward going somewhere
+ *   has_leader                         1 while it follows a living leader, else
+ *                                      0
+ *   quiet [secs]                       1 once it has had no enemy in sight for
+ *                                      that many seconds of this life (default
+ *                                      20), else 0
+ *   unwatched [place] [radius]         how short of team-mates a place is
+ *                                      (default own_intel, within 20): 1 with
+ *                                      none there, 0.5 with one, 0 with two or
+ *                                      more; 0 with no such place
  *
  * ACTIONS  (do)
+ *   crouch [secs]                      down where it stands, turned to what
+ *                                      shot at it, shooting if it sees him.
+ *                                      With no time said it is the flinch: 0.3
+ *                                      to 1 s by character, once for a burst of
+ *                                      fire (asked again it succeeds at once)
+ *   take_cover                         to the best cover from what threatens it
+ *                                      (near, well hidden, a way out behind, no
+ *                                      team-mate in it); there crouched if the
+ *                                      cover is low, facing the threat, peeking
+ *                                      to fire -- rarely and long for the
+ *                                      careful, hardly stopping for the bold.
+ *                                      No cover in reach: crouched where it
+ *                                      stands, turned to the threat. SUCCESS
+ *                                      after its time there (0.8 to 14 s by
+ *                                      character); FAILURE with no threat
+ *   advance_by_cover [place] [radius]  toward a place (default: the enemy) from
+ *                                      cover to cover, a pause at each by
+ *                                      character; a run where no cover gains
+ *                                      ground. SUCCESS there (at a man: at its
+ *                                      own fighting distance); FAILURE no such
+ *                                      place, no way
+ *   fall_back_by_cover [place]         away from what threatens it toward a
+ *                                      place (default own_base; with none,
+ *                                      straight away), from cover to cover, not
+ *                                      firing. SUCCESS out of sight with no
+ *                                      round for 3 s, or there; FAILURE with no
+ *                                      threat
+ *   seek                               go and find the enemy: to his base by
+ *                                      the direct way, shooting what it meets;
+ *                                      there and nobody, on to where the team
+ *                                      last met him, then back as far as the
+ *                                      middle, and round again. With no bases,
+ *                                      or no way to his, it roams. Always
+ *                                      RUNNING: a tree's last resort
+ *   flank [place]                      to the place (default: the enemy's area)
+ *                                      the long way round, by a side of its own
+ *                                      choosing, so as to come at it from
+ *                                      behind. SUCCESS there; FAILURE too near
+ *                                      to go round, no ground either side, no
+ *                                      way
+ *   hunt_noise                         go to the freshest rumour of the enemy
+ *                                      (see the score). SUCCESS on seeing the
+ *                                      place from near; FAILURE none, no way
+ *   take_high_ground                   claim the best free perch for its gun
+ *                                      and go up to it. SUCCESS on it; FAILURE
+ *                                      none free, no way up
+ *   camp [secs]                        stay where it is, crouched, sweeping the
+ *                                      arc toward the enemy, firing at what
+ *                                      appears. SUCCESS after two kills, when
+ *                                      shot at, or when its patience is out (25
+ *                                      to 120 s by character, or secs): it then
+ *                                      gives up its perch and takes another
+ *                                      next time
+ *   leave_water                        to the nearest dry ground. SUCCESS dry;
+ *                                      RUNNING on the way; FAILURE none within
+ *                                      48
+ *   fetch                              go to the other team's intel where it
+ *                                      lies and walk onto it (the server gives
+ *                                      it to whoever of the other team stands
+ *                                      within 3 of it). SUCCESS carrying it;
+ *                                      FAILURE none, somebody has it, no way
+ *   carry_home                         the carrier runs for its own base by a
+ *                                      route that keeps away from the enemies
+ *                                      it knows of, shooting only at a man
+ *                                      within 14. RUNNING while it carries;
+ *                                      SUCCESS when it no longer does; FAILURE
+ *                                      no base, no way
+ *   escort                             stay by the team-mate who carries the
+ *                                      intel: ahead of him toward the base and
+ *                                      to a side, shooting what it sees.
+ *                                      RUNNING; FAILURE nobody carries
+ *   intercept                          cut off the enemy who carries this
+ *                                      team's intel: to the point of his way
+ *                                      home it can reach before he does, and
+ *                                      fight him on sight. RUNNING; FAILURE
+ *                                      nobody has it
+ *   guard [place] [secs]               hold near a place (default own_intel) at
+ *                                      a spot of its own on the side the enemy
+ *                                      comes from, crouched if careful,
+ *                                      watching that way, shooting what
+ *                                      appears. SUCCESS after secs (default
+ *                                      30); FAILURE no such place, no way
  *   fight                              fight the enemy it has chosen (nearest
  *                                      in sight, kept until another is at half
  *                                      his distance): close to its own range,
@@ -174,15 +376,23 @@
  *   investigate                        go to the place most worth searching,
  *                                      look round it, then forget it. SUCCESS
  *                                      looked, FAILURE none or no way
- *   roam                               walk to where the enemy was last met,
- *                                      else his base, else anywhere. Always
- *                                      RUNNING: this is what a bot does rather
- *                                      than stand
- *   follow [mate|caller|order]         keep a station 3 voxels from a player:
- *                                      the nearest team-mate (default), the
- *                                      caller of the ping it answers, or the
- *                                      order's man. RUNNING; FAILURE with
- *                                      nobody
+ *   roam                               walk to somewhere the team has not been
+ *                                      lately: round where the enemy was last
+ *                                      met, else between the two bases, else
+ *                                      anywhere -- not round its own base.
+ *                                      Always RUNNING: what a bot does in a
+ *                                      world with nothing to seek
+ *   follow [mate|caller|order|leader]  keep a station 3 voxels from a player:
+ *                                      the nearest team-mate who is going
+ *                                      somewhere (default), the caller of the
+ *                                      ping it answers, or the order's man.
+ *                                      `leader`: fall in with its leader --
+ *                                      beside and behind him, never in front of
+ *                                      his gun; where he is going, not at his
+ *                                      heels; shooting what he shoots; stopping
+ *                                      near him when he stops. RUNNING; FAILURE
+ *                                      with nobody, or a man who stays put too
+ *                                      long
  *   hold [place] [secs]                go to the place (default: here) and
  *                                      watch from it, sweeping the head,
  *                                      crouched if careful. SUCCESS after secs
@@ -217,8 +427,10 @@
  *   reload                             reload now if the magazine is not full.
  *                                      SUCCESS asked, FAILURE nothing to do
  *
- * (bc_vocab_dump writes this list as text, for the docs and for a
- * server that wants to show what a tree may use.)
+ * (The three lists above are vocab.c's table, word for word: its one
+ * line a word is the documentation, and bc_vocab_dump -- `bttree --words`
+ * -- writes it as text for the docs and for a server that wants to show
+ * what a tree may use. A word added to the table is added here.)
  */
 #ifndef BC_VOCAB_H
 #define BC_VOCAB_H

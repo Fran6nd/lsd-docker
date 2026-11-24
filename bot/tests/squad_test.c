@@ -207,11 +207,56 @@ static void test_still(void)
 	bs_free(s);
 }
 
+static void test_cover_by_leader(void)
+{
+	bs_sim *s = field(12);
+	bl_vec3 from;
+	int i, hidden = 0, near = 0, open0 = 0;
+	uint32_t seed = 1300;
+
+	printf("the leader stops: his squad takes what cover there is\n");
+	bs_box(s, 232, 257, G - 4, 232, 264, G - 1, 1);    /* a short wall beside where he stops */
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "leaders.human=1000");
+	bs_add(s, 9, 0, 1, 5, BL_GUN_RIFLE, 1, 226.5f, 254.5f, 1, 0);
+	for (i = 0; i < 4; i++) {
+		seed = seed_with(BC_T_TEAMWORK, 1.4f, 3.0f, seed + 1);
+		bs_add(s, i, 1, 1, 5, i % 3, seed, 214.5f, 238.5f + 4.0f * (float)i, 1, 0);
+	}
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tdo follow leader\n\twait 1\n");
+	from.x = s->tent[1].x; from.y = s->tent[1].y; from.z = s->tent[1].z;
+	bs_run(s, 1.0);
+	for (i = 0; i < 4; i++) {
+		bl_vec3 me;
+
+		me.x = s->p[i].body.pos.x; me.y = s->p[i].body.pos.y; me.z = s->p[i].body.pos.z;
+		open0 += bc_sight_body(s->truth, from, me, 0);
+	}
+	bs_run(s, 9.0);
+	for (i = 0; i < 4; i++) {
+		bl_vec3 me, th;
+		float dx, dy, l;
+
+		me.x = s->p[i].body.pos.x; me.y = s->p[i].body.pos.y; me.z = s->p[i].body.pos.z;
+		/* the enemy's side, as the cover search takes it: a direction, 96 out */
+		dx = from.x - me.x; dy = from.y - me.y; l = sqrtf(dx * dx + dy * dy);
+		th = me; th.x += dx / l * 96.0f; th.y += dy / l * 96.0f;
+		hidden += !bc_sight_body(s->truth, th, me, (s->p[i].body.keys & BC_K_CROUCH) != 0);
+		near += bs_dist(s, i, 9) < 11.0f;
+	}
+	printf("  a wall 8 long beside him: after 10 s %d of 4 followers are out of sight from the enemy's side (%d were at the start), %d within 11 of him\n",
+	       hidden, 4 - open0, near);
+	CHECK(open0 == 4);
+	CHECK(hidden >= 2 && near >= 3);
+	bs_free(s);
+}
+
 int main(void)
 {
 	test_draw();
 	test_human();
 	test_still();
+	test_cover_by_leader();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;
 }

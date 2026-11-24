@@ -36,8 +36,10 @@
  *    hurt him, are this bot's target if it can see them (bc_squad_target,
  *    asked by the target choice of skill_fight.c, so it holds in any
  *    branch of a tree);
- *  - when he stops it stops near him, crouched if it is careful, watching
- *    away from him.
+ *  - when he stops it stops near him -- behind the nearest cover from
+ *    where the enemy is, if there is some within 9 voxels of him, crouched
+ *    there if the cover is low; else at its station, crouched if it is
+ *    careful, watching away from him.
  * It is one weighed option in a tree (`option teamwork has_leader`):
  * being shot at, a man in sight, an item to use outweigh it by the
  * ordinary options, and it is taken up again afterwards.
@@ -323,6 +325,28 @@ bt_status bc_follow_leader(bc_bot *b)
 		if (tg >= 0) b->fight.target = tg;
 	}
 	bc_fire_at_will(b);
+	if (speed <= 1.0f && e->now - b->squad.still_since > 1.5 && e->have_map) {
+		/* HE HAS STOPPED: not a ring of men standing in the open round
+		 * him. Each takes the cover nearest its station from where the
+		 * enemy is (the man being fought, a hit's source, else his
+		 * area), if there is some within 9 of the leader. */
+		bl_vec3 th;
+
+		if ((bc_threat_place(b, &th) || bc_enemy_area(b, &th)) &&
+		    bc_cover_query(b, th, BC_COVER_HIDE, NULL, 9, 48) && b->cq.found && flat(b->cq.best, p->pos) < 9.0f) {
+			if (flat(me->pos, b->cq.best) > 0.7f && b->cq.best_d > 0) {
+				bc_move_to(b, b->cq.best, 0.0f);
+				return BT_RUNNING;
+			}
+			b->wish.move = BC_MOVE_NONE;
+			b->wish.crouch = b->cq.crouch || t[BC_T_CAUTION] > 1.1f;
+			if (b->wish.look == BC_LOOK_AHEAD) {
+				b->wish.look = BC_LOOK_POINT;
+				b->wish.look_at = th;
+			}
+			return BT_RUNNING;
+		}
+	}
 	if (flat(me->pos, station) < (speed > 2.0f ? 2.0f : 3.0f) && fabsf(p->pos.z - me->pos.z) < 4.0f) {
 		b->wish.move = BC_MOVE_NONE;
 		if (speed <= 1.0f) {

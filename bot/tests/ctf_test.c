@@ -361,7 +361,7 @@ static void test_spread(void)
 	CHECK(shown >= 3);                          /* three things each done by 8% or more */
 	CHECK(big < 140);
 	CHECK(tally_of(&quiet[0], "fetch") + tally_of(&quiet[1], "fetch") + tally_of(&quiet[2], "fetch") >= 40);
-	CHECK(tally_of(&quiet[0], "guard") + tally_of(&quiet[1], "guard") + tally_of(&quiet[2], "guard") >= 30);
+	CHECK(tally_of(&quiet[0], "guard") + tally_of(&quiet[1], "guard") + tally_of(&quiet[2], "guard") >= 15);     /* fewer since a mate stands by it already (unwatched) */
 	CHECK(tally_of(&quiet[0], "flank") + tally_of(&quiet[1], "flank") + tally_of(&quiet[2], "flank") >= 20);
 	/* ours taken: the split shifts to the thief */
 	bs_add(s, 100, 0, 2, 5, 0, 1, 255.5f, 300.5f, 1, 0);

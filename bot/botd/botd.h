@@ -12,6 +12,7 @@
 typedef struct botd_opts {
 	const char *file;       /* the link file (default /dev/shm/lsd-botlink) */
 	const char *trees;      /* a directory of *.bt; NULL: /opt/botd/trees, then ./trees */
+	const char *user_trees; /* the operator's own *.bt, over those; NULL: $LSD_DATA/trees (LSD_DATA: /data) */
 	int hz;                 /* rounds a second (default 60) */
 	int budget;             /* planner expansions a think may spend (default 3000) */
 	int max_bots;           /* bots the engine is sized for (default 64) */

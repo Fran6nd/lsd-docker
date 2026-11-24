@@ -733,6 +733,19 @@ static float s_quiet(void *bot, const bt_args *a)
 	return b->e->now - since >= (double)arg(a, 0, 20.0f) ? 1.0f : 0.0f;
 }
 
+/* is a place short of team-mates: 1 with none within radius, 0.5 with one, 0 with two */
+static float s_unwatched(void *bot, const bt_args *a)
+{
+	bc_bot *b = bot;
+	bl_vec3 p;
+	int n;
+
+	if (!bc_place_of(b, a->count > 0 ? a->text[0] : "own_intel", &p))
+		return 0.0f;
+	n = bc_mates_within(b, p, arg(a, 1, 20.0f));
+	return n >= 2 ? 0.0f : n == 1 ? 0.5f : 1.0f;
+}
+
 enum { VK_C, VK_S, VK_A };
 
 typedef struct word {
@@ -856,6 +869,7 @@ static const word WORDS[] = {
 	{ VK_S, "is_leader", "", "1 for a leader, else 0: for a tree to lean a leader toward going somewhere", NULL, s_is_leader, NULL, NULL },
 	{ VK_S, "has_leader", "", "1 while it follows a living leader, else 0", NULL, s_has_leader, NULL, NULL },
 	{ VK_S, "quiet", "[secs]", "1 once it has had no enemy in sight for that many seconds of this life (default 20), else 0", NULL, s_quiet, NULL, NULL },
+	{ VK_S, "unwatched", "[place] [radius]", "how short of team-mates a place is (default own_intel, within 20): 1 with none there, 0.5 with one, 0 with two or more; 0 with no such place", NULL, s_unwatched, NULL, NULL },
 	{ VK_A, "fight", "", "fight the enemy it has chosen (nearest in sight, kept until another is at half his distance): close to its own range, strafe, burst, reload, spade when it comes to that. RUNNING while he lives; SUCCESS on his death; FAILURE with nobody", NULL, NULL, bc_do_fight, bc_do_stop },
 	{ VK_A, "go_to", "<place> [radius]", "walk to a place (jumping, digging, bridging as the mode allows), shooting what it meets on the way. SUCCESS there, FAILURE with no such place or no way", NULL, NULL, bc_do_go_to, bc_do_stop },
 	{ VK_A, "retreat", "", "run to the nearest place the enemy cannot see, back turned. SUCCESS hidden (or after 10 s), FAILURE with nothing to run from", NULL, NULL, bc_do_retreat, bc_do_stop },

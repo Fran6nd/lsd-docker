@@ -136,6 +136,8 @@ typedef struct session {
 	double sum_round, worst_round;
 	uint32_t ring_dropped_seen;
 	int bots;
+	int user_trees;         /* the operator's directory had trees at the last look */
+	int maps;
 } session;
 
 static session S;       /* static: survives the longjmp of a SIGBUS */
@@ -193,29 +195,113 @@ static char *slurp(const char *path, size_t *n, size_t max)
 	return buf;
 }
 
-/* Every *.bt of the directory, each tried alone first (so an error's line
- * is the file's own), then all the good ones as one text. */
-static void load_trees(bc_engine *e, const char *dir_opt)
+/* The names of the trees a text defines ("tree <name>:" at no indent), a
+ * space before and after each: " tdm tdm_answer ". */
+static char *tree_names(const char *text)
+{
+	size_t cap = strlen(text) + 4, len = 0;
+	char *out = malloc(cap);
+	if (!out) return NULL;
+	out[len++] = ' ';
+	for (const char *p = text; p && *p;) {
+		const char *eol = strchr(p, '\n');
+		if (!strncmp(p, "tree ", 5)) {
+			const char *q = p + 5;
+			size_t n = strcspn(q, ":\n\r #");
+			if (n > 0 && q[n] == ':') {
+				memcpy(out + len, q, n);
+				len += n;
+				out[len++] = ' ';
+			}
+		}
+		p = eol ? eol + 1 : NULL;
+	}
+	out[len] = '\0';
+	return out;
+}
+
+/* `text` without the trees whose names are in `drop` (" a b "). */
+static char *without_trees(const char *text, const char *drop)
+{
+	char *out = malloc(strlen(text) + 2);
+	size_t len = 0;
+	int keep = 1;
+	if (!out) return NULL;
+	for (const char *p = text; p && *p;) {
+		const char *eol = strchr(p, '\n');
+		size_t n = eol ? (size_t)(eol - p) + 1 : strlen(p);
+		if (!strncmp(p, "tree ", 5)) {
+			const char *q = p + 5;
+			size_t k = strcspn(q, ":\n\r #");
+			if (k > 0 && q[k] == ':') {
+				char name[130];
+				snprintf(name, sizeof name, " %.*s ", (int)(k < 120 ? k : 120), q);
+				keep = strstr(drop, name) == NULL;
+			}
+		}
+		if (keep) { memcpy(out + len, p, n); len += n; }
+		p = eol ? eol + 1 : NULL;
+	}
+	out[len] = '\0';
+	return out;
+}
+
+/* The *.bt files of a directory, in name order. Returns how many. */
+static int list_bt(const char *dir, char **names, int max)
+{
+	DIR *d = opendir(dir);
+	int n = 0;
+	if (!d) return -1;
+	for (struct dirent *de; n < max && (de = readdir(d)) != NULL;)
+		if (is_bt(de->d_name)) names[n++] = strdup(de->d_name);
+	closedir(d);
+	qsort(names, (size_t)n, sizeof names[0], by_name);
+	return n;
+}
+
+static void append(char **all, size_t *alen, const char *text)
+{
+	size_t len = strlen(text);
+	char *grown = realloc(*all, *alen + len + 2);
+	if (!grown) return;
+	*all = grown;
+	memcpy(*all + *alen, text, len);
+	(*all)[*alen + len] = '\n';
+	*alen += len + 1;
+	(*all)[*alen] = '\0';
+}
+
+/* THE TREES. First every *.bt of the built-in directory, each tried alone
+ * (so an error's line is the file's own), the good ones as one text.
+ * Then THE OPERATOR'S: every *.bt of a second, optional directory
+ * ($LSD_DATA/trees, or --user-trees). A tree there with the name of a
+ * built-in one REPLACES it (an operator's own tdm); other names are added
+ * (a tree to name with the setting tree=). Each of his files is tried
+ * with the built-in trees it does not replace, his text first so that an
+ * error's line is the line in his file; one that does not compile is
+ * said ("tree error: file: line N: ...") and skipped, and the built-in
+ * stays. Returns 1 if the operator's directory had any *.bt (it is then
+ * read again at each map: he edits a file and changes the map, no
+ * restart). */
+static int load_trees(bc_engine *e, const char *dir_opt, const char *user_opt)
 {
 	const char *dir = dir_opt;
+	char userdir[1024];
 	if (!dir) {
 		struct stat st;
 		dir = "/opt/botd/trees";
 		if (stat(dir, &st) != 0 || !S_ISDIR(st.st_mode)) dir = "./trees";
 	}
-	DIR *d = opendir(dir);
-	if (!d) { say("no trees directory (%s): the engine runs on its own", dir); return; }
-	char *names[512];
-	int n = 0;
-	for (struct dirent *de; n < 512 && (de = readdir(d)) != NULL;)
-		if (is_bt(de->d_name)) names[n++] = strdup(de->d_name);
-	closedir(d);
-	qsort(names, (size_t)n, sizeof names[0], by_name);
+	if (user_opt) snprintf(userdir, sizeof userdir, "%s", user_opt);
+	else snprintf(userdir, sizeof userdir, "%s/trees", getenv("LSD_DATA") && *getenv("LSD_DATA") ? getenv("LSD_DATA") : "/data");
 
+	char *names[512];
+	int n = list_bt(dir, names, 512);
 	char err[512];
 	char *all = calloc(1, 1);
 	size_t alen = 0;
 	int good = 0;
+	if (n < 0) { say("no trees directory (%s): the engine runs on its own", dir); n = 0; }
 	for (int i = 0; i < n && all; i++) {
 		char path[1024];
 		size_t len;
@@ -226,29 +312,84 @@ static void load_trees(bc_engine *e, const char *dir_opt)
 		if (!bc_engine_trees(e, text, err, sizeof err)) {
 			say("tree error: %s: %s (skipped)", path, err);
 		} else {
-			char *grown = realloc(all, alen + len + 2);
-			if (grown) {
-				all = grown;
-				memcpy(all + alen, text, len);
-				all[alen + len] = '\n';
-				alen += len + 1;
-				all[alen] = '\0';
-				good++;
-			}
+			append(&all, &alen, text);
+			good++;
 		}
 		free(text);
 	}
-	if (good) {
+	for (int i = 0; i < n; i++) free(names[i]);
+
+	/* the operator's */
+	char *unames[512];
+	int un = list_bt(userdir, unames, 512), ugood = 0;
+	char *user = calloc(1, 1), loaded[600] = "";
+	size_t ulen = 0;
+	for (int i = 0; i < un && all && user; i++) {
+		char path[1300];
+		size_t len;
+		snprintf(path, sizeof path, "%s/%s", userdir, unames[i]);
+		char *text = slurp(path, &len, 1 << 20);
+		if (!text) { say("tree error: %s: cannot read it", path); continue; }
+		/* his file, what of his is already in, and the built-in trees
+		 * that neither replaces */
+		char *mine = tree_names(text), *sofar = tree_names(user);
+		char *rest = mine && sofar ? without_trees(all, mine) : NULL;
+		char *rest2 = rest ? without_trees(rest, sofar) : NULL;
+		char *older = mine ? without_trees(user, mine) : NULL;
+		char *trial = calloc(1, 1);
+		size_t tlen = 0;
+		if (rest2 && older && trial) {
+			append(&trial, &tlen, text);
+			append(&trial, &tlen, older);
+			append(&trial, &tlen, rest2);
+			err[0] = '\0';
+			if (!bc_engine_trees(e, trial, err, sizeof err)) {
+				say("tree error: %s: %s (skipped)", path, err);
+			} else {
+				/* a later file of his with a tree of the same name wins */
+				char *keep = calloc(1, 1);
+				size_t klen = 0;
+				append(&keep, &klen, older);
+				append(&keep, &klen, text);
+				free(user);
+				user = keep;
+				ulen = klen;
+				ugood++;
+				if (strlen(loaded) + strlen(unames[i]) + strlen(mine) + 8 < sizeof loaded)
+					snprintf(loaded + strlen(loaded), sizeof loaded - strlen(loaded), "%s%s (%.*s)", loaded[0] ? ", " : "",
+					         unames[i], (int)(strlen(mine) > 2 ? strlen(mine) - 2 : 0), mine + 1);
+			}
+		}
+		free(trial); free(older); free(rest2); free(rest); free(mine); free(sofar); free(text);
+	}
+	for (int i = 0; i < un; i++) free(unames[i]);
+	(void)ulen;
+
+	if (good || ugood) {
+		char *mine = user ? tree_names(user) : NULL;
+		char *rest = mine ? without_trees(all, mine) : NULL;
+		char *final = calloc(1, 1);
+		size_t flen = 0;
+		if (ugood && rest && final) {
+			append(&final, &flen, user);
+			append(&final, &flen, rest);
+		} else if (final) {
+			append(&final, &flen, all);
+		}
 		err[0] = '\0';
-		if (!bc_engine_trees(e, all, err, sizeof err))
+		if (!final || !bc_engine_trees(e, final, err, sizeof err))
 			say("tree error: %s: %s (none loaded)", dir, err);
-		else
+		else {
 			say("trees loaded: %d file%s from %s", good, good == 1 ? "" : "s", dir);
+			if (ugood) say("user trees loaded from %s: %s", userdir, loaded);
+		}
+		free(final); free(rest); free(mine);
 	} else {
 		say("no trees in %s", dir);
 	}
 	free(all);
-	for (int i = 0; i < n; i++) free(names[i]);
+	free(user);
+	return un > 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -261,6 +402,17 @@ static void load_map(session *s, const bl_ev_map *m)
 	path[BL_PATH_MAX] = '\0';
 	const char *name = strrchr(path, '/');
 	name = name ? name + 1 : path;
+	/* the operator's trees are read again at each map: he edits a file
+	 * and changes the map, and his bots have the new tree */
+	if (s->user_trees || s->maps > 0) {
+		struct stat st;
+		char userdir[1024];
+		if (s->o->user_trees) snprintf(userdir, sizeof userdir, "%s", s->o->user_trees);
+		else snprintf(userdir, sizeof userdir, "%s/trees", getenv("LSD_DATA") && *getenv("LSD_DATA") ? getenv("LSD_DATA") : "/data");
+		if (s->user_trees || (stat(userdir, &st) == 0 && S_ISDIR(st.st_mode)))
+			s->user_trees = load_trees(s->e, s->o->trees, s->o->user_trees);
+	}
+	s->maps++;
 	double t0 = now_s();
 	size_t n = 0;
 	char *bytes = slurp(path, &n, MAX_MAP_BYTES);
@@ -461,7 +613,7 @@ static int session_main(session *s)
 		bus_armed = 0;
 		return END_GONE;
 	}
-	load_trees(s->e, s->o->trees);
+	s->user_trees = load_trees(s->e, s->o->trees, s->o->user_trees);
 	why = run_session(s);
 	bus_armed = 0;
 	return why;

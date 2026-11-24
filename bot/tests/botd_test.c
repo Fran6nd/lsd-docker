@@ -177,10 +177,14 @@ static void *run_botd(void *arg)
 	atomic_store(&r->done, 1);
 	return NULL;
 }
+/* the operator's trees for the next runner; by default a directory there is none of */
+static const char *user_trees = "/nonexistent/botd_test_user_trees";
+
 static void runner_start(runner *r, const char *file, const char *trees)
 {
 	botd_opts_default(&r->o);
 	r->o.file = file; r->o.trees = trees; r->o.poll_ms = 50; r->o.stale_ms = 400; r->o.health_s = 1;
+	r->o.user_trees = user_trees;
 	r->rc = -1; atomic_store(&r->done, 0);
 	pthread_create(&r->th, NULL, run_botd, r);
 }
@@ -412,6 +416,66 @@ static void test_reattach(int new_inode)
 	bl_close(s.f); unlink(s.path);
 }
 
+static int c_edited(void *a) { int r; (void)a; pthread_mutex_lock(&mu); r = strstr(fake.trees, "EDITED") != NULL; pthread_mutex_unlock(&mu); return r; }
+
+static int count_of(const char *hay, const char *needle)
+{
+	int n = 0;
+	for (const char *p = hay; (p = strstr(p, needle)) != NULL; p += strlen(needle)) n++;
+	return n;
+}
+
+/* the operator's own trees: over the built-in ones, read again at a map */
+static void test_user_trees(void)
+{
+	char udir[300], p[400];
+	fake_reset();
+	snprintf(udir, sizeof udir, "%s_user", treedir);
+	mkdir(udir, 0700);
+	snprintf(p, sizeof p, "%s/a.bt", udir); write_file(p, "tree a:\nUSERS\n", 14);         /* replaces the built-in a */
+	snprintf(p, sizeof p, "%s/n.bt", udir); write_file(p, "tree n:\n", 8);                 /* a new one */
+	snprintf(p, sizeof p, "%s/x.bt", udir); write_file(p, "tree c:\nBROKEN\n", 15);        /* does not compile: c stays the built-in */
+	user_trees = udir;
+
+	server s;
+	server_make(&s, "u");
+	server_start(&s);
+	runner r;
+	runner_start(&r, s.path, treedir);
+	CHECK(wait_for(c_attached, &s, 2000));
+	pthread_mutex_lock(&mu);
+	CHECK(strstr(fake.trees, "USERS") != NULL);
+	CHECK(count_of(fake.trees, "tree a:") == 1);  /* his, not both */
+	CHECK(strstr(fake.trees, "tree n:") != NULL && count_of(fake.trees, "tree c:") == 1);
+	CHECK(!strstr(fake.trees, "BROKEN"));
+	pthread_mutex_unlock(&mu);
+
+	/* he edits a file and the map changes: read again, no restart */
+	snprintf(p, sizeof p, "%s/n.bt", udir); write_file(p, "tree n:\nEDITED\n", 15);
+	uint8_t vxl[64];
+	memset(vxl, 7, sizeof vxl);
+	char mapfile[300];
+	snprintf(mapfile, sizeof mapfile, "%s.map.vxl", s.path);
+	write_file(mapfile, vxl, sizeof vxl);
+	bl_ev_map em; memset(&em, 0, sizeof em);
+	em.map_seq = 6; snprintf(em.path, sizeof em.path, "%s", mapfile);
+	push_ev(&s, BL_EV_MAP, BL_NO_PLAYER, &em, sizeof em);
+	CHECK(wait_for(c_edited, NULL, 2000));
+	pthread_mutex_lock(&mu);
+	CHECK(strstr(fake.trees, "USERS") != NULL && count_of(fake.trees, "tree a:") == 1);
+	pthread_mutex_unlock(&mu);
+
+	bl_shutdown(s.f);
+	CHECK(runner_wait(&r, 1000));
+	server_halt(&s);
+	bl_close(s.f); unlink(s.path); unlink(mapfile);
+	snprintf(p, sizeof p, "%s/a.bt", udir); unlink(p);
+	snprintf(p, sizeof p, "%s/n.bt", udir); unlink(p);
+	snprintf(p, sizeof p, "%s/x.bt", udir); unlink(p);
+	rmdir(udir);
+	user_trees = "/nonexistent/botd_test_user_trees";
+}
+
 int main(void)
 {
 	make_trees();
@@ -427,6 +491,8 @@ int main(void)
 	test_reattach(0);
 	printf("-- the file replaced\n");
 	test_reattach(1);
+	printf("-- the operator's trees\n");
+	test_user_trees();
 
 	char p[300];
 	snprintf(p, sizeof p, "%s/a.bt", treedir); unlink(p);

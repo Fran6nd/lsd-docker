@@ -210,6 +210,9 @@ typedef struct bc_bot {
 	bt_state *bt;
 	size_t bt_size;
 	char tree_name[BT_NAME_MAX];    /* this bot's own, or "" */
+	bt_forest *own;         /* this bot's own tree TEXT, compiled (tree=<text> for one bot), or NULL */
+	char *own_text;
+	float trait_mul[BC_T_COUNT];    /* traits= for this bot: a factor a trait (0: none said) */
 
 	/* per-bot style, drawn at each life's start from its own stream */
 	float style_dodge, style_engage, style_crouch, station_bearing, sweep_phase;
@@ -408,6 +411,7 @@ struct bc_engine {
 
 	bc_setting settings[BC_SETTINGS_MAX];
 	int nsettings;
+	float trait_mul[BC_T_COUNT];        /* traits= for everybody (0: none said) */
 	float archetypes[BC_A_COUNT];
 	int have_archetypes;
 	char tree_name[BT_NAME_MAX];
