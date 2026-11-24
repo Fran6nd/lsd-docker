@@ -340,6 +340,16 @@ typedef struct bc_nav_policy {
 	 * with any real damage is the nearest. A caller that wants a hurt bot
 	 * more careful still gives a larger number (damage * 100 / health). */
 	float water_damage;
+	/* HOW GREEDY THE SEARCH IS: the heuristic is multiplied by this (0 or
+	 * 1: as it is, and the route found is the cheapest there is). The
+	 * heuristic is the sprint over open ground; on a map that is mostly
+	 * sea, or hills, real routes cost several times that and an exact
+	 * search looks at half the map before it is sure (measured, 40 bots
+	 * on prisonbreakv1: 59 000 expansions a plan). At 1.5 a route may cost
+	 * up to half as much again as the best -- in practice a few percent --
+	 * and the search looks at a fraction of the nodes. For a caller with
+	 * many bodies and one budget. nav's own tests run at 1. */
+	float h_weight;
 } bc_nav_policy;
 
 /* What a hit point is worth, in seconds of route. */

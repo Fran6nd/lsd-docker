@@ -98,6 +98,8 @@ typedef struct bc_mover {
 	double gave_until[4];
 	bc_nav_node goal;
 	bc_nav_node plan_from;  /* where the plan in hand started */
+	float partial_d;        /* how far from the goal the last partial route ended */
+	uint8_t nocap;          /* this goal's next search runs to its end */
 	int16_t radius;
 	double plan_since;      /* when it began to wait for a route */
 	double retry_at;        /* a failed goal is not searched again before */
@@ -337,6 +339,7 @@ typedef struct bc_engine_stats {
 	uint32_t last_expansions;   /* in the last think */
 	uint32_t pings, grenades, edits, uses;
 	uint32_t glances, cover_cells, covers, perch_columns, unreach_hits;
+	uint32_t plan_caps;         /* plans stopped at plan.cap and walked as far as they got */
 	uint32_t stuck_tries;       /* the watchdog tried a jump, a step back, a sidestep */
 	uint32_t stuck_resets;      /* ... and dropped the goal: the tree decided again */
 } bc_engine_stats;
@@ -355,6 +358,10 @@ struct bc_engine {
 	uint8_t may_dig, may_build, water_lethal;
 	float water_damage;         /* health a second lost wading (water.damage) */
 	uint8_t gaze_off;           /* gaze=0: heads follow the steering */
+	uint8_t plan_stand;         /* plan.wait=stand: a bot waits for its route standing */
+	float plan_greed;           /* plan.greed: nav's h_weight for every plan (1.5) */
+	int plan_cap;               /* plan.cap: expansions a plan may take before the
+	                               bot sets off toward the nearest place found (8000) */
 	int spend;                  /* blocks a bot may spend on a route */
 
 	bc_nav_moves *moves;

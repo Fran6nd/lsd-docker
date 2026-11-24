@@ -1,5 +1,56 @@
 # The brain: senses, skills, vocabulary, engine, trees -- where it stands
 
+## CHECKPOINT freeze (2026-11-24, later still): bots "frozen" after a map change
+
+`make -C bot test` is green, no warnings (behaviour_test now 29 checks).
+
+**THE CAUSE, MEASURED** (40 bots, tdm, on the real prisonbreakv1.vxl in
+brain_sim, tents guessed at 72,256 and 440,256 -- both in the sea):
+80.6% of all living bot-time had no key down, 96% of that with the bot
+waiting for a route; the longest wait was the whole 60 s; 91 plans were
+finished in 60 s, **59 373 expansions each**, against a budget of 3000 a
+think. Why so many: wading costs seven times what the planner's heuristic
+takes a column for, so a search for any way that crosses water first
+looks at all the land (and sea) it could have reached in that time -- the
+whole island; and a goal with no way to it floods the pool. The follower
+or the watchdog had no part in it: a waiting bot holds no key.
+
+**THE FIX** (the engine's side; nav got one policy field, `h_weight`):
+1. A search is stopped at `plan.cap` expansions (8000) and the bot walks
+   the route to the nearest place it found, planning on from there; when
+   capped routes bring it no nearer it gets one long search (five caps),
+   and if that finds nothing the goal is unreachable (team memory).
+2. Searches are greedier (`plan.greed`, 1.5), and from or into water much
+   greedier (4) with water priced as slow, not also as dangerous.
+3. **A bot waiting for a route does not stand**: it walks straight at the
+   goal where `bc_walk_safe` allows, and takes the route up where it then
+   is (`plan.wait=stand` gives the old behaviour).
+4. Fewer routes are asked for: a bound by cover no longer plans to the
+   destination and then to the cover; a moving destination is re-planned
+   when it has moved 15% of the way to it; the fight's chase likewise.
+5. Nobody takes cover, ducks or pauses in the sea: `take_cover` in water
+   is "out of the water", `crouch` there ends at once.
+
+**AFTER**, same scene: no key down 8.3% of the time (cover, camping,
+holding by a leader), 2.5% waiting for a route, 2131 plans in 120 s at
+3305 expansions each. spud and Temple: 16.5% with no key down, 1% of that
+waiting. In `make test` (two islands in a sea, both bases in the water):
+as it was 6 of 40 hold a key 7 s after the start and 72.7% of the time is
+spent standing waiting (longest 28.9 s); as shipped 40 of 40, 0.3%,
+longest 1.1 s. Think cost, 40 bots on the flat arena: 116 us a call
+(214 at the last checkpoint, 150 before any of this work), worst 1.3 ms;
+on prisonbreakv1 315 us a call, worst 2.3 ms -- there the planner uses
+its whole budget, as it is meant to.
+
+**NOT VERIFIED:** the real tents and spawns of prisonbreakv1 (mine are
+guesses); the demo itself (this is the simulation); how a capped route
+behaves on a maze map with real bots -- CubeMaze was not run after the
+change; whether the "stop-and-go" seen live (keys swinging between 6 and
+37 of 40) is all the same cause, though it is what the old budget sharing
+produces. The ctf 6-a-side game is sensitive to all this: its first
+capture now comes after 359 s (six seeds: 122 to 359 s), and its "some
+go" assertion had to drop to 2% of the time on the enemy's third.
+
 ## CHECKPOINT ctf (2026-11-24, later): leaders, and ctf as a team game
 
 `make -C bot test` is green, no warnings (new: `tests/squad_test.c` 13

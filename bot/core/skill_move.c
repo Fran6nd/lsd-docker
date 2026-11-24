@@ -170,6 +170,7 @@ int bc_move_to(bc_bot *b, bl_vec3 pos, float radius)
 		mv->partial_tries = mv->restarts = 0;
 		mv->braking = 0;
 		mv->again = 0;
+		mv->nocap = 0;
 	}
 	return mv->state;
 }
@@ -216,6 +217,22 @@ static void fill_policy(bc_bot *b)
 	/* aosbot's cadences (Dig.cpp), never under the server's */
 	p->dig_secs = 0.70f - 0.40f * lv->dig;
 	p->build_secs = 0.85f - 0.30f * lv->dig;
+	p->h_weight = e->plan_greed;
+	/* A WAY THROUGH WATER. Wading costs seven times what the heuristic
+	 * takes a column for (the sprint), so a search for a way across water
+	 * first looks at all the land it could have walked in that time: the
+	 * whole island (measured on prisonbreakv1: 59 000 expansions a plan,
+	 * 40 bots waiting on 3 plans a second). From the water or to it the
+	 * search is therefore made greedy -- in the sea the straight way is
+	 * the way -- and water is priced for what it is, slow, not also as
+	 * "a body in water is a target" (0.5 s a column). */
+	if (e->plan_greed > 1.0f) {
+		p->water_secs = 0.15f;
+		if (bc_map_is_water(e->map, (int)floorf(me->pos.x), (int)floorf(me->pos.y)) ||
+		    bc_map_is_water(e->map, b->mv.goal.x, b->mv.goal.y)) {
+			if (p->h_weight < 4.0f) p->h_weight = 4.0f;
+		}
+	}
 	p->zones = e->zones;
 	p->nzones = e->nzones;
 	p->protect = &e->protect;
@@ -248,8 +265,36 @@ static void plan_done(bc_bot *b, int st)
 			return;
 		}
 	} else {
-		e->stats.plan_fails++;
-		if (n == 0 || mv->partial_tries >= 2) {
+		/* no way found -- or (st still MORE) the search was stopped at its
+		 * cap: the route leads to the nearest place it reached. A capped
+		 * one is walked, and planned on from its end, as long as each
+		 * brings the bot nearer; a proven dead end, twice. */
+		int capped = st == BC_NAV_MORE;
+		float d = 1e9f;
+
+		if (n > 0) {
+			float dx = (float)(mv->route.steps[n - 1].to.x - mv->goal.x), dy = (float)(mv->route.steps[n - 1].to.y - mv->goal.y);
+
+			d = sqrtf(dx * dx + dy * dy);
+		}
+		if (capped) e->stats.plan_caps++;
+		else e->stats.plan_fails++;
+		if (capped && mv->nocap) {
+			/* the long search found no way either: as good as none */
+			capped = 0;
+			e->stats.plan_fails++;
+		}
+		if (capped && (n == 0 || mv->partial_tries >= 6 || (mv->partial_tries > 0 && d > mv->partial_d - 3.0f))) {
+			/* capped searches are getting it no nearer (a maze, a long way
+			 * round): one long search (five caps), which finds the way or
+			 * is taken to show there is none */
+			mv->nocap = 1;
+			mv->state = BC_MV_PLANNING;
+			mv->plan_since = e->now;
+			mv->has_route = 0;
+			return;
+		}
+		if (!capped && (n == 0 || mv->partial_tries >= 2 || mv->nocap)) {
 			mv->state = BC_MV_FAILED;
 			mv->has_route = 0;
 			mv->retry_at = e->now + UNREACHABLE_SECS;
@@ -257,6 +302,7 @@ static void plan_done(bc_bot *b, int st)
 			return;
 		}
 		mv->partial_tries++;
+		mv->partial_d = d;
 	}
 	if (mv->again)
 		bc_nav_follow_again(&mv->follow, &mv->route);
@@ -265,6 +311,35 @@ static void plan_done(bc_bot *b, int st)
 	mv->again = 1;          /* any further route to this goal is "another" */
 	mv->state = BC_MV_FOLLOWING;
 	mv->has_route = 1;
+	{
+		/* The body did not stand still while the route was searched (it
+		 * walked on toward the goal: engine.c, WAITING FOR A ROUTE), so it
+		 * may be a few cells along it already: take the route up at the
+		 * plain stride nearest to where it now is. Too far from all of
+		 * them, the follower says OFF_ROUTE and the next plan is made
+		 * from a standstill. */
+		const bl_player *me = bc_me(b);
+		float best = 1e30f;
+		int k, at = 0;
+
+		for (k = 0; k < mv->route.n && k < 14; k++) {
+			const bc_nav_step *sp = &mv->route.steps[k];
+			float dx, dy, d;
+
+			if ((sp->kind != BC_NAV_WALK && sp->kind != BC_NAV_SPRINT) || sp->digs || sp->builds ||
+			    (sp->flags & BC_NAV_F_WATER))
+				break;
+			dx = (float)sp->to.x + 0.5f - me->pos.x; dy = (float)sp->to.y + 0.5f - me->pos.y;
+			d = dx * dx + dy * dy;
+			if (d < best && abs(sp->to.z - (int)floorf(me->pos.z + 2.75f)) <= 1) { best = d; at = k + 1; }
+		}
+		if (best < 1.5f * 1.5f && at > 0 && at < mv->route.n) {
+			float dx = (float)mv->route.start.x + 0.5f - me->pos.x, dy = (float)mv->route.start.y + 0.5f - me->pos.y;
+
+			if (dx * dx + dy * dy > best)
+				mv->follow.step = at;
+		}
+	}
 }
 
 void bc_movers_plan(bc_engine *e)
@@ -349,7 +424,8 @@ void bc_movers_plan(bc_engine *e)
 			e->budget_left -= (int)used;
 			e->stats.expansions += used;
 			e->stats.last_expansions += used;
-			if (st != BC_NAV_MORE) {
+			/* stopped at the cap; the one long search a goal may get, at five caps */
+			if (st != BC_NAV_MORE || (e->plan_cap > 0 && mv->expansions >= (uint32_t)e->plan_cap * (mv->nocap ? 5u : 1u))) {
 				plan_done(b, st);
 				active--;
 			}

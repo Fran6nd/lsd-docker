@@ -29,6 +29,12 @@
  *   leaders.per=<n>          one leader for every n of a team (5; 0: none)
  *   leaders.human=<weight>   a person's weight in the draw, a bot's being
  *                            about 1 (2): skill_squad.c
+ *   plan.greed=<x>           how greedy a route search is (1.5; nav.h h_weight;
+ *                            1: exact, and water searched as land is)
+ *   plan.cap=<n>             expansions a search may take before the bot sets
+ *                            off for the nearest place it found (8000; 0: none)
+ *   plan.wait=walk|stand     what a bot does while its route is searched
+ *                            (walk: on toward the goal)
  *   gaze=0|1                 1 (default): a travelling bot's head is its
  *                            own (skill_look.c). 0: it faces as it steers
  *   ping_takers=<n>          how many bots answer one ping (2)
@@ -588,6 +594,8 @@ bc_engine *bc_engine_new(const bc_engine_host *host, int max_bots)
 	e->spend = 50;
 	e->ping_takers = 2;
 	e->ping_radius = 40.0f;
+	e->plan_greed = 1.5f;
+	e->plan_cap = 8000;
 	e->lead_per = 5;
 	e->lead_human = 2.0f;
 	bc_rng_seed(&e->rng, 0x6c656164, 1);
@@ -1038,6 +1046,12 @@ static void ev_set(bc_engine *e, int pid, const char *text)
 	} else if (!strcmp(key, "leaders.human")) {
 		e->lead_human = (float)atof(val);
 		if (!(e->lead_human >= 0.0f)) e->lead_human = 0.0f;
+	} else if (!strcmp(key, "plan.greed")) {
+		e->plan_greed = (float)atof(val);
+	} else if (!strcmp(key, "plan.cap")) {
+		e->plan_cap = atoi(val);
+	} else if (!strcmp(key, "plan.wait")) {
+		e->plan_stand = !strcmp(val, "stand");
 	} else if (!strcmp(key, "gaze")) {
 		e->gaze_off = !atoi(val);
 	} else if (!strcmp(key, "ping_takers")) {
@@ -1684,6 +1698,42 @@ static void watchdog(bc_engine *e, bc_bot *b, const bc_body *body, int nav, cons
 	}
 }
 
+/* WAITING FOR A ROUTE. A plan takes a share of every think's budget, and
+ * forty bots asking at once wait their turn: seconds, on a map where
+ * routes are long (prisonbreakv1: 80% of all bot-time stood still, 96% of
+ * it waiting -- "after a map change all bots are frozen"). A bot that has
+ * asked for a route and has none to walk meanwhile does not stand: it
+ * walks straight at the goal, where a body walked that way for a third of
+ * a second keeps its feet (bc_walk_safe: no edge, no sea it is not
+ * already in). The route, when it comes, is taken up from where the body
+ * then is (skill_move.c, plan_done). Not when the last plan was told to
+ * start from a standstill, not when this goal already ended a route short
+ * (straight on is then the wrong way), not while the net is trying
+ * something. 1 and the direction when it walks. */
+static int waiting_for_route(bc_bot *b, const bc_body *body, float *wx, float *wy)
+{
+	const bl_player *me = bc_me(b);
+	const bc_mover *mv = &b->mv;
+	float dx, dy, l;
+
+	if (b->e->plan_stand)
+		return 0;
+	if (b->wish.move != BC_MOVE_GOTO || mv->state != BC_MV_PLANNING || mv->has_route || !mv->goal_set ||
+	    mv->braking || mv->partial_tries || b->unstick.run || body->airborne)
+		return 0;
+	dx = (float)mv->goal.x + 0.5f - me->pos.x;
+	dy = (float)mv->goal.y + 0.5f - me->pos.y;
+	l = sqrtf(dx * dx + dy * dy);
+	if (l < 3.0f)
+		return 0;
+	dx /= l; dy /= l;
+	if (!bc_walk_safe(b, dx, dy))
+		return 0;
+	*wx = dx;
+	*wy = dy;
+	return 1;
+}
+
 static void act(bc_engine *e, bc_bot *b, float dt)
 {
 	const bl_player *me = bc_me(b);
@@ -1695,7 +1745,7 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 	bl_vec3 ori, look_at = b->wish.look_at;
 	uint8_t keys = 0, mouse = 0, flags = BL_I_VALID, tool = b->wish.tool;
 	int nav, precise = 0, flying = 0, look = b->wish.look, look_pid = b->wish.look_pid, on_target = 0;
-	float dist = 1e9f, dx, dy, dz;
+	float dist = 1e9f, dx, dy, dz, wx = 0.0f, wy = 0.0f;
 
 	memset(&out, 0, sizeof out);
 	bc_body_of(me, &body);
@@ -1789,6 +1839,9 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 			keys = bc_keys_toward(b->wish.mx, b->wish.my, ori, b->keys_prev);
 			if (b->wish.sprint && keys == BL_K_FORWARD)
 				keys |= BL_K_SPRINT;
+		} else if (waiting_for_route(b, &body, &wx, &wy)) {
+			/* WAITING FOR A ROUTE is not standing: on toward the goal */
+			keys = bc_keys_toward(wx, wy, ori, b->keys_prev);
 		} else if (!body.airborne && bc_body_speed(&body) > 3.0f) {
 			/* stand means stop: letting go coasts two voxels */
 			float s = bc_body_speed(&body) / 32.0f;

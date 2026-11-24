@@ -17,6 +17,19 @@ Real maps are not in the repo. Tests that want them read a directory of
 used below were copied out of the `lsd-demo` container
 (`docker cp lsd-demo:/data/maps/<name>.vxl <dir>/`).
 
+## Changed by the brain's agent (2026-11-24, the "frozen bots" fix)
+
+One addition, nothing else in nav touched: `bc_nav_policy.h_weight` (nav.h
+says what and why; nav_plan.c multiplies the heuristic by it in
+`bc_nav_plan_begin`, two lines). 0 or 1 is the exact search as before, and
+`bc_nav_policy_default` leaves it 0, so nav_test runs unchanged (441
+checks). The engine plans at 1.5, and at 4 when the body or the goal is in
+water, where the heuristic (a sprint) is a seventh of what a column costs
+and an exact search looked at the whole island first. The engine also
+stops a search at 8000 expansions and walks the partial route
+(`bc_nav_plan_route` on a search still at BC_NAV_MORE answers the way to
+the nearest place reached -- it already did; now it is relied on).
+
 ## (a) What exists
 
 | file | what it is |

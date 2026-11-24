@@ -566,7 +566,7 @@ static float heur(const bc_nav_search *s, bc_nav_node n)
 	if (dy < 0.0f) dy = 0.0f;
 	lo = dx < dy ? dx : dy;
 	hi = dx < dy ? dy : dx;
-	return (hi + 0.41421356f * lo) * s->inv_speed;
+	return (hi + 0.41421356f * lo) * s->inv_speed;     /* inv_speed carries policy.h_weight */
 }
 
 static int is_goal(const bc_nav_search *s, bc_nav_node n)
@@ -1190,6 +1190,8 @@ int bc_nav_plan_begin(bc_nav_search *s, const bc_nav_moves *t, const bc_map *m,
 	s->map_rev = m->rev;
 	s->found = NOWHERE; s->best = NOWHERE; s->best_h = 1e30f;
 	s->inv_speed = 1.0f / (t->sprint_speed > 0.0f ? t->sprint_speed : 10.4f);
+	if (pol && pol->h_weight > 1.0f)
+		s->inv_speed *= pol->h_weight;      /* a greedier search: nav.h, h_weight */
 	memset(s->hash, 0, (size_t)(s->hash_mask + 1) * sizeof(uint32_t));
 	s->status = BC_NAV_FAILED;
 	if (!nav_node_kind(m, start.x, start.y, start.z))

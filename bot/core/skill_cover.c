@@ -370,6 +370,14 @@ static void stand_on(bc_bot *b, bl_vec3 spot)
 	}
 }
 
+static int wet(const bc_bot *b)
+{
+	const bl_player *me = bc_me(b);
+
+	return (me->flags & BL_F_WADING) != 0 ||
+	       (b->e->have_map && bc_map_is_water(b->e->map, (int)floorf(me->pos.x), (int)floorf(me->pos.y)));
+}
+
 /* --- crouch [secs] ------------------------------------------------------- */
 
 bt_status bc_do_crouch(void *bot, const bt_args *a, float dt)
@@ -379,6 +387,10 @@ bt_status bc_do_crouch(void *bot, const bt_args *a, float dt)
 	bl_vec3 th;
 
 	(void)dt;
+	if (wet(b)) {
+		b->cr.until = 0.0;
+		return BT_SUCCESS;      /* a wading body does not duck: it gets out */
+	}
 	if (b->cr.until == 0.0) {
 		float secs = a->count > 0 ? a->num[0] : 0.0f;
 
@@ -454,10 +466,15 @@ bt_status bc_do_take_cover(void *bot, const bt_args *a, float dt)
 	bl_vec3 th;
 	int st;
 
-	(void)a; (void)dt;
-	if (!bc_threat_place(b, &th) || bc_in_harmful_water(b)) {
+	(void)a;
+	if (!bc_threat_place(b, &th)) {
 		b->tc.phase = TC_NONE;
 		return BT_FAILURE;
+	}
+	if (wet(b)) {
+		/* nobody takes cover in the sea: out of it, shooting */
+		b->tc.phase = TC_NONE;
+		return bc_do_leave_water(bot, a, dt) == BT_FAILURE ? BT_FAILURE : BT_RUNNING;
 	}
 	if (b->tc.phase == TC_NONE) {
 		b->tc.phase = TC_SEARCH;
@@ -583,10 +600,21 @@ static bt_status bounds(bc_bot *b, bl_vec3 dest, int mode, float arrive)
 		b->bd.quiet_since = e->now;
 		b->cq.state = 0;
 	}
-	if (flat(dest, b->bd.dest) > 3.0f)
-		b->bd.dest = dest;      /* a place that moves (a man) */
+	/* a place that moves (a man): followed when it has moved a good part
+	 * of the way there is to it -- every new place is a new route */
+	if (flat(dest, b->bd.dest) > clampf(0.15f * flat(dest, me->pos), 4.0f, 14.0f))
+		b->bd.dest = dest;
 	dest = b->bd.dest;
 
+	if (wet(b)) {
+		/* no cover in the sea, and no pausing in it: straight on */
+		b->bd.phase = BD_RUN;
+		b->bd.until = e->now + 1.0;
+		st = bc_move_to(b, dest, arrive);
+		if (mode == BC_COVER_ADVANCE) bc_fire_at_will(b);
+		if (st == BC_MV_FAILED || st == BC_MV_ARRIVED) b->bd.phase = BD_NONE;
+		return st == BC_MV_FAILED ? BT_FAILURE : st == BC_MV_ARRIVED ? BT_SUCCESS : BT_RUNNING;
+	}
 	if (flat(me->pos, dest) <= arrive + 1.5f) {
 		b->bd.phase = BD_NONE;
 		return BT_SUCCESS;
@@ -606,8 +634,20 @@ static bt_status bounds(bc_bot *b, bl_vec3 dest, int mode, float arrive)
 
 	switch (b->bd.phase) {
 	case BD_SEARCH:
-		/* on toward it while the next cover is looked for */
-		st = bc_move_to(b, dest, arrive);
+		/* on toward it while the next cover is looked for (a third of a
+		 * second): straight, not by a route that would be thrown away for
+		 * the route to the cover -- two plans a bound, with forty bots
+		 * sharing one planner, was a third of all the plans asked for */
+		{
+			float dx = dest.x - me->pos.x, dy = dest.y - me->pos.y, l = sqrtf(dx * dx + dy * dy);
+
+			b->wish.move = BC_MOVE_FREE;
+			if (l > 1.0f && bc_walk_safe(b, dx / l, dy / l)) {
+				b->wish.mx = dx / l;
+				b->wish.my = dy / l;
+			}
+		}
+		st = BC_MV_PLANNING;
 		if (mode == BC_COVER_ADVANCE) bc_fire_at_will(b);
 		if (!bc_cover_query(b, th, mode, &dest, BC_COVER_R, 64))
 			return BT_RUNNING;

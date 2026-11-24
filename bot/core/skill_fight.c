@@ -252,7 +252,7 @@ bt_status bc_do_fight(void *bot, const bt_args *a, float dt)
 		 * (aosbot replanned every 0.8 s) */
 		if (b->mv.goal_set &&
 		    (b->mv.state == BC_MV_PLANNING || b->mv.state == BC_MV_FOLLOWING) &&
-		    (gx * gx + gy * gy < 9.0f + 0.02f * flat * flat || e->now < f->chase_at))
+		    (gx * gx + gy * gy < 16.0f + 0.03f * flat * flat || e->now < f->chase_at))
 			st = bc_move_to(b, b->wish.goal, b->wish.radius);
 		else {
 			st = bc_move_to(b, k->pos, radius);
