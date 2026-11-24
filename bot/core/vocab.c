@@ -707,6 +707,32 @@ static float s_near_their_base(void *bot, const bt_args *a) { return place_near(
 static int c_mates_near(void *bot, const bt_args *a) { bc_bot *b = bot; return bc_mates_within(b, bc_me(b)->pos, arg(a, 0, 15.0f)) >= (int)arg(a, 1, 1.0f); }
 static float s_mates_near(void *bot, const bt_args *a) { bc_bot *b = bot; return clamp01((float)bc_mates_within(b, bc_me(b)->pos, arg(a, 0, 15.0f)) / 3.0f); }
 
+
+static int c_is_leader(void *bot, const bt_args *a) { bc_bot *b = bot; (void)a; return bc_is_leader(b->e, b->pid); }
+static int c_has_leader(void *bot, const bt_args *a) { (void)a; return bc_leader_of(bot) >= 0; }
+static int c_leader_fighting(void *bot, const bt_args *a) { bc_bot *b = bot; (void)a; return bc_leader_fighting(b->e, bc_leader_of(b)); }
+static float s_is_leader(void *bot, const bt_args *a) { return (float)c_is_leader(bot, a); }
+static float s_has_leader(void *bot, const bt_args *a) { return (float)c_has_leader(bot, a); }
+
+static int c_leader_near(void *bot, const bt_args *a)
+{
+	bc_bot *b = bot;
+	int l = bc_leader_of(b);
+	float dx, dy, r = arg(a, 0, 12.0f);
+
+	if (l < 0) return 0;
+	dx = b->e->w.players[l].pos.x - bc_me(b)->pos.x; dy = b->e->w.players[l].pos.y - bc_me(b)->pos.y;
+	return dx * dx + dy * dy <= r * r;
+}
+
+static float s_quiet(void *bot, const bt_args *a)
+{
+	bc_bot *b = bot;
+	double since = b->senses.last_sight > b->born_at ? b->senses.last_sight : b->born_at;
+
+	return b->e->now - since >= (double)arg(a, 0, 20.0f) ? 1.0f : 0.0f;
+}
+
 enum { VK_C, VK_S, VK_A };
 
 typedef struct word {
@@ -823,12 +849,19 @@ static const word WORDS[] = {
 	{ VK_A, "escort", "", "stay by the team-mate who carries the intel: ahead of him toward the base and to a side, shooting what it sees. RUNNING; FAILURE nobody carries", NULL, NULL, bc_do_escort, bc_do_objective_stop },
 	{ VK_A, "intercept", "", "cut off the enemy who carries this team's intel: to the point of his way home it can reach before he does, and fight him on sight. RUNNING; FAILURE nobody has it", NULL, NULL, bc_do_intercept, bc_do_objective_stop },
 	{ VK_A, "guard", "[place] [secs]", "hold near a place (default own_intel) at a spot of its own on the side the enemy comes from, crouched if careful, watching that way, shooting what appears. SUCCESS after secs (default 30); FAILURE no such place, no way", NULL, NULL, bc_do_guard, bc_do_objective_stop },
+	{ VK_C, "is_leader", "", "it is one of its team's leaders (drawn by lot by the engine; it is not told otherwise)", c_is_leader, NULL, NULL, NULL },
+	{ VK_C, "has_leader", "", "it follows a living leader of its team: a bot or a person, the nearest with room (a loner never does)", c_has_leader, NULL, NULL, NULL },
+	{ VK_C, "leader_near", "[voxels]", "its leader is within that (default 12)", c_leader_near, NULL, NULL, NULL },
+	{ VK_C, "leader_fighting", "", "its leader has a man in his sights, is firing, or was hurt in the last 3 s", c_leader_fighting, NULL, NULL, NULL },
+	{ VK_S, "is_leader", "", "1 for a leader, else 0: for a tree to lean a leader toward going somewhere", NULL, s_is_leader, NULL, NULL },
+	{ VK_S, "has_leader", "", "1 while it follows a living leader, else 0", NULL, s_has_leader, NULL, NULL },
+	{ VK_S, "quiet", "[secs]", "1 once it has had no enemy in sight for that many seconds of this life (default 20), else 0", NULL, s_quiet, NULL, NULL },
 	{ VK_A, "fight", "", "fight the enemy it has chosen (nearest in sight, kept until another is at half his distance): close to its own range, strafe, burst, reload, spade when it comes to that. RUNNING while he lives; SUCCESS on his death; FAILURE with nobody", NULL, NULL, bc_do_fight, bc_do_stop },
 	{ VK_A, "go_to", "<place> [radius]", "walk to a place (jumping, digging, bridging as the mode allows), shooting what it meets on the way. SUCCESS there, FAILURE with no such place or no way", NULL, NULL, bc_do_go_to, bc_do_stop },
 	{ VK_A, "retreat", "", "run to the nearest place the enemy cannot see, back turned. SUCCESS hidden (or after 10 s), FAILURE with nothing to run from", NULL, NULL, bc_do_retreat, bc_do_stop },
 	{ VK_A, "investigate", "", "go to the place most worth searching, look round it, then forget it. SUCCESS looked, FAILURE none or no way", NULL, NULL, bc_do_investigate, bc_do_stop },
 	{ VK_A, "roam", "", "walk to somewhere the team has not been lately: round where the enemy was last met, else between the two bases, else anywhere -- not round its own base. Always RUNNING: what a bot does in a world with nothing to seek", NULL, NULL, bc_do_roam, bc_do_stop },
-	{ VK_A, "follow", "[mate|caller|order]", "keep a station 3 voxels from a player: the nearest team-mate (default), the caller of the ping it answers, or the order's man. RUNNING; FAILURE with nobody", NULL, NULL, bc_do_follow, bc_do_stop },
+	{ VK_A, "follow", "[mate|caller|order|leader]", "keep a station 3 voxels from a player: the nearest team-mate who is going somewhere (default), the caller of the ping it answers, or the order's man. `leader`: fall in with its leader -- beside and behind him, never in front of his gun; where he is going, not at his heels; shooting what he shoots; stopping near him when he stops. RUNNING; FAILURE with nobody, or a man who stays put too long", NULL, NULL, bc_do_follow, bc_do_stop },
 	{ VK_A, "hold", "[place] [secs]", "go to the place (default: here) and watch from it, sweeping the head, crouched if careful. SUCCESS after secs (default 8)", NULL, NULL, bc_do_hold, bc_do_stop },
 	{ VK_A, "throw_grenade", "[place]", "throw at the place, or at what is worth one: stands, turns to the arc, lets go. SUCCESS thrown, FAILURE no arc, too near, none left", NULL, NULL, bc_do_throw, bc_do_stop },
 	{ VK_A, "evade", "", "run from the grenade that threatens it. RUNNING until it has burst", NULL, NULL, bc_do_evade, bc_do_stop },

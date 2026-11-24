@@ -28,7 +28,7 @@ select
 			tree ctf_under_fire
 		option none enemy_visible x5          # somebody in sight
 			tree ctf_contact
-		option curiosity search x1.2          # a noise, a man just lost: a look, if it is curious
+		option curiosity search x0.6          # a noise, a man just lost: a look, if it is very curious
 			do investigate
 		option none always                    # the game
 			tree ctf_duty
@@ -47,24 +47,30 @@ pick every=20 sticky=1.5 noise=0.3
 		do escort
 	option objective their_intel_dropped x2   # theirs lies where our carrier fell: pick it up
 		do fetch
-	option objective their_intel_home x1.2    # go and take theirs
+	option objective their_intel_home         # go and take theirs
 		do fetch
-	option aggression their_intel_home x0.6   # (the bold too)
-		do fetch
-	option flank their_intel_home x0.5        # take theirs, coming at it the long way round
-		seq
-			do flank their_intel
-			do fetch
+	option flank their_intel_home x0.8        # take theirs, coming at it the long way round
+		tree ctf_round
 	option caution our_intel_dropped x1.6     # ours lies in the open: stand over it
 		do guard our_intel 30
-	option caution our_intel_home x0.6        # keep ours
+	option caution our_intel_home x0.9        # keep ours
 		do guard our_intel 40
 	option marksman vantage rifle smg x0.7    # watch from a height
 		tree ctf_camp
 	option teamwork ping_called x3            # a team-mate called
 		tree ctf_answer
+	option teamwork has_leader x1.1           # fall in with its leader: where he goes, the squad goes
+		do follow leader
+	option objective is_leader x1.5           # a leader goes for their intel: the squad is behind it
+		tree ctf_net
 	option none always x0.25                  # nothing else: toward their intel
 		tree ctf_net
+
+tree ctf_round:
+seq
+	always
+		do flank their_intel                  # wide of the middle, to come at it from behind
+	do fetch
 
 tree ctf_net:
 select
@@ -80,10 +86,14 @@ seq
 	pick every=2.5 sticky=0.5 noise=0.2
 		option aggression enemy_visible       # fight back from where it stands
 			do fight
-		option caution under_fire x1.1        # to cover, and fight from it
+		option caution under_fire x0.9        # to cover, and fight from it
 			do take_cover
-		option caution pressed x1.4           # hurt or outnumbered: back, from cover to cover
+		option caution pressed                # hurt or outnumbered: back, from cover to cover
 			do fall_back_by_cover
+		option objective their_intel_home x1.2 # the keen on the game run on for their intel, shooting
+			do fetch
+		option flank their_intel_home x0.6    # or break away round the side
+			tree ctf_round
 		option curiosity search x0.5          # did not see who: go and look, by cover
 			do advance_by_cover search
 		option none always x0.1               # nothing known of the shot: on with the game
@@ -94,7 +104,15 @@ tree ctf_contact:
 pick every=1.5 sticky=0.3 noise=0.15
 	option aggression our_intel_taken x3      # the thief first, whoever else is about
 		do intercept
-	option caution pressed x1.8               # hurt or outnumbered: break off
+	option objective their_intel_home x0.9    # the keen on the game do not stop for a fight: on, shooting
+		do fetch
+	option teamwork their_intel_carried x1.4  # a mate carries theirs: stay by him, shooting
+		do escort
+	option flank their_intel_home x0.7        # leave the fight to the others: round the side for their intel
+		tree ctf_round
+	option objective their_intel_dropped x1.5
+		do fetch
+	option caution pressed x1.3               # hurt or outnumbered: break off
 		do fall_back_by_cover
 	option aggression enemy_visible           # fight him
 		do fight

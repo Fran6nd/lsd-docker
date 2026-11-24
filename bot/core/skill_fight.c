@@ -121,6 +121,12 @@ void bc_fight_select(bc_bot *b)
 	} else {
 		pick = shooter >= 0 ? shooter : nearest;
 	}
+	{
+		/* what its leader fights, it fights (skill_squad.c) */
+		int sq = bc_squad_target(b);
+
+		if (sq >= 0 && s->k[sq].visible) pick = sq;
+	}
 	if (pick != f->target) {
 		f->target = pick;
 		f->target_since = e->now;

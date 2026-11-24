@@ -26,6 +26,9 @@
  *   zone=x0 y0 x1 y1 [nodig] [nobuild]   a rectangle where routes do not
  *                            edit (both, when neither is said); zone=clear
  *   protect=x y z            a voxel the server will refuse to change
+ *   leaders.per=<n>          one leader for every n of a team (5; 0: none)
+ *   leaders.human=<weight>   a person's weight in the draw, a bot's being
+ *                            about 1 (2): skill_squad.c
  *   gaze=0|1                 1 (default): a travelling bot's head is its
  *                            own (skill_look.c). 0: it faces as it steers
  *   ping_takers=<n>          how many bots answer one ping (2)
@@ -585,6 +588,10 @@ bc_engine *bc_engine_new(const bc_engine_host *host, int max_bots)
 	e->spend = 50;
 	e->ping_takers = 2;
 	e->ping_radius = 40.0f;
+	e->lead_per = 5;
+	e->lead_human = 2.0f;
+	bc_rng_seed(&e->rng, 0x6c656164, 1);
+	memset(e->hurt_by, BL_NO_PLAYER, sizeof e->hurt_by);
 	e->hot_at[0] = e->hot_at[1] = -1e9;
 	for (i = 0; i < BC_DANGER_MAX; i++)
 		e->danger_at[0][i] = e->danger_at[1][i] = -1e9;
@@ -658,6 +665,9 @@ int bc_engine_map(bc_engine *e, const uint8_t *vxl, size_t bytes, uint32_t map_s
 	memset(e->nades, 0, sizeof e->nades);
 	bc_tactics_map(e);
 	memset(e->obj, 0, sizeof e->obj);
+	memset(e->lead, 0, sizeof e->lead);
+	e->lead_at = 0.0;
+	bc_rng_seed(&e->rng, 0x6c656164, map_seq);
 	for (i = 0; i < BC_DANGER_MAX; i++)
 		e->danger_at[0][i] = e->danger_at[1][i] = -1e9;
 	for (i = 0; i < e->max_bots; i++)
@@ -727,10 +737,15 @@ static void bot_new_life(bc_bot *b, const bl_player *p)
 	memset(&b->elsewhere, 0, sizeof b->elsewhere);
 	memset(&b->dry, 0, sizeof b->dry);
 	memset(&b->carry, 0, sizeof b->carry);
+	b->squad.leader = -1;
+	b->squad.eval_at = 0.0;
+	b->squad.still_since = b->e->now;
 	memset(&b->guard, 0, sizeof b->guard);
 	memset(&b->fetch, 0, sizeof b->fetch);
 	b->area.from = p->pos;
 	b->kills = 0;
+	b->born_at = b->e->now;
+	b->stuck_out_at = -1e9;
 	b->following = 0;
 	b->follow.leader = -1;
 	b->follow.pick_at = 0.0;
@@ -1017,6 +1032,12 @@ static void ev_set(bc_engine *e, int pid, const char *text)
 		e->water_damage = (float)atof(val);
 		if (!(e->water_damage > 0.0f)) e->water_damage = 0.0f;
 		memset(e->unreach, 0, sizeof e->unreach);
+	} else if (!strcmp(key, "leaders.per")) {
+		e->lead_per = atoi(val);
+		e->lead_at = 0.0;
+	} else if (!strcmp(key, "leaders.human")) {
+		e->lead_human = (float)atof(val);
+		if (!(e->lead_human >= 0.0f)) e->lead_human = 0.0f;
 	} else if (!strcmp(key, "gaze")) {
 		e->gaze_off = !atoi(val);
 	} else if (!strcmp(key, "ping_takers")) {
@@ -1198,6 +1219,7 @@ void bc_engine_event(bc_engine *e, const bl_record *rec)
 		if (pid == BL_NO_PLAYER || !e->have_world) break;
 		team = e->w.players[pid].team;
 		if (team < 1 || team > 2) break;
+		bc_leaders_died(e, pid);
 		/* where a team's man died is a place its routes shy from (aosbot) */
 		for (i = 1; i < BC_DANGER_MAX; i++)
 			if (e->danger_at[team - 1][i] < e->danger_at[team - 1][old]) old = i;
@@ -1238,6 +1260,11 @@ void bc_engine_event(bc_engine *e, const bl_record *rec)
 		bl_ev_hurt ev;
 		bc_bot *b = bc_engine_bot(e, pid);
 
+		if (n >= sizeof ev && pid != BL_NO_PLAYER) {
+			memcpy(&ev, pl, sizeof ev);
+			e->hurt_by[pid] = ev.by;
+			e->hurt_at[pid] = e->now;
+		}
 		if (n < sizeof ev || !b || !b->alive || !e->have_world) break;
 		memcpy(&ev, pl, sizeof ev);
 		bc_senses_hurt(&b->senses, &b->rng, &e->w, pid, b->level, ev.from, ev.by, e->now);
@@ -1343,6 +1370,7 @@ static void decide(bc_engine *e, bc_bot *b, float dt)
 		e->hot[me->team - 1] = b->senses.k[b->senses.nearest].pos;
 		e->hot_at[me->team - 1] = e->now;
 	}
+	bc_leader_of(b);        /* whom it follows, if anybody: looked at again now and then */
 	bc_fight_select(b);
 	if (b->ping.taken && e->now >= b->ping.until)
 		b->ping.taken = 0;
@@ -1485,6 +1513,7 @@ static void stuck_out(bc_engine *e, bc_bot *b, const bc_body *body, const char *
 
 	e->stats.stuck_resets++;
 	b->stuck_outs++;
+	b->stuck_out_at = e->now;    /* and it leads nobody for a while (skill_squad.c) */
 	if (e->now - b->stuck_said_at > 60.0 || b->stuck_said_at == 0.0) {
 		char d[200];
 
@@ -1836,6 +1865,7 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 	e->last_tick = world->tick;
 	e->have_world = 1;
 	bc_objective_world(e);
+	bc_leaders_think(e);
 	e->budget_left = budget > 0 ? budget : 0;
 	dtw = e->world_dt > 0.25f ? 0.25f : e->world_dt;
 	e->world_dt = 0.0f;

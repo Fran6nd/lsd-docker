@@ -56,7 +56,8 @@ enum {
 	BC_COVER_W = 2 * BC_COVER_R + 1,
 	BC_COVER_QUEUE = 660,
 	BC_VISIT_N = 32,            /* the visit grid: 32 x 32 cells of 16 columns */
-	BC_AVOID_MAX = 3            /* enemies a carrier's route keeps away from */
+	BC_AVOID_MAX = 3,           /* enemies a carrier's route keeps away from */
+	BC_LEADERS_MAX = 8          /* a team's leaders */
 };
 
 enum { BC_COVER_HIDE = 0, BC_COVER_ADVANCE, BC_COVER_BACK };
@@ -236,7 +237,7 @@ typedef struct bc_bot {
 	         double until, peek_at, peek_until, seen_since, go_since; bl_vec3 goal, peek; } tc;
 	struct { uint8_t phase, crouch, bounds, mode; double until, since, quiet_since; bl_vec3 goal, dest; } bd;
 	struct { double until, flinched_for; } cr;
-	struct { uint8_t phase, tries, n, pad_; int8_t side; double cd_until, leg_since;
+	struct { uint8_t phase, tries, n, pad_; int8_t side; double cd_until, leg_since, side_until;
 	         bl_vec3 w[3]; bc_nav_danger avoid; uint8_t avoid_on; } flank;
 	struct { uint8_t phase, pad_[7]; bl_vec3 place, done_pos; double done_until, cd_until; } hunt;
 	struct { int8_t perch, avoid; uint8_t camping, pad_; uint32_t kills0;
@@ -246,7 +247,9 @@ typedef struct bc_bot {
 	struct { uint8_t n, pad_[7]; bc_nav_danger avoid[BC_AVOID_MAX]; double plan_at; } carry;
 	struct { uint8_t started, pad_[7]; double until; bl_vec3 spot, place; } guard;
 	struct { double stand_since; } fetch;
+	struct { int16_t leader; uint8_t pad_[6]; double eval_at, still_since, off_until; bl_vec3 still_at; } squad;
 	uint32_t kills;         /* this life's */
+	double born_at;         /* when this life began */
 	uint8_t following;      /* the follow skill ran at the last decision */
 	bc_order order;
 	uint8_t lamp;           /* BC_LAMP_* */
@@ -264,6 +267,7 @@ typedef struct bc_bot {
 	struct { bl_vec3 from; double acc; } area;  /* on a route and not leaving a small place */
 	struct { double until; bl_vec3 goal; float mx, my; uint8_t free, pad_[3]; } elsewhere;
 	double stuck_said_at;
+	double stuck_out_at;    /* when a goal was last dropped for it */
 	uint32_t stuck_outs;    /* times a goal was dropped for it */
 	struct { uint8_t tries, pad_[7]; bl_vec3 goal; double until; bl_vec3 bad[4]; } dry;
 
@@ -292,6 +296,13 @@ typedef struct bc_objstate {
 	double since;
 	uint16_t score;         /* the carrier's team's, when he took it */
 } bc_objstate;
+
+/* A team's leaders (skill_squad.c). */
+typedef struct bc_leaders {
+	uint8_t pid[BC_LEADERS_MAX], deaths[BC_LEADERS_MAX];
+	int32_t n;
+	double until[BC_LEADERS_MAX], died_at[BC_LEADERS_MAX];
+} bc_leaders;
 
 /* A goal a team's bot found no way to, and from about where. */
 typedef struct bc_unreach {
@@ -367,6 +378,13 @@ struct bc_engine {
 	double hot_at[2];
 	bc_nade nades[BC_GRENADES_MAX];
 	bc_objstate obj[2];         /* [team - 1]: that team's own */
+	bc_leaders lead[2];
+	bc_rng rng;                 /* the engine's own dice: who leads */
+	double lead_at;
+	int lead_per;               /* leaders.per: members a leader (5; 0: none) */
+	float lead_human;           /* leaders.human: a person's weight in the draw (2) */
+	uint8_t hurt_by[BL_MAX_PLAYERS];    /* who last hurt each player, and when */
+	double hurt_at[BL_MAX_PLAYERS];
 	bc_unreach unreach[2][BC_UNREACH_MAX];
 	bc_vantage vantage[2];
 	float visit[2][BC_VISIT_N * BC_VISIT_N];    /* when a team's man was last in a cell; 0: never */
@@ -517,6 +535,18 @@ int bc_carrying(const bc_bot *b);
 int bc_objective_place(bc_bot *b, const char *name, bl_vec3 *out);
 /* ask for another route to the goal in hand, walking the old one meanwhile */
 void bc_move_replan(bc_bot *b);
+
+/* --- skill_squad.c ----------------------------------------------------- */
+
+void bc_leaders_think(bc_engine *e);
+void bc_leaders_died(bc_engine *e, int pid);
+int bc_is_leader(const bc_engine *e, int pid);
+/* the leader this bot follows (looked at again now and then), or -1 */
+int bc_leader_of(bc_bot *b);
+int bc_leader_fighting(const bc_engine *e, int leader);
+/* whom its leader is fighting, if this bot sees him; else -1 */
+int bc_squad_target(bc_bot *b);
+bt_status bc_follow_leader(bc_bot *b);
 
 /* --- skill_grenade.c --------------------------------------------------- */
 

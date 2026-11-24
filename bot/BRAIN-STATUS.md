@@ -1,5 +1,52 @@
 # The brain: senses, skills, vocabulary, engine, trees -- where it stands
 
+## CHECKPOINT ctf (2026-11-24, later): leaders, and ctf as a team game
+
+`make -C bot test` is green, no warnings (new: `tests/squad_test.c` 13
+checks; `tests/ctf_test.c` now 25 checks and no "NOT YET" line).
+
+- **LEADERS** (`core/skill_squad.c`). Per team the engine draws leaders by
+  lot among the team's members, bots and people alike, nobody told: one
+  for every `leaders.per` members (default 5; 0 turns it off), a person
+  weighing `leaders.human` (default 2), a bot by character. A term of 2
+  to 6 minutes; lost on leaving, on dying twice in a minute, or (a bot)
+  on having had a goal dropped for being stuck. Other bots attach to the
+  nearest leader with room (4 a leader; never with teamwork under 0.75),
+  and `follow leader` keeps a station beside and behind him, goes where
+  he is going, takes his target, stops when he stops, and leaves a leader
+  who stays put (10 s + 15 x teamwork). Words: `is_leader`, `has_leader`,
+  `leader_near`, `leader_fighting`, `follow leader`, the place `leader`;
+  the score `quiet [secs]` came with it (see the lamp fragment below).
+  Scenarios: ten a team -> 2 leaders each, 13 followers, no squad over 4,
+  0 of the 2 loners follow; a person chosen walks 62 voxels and 4 of 5
+  bots are within 10 of him, in front of his gun on 0 of 1795 bot-ticks;
+  he fires at a man and 5 of 5 take that man; he is killed and nobody
+  stands over 0.9 s; a person who stays put is held round by 3 of 4 at
+  8 s and by none at 50 s; `leaders.per=0` -> no leaders, no followers.
+- **ctf as a team game** (`trees/ctf.bt`). 6 against 6 on a field of
+  walls 150 long reaches a first capture after 117 s, stuck 0; while the
+  intel is carried the carrier's mates are on `escort` 85 of 221 samples;
+  the carrier fires 0 rounds at a harmless man 20 off its line and is
+  home in 11.3 s against 10.6; with our intel taken 5 of 5 go for the
+  thief, 3 of them for a place AHEAD of him, and he is dead in 3.9 s; his
+  dropped intel is then guarded; 200 characters with nothing in sight:
+  fetch 83, guard 72, flank 45, and with ours taken intercept 186, fetch
+  10, flank 4.
+  HONEST LIMITS: the capture took 117 s and team 1's men were on their
+  own third of the field 73% of the time and on the other's 6% -- two
+  equal teams of bots mostly hold each other in the middle, and a
+  respawn beside the intel favours the defence. On an OPEN field (no
+  walls) of the same size there was no capture in 240 s. After the thief
+  fell only 1 of 5 stood guard over the dropped intel.
+- **The lamp fragment needs one more line** (the server's night script;
+  the test's copy has it): `option none quiet 25 x5` / `do lamp on`,
+  before the stealth line. Without it two stealthy bots with no night
+  vision are blind for good and a night game can fail to end (seen: 240 s,
+  1 against 5, none seeing another).
+- Think cost with 40 bots is now 214 us a call (150 before any of this,
+  164 at checkpoint 1), worst 2.0 ms: followers ask for routes often. To
+  be looked at with the numbers table.
+
 ## CHECKPOINT 1 (2026-11-24): the head, cover, the net under a stuck body, water
 
 `make -C bot test` is green (new: `tests/behaviour_test.c`, 23 checks). In

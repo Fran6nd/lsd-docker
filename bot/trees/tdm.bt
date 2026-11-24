@@ -79,7 +79,11 @@ pick every=25 sticky=1.5 noise=0.35
 		tree tdm_camp
 	option marksman vantage smg x0.6          # an smg sometimes; a shotgun never
 		tree tdm_camp
-	option teamwork mate_near 40 x0.5         # go with a team-mate
+	option teamwork has_leader x1.3           # fall in with its leader (a bot or a person: nobody is told)
+		do follow leader
+	option aggression is_leader x1.2          # a leader goes somewhere: the squad is behind it
+		do seek
+	option teamwork mate_near 40 x0.3         # no leader: go with a team-mate a while
 		limit 20
 			do follow mate
 	option aggression always x0.7             # straight at the enemy's base

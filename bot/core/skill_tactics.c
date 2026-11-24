@@ -369,6 +369,10 @@ bt_status bc_do_flank(void *bot, const bt_args *a, float dt)
 		/* twice as likely a point of worth; the bot's own leaning breaks a tie */
 		p_right = 1.0f / (1.0f + powf(2.0f, worth[0] - worth[1] - 0.3f * (float)b->flank_side));
 		s = !ok[1] ? 0 : !ok[0] ? 1 : bc_frand(b) < p_right;
+		/* broken off for a fight and taken up again: the same way round */
+		if (e->now < b->flank.side_until && ok[b->flank.side > 0])
+			s = b->flank.side > 0;
+		b->flank.side_until = e->now + 60.0;
 		b->flank.side = (int8_t)(s ? 1 : -1);
 		b->flank.w[0] = w[s][0];
 		b->flank.w[1] = w[s][1];

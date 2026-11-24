@@ -18,6 +18,8 @@ static const char NIGHT_EXTRA[] =
 	"\t\tdo lamp off\n"
 	"\toption none hit_in_dark x10\n"
 	"\t\tdo lamp on\n"
+	"\toption none quiet 25 x5\n"
+	"\t\tdo lamp on\n"
 	"\toption stealth night\n"
 	"\t\tdo lamp off\n"
 	"\toption none night x1.2\n"
@@ -304,6 +306,7 @@ static void test_ping_answered(void)
 	}
 	bs_add(s, 9, 0, 1, 5, 0, 1, 205.5f, 262.5f, 1, 0);          /* the caller: a player */
 	bs_set(s, BL_NO_PLAYER, "tree=tdm");
+	bs_set(s, BL_NO_PLAYER, "leaders.per=0");        /* nobody goes along with anybody: only the ping moves them */
 	bs_run(s, 0.5);
 	for (i = 0; i < 6; i++) {
 		float dx = s->p[i].body.pos.x - 205.5f, dy = s->p[i].body.pos.y - 265.5f;

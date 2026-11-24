@@ -180,6 +180,12 @@ int bc_place_of(bc_bot *b, const char *name, bl_vec3 *out)
 	}
 	if (!strcmp(name, "thief") || !strcmp(name, "carrier") || !strcmp(name, "intercept"))
 		return bc_objective_place(b, name, out);
+	if (!strcmp(name, "leader")) {
+		i = bc_leader_of(b);
+		if (i < 0) return 0;
+		*out = e->w.players[i].pos;
+		return 1;
+	}
 	if (!strcmp(name, "enemy_area"))
 		return bc_enemy_area(b, out);
 	if (!strcmp(name, "rumour"))
@@ -435,6 +441,8 @@ bt_status bc_do_follow(void *bot, const bt_args *a, float dt)
 	const char *who = a->count > 0 ? a->text[0] : "mate";
 
 	(void)dt;
+	if (!strcmp(who, "leader"))
+		return bc_follow_leader(b);
 	if (!strcmp(who, "caller"))
 		return b->ping.taken && e->now < b->ping.until ? follow_pid(b, b->ping.by) : BT_FAILURE;
 	if (!strcmp(who, "order"))
