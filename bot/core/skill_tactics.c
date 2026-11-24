@@ -808,6 +808,8 @@ bt_status bc_do_leave_water(void *bot, const bt_args *a, float dt)
 		b->dry.tries = 0;
 		return BT_SUCCESS;
 	}
+	if (e->now < b->dry.cd_until)
+		return BT_FAILURE;      /* it tried: there is no way out of this water near */
 	if (e->now >= b->dry.until) {
 		/* the nearest dry floor, ring by ring, but not one already found
 		 * to have no way up to it */
@@ -823,6 +825,11 @@ bt_status bc_do_leave_water(void *bot, const bt_args *a, float dt)
 				bl_vec3 p;
 
 				if (x < 1 || y < 1 || x > BC_MAP_X - 2 || y > BC_MAP_Y - 2 || bc_map_is_water(e->map, x, y))
+					continue;
+				/* a column inland, not the water's edge: a body that stops
+				 * on the edge rests half in the sea */
+				if (bc_map_is_water(e->map, x + 1, y) || bc_map_is_water(e->map, x - 1, y) ||
+				    bc_map_is_water(e->map, x, y + 1) || bc_map_is_water(e->map, x, y - 1))
 					continue;
 				z = top_floor(e->map, x, y);
 				if (z > BC_MAP_GROUND_Z)
@@ -845,18 +852,25 @@ bt_status bc_do_leave_water(void *bot, const bt_args *a, float dt)
 			}
 		}
 		if (!found) {
-			b->dry.tries = 0;       /* none: forget what was tried and look again */
-			b->dry.until = e->now + 1.0;
+			b->dry.tries = 0;
+			b->dry.cd_until = e->now + 20.0;
 			return BT_FAILURE;
 		}
 		b->dry.until = e->now + 12.0;
 	}
 	st = bc_move_to(b, b->dry.goal, 0.0f);
 	bc_fire_at_will(b);
-	if (st == BC_MV_FAILED) {
+	if (st == BC_MV_FAILED || st == BC_MV_ARRIVED) {
+		/* no way, or "there" and still in the water: not that place */
 		b->dry.bad[b->dry.tries & 3] = b->dry.goal;
-		if (b->dry.tries < 4) b->dry.tries++;
 		b->dry.until = 0.0;         /* another bank */
+		if (++b->dry.tries >= 3) {
+			/* three banks and no way up any: this water is where it is
+			 * for now. It gets on with the game from here. */
+			b->dry.tries = 0;
+			b->dry.cd_until = e->now + 20.0;
+			return BT_FAILURE;
+		}
 	}
 	return BT_RUNNING;
 }

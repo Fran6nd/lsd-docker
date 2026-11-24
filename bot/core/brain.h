@@ -271,7 +271,7 @@ typedef struct bc_bot {
 	double stuck_said_at;
 	double stuck_out_at;    /* when a goal was last dropped for it */
 	uint32_t stuck_outs;    /* times a goal was dropped for it */
-	struct { uint8_t tries, pad_[7]; bl_vec3 goal; double until; bl_vec3 bad[4]; } dry;
+	struct { uint8_t tries, pad_[7]; bl_vec3 goal; double until, cd_until; bl_vec3 bad[4]; } dry;
 
 	bl_intent out;          /* the last intent written */
 	uint8_t keys_prev;      /* for the keys' hysteresis */

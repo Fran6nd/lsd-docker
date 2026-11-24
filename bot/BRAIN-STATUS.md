@@ -1,5 +1,42 @@
 # The brain: senses, skills, vocabulary, engine, trees -- where it stands
 
+## CHECKPOINT water (2026-11-25): time in the water, a maze, a dig from the water
+
+`make -C bot test` is green, no warnings (behaviour_test 38 checks).
+
+- **Time in the water** (40 bots, tdm, 120 s, simulation; tents of
+  prisonbreakv1 guessed at 72,256 and 440,256, which are an islet and open
+  sea): wading 64.8% of living bot-time right after the freeze fix, 45.0%
+  now; spud 4.1% before and after. What changed: (a) from land to land
+  the sea keeps its full price again (0.5 s a column), so a way round by
+  land is taken -- the cheap, greedy water search is only for a body or a
+  goal IN the water; (b) falling back in the sea is "to the nearest dry
+  ground", not a base a hundred voxels of wading away; (c) `leave_water`
+  goes for a column INLAND (a body stopped on the edge rested half in the
+  sea and the skill ran for ever: one bot idle 60 s), counts "there and
+  still wet" as a failure, and after three banks with no way up gives up
+  for 20 s, during which the bot is not "in harmful water" and gets on
+  with the game. Not fixed, and probably true to the map: 76% of the
+  wading samples had dry ground within 12 -- with both bases out in the
+  water the routes run along the shore. "Walk at the goal while waiting"
+  was compared on and off (`plan.wait=stand`): 64.8% against 62.2% wading
+  on prisonbreakv1, 4.1% against 5.3% on spud: it is not what keeps them
+  in the water.
+- **The live stuck line** (fall_back_by_cover, "going nowhere", route
+  3/206 WALK, sees 19) is the case (b) above: a fall-back in the sea
+  toward a far base. Seen again in the simulation only as a one-step
+  route pushing at a bank, which the net ends in 4.5 s.
+- **A capped search in a maze**: a serpentine of five walls, 330 voxels
+  of way; there in 39.9 s with searches run to their end, in 39.4 s with
+  a cap of 400 expansions (2 plans, 1 stopped at the cap), stuck 0.
+  On the real CubeMaze (my spawns are arbitrary places, some of them
+  shut in): 31% of the time with no key down against 38% with the old
+  planner, 240 of 1251 plans finding no way; a bot shut in a cube has
+  nowhere to go and asks all the same -- NOT solved.
+- **A dig asked for from the water**: a pool four deep with digging
+  allowed: out after 6.5 s, 5 digs, 3 of them made standing in the water,
+  none refused; without `edit=dig` it stays in, digging nothing.
+
 ## CHECKPOINT freeze (2026-11-24, later still): bots "frozen" after a map change
 
 `make -C bot test` is green, no warnings (behaviour_test now 29 checks).

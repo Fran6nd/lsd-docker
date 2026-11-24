@@ -226,13 +226,14 @@ static void fill_policy(bc_bot *b)
 	 * search is therefore made greedy -- in the sea the straight way is
 	 * the way -- and water is priced for what it is, slow, not also as
 	 * "a body in water is a target" (0.5 s a column). */
-	if (e->plan_greed > 1.0f) {
+	if (e->plan_greed > 1.0f &&
+	    (bc_map_is_water(e->map, (int)floorf(me->pos.x), (int)floorf(me->pos.y)) ||
+	     bc_map_is_water(e->map, b->mv.goal.x, b->mv.goal.y))) {
 		p->water_secs = 0.15f;
-		if (bc_map_is_water(e->map, (int)floorf(me->pos.x), (int)floorf(me->pos.y)) ||
-		    bc_map_is_water(e->map, b->mv.goal.x, b->mv.goal.y)) {
-			if (p->h_weight < 4.0f) p->h_weight = 4.0f;
-		}
+		if (p->h_weight < 4.0f) p->h_weight = 4.0f;
 	}
+	/* (from land to land the sea keeps its full price: a way round by
+	 * land is taken when there is one of about the same length) */
 	p->zones = e->zones;
 	p->nzones = e->nzones;
 	p->protect = &e->protect;

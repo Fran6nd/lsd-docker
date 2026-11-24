@@ -104,6 +104,9 @@ int bc_in_harmful_water(const bc_bot *b)
 	const bc_engine *e = b->e;
 	const bl_player *me = bc_me(b);
 
+	if (e->now < b->dry.cd_until)
+		return 0;               /* no way out was found: it is not asked for every second */
+
 	if (!(e->water_damage > 0.0f) && !e->water_lethal)
 		return 0;
 	if (me->flags & BL_F_WADING)
@@ -606,6 +609,12 @@ static bt_status bounds(bc_bot *b, bl_vec3 dest, int mode, float arrive)
 		b->bd.dest = dest;
 	dest = b->bd.dest;
 
+	if (wet(b) && mode == BC_COVER_BACK) {
+		/* falling back in the sea is getting out of it: the nearest dry
+		 * ground, not a base a hundred voxels of wading away */
+		b->bd.phase = BD_NONE;
+		return bc_do_leave_water(b, NULL, 0.0f) == BT_FAILURE ? BT_FAILURE : BT_RUNNING;
+	}
 	if (wet(b)) {
 		/* no cover in the sea, and no pausing in it: straight on */
 		b->bd.phase = BD_RUN;

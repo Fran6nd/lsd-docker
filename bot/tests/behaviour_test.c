@@ -429,6 +429,103 @@ static void test_waiting_for_routes(void)
 	CHECK(stuck == 0);
 }
 
+/* ---------------------------------------------------------------------- */
+/* a search stopped at its cap, in a maze                                 */
+
+static void maze_pass(const char *cap, double *secs, unsigned *caps, unsigned *plans, unsigned *fails, int *stuck)
+{
+	bs_sim *s = field(4, 180.5f, 260.5f);
+	int i, k;
+
+	/* a serpentine: five walls right across a pen 48 wide, a gap at
+	 * alternate ends; the pen is walled in */
+	bs_box(s, 198, 226, G - 4, 250, 226, G - 1, 1);
+	bs_box(s, 198, 286, G - 4, 250, 286, G - 1, 1);
+	bs_box(s, 198, 226, G - 4, 198, 286, G - 1, 1);
+	bs_box(s, 250, 226, G - 4, 250, 286, G - 1, 1);
+	for (i = 0; i < 5; i++) {
+		int x = 206 + i * 8;
+
+		if (i % 2) bs_box(s, x, 227, G - 4, x, 281, G - 1, 1);
+		else bs_box(s, x, 231, G - 4, x, 285, G - 1, 1);
+	}
+	s->tent[1].x = 246.5f; s->tent[1].y = 282.5f;       /* the far corner of the pen */
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\ndo go_to enemy_base\n");
+	bs_set(s, BL_NO_PLAYER, cap);
+	bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, 5, 202.5f, 282.5f, 1, 0);
+	for (k = 0; k < 60 * 180; k++) {
+		float dx, dy;
+
+		bs_step(s);
+		dx = s->p[0].body.pos.x - s->tent[1].x; dy = s->p[0].body.pos.y - s->tent[1].y;
+		if (dx * dx + dy * dy < 3.0f * 3.0f) break;
+	}
+	*secs = k < 60 * 180 ? k / 60.0 : -1.0;
+	*caps = bc_engine_stats_get(s->e)->plan_caps;
+	*plans = bc_engine_stats_get(s->e)->plans;
+	*fails = bc_engine_stats_get(s->e)->plan_fails;
+	*stuck = s->p[0].stuck_events;
+	bs_free(s);
+}
+
+static void test_capped_in_a_maze(void)
+{
+	double exact, capped;
+	unsigned caps, plans, fails, c0, p0, f0;
+	int stuck, s0;
+
+	printf("a route through a maze, the search stopped at its cap\n");
+	maze_pass("plan.cap=0", &exact, &c0, &p0, &f0, &s0);
+	maze_pass("plan.cap=400", &capped, &caps, &plans, &fails, &stuck);
+	printf("  a serpentine of five walls, 330 voxels of way: there in %.1f s with searches run to their end (%u plans);\n"
+	       "  with a cap of 400 expansions in %.1f s: %u plans, %u of them stopped at the cap, %u found no way; stuck %d\n",
+	       exact, p0, capped, plans, caps, fails, stuck);
+	CHECK(exact > 0.0 && c0 == 0);
+	CHECK(capped > 0.0);                        /* it gets there all the same */
+	CHECK(caps >= 1);                           /* and the cap did bite */
+	CHECK(capped < exact * 2.0 + 10.0);
+	CHECK(stuck == 0);
+}
+
+/* in a pool with banks too high to climb: with digging allowed the route
+ * digs its way out, and the digs are asked for from the water */
+static void test_dig_out_of_water(void)
+{
+	bs_sim *s = bs_new(59, 4);
+	int x, y, k, wet_digs = 0, before, out = 0;
+
+	printf("a dig asked for from the water\n");
+	for (y = 250; y <= 262; y++)
+		for (x = 220; x <= 232; x++) {
+			bc_map_set(s->truth, x, y, 59, 0);
+			bc_map_set(s->truth, x, y, 60, 0);
+			bc_map_set(s->truth, x, y, 61, 0);
+			bc_map_set(s->truth, x, y, 62, 0);
+		}
+	s->have_tents = 1;
+	s->tent[0].x = 226.5f; s->tent[0].y = 256.5f; s->tent[0].z = 61.75f;
+	s->tent[1].x = 260.5f; s->tent[1].y = 256.5f; s->tent[1].z = 56.75f;
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\ndo go_to enemy_base\n");
+	bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, 5, 226.5f, 256.5f, 1, 0);
+	bs_run(s, 15.0);
+	CHECK(s->p[0].body.wade && s->edits == 0);  /* no way out, and it may not dig */
+	bs_set(s, BL_NO_PLAYER, "edit=dig");
+	for (k = 0; k < 60 * 90 && !out; k++) {
+		before = s->edits;
+		bs_step(s);
+		if (s->edits != before && bc_map_is_water(s->truth, (int)s->p[0].body.pos.x, (int)s->p[0].body.pos.y)) wet_digs++;
+		out = s->p[0].body.pos.x > 240.0f;
+	}
+	printf("  a pool four deep: out and on its way after %.1f s, %d digs, %d of them made standing in the water, %d refused\n",
+	       k / 60.0, s->edits, wet_digs, s->refused);
+	CHECK(out);
+	CHECK(wet_digs >= 1);
+	CHECK(s->p[0].stuck_events == 0);
+	bs_free(s);
+}
+
 int main(void)
 {
 	test_look();
@@ -437,6 +534,8 @@ int main(void)
 	test_stuck_in_water();
 	test_harmful_water();
 	test_waiting_for_routes();
+	test_capped_in_a_maze();
+	test_dig_out_of_water();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;
 }
