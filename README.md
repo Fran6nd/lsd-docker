@@ -82,7 +82,7 @@ irm https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.ps1 | iex
 ```
 
 It asks for the game (tdm, parkour -- one team against the clock on a generated course -- ctf, bots, bots_rewards -- every reward free -- or babel) and the map (random, or a link or id
-from [aos.party](https://aos.party) or [hosting.dgd.cx](https://hosting.dgd.cx/map-search); parkour makes its own), for tdm and parkour, how many bots (a team; 0 for none), and whether rewards are on, off or infinite, then prints the `aos://` address to
+from [aos.party](https://aos.party) or [hosting.dgd.cx](https://hosting.dgd.cx/map-search); parkour makes its own), for tdm, ctf and parkour, how many bots (a team; 0 for none), and whether rewards are on, off or infinite, then prints the `aos://` address to
 join. It is never listed publicly. A minute after the last player leaves it stops, and the container,
 its data and -- if the game downloaded it -- the image are removed.
 Ctrl-C stops it at once. Answers can be given ahead:
@@ -96,7 +96,9 @@ Ctrl-C stops it at once. Answers can be given ahead:
   [hosting.dgd.cx](https://hosting.dgd.cx/map-search)), updates
 - [The catalog](docs/catalog.md) -- gamemodes, extensions, effects,
   bots, tools; writing your own scripts, and keeping them across updates
+- [Bots and their behaviour trees](bot/trees/README.md) -- write one, step by step
 - [Building maps](docs/building-maps.md) -- the editor gamemode
+- [The tree editor](tools/tree-editor/README.md) -- write the bots' behaviour trees and try them on bots, in a desktop program
 - [Translations](docs/translations.md) -- every player in their language
 - [Developing](docs/developing.md) -- building, testing, releasing
 

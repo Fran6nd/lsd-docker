@@ -1,21 +1,23 @@
 # Behaviour trees
 
 What a bot does is decided by a tree: a short text that says what can be
-done and what bears on it. This page is the reference for writing one --
-every keyword, what it answers, its defaults -- for giving bots a tree
-and weights of your own, and for whoever writes a tool (an editor, a
-debugger) on top.
+done and what bears on it. This page is the **reference**: every
+keyword, what it answers, its defaults; how a text is compiled and run;
+what a server script can do; and the formats a tool is built on.
 
+- **New to this? Start with the tutorial**: [trees/README.md](trees/README.md)
+  -- from an empty file to a tree of your own running on a server, step
+  by step.
 - The words a tree may use (conditions, scores, actions, traits, places):
   [VOCAB.md](VOCAB.md), generated from the engine.
-- The tool used all through this page: `bttree`. Build it with
-  `make -C bot tools` (it is then `bot/build/bin/bttree`); in the image it
-  is on the path: `docker exec <server> bttree /opt/botd/trees/tdm.bt`.
-- The trees that ship: [`trees/`](trees). Read `default.bt` first, then
-  `tdm.bt`.
+- The tool used all through: `bttree`. Build it with `make -C bot tools`
+  (it is then `bot/build/bin/bttree`); in the image it is on the path:
+  `docker exec <server> bttree /opt/botd/trees/tdm.bt`.
+- The trees that ship: [`trees/`](trees).
 
-Every tree shown in a block on this page is compiled by `make -C bot test`
-(`bttree --doc TREES.md`), with the engine's own compiler and words.
+Every tree shown in a block on this page and in the tutorial is compiled
+by `make -C bot test` (`bttree --doc`), with the engine's own compiler
+and words.
 
 Contents: [what a tree is](#1-what-a-tree-is-and-why) ·
 [a first tree](#2-a-first-tree) · [the text](#3-the-text) ·
@@ -25,12 +27,14 @@ Contents: [what a tree is](#1-what-a-tree-is-and-why) ·
 [time](#8-time) · [several trees](#9-several-trees-in-a-text) ·
 [compiled and used](#10-how-trees-are-compiled-and-used) ·
 [characters](#11-characters-traits-archetypes-weights) ·
-[writing your own](#12-writing-your-own) · [tuning](#13-tuning) ·
-[debugging, live](#14-debugging-watching-a-bot-think) ·
-[for tool authors](#15-for-tool-authors) ·
-[the editor's backend](#16-the-editors-backend-operations-and-their-json) ·
-[review](#17-review-what-an-editor-and-a-debugger-need) ·
-[limits](#18-limits)
+[writing your own](#12-writing-your-own) ·
+[what a server script can do](#13-what-a-server-script-can-do) ·
+[tuning](#14-tuning) ·
+[debugging, live](#15-debugging-watching-a-bot-think) ·
+[for tool authors](#16-for-tool-authors) ·
+[the editor's backend](#17-the-editors-backend-operations-and-their-json) ·
+[review](#18-review-what-an-editor-and-a-debugger-need) ·
+[limits](#19-limits)
 
 ## 1. What a tree is, and why
 
@@ -76,28 +80,13 @@ select
 	do seek                                   # nothing else to do: go and find them
 ```
 
-Read from the top:
-
-- `select` tries its children in order and stops at the first that does
-  not fail. It is a priority list.
-- Its first child is a `seq`: all of its children, in order, as long as
-  each succeeds. Under 30 health, with no enemy in sight: retreat.
-  Otherwise the `seq` fails at the `if` or the `unless`, and the `select`
-  goes on to its next child.
-- The `pick` weighs three options. With an enemy 24 voxels away
-  (`enemy_near` is then 0.6) and 40 health (`hurt` is 0.6), a bold bot
-  fights and a careful one retreats: [section 6](#6-pick-in-full) does
-  the sum. It chooses again every 3 seconds. With no enemy, no wound and
-  nothing to search, all three scores are 0 and the `pick` fails.
-- Then the `select` reaches its last child: `do seek`.
-
-Save it as `first.bt` and look at it:
-
-```sh
-bttree first.bt                  # drawn, sub-trees opened in place
-bttree --check first.bt          # only: is it right? ("ok: 1 file(s)", or the line and what is wrong)
-bttree --as pusher first.bt      # beside each option, what a pusher's weight for its trait is
-```
+Read from the top: the `select` is a priority list; its first child, a
+`seq`, is "under 30 health with no enemy in sight: retreat"; the `pick`
+weighs three options, differently for each bot, and chooses again every
+3 seconds ([section 6](#6-pick-in-full) does the sum for this tree);
+`do seek` is what is left when nothing else applies. The tutorial builds
+such a tree from nothing and shows the tool at each step:
+[trees/README.md](trees/README.md).
 
 ## 3. The text
 
@@ -484,7 +473,7 @@ worth 1.08 and nearly all of them finish it. That is what sticky is for.
 And no two soldiers are quite alike: their weights are rolled around 1,
 so some have aggression 1.14 and caution 0.92, and fight. `bttree
 --split` counts it over a crowd, and `--why` shows the sum
-([section 13](#13-tuning)):
+([section 14](#14-tuning)):
 
 ```
 $ bttree --split --why first.bt enemy_near=0.6 hurt=0.6
@@ -890,166 +879,50 @@ reaction, aim, turn rate -- not what it prefers. A tree never reads it.
 
 Whoever you are, the loop is the same: write the text, `bttree --check`
 it, look at it (`bttree FILE`), try the situations that matter with
-`--split` ([section 13](#13-tuning)), then give it to the bots.
+`--split` ([section 14](#14-tuning)), then give it to the bots. The
+tutorial does it from an empty file: [trees/README.md](trees/README.md).
 
-### As an operator: a file, and three settings
+### As an operator: a file, and four settings
 
-Put a file `<name>.bt` in the **`trees/` directory of the data volume**
-(`/data/trees/` in the container). It is read with the built-in trees
-when the server starts and **again at each map load**: edit the file,
-change the map, and the bots have the new tree -- no restart.
+The steps, with what each prints, are the tutorial's
+([trees/README.md, step 5](trees/README.md#5-run-it-on-a-server)). The
+facts:
 
+- A file `<name>.bt` in the **`trees/` directory of the data volume**
+  (`/data/trees/` in the container) is read with the built-in trees when
+  the server starts and **again at each map load**: edit the file,
+  change the map, and the bots have the new tree -- no restart.
 - User trees are loaded after the built-in ones. **A tree with the name
   of a built-in one replaces it** (your own `tdm`); any other name is
   added, to be chosen by name.
 - A file that does not compile is said in botd's log -- `tree error:
-  /data/trees/mine.bt: line 12: no action called figth` -- and skipped;
-  the built-in trees stay.
+  /data/trees/mine.bt: line 12: no action called figth (skipped)` -- and
+  left out; the built-in trees stay.
+- `lsdctl bots save <name>` writes such a file from a text it has
+  checked; `lsdctl bots apply` gives a tree to bots that are playing
+  ([section 17](#17-the-editors-backend-operations-and-their-json)).
 
-Then say how the engine's bots play, with the three settings of the
+How the engine's bots play is said with four settings of the
 `engine_bots` script (`catalog/bots/engine_bots`), each empty by default
-and applied live, within a second:
+and applied live, within a second of being set:
 
 | setting | example | what it does |
 |---|---|---|
 | `engine_bots_tree` | `mine` | the tree the bots run, by name: a built-in one or yours. Empty: the gamemode's |
 | `engine_bots_archetypes` | `camper:2,pusher:1` | the mix of characters. Empty: every kind, equally |
 | `engine_bots_traits` | `aggression:2,caution:0.5` | every bot's trait weights multiplied. Empty: as rolled |
-
-```sh
-docker cp mine.bt lsd:/data/trees/mine.bt
-docker exec lsd bttree --check /data/trees/mine.bt      # add the built-in files it refers to, if any
-docker exec lsd lsdctl set engine_bots_tree "'mine'"
-docker exec lsd lsdctl set engine_bots_traits "'aggression:1.5,teamwork:0.7'"
-```
+| `engine_bots_edit` | `dig`, `build`, `all` | what a bot's route may do to the map. Empty: nothing, it only walks and jumps |
 
 A tree of your own for a mode that already has one is easiest begun as a
-copy: `docker exec lsd cat /opt/botd/trees/tdm.bt > mine.bt`, rename its
-trees (`tdm` to `mine`, `tdm_also` to `mine_also`, and so on down the
-file), and change it. A small one from nothing:
+copy: `docker exec lsd lsdctl bots tree tdm > mine.bt` gives one tree,
+`docker exec lsd cat /opt/botd/trees/tdm.bt > mine.bt` the whole file;
+rename its trees (`tdm` to `mine`, `tdm_also` to `mine_also`, and so on
+down the file), and change it.
 
-```bt
-# mine.bt -- hold the base, and go out only for a sure thing
-tree mine:
-select
-	pick every=1 sticky=0.3 noise=0.1
-		option none grenade_near x100         # a grenade at its feet: run
-			do evade
-		option none has_order x30             # the server said so
-			do obey
-		option caution under_fire x2          # shot at: to cover, and fight from it
-			do take_cover
-		option aggression enemy_near 40 x1.5  # one close enough to be sure of
-			do fight
-		option marksman enemy_visible         # one far off: from where it stands
-			do camp 6
-		option curiosity search x0.4          # a noise: the curious go and look
-			do investigate
-		option none always x0.5               # the post
-			do guard own_base 20
-	limit 1
-		do look_around
+### As a gamemode author
 
-tree mine_also:
-seq
-	always
-		tree extras
-	always
-		tree items
-```
-
-### As a gamemode author: send the text
-
-A gamemode's Lua gives every engine bot its tree with one call. The
-value is a tree's name, or -- when it has more than one line -- the text
-of trees, of which **the first is the one run**:
-
-```lua
-local TREE = [[
-tree siege:
-pick every=1 noise=0
-	option none grenade_near x100
-		do evade
-	option none enemy_visible x5
-		do fight
-	option none always
-		do go_to enemy_base 8
-tree siege_also:
-always
-	tree items
-]];
-
-function mod.on_load()
-	botlink_set("tree", TREE);            -- for every bot
-	botlink_set("archetypes", "pusher:3,flanker:1");
-	botlink_set("traits", "aggression:1.3");
-end
-```
-
-The text is compiled on its own, with the `items` and `extras` the
-engine writes: it may refer to those two and to its own trees, **not to
-the trees of the built-in files** (copy what you need of them into the
-text). If it does not compile, the engine says so with the line and the
-bots keep the tree they had. A text may be up to 60000 bytes: one longer
-than a record of the link (about 1000 bytes) is sent in pieces and put
-together by the engine, which takes it only if every piece came -- a
-tree is never run cut short (`botlink_set` answers false, and says so in
-the log, for one that is too long).
-With no call at all, lib_botlink names the tree after the gamemode
-(`tdm`, `ctf`...), and a mode with no tree of that name gets `default`.
-A mode's tree reads the mode's own rules with `if setting <key> [value]`:
-anything sent with `botlink_set(key, value)` that the engine does not
-know is kept for that.
-
-The same tree, as it must compile:
-
-```bt
-tree siege:
-pick every=1 noise=0
-	option none grenade_near x100
-		do evade
-	option none enemy_visible x5
-		do fight
-	option none always
-		do go_to enemy_base 8
-tree siege_also:
-always
-	tree items
-```
-
-**A fragment for an item.** Whoever defines an inventory item says when
-a bot should use it: `inventory_define(key, {..., bot = ...})`. A list
-of lines is a `seq`; a string is a whole fragment. The engine puts `if
-has_item <key>` in front and adds it to `tree items`.
-
-```lua
-inventory_define("medkit", {label = {en = "Medkit"}, command = "reward medkit",
-	bot = {"if health_below 50", "do use medkit self"}});
-```
-
-```bt
-seq
-	if health_below 50
-	do use medkit self
-```
-
-**A fragment for a script** that changes how every bot behaves without
-being an item (the night script and its lamps): `botlink_set("extra.<name>.tree",
-text)`; an empty text withdraws it. It becomes part of `tree extras`.
-Keep it to actions that end at once.
-
-```bt
-pick noise=0
-	option none night_vision x10    # it sees in the dark: stay dark
-		do lamp off
-	option stealth night            # the stealthy stay dark and listen
-		do lamp off
-	option none night x1.2          # anybody else, at night: light up
-		do lamp on
-```
-
-A fragment that does not compile is said in the log, with the line in
-ITS text, and left out; the rest stand.
+A gamemode's Lua sends the tree, for every bot or for one, and much
+else: [section 13](#13-what-a-server-script-can-do).
 
 ### One bot with a role: a boss, a villager
 
@@ -1181,44 +1054,357 @@ a player may do -- not the tree's. And a bot goes to *places the engine
 has a name for* ([VOCAB.md](VOCAB.md#places)): a point of your own is
 given as an order, as the lair is here.
 
-## 13. Tuning
+## 13. What a server script can do
 
-`bttree --split` answers "in this situation, who does what?". You state
-the situation as the worth of the words the tree asks about; a crowd of
-bots is rolled; the tree is ticked once for each by the engine's own
-code; what each ended up doing is counted, in all and by kind of bot.
+Everything a catalog Lua script -- a gamemode, an extension, an item --
+can do to shape the bots, today. The functions are lib_botlink's
+(`catalog/libs/botlink/lib_botlink.lua`, whose head comment lists them);
+they do nothing when the link is not there, so a script may call them
+unconditionally once it has checked `botlink_set ~= nil`. What is said
+is kept by the server and sent again to a bot engine that starts late or
+comes back.
+
+Nothing in the engine knows a gamemode, an item or a script by name: a
+script gives it trees made of the neutral words, settings, and -- for
+what there is no word for -- names of its own choosing (8 to 10).
+
+### 1. A tree for the world
+
+```lua
+function mod.on_load()
+	if (botlink_set == nil) then return; end
+	botlink_set("tree", "ctf");            -- a tree the engine has, by name
+	botlink_set("tree", SIEGE);            -- or the text of trees: the first in it is the one run
+end
+```
+
+```bt
+tree siege:
+pick every=1 noise=0
+	option none grenade_near x100
+		do evade
+	option none enemy_visible x5
+		do fight
+	option none always
+		do go_to enemy_base 8
+tree siege_also:
+always
+	tree items
+```
+
+The text is compiled on its own, with the `items` and `extras` the
+engine writes: it may refer to those two and to its own trees, **not to
+the trees of the built-in files** (copy what you need of them into the
+text). If it does not compile, the engine says so with the line and the
+bots keep the tree they had. A text may be up to 60000 bytes: one longer
+than a record of the link (about 1000 bytes) is sent in pieces and put
+together by the engine, which takes it only if every piece came -- a
+tree is never run cut short (`botlink_set` answers false, and says so in
+the log, for one that is too long). With no call at all, lib_botlink
+names the tree after the gamemode (`tdm`, `ctf`...), and a mode with no
+tree of that name gets `default`.
+*Tested: `bot/tests/engine_test.c` (the trees, a tree longer than a
+record), `tests/botlink_test.lua` section 10b.*
+
+### 2. A tree for one bot, changed while it plays
+
+```lua
+local pid = botlink_add{team = 2, name = "Warden", level = 9,
+	tree = BOSS, at = {x = 256, y = 256, z = 40}, once = true};
+botlink_set("tree", BOSS_ENRAGED, pid);    -- later: another, for that bot
+botlink_set("tree", "", pid);              -- or the world's tree again
+```
+
+The whole of it, with a boss and a villager:
+[section 12](#one-bot-with-a-role-a-boss-a-villager).
+*Tested: `engine_test.c` ("a tree for one bot, replaced in play"),
+`botlink_test.lua` section 10b.*
+
+### 3. A fragment every bot runs beside its tree
+
+For a script that changes how every bot behaves without being an item:
+the night and its flashlights are the model
+(`catalog/extensions/night/lib_night.lua`, BOT_TREE).
+
+```lua
+botlink_set("extra.night.tree", LAMP);     -- added to every bot's `tree extras`
+botlink_set("extra.night.tree", "");       -- taken back
+```
+
+```bt
+pick noise=0
+	option none night_vision x10    # it sees in the dark: stay dark
+		do lamp off
+	option stealth night            # the stealthy stay dark and listen
+		do lamp off
+	option none night x1.2          # anybody else, at night: light up
+		do lamp on
+```
+
+The fragment is a text with no header. The engine puts each script's
+fragment into `tree extras`, each ticked at every decision whatever the
+others answer; a tree runs them where it says `tree extras` (its
+`_also` part). Keep a fragment to actions that end at once. One that
+does not compile is said in the log, with the line in ITS text, and left
+out; the rest stand.
+*Tested: `engine_test.c` (the night scenarios), `tests/night_test.lua`.*
+
+### 4. An item that says when a bot should use it
+
+```lua
+inventory_define("medkit", {label = {en = "Medkit"}, command = "reward medkit",
+	bot = {tree = "seq\n\tif health_below 50\n\tdo use medkit self", guide = 0}});
+```
+
+```bt
+seq
+	if health_below 50
+	do use medkit self
+```
+
+`tree`: a fragment, tried by any bot that holds the item wherever its
+tree says `tree items` (the engine puts `if has_item <key>` in front of
+it). `guide`: seconds the bot keeps its aim on the target after using it
+(a guided missile). The rewards menu (`rewards_menu`,
+`catalog/tools/rewards`) takes the short form, a list of lines that is
+made a `seq`: `bot = {"if health_below 50", "do use medkit self"}`.
+`do use <item> [place]` makes the bot run the item's command, as a
+player would.
+*Tested: `engine_test.c` ("items: each brings its own decision"),
+`botlink_test.lua` section 9b, `tests/rewards_test.lua`.*
+
+### 5. Settings
+
+`botlink_set(key, value [, pid])`: for every bot, or -- for the keys
+marked * -- for one. The list is `bot/core/engine.c`'s (its head
+comment, SETTINGS, has the detail):
+
+| key | value | |
+|---|---|---|
+| `tree` * | a name, or the text of trees | 1 and 2 above |
+| `traits` * | `aggression:2,caution:0.5` | each named trait's weight multiplied, on top of the bot's own roll; for all and for one the two multiply |
+| `archetypes` | `camper:2,pusher:3` | the mix characters are drawn from |
+| `edit` * | `none`, `dig`, `build`, `all` | what a route may do to the map |
+| `spend` | a number | blocks a route may use (50) |
+| `zone` | `x0 y0 x1 y1 [nodig] [nobuild]`, `clear` | a rectangle where routes do not edit |
+| `protect` | `x y z` | a voxel the server will refuse to change |
+| `water` | `lethal`, `safe`; `water.damage` a number | what wading costs |
+| `night.sight` | `0`, `1`; `night.cone`, `night.reach`, `night.far` | night sight and lamps (the night script sets them) |
+| `night_vision` * | `0`, `1` | the bot sees by night as by day |
+| `sight`, `fov`, `notice`, `memory`, `relay`, `board`, `noise_secs` | numbers | the senses |
+| `leaders.per`, `leaders.human` | numbers | squads: one leader for every n; a person's weight in the draw |
+| `plan.greed`, `plan.cap`, `plan.wait` | | the route search |
+| `gaze` | `0`, `1` | a travelling bot's head is its own |
+| `ping_takers`, `ping_radius` | numbers | how many bots answer a ping, from how far |
+| `cull` | `voxlap`, `openspades` | which floating blocks fall |
+| `item.<name>` * | a count, `inf` | what a bot holds (lib_botlink sends it from the inventory) |
+| `item.<name>.tree`, `.guide` | | 4 above |
+| `extra.<name>.tree` | | 3 above |
+| `fact.<name>` *, `place.<name>` * | | 8 and 9 below |
+| anything else | any text | kept, for a tree's `if setting <key> [value]`: how a mode's tree reads the mode's own rules |
+
+*Tested: `engine_test.c` ("settings", "traits"), `botlink_test.lua`
+sections 9 and 11b.*
+
+### 6. Orders
+
+```lua
+botlink_order(pid, {order = "hold", pos = {x = 256, y = 256, z = 40}});
+botlink_order(pid, {order = "hunt", target = other_pid, secs = 30});
+botlink_order(pid, {order = "none"});
+```
+
+`order`: `goto`, `hold`, `hunt`, `follow`, `none`; `pos` or `target` (a
+player id); `secs`: how long it stands (0: until another). An order does
+nothing by itself: a tree obeys with `do obey`, and asks with `if
+has_order` / the score `has_order` -- the shipped trees have `option
+none has_order x30` high in their list. The place `order` is where it
+points.
+*Tested: `botlink_test.lua` section 9, `bot/tests/skills_test.c`.*
+
+### 7. What a bot does to the server
+
+A bot acts through the same doors as a player, so a script reacts to it
+as to a player and needs no bot-specific code:
+
+- `do use <item>` runs the item's command (`inv <item> [x y z]`) as the
+  bot: `handle_command(pid, text)`.
+- `do ping <place> <label>` is a player's ping (the Teamplay
+  extension).
+- A route that digs or builds goes through `on_block_action` and
+  `on_block_line`; a grenade through `on_grenade`; a hit through
+  `on_hit` -- after the checks the server would make for a client.
+- A bot dies, spawns, scores and picks up the intel as a player does:
+  `mod.after.kill(pid, ...)` and the rest see it. `bot_is_bot(pid)`
+  tells it from a person.
+
+*Tested: `botlink_test.lua` section 7 ("actions go through the chains,
+as the bot").*
+
+### 8. A fact the trees can read
+
+```lua
+botlink_set("fact.alarm", 1);              -- for every bot
+botlink_set("fact.alarm", 0, guard);       -- for one: its own is read before the world's
+botlink_set("fact.alarm", "");             -- forgotten
+```
+
+In a tree: the condition `if fact alarm` (set, and above 0), `if fact
+alarm 0.5` (at least that), and the score `option none fact alarm` (its
+value, kept within 0 to 1; 0 when nobody set it). A fact is a number
+and a name of the script's choosing: letters, digits and `_`, 23 at
+most. 64 for the world and 8 a bot; one more, a bad name or a value that
+is not a number is refused and said in the engine's log, never silently.
+Nothing happens the moment a fact changes: a pick sees it the next time
+it chooses, so put it under a pick whose `every` is as short as the
+reaction should be (the top picks of the shipped trees look every
+second).
+
+### 9. A place of the script's naming
+
+```lua
+botlink_set("place.church", "286.5 268.5 30");   -- a point: x y z
+botlink_set("place.boss", "pid " .. boss);       -- or wherever that player is, while he lives
+botlink_set("place.church", "", pid);            -- a bot's own, forgotten: the world's again
+```
+
+In a tree it is written with an `@`, wherever a place goes: `do go_to
+@church 3`, `do hold @church 60`, `do guard @vault`, `if at @church`,
+`if knows @boss`, `do flank @church`, `do use rocket @boss`. The `@` is
+what makes it a script's place: a name without it must be one of the
+engine's ([VOCAB.md](VOCAB.md#places)), so `go_to enemy_bas` is still a
+mistake the compiler catches, while `@anything` compiles before the
+script has said where it is. Until it is set (and while the player it
+follows is dead) `knows @name` is false and going there fails, as for
+any place there is none of. 32 for the world, 4 a bot.
+
+### 10. A word a tree says back: `do tell`
+
+```lua
+botlink_on("ring_bell", function(pid, words)
+	-- words: what followed the name in the tree, strings, three at most
+	play_sound_for_all("bell");            -- whatever the script does
+end);
+botlink_off("ring_bell");
+```
+
+In a tree: `do tell ring_bell church`. It succeeds at once, heard or
+not. This is how a tree does something the engine has no action for:
+open a door, score a point, start the next wave. One function a name;
+one that raises is logged and dropped; a word nobody listens for is
+counted (`botlink_stats().tells_unheard`) and is not an error. A tree is
+ticked twenty times a second: put `tell` where it is reached once, or
+under a `cooldown` -- and the engine sends the same word from the same
+bot at most once in 0.2 seconds whatever the tree does.
+
+**The three together** -- villagers who run to the church when the
+script raises the alarm, and a guard who rings the bell once on getting
+there:
+
+```lua
+local VILLAGER, GUARD = read_file("villager.bt"), read_file("guard.bt");   -- the two texts below
+
+botlink_set("place.village", "214.5 246.5 30");
+botlink_set("place.church", "286.5 268.5 30");
+botlink_on("ring_bell", function(pid, words) bell_rings(words[1]); end);
+for i = 1, 5 do botlink_add{team = 1, name = "Villager", tree = VILLAGER}; end
+botlink_add{team = 1, name = "Guard", tree = GUARD};
+
+function raise_alarm() botlink_set("fact.alarm", 1); end
+function end_alarm() botlink_set("fact.alarm", ""); end
+```
+
+```bt
+tree villager:
+pick every=1 noise=0
+	option none fact alarm x10                # the alarm: to the church, and stay
+		seq
+			do go_to @church 5
+			do hold @church 60
+	option none always                        # the day: about the village
+		seq
+			do go_to @village 8
+			do look_around
+			wait 2
+```
+
+```bt
+tree guard:
+pick every=1 noise=0
+	option none fact alarm x10                # the alarm: to the church, ring, and stay
+		seq
+			do go_to @church 3
+			always
+				cooldown 600                  # once
+					do tell ring_bell church
+			do hold @church 60
+	option none always                        # the day: its post in the village
+		do hold @village 30
+```
+
+*Tested: this very scenario is `engine_test.c`'s "a village: an alarm,
+a church, a bell" (six bots; 30 s after the alarm the farthest is 1.3
+from the church and the bell was rung once; 20 s after it ends they are
+back; replayed, the same intents), with "the bridge" beside it for each
+rule and limit; the Lua side is `botlink_test.lua` section 10b. On a
+server it was seen so: a bot given the guard's tree, two places and a
+listener set from the console, then `fact.alarm` -- "BELL: bot 3 rings
+the bell at the church", `tells 1 unheard 0`.*
+
+### What a script cannot do
+
+- **Add a condition, a score or an action.** The vocabulary is C
+  (`bot/core/vocab.c`). What a script can do instead is 8 to 10: a fact
+  stands for a condition or a score the script computes itself, `tell`
+  for an action the script carries out. What cannot be had that way is
+  an action that *moves* the bot in a new manner -- routes, aim and
+  cover are the engine's.
+- **Read a bot's mind from Lua.** What a bot perceives and decides is
+  in the engine; a script sees what a bot *does* (7), and a person can
+  watch it think ([section 15](#15-debugging-watching-a-bot-think)).
+- **Make a bot unarmed, slower, invisible.** The server is the authority
+  on what a player may do: such rules are the gamemode's own Lua, for a
+  bot as for a person.
+
+## 14. Tuning
+
+The loop -- state a situation, split, move a number -- is shown in the
+tutorial ([step 4](trees/README.md#4-see-who-does-what-before-running-it),
+[step 10](trees/README.md#10-tune-it-then-prove-it)). The reference:
 
 ```sh
-bttree --split --tree tdm_search bot/trees/tdm.bt rumour=0.6 flank_open=1 "vantage rifle=1"
+bttree --split [--why] [--tree NAME] [--n 700] [--mix camper:2,pusher] [--level 5] FILE.bt... [WORD=VALUE]...
 ```
+
+A crowd of bots is rolled; the tree is ticked once for each by the
+engine's own code, in the situation given; what each ended up doing is
+counted, in all and by kind of bot.
 
 - a **score** is given 0 to 1; a **condition** 0 or 1; a word not given
   is 0 (`always` is 1);
-- `"word arg=value"` sets it for those arguments only; plain `word=`
-  covers every use of it;
+- `"word arg=value"` sets it for those arguments only (`"enemy_far
+  70=0.8"`, `"fact alarm=1"`, `"gun_is rifle=1"`); plain `word=` covers
+  every use of it;
 - an **action** is `run` by default (it is what the bot is then doing);
   `crouch=ok` for one that ends at once, so the tree goes on past it;
-  `=fail` to see the fallback;
-- `--n 700`, `--mix camper:2,pusher`, `--level 5` set the crowd;
-- read the line **"asked and not given (so 0)"** every time: it is every
-  word the tree consulted that you left at 0.
+  `=fail` to see the fallback. `tell` ends at once by itself;
+- `--n`, `--mix`, `--level` set the crowd. Each rolled bot has its own
+  identity, so a `pick roll=once` shows its real shares -- give it a
+  larger `--n` (7000) to see them to the percent;
+- the line **"asked and not given (so 0)"** is every word the tree
+  consulted that was left at 0; "given but never asked" is a typo, or a
+  branch that was not reached;
+- `--why` adds, for every pick a bot came to, the mean of each option's
+  score, weight and worth over the crowd and how many chose it
+  ([section 6](#a-worked-example) has one).
 
-`--split --why` adds, for every pick a bot came to, the mean of each
-option's numbers over the crowd and how many chose it: the table in
-[section 6](#a-worked-example). It is where to look when a row is not
-what you expected: which option is too strong, and whether it is its
-score, its factor or the weights.
+The percentages are shares of the crowd, not odds for one bot
+([section 6](#a-weight-is-not-a-probability)). `--split` knows the tree,
+not the world: it cannot tell whether a score is ever above 0 on a real
+map. After the numbers: `make -C bot test` (the scenarios pin outcomes),
+the bench (`bot/BRAIN-STATUS.md`), and a look at the bots on a server.
 
-Then change a factor, a `sticky=`, a `noise=`, an option's trait, and
-run it again. Try several situations for each change (nothing known, an
-enemy far, shot at, hurt, the objective taken): a factor that fixes one
-usually moves another.
-
-`--split` knows the tree, not the world: it cannot tell whether a score
-is ever above 0 on a real map. After the numbers, `make -C bot test`
-(the scenarios pin outcomes) and a look at the bots on a server.
-
-## 14. Debugging: watching a bot think
+## 15. Debugging: watching a bot think
 
 ### On a running server
 
@@ -1303,7 +1489,7 @@ touched for 15 seconds counts for nothing) the tracing is turned off and
 the files are removed. A bot nobody watches pays nothing; a watched one
 decides exactly as it would have (it is tested: 12 seconds of eight bots
 fighting, replayed with all of them watched, give the same intents to
-the bit). The formats are in [section 15](#15-for-tool-authors).
+the bit). The formats are in [section 16](#16-for-tool-authors).
 
 ### One bot, offline
 
@@ -1346,12 +1532,12 @@ docker exec lsd lsdctl bots revert --each                          # every bot b
 
 No restart, no map change; a text that does not compile is refused with
 all its mistakes and nothing changes for anybody. All of it, with the
-JSON each gives: [section 16](#16-the-editors-backend-operations-and-their-json).
+JSON each gives: [section 17](#17-the-editors-backend-operations-and-their-json).
 The engine's log lines about a bot (a stuck bot, a goal dropped) carry
 its path through the tree as `pick:<trait> > <action>`, the same text as
 `--split`'s rows and the `doing` column.
 
-## 15. For tool authors
+## 16. For tool authors
 
 The text is the only form a tree is kept in. A tool reads it through the
 engine's own parser and writes it back through the engine's own
@@ -1432,7 +1618,8 @@ a viewer knows its picture of the nodes is stale.
 | `comment` | any node, any tree | the comment on its line, without the `#` |
 | `above` | any node, any tree | the lines between the node before and this one: `# ...` comments as written and `""` for an empty line |
 | `children` | nodes that have some | in order |
-| `every`, `sticky`, `noise` | `pick` | the numbers in force |
+| `roll` | `pick` | `weighed` (the default), `once` or `life` ([section 6](#a-role-drawn-and-kept-pick-rollonce-pick-rolllife)) |
+| `every`, `sticky`, `noise` | `pick` | the numbers in force (not written for a pick that rolls) |
 | `trait`, `score`, `args`, `factor` | `option` | `args` are the score's, as written (strings) |
 | `cond`, `args` | `if`, `unless` | |
 | `action`, `args` | `do` | |
@@ -1552,7 +1739,7 @@ centres, not a sample's mean.)
 `refers`: the trees it names; `nodes`: its own, references not opened;
 `about`: the comment right above its header, or on it. `lsdctl bots
 trees --json` adds `from` and `replaced` to each and `world`
-([section 16](#16-the-editors-backend-operations-and-their-json)).
+([section 17](#17-the-editors-backend-operations-and-their-json)).
 
 ### Mistakes as data (`bttree --check --json FILE...`)
 
@@ -1615,7 +1802,8 @@ another, and `--once --json` gives one.
     "tree": "tdm", "tree_from": "files", "tree_set": "world", "doing": "pick:none > pick:aggression > fight", "watched": true,
     "pos": [231.5, 262.5, 59.75], "sees": 1, "knows": true, "alert": "engaged", "target": 4, "route": "route 11/124 SPRINT",
     "summary": "pusher L7 | pick:none > pick:aggression > fight | route 11/124 SPRINT | sees 1",
-    "weights": {"none": 1, "aggression": 2.08, "caution": 0.88}},
+    "weights": {"none": 1, "aggression": 2.08, "caution": 0.88},
+    "facts": {"alarm": 1}, "places": {"church": [286.5, 268.5, 30]}},
   "binding": 1, "traced": true,
   "trees": [{"role": "main", "name": "tdm", "root": 531, "end": 602, "running": [531, 532, 555, 556, 559, 560]},
             {"role": "also", "name": "tdm_also", "root": 666, "end": 743, "running": []}],
@@ -1632,7 +1820,7 @@ another, and `--once --json` gives one.
 
 | field | meaning |
 |---|---|
-| `bot` | as in `lsd-bt-bots`, and: `pos` (its eye), `sees` (enemies in sight), `knows` (of an enemy at all), `alert` (`calm`, `suspicious`, `engaged`), `target` (the pid it fights, -1), `route` (`route <step>/<steps> <KIND>`, `planning`, `no route`), `summary` (the engine's one line), `weights` (its trait weights, as its picks multiply them) |
+| `bot` | as in `lsd-bt-bots`, and: `pos` (its eye), `sees` (enemies in sight), `knows` (of an enemy at all), `alert` (`calm`, `suspicious`, `engaged`), `target` (the pid it fights, -1), `route` (`route <step>/<steps> <KIND>`, `planning`, `no route`), `summary` (the engine's one line), `weights` (its trait weights, as its picks multiply them), `facts` (what scripts told it: name to number, its own over the world's) and `places` (a script's places: name to `[x, y, z]`, or `null` while there is none) |
 | `binding` | goes up each time the bot is given a tree: the nodes below are another tree's when it changes |
 | `traced` | its picks are noting what they weigh: `worth` appears on options |
 | `trees[]` | the bot's main tree (`role` `main`) and the one ticked beside it (`also`, if it has one): `root` and `end` (the ids of its nodes are `root` to `end` - 1), and `running`: the ids of the RUNNING nodes, root first -- empty when the tree is not RUNNING |
@@ -1641,9 +1829,10 @@ another, and `--once --json` gives one.
 | node `kind`, `text`, `comment` | as in `lsd-bt` |
 | node `line` | its line in the text the engine compiled (the files one after another, then what it wrote): good for order, not for opening a file |
 | node `running` | it is on a RUNNING path |
-| node `child` | a `seq` or `select`: the child it will resume at; a `pick`: the option it holds |
+| node `child` | a `seq` or `select`: the child it will resume at; a `pick`: the option it holds (for a pick that rolls: its role, RUNNING or not) |
+| node `roll` | a pick that rolls: `once` or `life` |
 | node `elapsed`, `remaining` | seconds: a RUNNING `pick` (since it chose; until it chooses again), `wait`, `limit`; `remaining` alone on a `cooldown` that is cooling |
-| node `worth` | an `option` its pick has weighed since the watching began: `score`, `weight`, `factor`, `luck`, `sticky` (1, or 1 + the pick's sticky if it was the one held), `worth` (their product), `held` (it is the one the pick holds now) |
+| node `worth` | an `option` its pick has weighed since the watching began: `score`, `weight`, `factor`, `luck`, `sticky` (1, or 1 + the pick's sticky if it was the one held), `worth` (their product), `held` (it is the one the pick holds now). Under a pick that rolls: `share` (its part of the lottery, 0 to 1) and `draw` (the number drawn, the same for every option); `luck` and `sticky` are 1 |
 
 A snapshot of a bot of the tdm tree is about 13 KiB.
 
@@ -1744,17 +1933,16 @@ argument specs), `bc_vocab_usage`, `bc_place_count`, `bc_place_at`,
 `bc_engine_roster(e, out, size)` -- the two JSON documents above,
 written into the caller's buffer; the core does no I/O.
 
-## 16. The editor's backend: operations and their JSON
+## 17. The editor's backend: operations and their JSON
 
-A tree editor -- a page served over HTTP, when that is built -- needs a
-small set of operations: see what a tree may be made of, see the trees
-there are, check and format what is being written, see the bots and
-what one is thinking, give a tree to one bot, to many or to all while
-they play, take it back, and keep a text. **Every one of them exists
-today as an `lsdctl bots` command that takes and gives JSON.** The HTTP
-endpoint is not built; when it is, it is these commands with a
-transport and a password in front, and nothing else. This section is
-the contract.
+An editor of trees needs a small set of operations: see what a tree may
+be made of, see the trees there are, check and format what is being
+written, see the bots and what one is thinking, give a tree to one bot,
+to many or to all while they play, take it back, and keep a text.
+**Each is an `lsdctl bots` command that takes and gives JSON**, and this
+section is their contract: the formats are versioned, and a front end is
+built on nothing else. The first one is a desktop application that runs
+these commands over `docker exec`.
 
 Common to all:
 
@@ -1864,7 +2052,10 @@ lsdctl bots apply -             <whom> [--json]      a text, on the standard inp
 - A text given to bots is **each bot's own**: compiled for it, kept
   until it is given another or reverted. It must stand alone (it may
   refer to `items` and `extras`, not to the built-in files' trees). A
-  **name** is a tree the engine holds (`trees` lists them).
+  **name** is a tree the engine holds: `lsd-bt-bots` lists them
+  (`trees`). One that is only a file yet -- just saved, the engine reads
+  the folder at the next map load -- is refused, with the way out in the
+  message: apply its text, or change the map.
 
 **revert** -- `lsdctl bots revert <whom> [--json]` → an `lsd-bt-apply`
 with `"action": "revert"`: those bots back to the world's tree; with
@@ -1897,84 +2088,32 @@ map load; until then the text can be run with `apply`.
   with a new id and the world's tree.
 - A map change keeps both.
 
-### Future HTTP route → today's command
+### What a front end can rely on
 
-| route (not built) | today |
-|---|---|
-| `GET /schema` | `lsdctl bots schema` |
-| `GET /trees` | `lsdctl bots trees --json` |
-| `GET /trees/<name>` (`Accept: text/plain` or JSON) | `lsdctl bots tree <name>` [`--json`] |
-| `POST /check` (body: text or `lsd-bt`) | `lsdctl bots check - --json` |
-| `POST /format` | `lsdctl bots format - --json` |
-| `PUT /trees/<name>` | `lsdctl bots save <name> - --json` |
-| `GET /bots` | `lsdctl bots list --json` |
-| `GET /bots/<id>` | `lsdctl bots watch <id> --once --json` |
-| `GET /bots/<id>/stream` (server-sent events) | `lsdctl bots watch <id> --json` |
-| `POST /apply` (body: the tree; query: `bot=`, `team=`, `archetype=`, `each`, `all`) | `lsdctl bots apply - ... --json` |
-| `POST /apply?tree=<name>&...` | `lsdctl bots apply <name> ... --json` |
-| `POST /revert?...` | `lsdctl bots revert ... --json` |
-
-An error is the `lsd-bt-error` document with a 4xx status (422 for a
-text that does not compile, 404 for a tree or a bot there is none of,
-409 when the server is not running).
-
-### What the HTTP layer still has to add
-
-Only what a command line did not need:
-
-1. **Transport**: a listener, request bodies in place of the standard
-   input, the snapshot stream as server-sent events (or polling `GET
-   /bots/<id>`: the engine writes at most 20 a second).
-2. **Being off unless asked for.** Reserved names, not yet settings (a
-   setting that does nothing would look like a feature):
-   `tree_editor_enabled` (default false), `tree_editor_bind` (default
-   `127.0.0.1:32880`: the container's own loopback, so that reaching it
-   is a decision made with `docker -p`), `tree_editor_token_file`
-   (default `/data/rw/tree_editor.token`, mode 0600, made at first
-   enable).
-3. **Who may call it**: a token on every request (constant-time
-   compare), no anonymous route -- not even the read ones, which show
-   what every bot perceives.
-4. **Limits**: body size (a tree is at most 60000 bytes; 240000 is
-   accepted for a JSON tree before it is made text), a rate for `apply`
-   and `save`, one stream a client.
-5. **The page itself** and its layout storage (where the user put each
-   node: the editor's own file, keyed by tree name and node id; the tree
-   text has no place for it).
-
-### Threats an HTTP wrapper must respect
-
-- **A tree is not code, but it acts.** It can only name the engine's
-  words -- the compiler refuses anything else -- so it cannot read a
-  file or run a program. But `do use <item>` makes a bot send the
-  server's `inv <item>` command, and a tree decides who is shot at and
-  what is dug. Applying a tree is therefore an **admin action**, as the
-  console it goes through is the admin's; the endpoint must never be
-  open to players.
-- **Texts are bounded** (60000 bytes over the link; the engine refuses a
-  longer one and never runs a part of one), and compiled before they
-  are given to anybody. The check is not a courtesy of the client: the
-  server-side command does it.
+- **Atomic.** A change is refused whole, before anybody is touched, or
+  made; the answer says which bots run what, read back from the engine.
+- **Checked on this side.** A text is compiled by the command (the
+  engine's own compiler) before it is given to anybody, whatever the
+  caller checked; it is at most 60000 bytes, and the engine never runs a
+  part of one.
 - **Names are validated, paths never taken.** `save` accepts a name of
   letters, digits, `_` and `-` and makes the path itself; `apply` hands
-  the server a file NAME inside the debug directory, which lib_botlink
-  checks again (`^[%w_-]+%.bt$`) before reading. No string from a
-  request reaches the file system or the shell unquoted or unchecked,
-  and none reaches the console as code: bot ids are numbers by the time
-  they are sent, tree names are checked against the names there are.
-- **The debug directory is not world-writable** (0700, the server's
-  user). Who can write there can make botd write a few files a second
-  and can read what every bot perceives; he cannot make the engine do
-  anything else. A request file is a few numbers, read from a regular
-  file of at most 1 KiB.
-- **What a snapshot reveals**: positions, who sees whom, each bot's
-  target. A player who could read it would cheat with it. It must not
-  be served without the token.
-- **It cannot take the server down by being left on**: a watch that is
-  not kept alive ends in 15 seconds; with nobody watching the engine
-  does no extra work.
+  the server a file NAME inside the debug directory, which the server
+  checks again before reading. Bot ids are numbers by the time they
+  reach the server's console; tree names are checked against the names
+  there are.
+- **It is an administrator's tool.** A tree is not code -- it can only
+  name the engine's words -- but it acts: `do use <item>` runs a
+  command as the bot, `do tell` calls a script. `lsdctl` runs as the
+  server's own user inside the container; whoever may `docker exec` may
+  do all of this, and nobody else can. The debug directory is that
+  user's alone (0700).
+- **A snapshot shows what a bot perceives** (positions, targets): it is
+  for whoever administers the server, not for players.
+- **Nothing is left running.** A watch that is not kept alive ends in 15
+  seconds; with nobody watching the engine does no extra work.
 
-## 17. Review: what an editor and a debugger need
+## 18. Review: what an editor and a debugger need
 
 What a visual tree editor and a live debugger need from the engine, and
 where each stands.
@@ -1991,13 +2130,14 @@ where each stands.
 | A live view of a running server | **there**: `lsdctl bots watch`, the debug directory; opt-in per bot, nothing when nobody watches |
 | Giving a tree to one bot, to many, to all, live; taking it back | **there**: `lsdctl bots apply`, `revert` |
 | Keeping what was tried | **there**: `lsdctl bots save` |
-| Every operation as JSON in, JSON out, errors too | **there**: section 16 |
+| Every operation as JSON in, JSON out, errors too | **there**: section 17 |
 | Stable node identity | **there**, for one compiled text. **Not** across edits |
-| Reaching all this over HTTP | **not built**: specified (section 16), reserved names, threat notes |
+| Behaviour a script adds without C | **there**: facts, places, `tell` (section 13) |
 
 **Still missing for a GUI editor**, plainly:
 
-1. **The HTTP endpoint and the page.** Section 16 lists what it adds.
+1. **The editor itself**: a desktop application, built apart from the
+   engine on the operations of section 17.
 2. **An id that follows a node through edits.** Ids are positions. An
    editor keeps its own ids in memory and maps by position after each
    load; a debugger re-reads the nodes when `binding` changes.
@@ -2019,7 +2159,7 @@ where each stands.
 8. **A snapshot for a human player** (what would a bot do in my place):
    nothing computes it.
 
-## 18. Limits
+## 19. Limits
 
 | | |
 |---|---|
@@ -2037,3 +2177,7 @@ where each stands.
 | a debug request file | 1024 bytes; alive 15 s after it was last written |
 | snapshots a second for a watched bot | 1 to 20 (default 4) |
 | a saved tree's name | letters, digits, `_`, `-`; 31 characters |
+| a fact's or a script place's name | letters, digits, `_`; 23 characters |
+| facts | 64 for the world, 8 a bot |
+| script places | 32 for the world, 4 a bot |
+| `do tell` | the name and 3 words; the same name from one bot once in 0.2 s |

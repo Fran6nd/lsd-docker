@@ -427,28 +427,6 @@ msgctxt "command"
 msgid "Print your account name and groups."
 msgstr ""
 
-#: lsd/scripts/babel.lua
-msgid ">:("
-msgstr ""
-
-#: lsd/scripts/babel.lua
-#: lsd/scripts/babel_protect.lua
-msgid "Can't do that there!"
-msgstr ""
-
-#: lsd/scripts/babel.lua
-#: lsd/scripts/ctf.lua
-#: lsd/scripts/onectf.lua
-msgid "You're not holding the intel!"
-msgstr ""
-
-#: lsd/scripts/babel.lua
-#: lsd/scripts/ctf.lua
-#: lsd/scripts/onectf.lua
-msgctxt "command"
-msgid "Drop the intel if you're holding it."
-msgstr ""
-
 #: lsd/scripts/babel_heaven.lua
 msgid "Cannot find image; try /heavenlist."
 msgstr ""
@@ -476,6 +454,11 @@ msgctxt "command"
 msgid "List images available to paint on the babel platform."
 msgstr ""
 
+#: lsd/scripts/babel_protect.lua
+#: lsd/scripts/babel.lua
+msgid "Can't do that there!"
+msgstr ""
+
 #: lsd/scripts/babel_unlocks.lua
 msgid "%(name) has placed %(blocks) blocks, /heaven unlocked!"
 msgstr ""
@@ -499,6 +482,83 @@ msgstr ""
 #: lsd/scripts/babel_unlocks.lua
 msgctxt "command"
 msgid "Print the number of blocks placed by another player or yourself."
+msgstr ""
+
+#: lsd/scripts/babel.lua
+msgid ">:("
+msgstr ""
+
+#: lsd/scripts/babel.lua
+#: lsd/scripts/ctf.lua
+#: lsd/scripts/onectf.lua
+msgid "You're not holding the intel!"
+msgstr ""
+
+#: lsd/scripts/babel.lua
+#: lsd/scripts/ctf.lua
+#: lsd/scripts/onectf.lua
+msgctxt "command"
+msgid "Drop the intel if you're holding it."
+msgstr ""
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for an hour."
+msgstr ""
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for a day."
+msgstr ""
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for 7 days."
+msgstr ""
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for 30 days."
+msgstr ""
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for 365 days."
+msgstr ""
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for a really long time."
+msgstr ""
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for an hour."
+msgstr ""
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for a day."
+msgstr ""
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for 7 days."
+msgstr ""
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for 30 days."
+msgstr ""
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for 365 days."
+msgstr ""
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for a really long time."
 msgstr ""
 
 #: lsd/scripts/bans.lua
@@ -593,66 +653,6 @@ msgstr ""
 #: lsd/scripts/bans.lua
 msgctxt "command"
 msgid "Query all bans matching a given comment (case-insensitive glob)."
-msgstr ""
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for an hour."
-msgstr ""
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for a day."
-msgstr ""
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for 7 days."
-msgstr ""
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for 30 days."
-msgstr ""
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for 365 days."
-msgstr ""
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for a really long time."
-msgstr ""
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for an hour."
-msgstr ""
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for a day."
-msgstr ""
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for 7 days."
-msgstr ""
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for 30 days."
-msgstr ""
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for 365 days."
-msgstr ""
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for a really long time."
 msgstr ""
 
 #: lsd/scripts/base_logging.lua

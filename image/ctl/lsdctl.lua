@@ -2030,6 +2030,18 @@ bots_sub.apply = function(words, flags)
 		end
 	end
 	local doc = roster(flags);
+	if (text == nil) then
+		-- a name is a tree the ENGINE holds: one just saved is only a file until the next map
+		local held = false;
+		for _, t in ipairs(doc.trees or {}) do
+			if (t.name == name) then held = true; end
+		end
+		if (not held) then
+			bots_fail(flags, "the bot engine has not read the tree " .. name .. " yet (it reads " .. TREES_USER
+				.. " at the next map load): change the map, or give it the text now: lsdctl bots apply --file "
+				.. tostring(select(2, all_trees(flags))[name].file) .. " ...");
+		end
+	end
 	local pids = targets(flags, doc);
 	local expr;
 	if (text ~= nil) then

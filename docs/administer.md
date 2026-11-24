@@ -8,7 +8,7 @@ Everything the server keeps lives on the `/data` volume:
 | `/data/maps/` | the maps (`.vxl`, and their `.txt` metadata) |
 | `/data/rw/` | bans, accounts, the admin console socket |
 | `/data/catalog/` | your own catalog entries (optional, see below) |
-| `/data/trees/` | your own bot behaviour trees, `<name>.bt` (optional: [bot/TREES.md](../bot/TREES.md), "Writing your own") |
+| `/data/trees/` | your own bot behaviour trees, `<name>.bt` (optional; read at each map load: [writing one, step by step](../bot/trees/README.md)) |
 | `/data/scripts/` | loose Lua modules that override any other (optional) |
 
 ## Administer
@@ -87,6 +87,36 @@ map_sources = [{name: 'example', view: 'https://example.org/map/%(id)',
 On a terminal every setup asks its questions; otherwise, or with
 `--yes`, the defaults (or the `--preset` given) are taken, so all of it
 scripts.
+
+## The bots
+
+Bots that play as players do (`lsdctl bots <n>`: n a team) decide with a
+behaviour tree, a text you can read and replace. Four settings say how
+they play, each applied within a second, empty by default:
+
+```sh
+lsdctl set engine_bots_tree "'mine'"                # the tree they run, by name: yours is /data/trees/mine.bt
+lsdctl set engine_bots_archetypes "'camper:2,pusher:1'"   # the mix of characters
+lsdctl set engine_bots_traits "'aggression:1.5'"    # every bot's weights, scaled
+lsdctl set engine_bots_edit "'dig'"                 # what a bot's route may do to the map: dig, build, all
+```
+
+And on the bots that are playing, with no restart:
+
+```sh
+lsdctl bots list                      # every bot: its kind, its tree, what it is doing
+lsdctl bots watch [name|id]           # one bot's tree, live: where it is, and why (Ctrl-C leaves)
+lsdctl bots trees                     # the trees there are; lsdctl bots tree <name> prints one
+lsdctl bots check mine.bt             # every mistake of a text, with its line
+lsdctl bots apply - --bot Bot12 < mine.bt    # a tree for one bot, now (--team 2, --archetype camper, --each, --all)
+lsdctl bots revert --each             # every bot back to the world's tree
+lsdctl bots save mine < mine.bt       # keep a text as /data/trees/mine.bt
+```
+
+(From the host: `docker exec -i lsd lsdctl bots save mine < mine.bt`.)
+Writing a tree, from an empty file to one running here:
+[bot/trees/README.md](../bot/trees/README.md); everything else about
+them: [bot/TREES.md](../bot/TREES.md).
 
 ## Update
 

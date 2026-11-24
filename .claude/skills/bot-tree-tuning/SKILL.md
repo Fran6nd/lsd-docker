@@ -7,7 +7,8 @@ description: Design or tune a bot behaviour tree (bot/trees/*.bt, an item's or a
 
 A tree says what CAN be done and what bears on it; each bot's character
 (ten traits, rolled per bot from its archetype) says what THAT bot would
-rather. Tuning is moving numbers in the text, never code. The reference
+rather. Tuning is moving numbers in the text, never code. Never written
+a tree? `bot/trees/README.md` is the tutorial, step by step. The reference
 is `bot/TREES.md` (every keyword's exact answers and defaults, the worth
 formula with a worked example, `_also` / `items` / `extras`, how a tree
 is compiled and run, giving one bot a tree of its own); `bot/core/bt.h`
@@ -32,7 +33,7 @@ B=bot/build/bin/bttree
 | **...and why?** | `$B --split --why ...`: each pick's options with their mean score, weight, worth, and who chose them |
 | What does ONE bot hold, node by node? | `$B --trace --as camper --secs 4 FILE word=value...` (below) |
 | Is the text in the house form? | `$B --format FILE` writes it canonical (tabs, comments in one column), which is how the shipped trees are written |
-| Are the examples of TREES.md still right? | `$B --doc bot/TREES.md` (part of `make -C bot test`) |
+| Are the examples of the docs still right? | `$B --doc bot/TREES.md bot/trees/README.md` (part of `make -C bot test`) |
 
 ## --split: the tuning loop
 
@@ -175,4 +176,9 @@ is ever above 0 on a real map (a perch found, a rumour heard). Then:
   `engine_bots_traits` lean the crowd without touching a tree. One bot
   with its own tree (a boss): `botlink_add{tree=<text>, at=, once=true}`,
   changed in play with `botlink_set("tree", <text>, pid)` -- TREES.md,
-  "Writing your own".
+  sections 12 and 13. A text sent from Lua is compiled alone: it cannot
+  refer to the built-in files' trees.
+- When a mode needs something the trees cannot ask or do, look at the
+  bridge before asking for a C word: a fact (`if fact alarm`), a place
+  of the script's (`@church`), a word back (`do tell ring_bell`) --
+  TREES.md section 13, items 8 to 10. `--split` takes `"fact alarm=1"`.

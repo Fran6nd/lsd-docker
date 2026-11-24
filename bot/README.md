@@ -13,6 +13,21 @@ LSd (sandboxed, one thread, 60 ticks a second)        botd (its own process and 
   bots are peerless players (lib_bot)
 ```
 
+## Where things are written down
+
+| | |
+|---|---|
+| [trees/README.md](trees/README.md) | **start here**: writing a tree, step by step, to one running on a server |
+| [TREES.md](TREES.md) | the reference: every keyword, how a tree is compiled and run, what a server script can do, watching a bot think, the JSON a tool is built on and the `lsdctl bots` operations |
+| [VOCAB.md](VOCAB.md) | the words a tree may use (generated: `make doc`; `make test` fails when it is stale) |
+| `core/*.h` | each module's header is its documentation; `core/bt.h` the tree runtime, `core/engine.h` the door between the host and the core |
+| [BRAIN-STATUS.md](BRAIN-STATUS.md), [NAV-STATUS.md](NAV-STATUS.md) | what the bots can and cannot do today, the open list, the bench and its baseline |
+| `.claude/skills/bot-*` | for an agent: `bot-behaviour` (adding a behaviour), `bot-tree-tuning` (designing and tuning a tree), `bot-live-debug` (bots misbehaving on a server), `bot-engine-work` (larger work) |
+
+The tool is `bttree` (`make tools`, then `build/bin/bttree`; in the
+image: `docker exec <server> bttree ...`), and on a running server
+`lsdctl bots ...`.
+
 ## The layers of a bot (`core/`)
 
 Each layer only knows the one below it.
@@ -35,35 +50,20 @@ can bring its own.
 Nothing in `core/` or `botd/` may know a gamemode by name. What differs
 from one mode to the next is data, and comes over the link:
 
-- **A tree** (`bt.h`), as text. The built-in ones are files in
-  `trees/` (`tdm.bt` first), one per mode; an operator adds or replaces
-  one with a file in the data volume's `trees/`; a gamemode's Lua can
-  send its own (`botlink_set("tree", text)`), for every bot or for one
-  (a boss, a villager); a mode that sends none gets `default.bt`. A tree
-  is made only of the neutral vocabulary below.
-  **[TREES.md](TREES.md) is the reference**: every keyword with its exact
-  meaning and defaults, how a text is compiled and run, how to write and
-  tune one, and the JSON an editor or a debugger reads. [VOCAB.md](VOCAB.md)
-  lists the words (`make doc` writes it; `make test` fails when it is
-  stale).
-  To look at a tree, `make tools` then `build/bin/bttree trees/tdm.bt`:
-  drawn with its sub-trees opened in place, compiled first by the
-  engine's own compiler. `--as camper` shows beside each weighed choice
-  what that kind of bot's weight is, `--tree NAME` draws one, `--check`
-  only says what is wrong, `--words` lists the vocabulary, `--split
-  word=value...` rolls 700 bots and counts what each would do in the
-  situation given (`--why`: what each option was worth), `--trace` shows
-  one bot's tree as the engine holds it, with what is RUNNING and why
-  each pick chose; `--json`, `--from-json` and `--schema` are for an
-  editor. On a running server, `lsdctl bots list`, `lsdctl bots watch
-  <bot>` (what one is thinking, live) and `lsdctl bots apply` (a tree
-  for one bot, many or all, without a restart) -- TREES.md, sections 14
-  and 16. It is in the image too: `docker exec <server> bttree
-  /opt/botd/trees/tdm.bt`.
+- **A tree** (`bt.h`), as text, made only of the neutral vocabulary
+  below. The built-in ones are the files of `trees/`, one per mode; an
+  operator adds or replaces one with a file in the data volume's
+  `trees/`; a gamemode's Lua sends its own, for every bot or for one;
+  a mode that sends none gets `default.bt`.
 - **Settings**, `key=value` (`BL_EV_SET`): what the mode's objects mean
   (`intel=fetch`, `tents=defend`...), zones where editing is refused,
   the archetype mix, how many blocks a bot may spend.
 - **Orders**, for one bot (`BL_EV_ORDER`), when a mode wants to direct it.
+- **Names of the script's own**, when there is no word for what it
+  wants: a fact a tree reads (`fact.<name>`), a place (`place.<name>`,
+  written `@name` in a tree), and a word a tree says back to a Lua
+  function (`do tell <name>`). The engine carries the names and knows
+  none of them.
 
 **The vocabulary** -- the conditions, scores and actions a tree may name
 -- is the engine's whole interface to behaviour, so it is kept small,

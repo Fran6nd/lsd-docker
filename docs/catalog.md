@@ -161,7 +161,9 @@ box when low, a missile at an enemy in sight under open sky...). Any
 inventory item can carry one (`inventory_define`'s `bot`), and a
 gamemode's tree uses them all with `tree items` (the language of those
 trees, and how to write your own for a mode or for one bot:
-[bot/TREES.md](../bot/TREES.md)). Every impact -- rocket, missile, bomb -- also plays a grenade explosion,
+[bot/TREES.md](../bot/TREES.md), section 13: everything a script can
+give the bots -- a tree, a fragment, an item's rule, settings, orders,
+and facts, places and words of its own naming). Every impact -- rocket, missile, bomb -- also plays a grenade explosion,
 the sound and the flash, for every client. Rocket and airstrike are
 ordinary effects too, built on the `blast` library: installed alone,
 they are everybody's.

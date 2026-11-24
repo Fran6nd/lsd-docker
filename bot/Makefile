@@ -78,13 +78,14 @@ doc: $(B)/bin/bttree
 	$(B)/bin/bttree --words --md > VOCAB.md
 
 # the trees that ship must compile, with the vocabulary as it is now, and
-# come back whole from the editor's JSON; the trees TREES.md shows must
-# compile too; and VOCAB.md must be the vocabulary of today
+# come back whole from the editor's JSON; the trees TREES.md and the
+# tutorial (trees/README.md) show must compile too; and VOCAB.md must be
+# the vocabulary of today
 test: $(TESTS) $(B)/bin/bttree
 	@fail=0; for t in $(TESTS); do echo "== $$t"; $$t || fail=1; done; \
 	echo "== trees"; $(B)/bin/bttree --check trees/*.bt || fail=1; \
 	echo "== trees, to JSON and back"; $(B)/bin/bttree --roundtrip trees/*.bt || fail=1; \
-	echo "== the trees in TREES.md"; $(B)/bin/bttree --doc TREES.md || fail=1; \
+	echo "== the trees in TREES.md and in the tutorial"; $(B)/bin/bttree --doc TREES.md trees/README.md || fail=1; \
 	echo "== VOCAB.md"; if $(B)/bin/bttree --words --md | cmp -s - VOCAB.md; then echo "ok: up to date"; \
 	else echo "VOCAB.md is not the vocabulary of today: make -C bot doc"; fail=1; fi; exit $$fail
 

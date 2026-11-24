@@ -8,8 +8,10 @@
  * marked *):
  *   tree=<name>            * the tree to run ("default" when unset). A
  *                            value of several lines is the TEXT of trees
- *                            (bt.h), compiled beside the built-in ones;
- *                            the first tree in it is the one run. FOR ONE
+ *                            (bt.h), compiled on its own (with the items
+ *                            and extras: it cannot refer to the built-in
+ *                            files' trees) and kept beside them; the
+ *                            first tree in it is the one run. FOR ONE
  *                            BOT the text is that bot's own (a gamemode's
  *                            NPC with a role of its own): compiled and
  *                            kept for it alone, replaced by its next

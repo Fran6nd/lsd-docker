@@ -15,8 +15,9 @@ script by name.** What differs is data sent over the link.
 
 | You want | It goes in |
 |---|---|
-| A gamemode's bots to play its rules | a tree, `bot/trees/<gamemode>.bt` (text, `bot/core/bt.h` explains it). The server names the tree after the gamemode; an unknown name runs `default.bt`. A gamemode's Lua can send its own: `botlink_set("tree", text)`. |
-| A new thing bots can do, or can ask about the world | a NEUTRAL word in the vocabulary: implement in `bot/core/skill_*.c` / `senses.c`, register in `vocab.c`, one line of doc in `vocab.h`. Named for what it does (`enemy_near`), never for who uses it. Then use it in trees. |
+| A gamemode's bots to play its rules | a tree, `bot/trees/<gamemode>.bt` (text; `bot/trees/README.md` teaches it step by step, `bot/TREES.md` is the reference). The server names the tree after the gamemode; an unknown name runs `default.bt`. A gamemode's Lua can send its own: `botlink_set("tree", text)`. |
+| Something ONE gamemode or script needs the bots to know, go to, or trigger | FIRST see whether the bridge does it, with no C at all (TREES.md section 13, items 8 to 10): a **fact** the script sets and a tree reads (`botlink_set("fact.alarm", 1)`, `if fact alarm`, `option none fact alarm`), a **place** of the script's naming (`botlink_set("place.church", "x y z")` or `"pid <n>"`, written `@church` in a tree), a **word** a tree says back to a Lua function (`do tell ring_bell`, `botlink_on("ring_bell", fn)`). Worked example: engine_test.c "a village". |
+| A new thing bots can do, or can ask about the world (for every mode: a way of moving, sensing, fighting) | a NEUTRAL word in the vocabulary: implement in `bot/core/skill_*.c` / `senses.c`, add it to the table in `vocab.c` WITH ITS ARGUMENTS AS DATA (the macros above the table: name, type, required, default -- the compiler checks trees against them and the docs are written from them). Named for what it does (`enemy_near`), never for who uses it. Then `make -C bot doc` (VOCAB.md) and use it in trees. |
 | Bots to use an inventory item | the ITEM says when: `inventory_define(key, {..., bot = {tree = "<fragment>", guide = <secs>}})` (catalog/tools/inventory). Rewards do it per menu entry (`bot = "seq\n\tif health_below 50\n\tdo use medkit self"`). The engine gathers the fragments into the generated tree `items`; a gamemode tree includes it with `tree items`. |
 | A server script (night, weather...) to change how bots behave | it sends a fragment as `botlink_set("extra.<name>.tree", text)` (ticked beside the main tree at every decision: `tree extras`) and settings for mechanics that are off by default (`night.sight=1`, `night.cone=...`). Example: catalog/extensions/night/lib_night.lua, the BOTS section. |
 | The server to tell bots a fact | a setting through `botlink_set(key, value [, pid])` in catalog/libs/botlink/lib_botlink.lua (re-sent to an engine that attaches late). Existing: `tree`, `water`, `water.damage`, `night_vision`, `item.<name>`. New keys must be handled in `bot/core/engine.c` (an unknown key is logged once and kept for `if setting`). |
@@ -60,7 +61,10 @@ tree with every `tree <name>` opened in place (`--as camper`
 shows that kind of bot's weight beside each weighed choice, `--tree NAME` one tree,
 `--plain` for a pipe). `bttree --check bot/trees/*.bt` compiles them with
 the real vocabulary and names the faulty line; `make -C bot test` runs it.
-`bttree --words` lists every condition, score, action and trait.
+`bttree --words` lists every condition, score, action and trait
+(`bot/VOCAB.md` is the same as a page, with each word's arguments). On a
+running server: `lsdctl bots list`, `lsdctl bots watch <bot>`, `lsdctl
+bots apply` (the `bot-live-debug` skill).
 
 
 After any change to the words (bot/core/vocab.c) or to persona centres, run `make -C bot doc`: it regenerates bot/VOCAB.md, and `make -C bot test` fails while that file is stale.

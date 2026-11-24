@@ -26,7 +26,7 @@ the image has no botd (built without `bot/core/engine.c`).
 ```sh
 docker exec <c> lsdctl bots list                 # every bot: kind, level, health, its tree, what it is doing
 docker exec <c> lsdctl bots watch <name|id> --once --plain    # one frame of its tree (no --once: live, in a terminal)
-docker exec <c> lsdctl bots watch <id> --once --json          # the snapshot itself (bot/TREES.md section 15)
+docker exec <c> lsdctl bots watch <id> --once --json          # the snapshot itself (bot/TREES.md section 16): also its facts and script places
 ```
 
 The frame shows the RUNNING path through the tree the engine really
