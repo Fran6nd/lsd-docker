@@ -2,7 +2,7 @@
 
 | category | class | what | examples |
 |---|---|---|---|
-| gamemodes | `Gamemode` | exactly one runs; every one runs the map's layout (map_layout) | tdm, ctf, bots, bots_rewards, onectf, arena, babel, ffa, hostage, editor |
+| gamemodes | `Gamemode` | exactly one runs; every one runs the map's layout (map_layout) | tdm, parkour, ctf, bots, bots_rewards, onectf, arena, babel, ffa, hostage, editor |
 | extensions | `Extension` | protocol extensions; the setup also asks what a client lacking one costs | every extension in the [AoS protocol registry](https://github.com/zerospades/aosprotocol): player_properties, damage_markers, teamplay, pie_menu, night (daytime and flashlight), edit_mode, player_limit, message_types, kick_reason (UTF-8 chat is built into LSd); plus silent_player |
 | effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit, nightvision, rocket, missile, grenade_launcher, airstrike, ammo_box |
 | effects/world | `WorldEffect` | change the map or the match for everybody; same | the_fall |
@@ -86,6 +86,29 @@ and hardly moves (less than `babel_camp_move` blocks) for
 your team -- "Camping by your tower", "In your spawn" -- until they
 move, leave, die or disconnect. `babel_camp_marks = False` turns the
 marks off.
+
+## Parkour
+
+One team, nobody to shoot: a course of gaps, steps, beams and stepping
+stones over water that kills, from a start platform to the tent at the
+end. The clock starts when a runner leaves the start platform and stops
+at the tent; the time is told, each runner's best is kept, the record
+is announced, and the runner is put back at the start. `/best` lists the
+best times (kept by name while the server runs, through every map
+restart; not through a restart of the server). There is no score and no
+end. Whoever dies is back at once at the last checkpoint reached (the
+yellow platforms), the clock still running; nobody builds or digs.
+
+The course is generated (`catalog/core/parkour_map.lua`, from a seed)
+when the mode is chosen, and is the only map in rotation: `lsdctl
+gamemode parkour`, or `lsdctl play parkour random 10` for a casual game
+with ten bots. `lsdctl map course [seed]` generates another, and
+`lsdctl bots <n>` sets how many bots run it. Every obstacle is within
+what the bot engine's bots can do (`bot/trees/parkour.bt`: "go to our
+base"), so they run it too. A map of your own can be a course: its
+`.txt` names the places, as the generated one does (`'parkour_start'`,
+`'parkour_tent'`, `'parkour_checkpoints'`, and `'water_damage'` for the
+water to kill).
 
 ## Bots: day and night
 

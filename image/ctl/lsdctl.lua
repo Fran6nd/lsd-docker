@@ -677,6 +677,10 @@ command("configure", "configure <script> [--preset P] [--policy L] [--yes]",
 		apply(flags);
 	end);
 
+-- defined with the games, below: a game that plays a generated map has
+-- it made, and the rotation set to it, whenever it is chosen
+local force_map;
+
 local function choose_gamemode(doc, id, ui, flags)
 	local old = doc:get("gamemode") or "ctf";
 	local e = entry(id);
@@ -693,6 +697,7 @@ local function choose_gamemode(doc, id, ui, flags)
 	local deps = e:dependencies();
 	if (#deps > 0) then install_ids(doc, deps, ui, {}); end
 	setup_entry(doc, e, ui, flags);
+	force_map(doc, e.id, old ~= e.id);
 	return old ~= e.id;
 end
 
@@ -1014,6 +1019,22 @@ local function generate_flat(name, height)
 	txt:close();
 end
 
+-- A parkour course, generated from a seed (catalog/core/parkour_map.lua):
+-- the map and the metadata naming its start, checkpoints and tent.
+local function generate_course(name, seed)
+	local P = require "parkour_map";
+	local c = P.generate(seed);
+	local path = MAPS .. "/" .. name .. ".vxl";
+	local f = assert(io.open(path .. ".tmp", "wb"));
+	f:write(P.vxl(c));
+	f:close();
+	assert(os.rename(path .. ".tmp", path));
+
+	local txt = assert(io.open(MAPS .. "/" .. name .. ".txt", "w"));
+	txt:write(P.meta(c, name));
+	txt:close();
+end
+
 local function sh_ok(cmd) return run(cmd); end
 
 --=============================== MAP SOURCES ========================--
@@ -1125,7 +1146,7 @@ end
 -- defined with the games, below; the map command's web-random needs them
 local game, random_maps;
 
-command("map", "map list | add <page|url|source:id|file>... | rm <name>... | load <name>|random | generate <name> [height] | web-random [gamemode]",
+command("map", "map list | add <page|url|source:id|file>... | rm <name>... | load <name>|random | generate <name> [height] | course [seed] | web-random [gamemode]",
 	"the maps in rotation; `add` downloads (aos.party by default: lsdctl map add https://aos.party/view/864), `load` switches the live map",
 	function(args)
 		local sub = table.remove(args, 1) or "list";
@@ -1192,12 +1213,28 @@ command("map", "map list | add <page|url|source:id|file>... | rm <name>... | loa
 			-- asks the entrypoint for it, being forbidden to run programs)
 			local doc = open_doc(false);
 			local g = game(args[1] or doc:get("gamemode") or "");
+			if (g ~= nil and g.maps == "generated") then
+				say("%s plays its own generated map: none from the web (another course: lsdctl map course)", g.value);
+				return;
+			end
 			math.randomseed(os.time());
 			local n = random_maps(g and g.maps or "ctf", map_sources(doc), 1,
 				function(line) say("%s", line); end);
 			if (n == 0) then
 				die("no map could be had");
 			end
+		elseif (sub == "course") then
+			-- another course for the game that plays a generated one
+			local doc = open_doc(true);
+			local g = game(doc:get("gamemode") or "");
+			if (g == nil or g.maps ~= "generated") then
+				die("the gamemode (%s) does not play a generated course", tostring(doc:get("gamemode") or "ctf"));
+			end
+			local seed = args[1] == nil and os.time() % 1000000 or tonumber(args[1]);
+			if (seed == nil or seed < 0 or seed ~= math.floor(seed)) then die("map course [seed]: a whole number"); end
+			generate_course(g.value, seed);
+			say("generated %s: a new course, seed %d (it plays at the next map change: lsdctl map load %s)",
+				g.value, seed, g.value);
 		elseif (sub == "generate") then
 			local n = args[1] or die("map generate <name> [height]");
 			if (not string.match(n, "^[%w_%-]+$")) then die("%q is not a map name", n); end
@@ -1206,7 +1243,7 @@ command("map", "map list | add <page|url|source:id|file>... | rm <name>... | loa
 			generate_flat(n, h);
 			say("generated %s: flat ground at z=%d", n, h);
 		else
-			die("map %s? (list, add, rm, load, generate)", sub);
+			die("map %s? (list, add, rm, load, generate, course, web-random)", sub);
 		end
 	end);
 
@@ -1274,10 +1311,14 @@ end
 -- them holds a client back: bots by night only recommends Daytime.
 -- `maps` is the kind of map a random pick asks the map sources for
 -- (map_sources.lua, list): "ctf" -- two bases, a field between -- or
--- "babel". `bots`: the game the bot engine has a tree for (bot/trees),
--- so the short questions offer to add some -- tdm alone, for now.
+-- "babel" -- or "generated": the game plays one map, made for it here
+-- (generate_course), and none from the web. `bots`: the game the bot
+-- engine has a tree for (bot/trees), so the short questions offer to add
+-- some. `teams = 1`: everybody is on team 1, the bots too.
 local GAMES = {
 	{value = "tdm", label = "tdm", hint = "team deathmatch: every kill scores", maps = "ctf", bots = true},
+	{value = "parkour", label = "parkour", hint = "one team, no enemies: run a generated course against the clock",
+		maps = "generated", bots = true, teams = 1},
 	{value = "ctf", label = "ctf", hint = "capture the flag", maps = "ctf"},
 	{value = "bots", label = "bots", hint = "team deathmatch with bots, day and night", maps = "ctf"},
 	{value = "bots_rewards", label = "bots_rewards", hint = "bots, with every reward free and unlimited", maps = "ctf"},
@@ -1288,6 +1329,25 @@ function game(mode)
 	for _, g in ipairs(GAMES) do
 		if (g.value == mode) then return g; end
 	end
+end
+
+-- The map of a game that plays a generated one: made when the game is
+-- newly chosen or the map is not there, and the only one in rotation.
+-- Another course for the same game is `lsdctl map course [seed]`.
+function force_map(doc, mode, fresh)
+	local g = game(mode);
+	if (g == nil or g.maps ~= "generated") then
+		return;
+	end
+	run("mkdir -p " .. sh_quote(MAPS));
+	if (fresh or not exists(MAPS .. "/" .. g.value .. ".vxl")) then
+		local seed = os.time() % 1000000;
+		generate_course(g.value, seed);
+		say("map: %s, a course generated for the game (seed %d; another: lsdctl map course)", g.value, seed);
+	end
+	doc:set("map_rotation", g.value);
+	doc:set("map_random", false);
+	doc:set("map_web_random", false);
 end
 
 -- The game and the map, from the words given or asked: shared by play
@@ -1302,6 +1362,9 @@ local function ask_game_and_map(ui, mode, want, default)
 		for _, g in ipairs(GAMES) do ids[#ids+1] = g.value; end
 		die("the game is one of %s, not %s", table.concat(ids, ", "), tostring(mode));
 	end
+	if (game(mode).maps == "generated") then
+		return mode, want or "random";
+	end
 	if (want == nil) then
 		want = ui:ask({key = "map", type = "string",
 			ask = "Map: random, or a link or source:id (aos.party, hosting.dgd.cx)"}, "random");
@@ -1312,8 +1375,9 @@ local function ask_game_and_map(ui, mode, want, default)
 	return mode, want;
 end
 
--- Bots, for a game that can have them: how many a team, asked or given
--- (`play tdm random 8`); 0 for none. nil for a game without.
+-- Bots, for a game that can have them: how many a team (in all, where
+-- the game is one team), asked or given (`play tdm random 8`); 0 for
+-- none. nil for a game without.
 local function ask_bots(ui, mode, given)
 	local g = game(mode);
 	if (g == nil or not g.bots) then
@@ -1322,7 +1386,7 @@ local function ask_bots(ui, mode, given)
 	local n = tonumber(given);
 	if (n == nil) then
 		n = ui:ask({key = "bots", type = "number", min = 0, max = 100,
-			ask = "Bots per team (0 for none)"}, 0);
+			ask = g.teams == 1 and "Bots (0 for none)" or "Bots per team (0 for none)"}, 0);
 	end
 	return math.max(0, math.min(100, math.floor(tonumber(n) or 0)));
 end
@@ -1359,10 +1423,14 @@ end
 -- ...and into the settings: the engine's bots installed at that count.
 -- None asked for where they were installed before: the count goes to 0,
 -- which is a server with no bots (lib_botlink makes no file for none).
-local function set_bots(doc, n)
+-- A game of one team has them all on team 1; any other game gets the
+-- second team's back, if such a game had taken them.
+local function set_bots(doc, n, mode)
 	if (n == nil) then
 		return;
 	end
+	local g = game(mode);
+	local one = g ~= nil and g.teams == 1;
 	local have = false;
 	for _, id in ipairs(doc:installed()) do
 		if (id == "engine_bots") then have = true; end
@@ -1373,9 +1441,14 @@ local function set_bots(doc, n)
 	end
 	if (have) then
 		doc:set("engine_bots_count", n);
+		if (one) then
+			doc:set("engine_bots_team2", 0);
+		elseif (doc:get("engine_bots_team2") == 0) then
+			doc:set("engine_bots_team2", -1);
+		end
 	end
 	if (n > 0) then
-		say("bots: %d a team", n);
+		say(one and "bots: %d" or "bots: %d a team", n);
 	end
 end
 
@@ -1449,6 +1522,11 @@ local ROTATION = 6;
 -- generated flat one, at worst).
 local function set_game_and_map(doc, mode, want, opts)
 	choose_gamemode(doc, mode, make_ui(true), {});
+	if (game(mode).maps == "generated") then
+		-- its map came with it (force_map)
+		if (want ~= "random") then say("%s plays its own generated map: %s is not fetched", mode, want); end
+		return;
+	end
 
 	local sources = map_sources(doc);
 	local names = {};
@@ -1476,7 +1554,7 @@ local function set_game_and_map(doc, mode, want, opts)
 	end
 end
 
-command("play", "play [tdm|ctf|bots|bots_rewards|babel] [random|<page|url|source:id>] [bots per team] [on|off|infinite]",
+command("play", "play [tdm|parkour|ctf|bots|bots_rewards|babel] [random|<page|url|source:id>] [bots per team] [on|off|infinite]",
 	"set up a casual game on a fresh container (the entrypoint's play runs it)",
 	function(args)
 		local words = parse_args(args, {});
@@ -1496,7 +1574,7 @@ command("play", "play [tdm|ctf|bots|bots_rewards|babel] [random|<page|url|source
 		doc:set("masterlist_enabled", false);
 		doc:set("play_mode", true);
 		set_game_and_map(doc, mode, want, {});
-		set_bots(doc, bots);
+		set_bots(doc, bots, mode);
 		set_rewards(doc, rewards);
 
 		doc:save();
@@ -1504,6 +1582,18 @@ command("play", "play [tdm|ctf|bots|bots_rewards|babel] [random|<page|url|source
 		print_addresses(doc);
 		say("");
 		say("It stops by itself when the last player leaves. Ctrl-C stops it now.");
+	end);
+
+command("bots", "bots <n> [--no-restart]",
+	"the bot engine's bots: n a team, or n in all in a game of one team (parkour); 0 for none",
+	function(args)
+		local words, flags = parse_args(args, {});
+		local n = tonumber(words[1]);
+		if (n == nil) then die("bots <n>"); end
+		local doc = open_doc(true);
+		set_bots(doc, math.max(0, math.min(100, math.floor(n))), doc:get("gamemode") or "ctf");
+		doc:save();
+		apply(flags);
 	end);
 
 command("address", "address", "the aos:// addresses players connect with",
@@ -1960,7 +2050,7 @@ local function quick_setup(doc, ui, existing, flags)
 		install_ids(doc, default_scripts(), make_ui(true), {});
 	end
 	set_game_and_map(doc, mode, want, {rotation = true});
-	set_bots(doc, bots);
+	set_bots(doc, bots, mode);
 	set_rewards(doc, rewards);
 
 	ensure_maps();

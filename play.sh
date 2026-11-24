@@ -5,10 +5,11 @@
 #   curl -fsSL https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.sh | sh
 #   curl -fsSL .../play.sh | sh -s -- babel random
 #   curl -fsSL .../play.sh | sh -s -- tdm random 8      # 8 bots a team
+#   curl -fsSL .../play.sh | sh -s -- parkour random 10 # 10 bots on a generated course
 #   curl -fsSL .../play.sh | sh -s -- ctf https://aos.party/view/864
 #
 # Starts a throwaway server (docker run --rm, no volume kept): it asks
-# which game (tdm, ctf, bots, bots_rewards, babel) and which map (random, or an aos.party link or
+# which game (tdm, parkour, ctf, bots, bots_rewards, babel) and which map (random, or an aos.party link or
 # id) unless told, prints the address friends on your network join
 # with, and stops by itself a minute after the last player leaves --
 # Ctrl-C stops it at once. Then the container is gone, and so is the

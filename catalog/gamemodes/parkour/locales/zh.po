@@ -1,0 +1,53 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Parkour: run to the tent at the end of the course, as fast as you can. The water kills. /best lists the best times."
+msgstr "跑酷：以最快速度跑到赛道尽头的帐篷。落水即死。/best 查看最佳成绩。"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Finished in %(time) s. Your best is %(best) s."
+msgstr "用时 %(time) 秒。你的最佳成绩是 %(best) 秒。"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Finished in %(time) s: your best time!"
+msgstr "用时 %(time) 秒：你的最佳成绩！"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "%(name) holds the record: %(time) s"
+msgstr "%(name) 保持纪录：%(time) 秒"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Checkpoint %(n) of %(total)"
+msgstr "检查点 %(n)/%(total)"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "No building or digging on the course."
+msgstr "赛道上不能建造或挖掘。"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Everybody runs on the same team here."
+msgstr "这里所有人都在同一队。"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "%(rank). %(name): %(time) s"
+msgstr "%(rank). %(name)：%(time) 秒"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Your best: %(time) s"
+msgstr "你的最佳成绩：%(time) 秒"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Nobody has finished the course yet."
+msgstr "还没有人跑完赛道。"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgctxt "command"
+msgid "List the best times on the parkour course."
+msgstr "列出跑酷赛道的最佳成绩。"

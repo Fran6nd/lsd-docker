@@ -251,6 +251,7 @@ msgstr "Защитить"
 #: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Go here"
 msgstr "Сюда"
@@ -300,14 +301,17 @@ msgid "Danger"
 msgstr "Опасность"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Say"
 msgstr "Сказать"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Good game"
 msgstr "Хорошая игра"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "gg"
 msgstr "gg"
 
@@ -332,10 +336,12 @@ msgid "Come at me!"
 msgstr "Давай, ко мне!"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Ouch"
 msgstr "Ой"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Ouch!"
 msgstr "Ой!"
 
@@ -402,6 +408,30 @@ msgstr "У них разведданные -- остановите носите�
 #: catalog/libs/callouts/callouts/onectf.lua
 msgid "I have the intel -- cover me!"
 msgstr "У меня разведданные -- прикройте!"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "This way"
+msgstr "Сюда"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "This way!"
+msgstr "Сюда!"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Wait for me"
+msgstr "Подожди меня"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Wait for me!"
+msgstr "Подожди меня!"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Race you"
+msgstr "Наперегонки"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Race you to the tent!"
+msgstr "Наперегонки до палатки!"
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Mark"

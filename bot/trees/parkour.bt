@@ -1,0 +1,35 @@
+# parkour.bt -- one team, no enemy, a course to run: to our base, again
+# and again.
+#
+# Words: core/vocab.h. Grammar: core/bt.h. The server's rules
+# (catalog/gamemodes/parkour): everybody is on one team; the course runs
+# from where a bot is put to its team's tent; reaching the tent ends the
+# run and the server puts the runner back at the start. The water kills,
+# and the server says so (the settings water, water.damage), so no route
+# enters it; a bot that dies is put back on the course by the server.
+#
+# So there is one thing to do, and the top `pick` is only the PRIORITY
+# LIST every tree has above it. The jumps, the steps and the beams are
+# navigation's business, not the tree's.
+
+tree parkour:
+select
+	pick every=1 sticky=0.2 noise=0
+		option none grenade_near x100         # a grenade at its feet (its own team's cannot hurt it, but it does not know whose)
+			do evade
+		option none harmful_water x60         # in the water, if it ever is: out
+			do leave_water
+		option none has_order x30             # the server said so
+			do obey
+		option none always                    # the run: the tent at the end
+			do go_to own_base 1
+	limit 1
+		do look_around                        # no way just now (a body in mid-air, a map with no tent): a look, and again
+
+# Beside the above, at every decision.
+tree parkour_also:
+seq
+	always
+		tree extras                           # what the server's scripts add (night and lamps, if it has them)
+	always
+		tree items                            # whatever it holds, used as each item says

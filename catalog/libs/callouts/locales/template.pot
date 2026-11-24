@@ -249,6 +249,7 @@ msgstr ""
 #: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Go here"
 msgstr ""
@@ -298,14 +299,17 @@ msgid "Danger"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Say"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Good game"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "gg"
 msgstr ""
 
@@ -330,10 +334,12 @@ msgid "Come at me!"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Ouch"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Ouch!"
 msgstr ""
 
@@ -399,6 +405,30 @@ msgstr ""
 
 #: catalog/libs/callouts/callouts/onectf.lua
 msgid "I have the intel -- cover me!"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "This way"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "This way!"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Wait for me"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Wait for me!"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Race you"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Race you to the tent!"
 msgstr ""
 
 #: catalog/libs/callouts/lib_callouts.lua

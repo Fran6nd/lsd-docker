@@ -251,6 +251,7 @@ msgstr "Defender"
 #: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Go here"
 msgstr "Ve aquí"
@@ -300,14 +301,17 @@ msgid "Danger"
 msgstr "Peligro"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Say"
 msgstr "Decir"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Good game"
 msgstr "Buen juego"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "gg"
 msgstr "gg"
 
@@ -332,10 +336,12 @@ msgid "Come at me!"
 msgstr "¡Ven por mí!"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Ouch"
 msgstr "Auch"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Ouch!"
 msgstr "¡Auch!"
 
@@ -402,6 +408,30 @@ msgstr "¡Tienen la inteligencia, detén al portador!"
 #: catalog/libs/callouts/callouts/onectf.lua
 msgid "I have the intel -- cover me!"
 msgstr "¡Tengo la inteligencia, cúbreme!"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "This way"
+msgstr "Por aquí"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "This way!"
+msgstr "¡Por aquí!"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Wait for me"
+msgstr "Espérame"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Wait for me!"
+msgstr "¡Espérame!"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Race you"
+msgstr "Una carrera"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Race you to the tent!"
+msgstr "¡A ver quién llega antes a la tienda!"
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Mark"

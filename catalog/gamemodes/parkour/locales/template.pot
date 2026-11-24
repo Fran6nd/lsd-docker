@@ -1,0 +1,51 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Parkour: run to the tent at the end of the course, as fast as you can. The water kills. /best lists the best times."
+msgstr ""
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Finished in %(time) s. Your best is %(best) s."
+msgstr ""
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Finished in %(time) s: your best time!"
+msgstr ""
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "%(name) holds the record: %(time) s"
+msgstr ""
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Checkpoint %(n) of %(total)"
+msgstr ""
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "No building or digging on the course."
+msgstr ""
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Everybody runs on the same team here."
+msgstr ""
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "%(rank). %(name): %(time) s"
+msgstr ""
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Your best: %(time) s"
+msgstr ""
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Nobody has finished the course yet."
+msgstr ""
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgctxt "command"
+msgid "List the best times on the parkour course."
+msgstr ""

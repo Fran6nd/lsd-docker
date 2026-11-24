@@ -1,0 +1,53 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Parkour: run to the tent at the end of the course, as fast as you can. The water kills. /best lists the best times."
+msgstr "Parkour : cours jusqu'à la tente au bout du parcours, le plus vite possible. L'eau tue. /best affiche les meilleurs temps."
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Finished in %(time) s. Your best is %(best) s."
+msgstr "Terminé en %(time) s. Ton meilleur temps est %(best) s."
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Finished in %(time) s: your best time!"
+msgstr "Terminé en %(time) s : ton meilleur temps !"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "%(name) holds the record: %(time) s"
+msgstr "%(name) détient le record : %(time) s"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Checkpoint %(n) of %(total)"
+msgstr "Point de contrôle %(n) sur %(total)"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "No building or digging on the course."
+msgstr "Ni construction ni creusage sur le parcours."
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Everybody runs on the same team here."
+msgstr "Ici, tout le monde court dans la même équipe."
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "%(rank). %(name): %(time) s"
+msgstr "%(rank). %(name) : %(time) s"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Your best: %(time) s"
+msgstr "Ton meilleur temps : %(time) s"
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgid "Nobody has finished the course yet."
+msgstr "Personne n'a encore terminé le parcours."
+
+#: catalog/gamemodes/parkour/parkour.lua
+msgctxt "command"
+msgid "List the best times on the parkour course."
+msgstr "Afficher les meilleurs temps du parcours."

@@ -251,6 +251,7 @@ msgstr "防守"
 #: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/default.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Go here"
 msgstr "去这里"
@@ -300,14 +301,17 @@ msgid "Danger"
 msgstr "危险"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Say"
 msgstr "喊话"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Good game"
 msgstr "打得好"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "gg"
 msgstr "gg"
 
@@ -332,10 +336,12 @@ msgid "Come at me!"
 msgstr "来打我啊！"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Ouch"
 msgstr "哎哟"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/parkour.lua
 msgid "Ouch!"
 msgstr "好痛！"
 
@@ -402,6 +408,30 @@ msgstr "他们拿着情报，拦下持情报的人！"
 #: catalog/libs/callouts/callouts/onectf.lua
 msgid "I have the intel -- cover me!"
 msgstr "我拿到情报了，掩护我！"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "This way"
+msgstr "这边走"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "This way!"
+msgstr "这边走！"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Wait for me"
+msgstr "等等我"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Wait for me!"
+msgstr "等等我！"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Race you"
+msgstr "比一比"
+
+#: catalog/libs/callouts/callouts/parkour.lua
+msgid "Race you to the tent!"
+msgstr "看谁先到帐篷！"
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Mark"

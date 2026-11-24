@@ -14,8 +14,8 @@ on Windows and macOS, [Docker Engine](https://docs.docker.com/engine/install/)
 on Linux. Then one line pulls the image, runs the setup wizard, starts
 the server and prints the `aos://` addresses players connect with. The
 wizard starts with a choice: **quick** asks four things -- the server's
-name, whether to list it publicly, the game (team deathmatch, capture the
-flag or babel) and the map -- and sets up the rest as a new server has it,
+name, whether to list it publicly, the game (team deathmatch, parkour,
+capture the flag or babel) and the map -- and sets up the rest as a new server has it,
 with every protocol extension on and none required; **full** asks
 everything.
 
@@ -81,8 +81,8 @@ curl -fsSL https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.sh |
 irm https://raw.githubusercontent.com/Fran6nd/lsd-docker/master/play.ps1 | iex
 ```
 
-It asks for the game (tdm, ctf, bots, bots_rewards -- every reward free -- or babel) and the map (random, or a link or id
-from [aos.party](https://aos.party) or [hosting.dgd.cx](https://hosting.dgd.cx/map-search)), for tdm, how many bots a team (0 for none), and whether rewards are on, off or infinite, then prints the `aos://` address to
+It asks for the game (tdm, parkour -- one team against the clock on a generated course -- ctf, bots, bots_rewards -- every reward free -- or babel) and the map (random, or a link or id
+from [aos.party](https://aos.party) or [hosting.dgd.cx](https://hosting.dgd.cx/map-search); parkour makes its own), for tdm and parkour, how many bots (a team; 0 for none), and whether rewards are on, off or infinite, then prints the `aos://` address to
 join. It is never listed publicly. A minute after the last player leaves it stops, and the container,
 its data and -- if the game downloaded it -- the image are removed.
 Ctrl-C stops it at once. Answers can be given ahead:

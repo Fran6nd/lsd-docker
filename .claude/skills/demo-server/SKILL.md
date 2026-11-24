@@ -12,14 +12,17 @@ Never touch it for a test of your own: use another name
 ## The three scripts
 
 ```sh
-dev/demo-new.sh       # build from the working tree, fresh volume: tdm, engine bots, random map
+dev/demo-new.sh       # build from the working tree, fresh volume: parkour on its generated course, engine bots
+                      # (LSD_DEMO_GAME=tdm: tdm, random map from the web)
 dev/demo-refresh.sh   # rebuild from the working tree, keep the volume (settings, maps)
 dev/demo-clean.sh     # container, volume and image gone
 ```
 
-`LSD_DEMO_BOTS` (20) is the bots a team for `demo-new.sh`. The demo is
-unlisted, in random-map mode (`/va` or a round's end fetches a new map
-from the web), rewards earned (not infinite).
+`LSD_DEMO_BOTS` (20) is the bots for `demo-new.sh` (a team, in a game of
+two), `LSD_DEMO_GAME` (parkour) the gamemode. The demo is unlisted,
+rewards earned (not infinite). Parkour plays its one generated course;
+any other game is in random-map mode (`/va` or a round's end fetches a
+new map from the web).
 
 ## When the working tree is mid-change
 
@@ -43,7 +46,8 @@ Settings change with the container stopped or running (a `set` restarts
 the server unless `--no-restart`):
 
 ```sh
-docker exec lsd-demo lsdctl set engine_bots_count 20     # bots a team
+docker exec lsd-demo lsdctl bots 20                      # bots a team (in all, in parkour: one team)
+docker exec lsd-demo lsdctl map course                   # parkour: another course; then lsdctl map load parkour
 docker exec lsd-demo lsdctl set engine_bots_team1 0      # one team its own count; -1 = the count
 docker exec lsd-demo lsdctl set engine_bots_team2 1
 docker exec lsd-demo lsdctl gamemode ctf --yes
