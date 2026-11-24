@@ -43,8 +43,16 @@ docker run --rm -v "$VOL:/data" "$IMAGE" setup --defaults >/dev/null \
 docker run --rm -v "$VOL:/data" "$IMAGE" set masterlist_enabled False >/dev/null \
 	|| fail "set before start"
 # policies from when everything came "recommended", and Player Limit's
-# old 254 seats: migrated at start to today's defaults
-docker run --rm -v "$VOL:/data" "$IMAGE" set player_limit_max 254 >/dev/null || fail "set old seats"
+# old 254 seats, under the question the setup of the time wrote:
+# migrated at start to today's defaults (255 seats, Player Limit required)
+docker run --rm -i -v "$VOL:/data" --entrypoint sh "$IMAGE" -s <<'EOS' || fail "seed old seats"
+set -e
+awk '/^# ---- player_limit ----/{print; print "# How many players may the server seat (above 32, an old client may mishandle high player ids)?"; print "player_limit_max = 254"; skip = 1; next}
+	skip && /^(#|player_limit_max)/{next}
+	{skip = 0; print}' /data/settings > /data/settings.new
+mv /data/settings.new /data/settings
+EOS
+docker run --rm -v "$VOL:/data" "$IMAGE" get player_limit_max | grep -qx 254 || fail "seed: old seats not in the file"
 docker run --rm -v "$VOL:/data" "$IMAGE" set ext_policy "{48: 'recommended', 192: 'recommended', 0x20: 'required', 0x33: 'required'}" >/dev/null \
 	|| fail "set old policies"
 # a server from when daytime and flashlight were two scripts: night now,
@@ -78,10 +86,10 @@ docker exec "$NAME" lsdctl get map_layout_door_speed | grep -qx 9 \
 docker exec "$NAME" lsdctl get world_editor_door_speed >/dev/null \
 	&& fail "the old world_editor_door_speed is still there"
 echo "ok: old world_editor settings migrated"
-docker exec "$NAME" lsdctl get player_limit_max | grep -qx 32 || fail "254 seats not migrated to 32"
+docker exec "$NAME" lsdctl get player_limit_max | grep -qx 255 || fail "254 seats not migrated to 255"
 pol=$(docker exec "$NAME" lsdctl get ext_policy)
 echo "$pol" | grep -Eq '48: *"applied"' || fail "teamplay's old recommended not migrated: $pol"
-echo "$pol" | grep -Eq '192: *"applied"' || fail "player_limit's old recommended not migrated: $pol"
+echo "$pol" | grep -Eq '192: *"required"' || fail "player_limit's old recommended not migrated: $pol"
 echo "$pol" | grep -Eq '32: *"required"' || fail "a policy set by hand was changed: $pol"
 echo "ok: old policies and seats migrated, a chosen policy kept"
 scripts=$(docker exec "$NAME" lsdctl get scripts)

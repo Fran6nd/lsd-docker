@@ -89,7 +89,8 @@ print("\n3a. extension policies: what a client without one costs");
 local pl = cat:get("player_limit");
 eq(pl:default_policy({player_limit_max = 32}), "applied", "32 seats: nothing asked of anyone");
 eq(pl:default_policy({player_limit_max = 64}), "required", "above 32: clients without it only watch");
-eq(pl:default_policy({}), "applied", "player_limit's default seats are 32");
+eq(pl:default_policy({}), "required", "player_limit's default seats are 255: required");
+eq(pl:default_policy({player_limit_max = 255}), "required", "255 seats: clients without it only watch");
 local night = cat:get("night");
 eq(night:default_policy({daytime_night = true}, 0x33), "recommended", "night: told about the dark");
 eq(night:default_policy({}, 0x33), "applied", "by day: nothing to tell");
@@ -101,8 +102,13 @@ eq(pl:ext_list()[1].id, pl.ext_id, "and it is its ext_id");
 for _, id in ipairs({"teamplay", "damage_markers", "message_types", "pie_menu"}) do
 	eq(cat:get(id):default_policy({}), "applied", id .. " is applied");
 end
+-- Player Limit is the one exception, and on purpose (WORK.md: 255 players
+-- by default): a client that cannot hold 33 players watches, told to
+-- update. Nothing else keeps a client off a team on a default server.
 for _, e in ipairs(cat:of_class(C.Extension)) do
-	check(e:default_policy({}) ~= "required", e.id .. ": no client turned away on a default server");
+	if (e.id ~= "player_limit") then
+		check(e:default_policy({}) ~= "required", e.id .. ": no client turned away on a default server");
+	end
 end
 
 print("\n3a'. each gamemode's callouts make a pie a client accepts");

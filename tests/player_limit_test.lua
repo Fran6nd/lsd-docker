@@ -1,4 +1,4 @@
--- player_limit_test.lua -- what an old client is sent above 32 players
+-- player_limit_test.lua -- seats, and what an outdated client is sent
 -- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/player_limit_test.lua      (from the repository root)
@@ -76,7 +76,6 @@ local function ch(...) return string.char(...); end
 
 local mod = load();
 local F = mod.filter;
-local WU_MAX = 1 + 32 * 24;
 
 print("\n1. at 32 seats or fewer: straight through");
 reset();
@@ -91,55 +90,79 @@ eq(#SENT, 2, "unreliable too");
 eq(#SENT[2][2], 1 + 50 * 24, "untouched");
 eq(SENT[2][3], false, "and still unreliable");
 
-print("\n2. low: an old client with id < 32");
-eqb(F.low(ch(3, 5, 0, 0)), ch(3, 5, 0, 0), "input of #5 kept");
-eq(F.low(ch(3, 40, 0, 0)), nil, "input of #40 dropped");
-eqb(F.low(ch(17, 255, 0) .. "hi"), ch(17, 255, 0) .. "hi", "chat from 255 kept");
-eqb(F.low(ch(17, 0, 2) .. "hi"), ch(17, 0, 2) .. "hi", "system chat from 0 kept");
-eq(F.low(ch(17, 33, 0) .. "hi"), nil, "chat from #33 dropped");
-eq(F.low(ch(16, 3, 40, 0, 5)), nil, "kill with a killer >= 32 dropped");
-eq(F.low(ch(16, 40, 3, 0, 5)), nil, "kill of a victim >= 32 dropped");
-eqb(F.low(ch(16, 3, 4, 0, 5)), ch(16, 3, 4, 0, 5), "kill of two low ids kept");
-eqb(F.low(ch(16, 3, 255, 0, 5)), ch(16, 3, 255, 0, 5), "kill by the server kept");
-local wu = ch(2) .. string.rep("w", 40 * 24);
-eq(#F.low(wu), WU_MAX, "world update cut to 32 players");
-eq(#F.low(ch(2) .. string.rep("w", 10 * 24)), 1 + 240, "short world update kept");
-eq(F.low(ch(20, 40)), nil, "player left #40 dropped");
-eqb(F.low(ch(18, 1, 2, 3, 4)), ch(18, 1, 2, 3, 4), "map start names nobody: kept");
-eqb(F.low(ch(19, 9, 9, 9)), ch(19, 9, 9, 9), "map chunk kept");
-eqb(F.low(ch(0x60, 3, 20)), ch(0x60, 3, 20), "damage marker on #3 kept");
-eq(F.low(ch(0x60, 50, 20)), nil, "damage marker on #50 dropped");
-eq(F.low(ch(0x72, 0, 45, 1)), nil, "flashlight light of #45 dropped");
-eqb(F.low(ch(0x72, 2, 255, 1, 2, 3, 4, 5, 6)), ch(0x72, 2, 255, 1, 2, 3, 4, 5, 6), "flashlight config for 255 kept");
-eqb(F.low(ch(0x72, 1, 1, 2, 3, 4, 5, 6)), ch(0x72, 1, 1, 2, 3, 4), "flashlight bitmap cut to 32 players");
-eq(F.low(ch(0x70, 2, 60, 0, 0)), nil, "teamplay mark on #60 dropped");
-eqb(F.low(ch(0x70, 0, 1, 0, 0)), ch(0x70, 0, 1, 0, 0), "teamplay config names nobody: kept");
-eqb(F.low(ch(0x71, 7)), ch(0x71, 7), "pie menu kept");
-eqb(F.low(ch(0x73, 7)), ch(0x73, 7), "daytime kept");
-eq(F.low(ch(0x76, 0, 70, 1)), nil, "edit mode of #70 dropped");
-eqb(F.low(ch(0x43, 1, 3, 1, 40, 1, 5, 2)), ch(0x43, 1, 3, 1, 5, 2), "silent list keeps only low ids");
-eq(F.low(ch(0x43, 1, 40, 1)), nil, "silent list with nothing left dropped");
-eq(F.low(ch(0x40, 0, 40, 1, 1, 1, 1, 1, 0, 0, 0, 0)), nil, "player properties of #40 dropped");
-eq(F.low(ch(0x7f, 1, 2)), nil, "unknown extension packet dropped");
-eq(F.low(ch(0x40, 9, 1, 2)), nil, "unknown sub-packet dropped");
+print("\n2. outdated, own id below 32 (here 7): itself and nobody else");
+eqb(F.outdated(ch(3, 7, 0, 0), 7), ch(3, 7, 0, 0), "its own input kept, as itself");
+eq(F.outdated(ch(3, 5, 0, 0), 7), nil, "input of #5 dropped: another player, low or not");
+eq(F.outdated(ch(3, 40, 0, 0), 7), nil, "input of #40 dropped");
+eq(F.outdated(ch(9, 3, 0, 0, 2) .. "x", 7), nil, "existing player #3 dropped");
+eq(F.outdated(ch(12, 50, 0, 0) .. "x", 7), nil, "create player #50 dropped");
+eqb(F.outdated(ch(12, 7, 0, 255) .. "x", 7), ch(12, 7, 0, 255) .. "x", "its own create player (spectator) kept");
+eqb(F.outdated(ch(17, 255, 3) .. "hi", 7), ch(17, 255, 3) .. "hi", "message from 255 kept");
+eqb(F.outdated(ch(17, 0, 2) .. "hi", 7), ch(17, 0, 2) .. "hi", "system chat from 0 kept");
+eqb(F.outdated(ch(17, 40, 2) .. "hi", 7), ch(17, 0, 2) .. "hi", "system chat from #40 kept, said by 0");
+eq(F.outdated(ch(17, 5, 0) .. "hi", 7), nil, "player chat from #5 dropped");
+eq(F.outdated(ch(17, 33, 0) .. "hi", 7), nil, "player chat from #33 dropped");
+eq(F.outdated(ch(16, 3, 4, 0, 5), 7), nil, "kill feed between others dropped");
+eq(F.outdated(ch(16, 3, 7, 0, 5), 7), nil, "a kill it made of somebody else dropped");
+eqb(F.outdated(ch(16, 7, 255, 0, 5), 7), ch(16, 7, 255, 0, 5), "its own death by the server kept");
+eq(F.outdated(ch(2) .. string.rep("w", 10 * 24), 7), nil, "world update dropped, even a short one");
+eq(F.outdated(ch(20, 40), 7), nil, "player left #40 dropped");
+eq(F.outdated(ch(13, 3, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0), 7), nil, "block action by #3 dropped");
+eqb(F.outdated(ch(18, 1, 2, 3, 4), 7), ch(18, 1, 2, 3, 4), "map start names nobody: kept");
+eqb(F.outdated(ch(19, 9, 9, 9), 7), ch(19, 9, 9, 9), "map chunk kept");
+eqb(F.outdated(ch(27, 0, 1, 2, 3), 7), ch(27, 0, 1, 2, 3), "fog kept");
+eqb(F.outdated(ch(0x60, 7, 20), 7), ch(0x60, 7, 20), "damage marker on itself kept");
+eq(F.outdated(ch(0x60, 3, 20), 7), nil, "damage marker on #3 dropped");
+eq(F.outdated(ch(0x72, 0, 45, 1), 7), nil, "flashlight light of #45 dropped");
+eqb(F.outdated(ch(0x72, 2, 255, 1, 2, 3, 4, 5, 6), 7), ch(0x72, 2, 255, 1, 2, 3, 4, 5, 6), "flashlight config for 255 kept");
+eqb(F.outdated(ch(0x72, 1, 255, 255, 255, 255, 255, 255), 7), ch(0x72, 1, 128), "flashlight bitmap: only its own bit, in place");
+eqb(F.outdated(ch(0x72, 1, 0, 0, 0, 0, 0, 0), 7), ch(0x72, 1, 0), "flashlight bitmap: not lit stays 0");
+eq(F.outdated(ch(0x70, 2, 60, 0, 0), 7), nil, "teamplay mark on #60 dropped");
+eqb(F.outdated(ch(0x70, 0, 1, 0, 0), 7), ch(0x70, 0, 1, 0, 0), "teamplay config names nobody: kept");
+eqb(F.outdated(ch(0x71, 7), 7), ch(0x71, 7), "pie menu kept");
+eqb(F.outdated(ch(0x73, 7), 7), ch(0x73, 7), "daytime kept");
+eq(F.outdated(ch(0x76, 0, 70, 1), 7), nil, "edit mode of #70 dropped");
+eqb(F.outdated(ch(0x43, 1, 3, 1, 7, 1, 5, 2), 7), ch(0x43, 1, 7, 1), "silent list keeps only itself");
+eq(F.outdated(ch(0x43, 1, 40, 1), 7), nil, "silent list with nothing left dropped");
+eq(F.outdated(ch(0x40, 0, 40, 1, 1, 1, 1, 1, 0, 0, 0, 0), 7), nil, "player properties of #40 dropped");
+eq(F.outdated(ch(0x7f, 1, 2), 7), nil, "unknown extension packet dropped");
+eq(F.outdated(ch(0x40, 9, 1, 2), 7), nil, "unknown sub-packet dropped");
 
-print("\n3. alias: an old client with id >= 32 (here 40)");
-eqb(F.alias(ch(3, 40, 1), 40), ch(3, 1, 1), "its own input is rewritten to 1");
-eq(F.alias(ch(3, 5, 1), 40), nil, "another player's input dropped");
-eq(F.alias(ch(2) .. string.rep("w", 24), 40), nil, "world update dropped");
-eqb(F.alias(ch(17, 0, 2) .. "hi", 40), ch(17, 0, 2) .. "hi", "system chat from 0 kept");
-eqb(F.alias(ch(17, 40, 2) .. "hi", 40), ch(17, 1, 2) .. "hi", "system chat naming itself rewritten");
-eq(F.alias(ch(17, 5, 0) .. "hi", 40), nil, "player chat from another dropped");
-eqb(F.alias(ch(17, 255, 3) .. "hi", 40), ch(17, 255, 3) .. "hi", "message from 255 kept");
-eqb(F.alias(ch(16, 40, 255, 0, 5), 40), ch(16, 1, 255, 0, 5), "its own death by the server rewritten");
-eq(F.alias(ch(16, 40, 3, 0, 5), 40), nil, "killed by somebody else: dropped");
-eqb(F.alias(ch(18, 1, 2, 3, 4), 40), ch(18, 1, 2, 3, 4), "map start kept");
-eqb(F.alias(ch(0x60, 40, 9), 40), ch(0x60, 1, 9), "damage marker on itself rewritten");
-eq(F.alias(ch(0x60, 3, 9), 40), nil, "damage marker on another dropped");
-eqb(F.alias(ch(0x43, 1, 3, 1, 40, 2), 40), ch(0x43, 1, 1, 2), "silent list keeps only itself, as 1");
-eqb(F.alias(ch(0x72, 1, 0, 0, 0, 0, 0, 1), 40), ch(0x72, 1, 2), "flashlight bitmap: its bit moves to 1");
-eqb(F.alias(ch(0x72, 1, 255, 255, 255, 255, 255, 0), 40), ch(0x72, 1, 0), "flashlight bitmap: not lit stays 0");
-eq(F.alias(ch(0x7f, 1, 2), 40), nil, "unknown extension packet dropped");
+-- every packet a 0.75 server sends that names a player, from every id:
+-- none ever reaches an outdated client naming an id of 32 or more
+local worst = 0;
+for _, real in ipairs({0, 7, 31, 32, 40, 254}) do
+	for pkt = 0, 127 do
+		for _, who in ipairs({0, 5, 31, 32, 99, 200, 254}) do
+			local out = F.outdated(ch(pkt, who, who, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), real);
+			local ids = out and F.ids_in(out);
+			for _, e in ipairs(ids or {}) do
+				if (e.id ~= 255 and e.id > worst) then worst = e.id; end
+			end
+			if (out and pkt == 2) then worst = 999; end
+		end
+	end
+end
+check(worst < 32, "no packet of any kind, to any outdated client, names an id of 32 or more", worst);
+
+print("\n3. outdated, own id 32 or more (here 40): itself as 1");
+eqb(F.outdated(ch(3, 40, 1), 40), ch(3, 1, 1), "its own input is rewritten to 1");
+eq(F.outdated(ch(3, 5, 1), 40), nil, "another player's input dropped");
+eq(F.outdated(ch(3, 1, 1), 40), nil, "the real #1's input dropped: there is one 1, itself");
+eq(F.outdated(ch(2) .. string.rep("w", 24), 40), nil, "world update dropped");
+eqb(F.outdated(ch(17, 0, 2) .. "hi", 40), ch(17, 0, 2) .. "hi", "system chat from 0 kept");
+eqb(F.outdated(ch(17, 40, 2) .. "hi", 40), ch(17, 1, 2) .. "hi", "system chat naming itself rewritten");
+eq(F.outdated(ch(17, 5, 0) .. "hi", 40), nil, "player chat from another dropped");
+eqb(F.outdated(ch(17, 255, 3) .. "hi", 40), ch(17, 255, 3) .. "hi", "message from 255 kept");
+eqb(F.outdated(ch(16, 40, 255, 0, 5), 40), ch(16, 1, 255, 0, 5), "its own death by the server rewritten");
+eq(F.outdated(ch(16, 40, 3, 0, 5), 40), nil, "killed by somebody else: dropped");
+eqb(F.outdated(ch(18, 1, 2, 3, 4), 40), ch(18, 1, 2, 3, 4), "map start kept");
+eqb(F.outdated(ch(0x60, 40, 9), 40), ch(0x60, 1, 9), "damage marker on itself rewritten");
+eq(F.outdated(ch(0x60, 3, 9), 40), nil, "damage marker on another dropped");
+eqb(F.outdated(ch(0x43, 1, 3, 1, 40, 2), 40), ch(0x43, 1, 1, 2), "silent list keeps only itself, as 1");
+eqb(F.outdated(ch(0x72, 1, 0, 0, 0, 0, 0, 1), 40), ch(0x72, 1, 2), "flashlight bitmap: its bit moves to 1");
+eqb(F.outdated(ch(0x72, 1, 255, 255, 255, 255, 255, 0), 40), ch(0x72, 1, 0), "flashlight bitmap: not lit stays 0");
+eq(F.outdated(ch(0x7f, 1, 2), 40), nil, "unknown extension packet dropped");
 
 print("\n4. StateData and the intel holders");
 local function state(mode, flags, a, b)
@@ -153,28 +176,27 @@ local held = ch(50) .. string.rep("\0", 11);
 local ground = string.rep("g", 12);
 local s = state(0, 3, held, ch(60) .. string.rep("\0", 11));
 eq(#s, 84, "built a 84 byte StateData");
-local o = F.alias(s, 40);
-eqb(o:sub(2, 2), ch(1), "alias: own id rewritten to 1");
-eq(o:byte(36), 0, "alias: both holders hidden: flags cleared");
-eqb(o:sub(37, 48), string.rep("T", 12), "alias: intel 0 back at its own tent");
-eqb(o:sub(49, 60), string.rep("U", 12), "alias: intel 1 back at its own tent");
-eq(#o, 84, "alias: length kept");
+local o = F.outdated(s, 40);
+eqb(o:sub(2, 2), ch(1), "own id rewritten to 1");
+eq(o:byte(36), 0, "both holders hidden: flags cleared");
+eqb(o:sub(37, 48), string.rep("T", 12), "intel 0 back at its own tent");
+eqb(o:sub(49, 60), string.rep("U", 12), "intel 1 back at its own tent");
+eq(#o, 84, "length kept");
 
 local mine = state(0, 2, ch(40) .. string.rep("\0", 11), ground);
-o = F.alias(mine, 40);
-eq(o:byte(36), 2, "alias: the holder is itself: flag kept");
-eq(o:byte(37), 1, "alias: and named as 1");
+o = F.outdated(mine, 40);
+eq(o:byte(36), 2, "the holder is itself: flag kept");
+eq(o:byte(37), 1, "and named as 1");
 
 local lowstate = state(0, 3, ch(5) .. string.rep("\0", 11), ch(50) .. string.rep("\0", 11));
 lowstate = lowstate:sub(1, 1) .. ch(7) .. lowstate:sub(3);
-o = F.low(lowstate);
-eq(o:byte(2), 7, "low: own id untouched");
-eq(o:byte(36), 2, "low: a low holder stays, a high holder is hidden (bit 0 cleared)");
-eq(o:byte(37), 5, "low: low holder id kept");
-eqb(o:sub(49, 60), string.rep("U", 12), "low: hidden intel at its tent");
+o = F.outdated(lowstate, 7);
+eq(o:byte(2), 7, "own id below 32 untouched");
+eq(o:byte(36), 0, "a low holder is somebody else too: hidden");
+eqb(o:sub(37, 48), string.rep("T", 12), "its intel at its tent");
 
 local tc = state(1, 3, ch(50) .. string.rep("\0", 11), ground);
-o = F.low(tc:sub(1, 1) .. ch(7) .. tc:sub(3));
+o = F.outdated(tc:sub(1, 1) .. ch(7) .. tc:sub(3), 7);
 eq(o:byte(36), 3, "a non-CTF state is left alone");
 
 print("\n5. the hooks, and the wait queue");
@@ -191,29 +213,33 @@ mod.late.next.send_packet_unreliable = function(pid, data) SENT[#SENT+1] = {pid,
 local function to(pid) local t = {}; for _, e in ipairs(SENT) do if (e[1] == pid) then t[#t+1] = e; end end return t; end
 
 mod.late.send_packet(PID_BROADCAST, ch(3, 5, 7));
-eq(#to(7), 1, "low client gets input of #5");
-eq(#to(40), 0, "alias client does not get another player's input");
+eq(#to(7), 0, "outdated #7 does not get input of #5");
+eq(#to(40), 0, "outdated #40 does not get another player's input");
+eq(#to(41), 1, "a 192 client does");
 SENT = {};
 
 mod.late.send_packet(PID_BROADCAST, ch(3, 50, 7));
-eq(#to(7), 0, "low client does not get #50");
-eq(#to(40), 0, "alias client does not get #50");
+eq(#to(7), 0, "outdated #7 does not get #50");
+eq(#to(40), 0, "outdated #40 does not get #50");
 eq(#to(41), 1, "a 192 client does");
 eq(#to(9), 1, "a bot does");
 eqb(to(41)[1][2], ch(3, 50, 7), "unchanged to the 192 client");
 SENT = {};
 
 mod.late.send_packet(PID_BROADCAST, ch(3, 40, 7));
-eqb(to(40)[1][2], ch(3, 1, 7), "alias client gets itself as 1");
+eqb(to(40)[1][2], ch(3, 1, 7), "outdated #40 gets itself as 1");
 eqb(to(41)[1][2], ch(3, 40, 7), "192 client gets 40");
 SENT = {};
 
 mod.late.send_packet_unreliable(PID_BROADCAST, ch(2) .. string.rep("w", 45 * 24));
-eq(#to(7), 1, "world update to the low client");
-eq(#to(7) == 1 and #to(7)[1][2] or 0, WU_MAX, "cut to 32 players");
-eq(to(7)[1][3], false, "still unreliable");
-eq(#to(40), 0, "none to the alias client");
+eq(#to(7), 0, "no world update to outdated #7");
+eq(#to(40), 0, "none to outdated #40");
 eq(#to(41) == 1 and #to(41)[1][2] or 0, 1 + 45 * 24, "whole to the 192 client");
+SENT = {};
+
+mod.late.send_packet(PID_BROADCAST, ch(17, 0, 2) .. "Your client is outdated");
+eq(#to(7), 1, "the system line reaches outdated #7");
+eq(#to(40), 1, "and outdated #40");
 
 print("\n  the wait queue");
 reset();
@@ -266,7 +292,7 @@ mod.late.send_packet(44, ch(3, 5, 1));
 mod.late.send_packet(44, ch(3, 44, 1));
 NOW = 11;
 mod.after.tick();
-eq(#SENT, 2, "grace over, no 192: the queue goes through the alias filter");
+eq(#SENT, 2, "grace over, no 192: the queue goes through the outdated filter");
 eqb(SENT[1][2], ch(12, 1, 0), "its own id as 1");
 eqb(SENT[2][2], ch(3, 1, 1), "others dropped, itself kept");
 SENT = {};
@@ -280,7 +306,7 @@ mod.late.next.send_packet = function(pid, data) SENT[#SENT+1] = {pid, data, true
 mod.late.next.send_packet_unreliable = function(pid, data) SENT[#SENT+1] = {pid, data, false}; return 1; end
 mod.after.on_successful_connect(7);
 mod.late.send_packet(7, ch(3, 2, 1));
-REPLIED[7] = true;
+REPLIED[7], SPEAKS[7] = true, true;
 mod.late.send_packet(7, ch(3, 3, 1));
 eq(#SENT, 2, "a send after the answer flushes the queue first");
 eqb(SENT[1][2], ch(3, 2, 1), "queued one first");
@@ -296,7 +322,7 @@ mod.late.next.send_packet_unreliable = function(pid, data) SENT[#SENT+1] = {pid,
 player_limit_queue_max = 3;
 mod.after.on_successful_connect(7);
 for i = 1, 10 do mod.late.send_packet(7, ch(3, 2, i)); end
-REPLIED[7] = true;
+REPLIED[7], SPEAKS[7] = true, true;
 NOW = 1;
 mod.after.tick();
 eq(#SENT, 3, "no more than the cap is held");
@@ -314,6 +340,62 @@ eq(#SENT, 1, "a bot is sent packets naming high ids");
 eqb(SENT[1][2], ch(3, 50, 1), "unchanged");
 mod.late.send_packet_unreliable(45, ch(2) .. string.rep("w", 45 * 24));
 eq(#SENT[2][2], 1 + 45 * 24, "and the whole world update");
+
+print("\n7. seats: 255 by default, the floor, withholding");
+reset();
+player_limit_max = nil;
+local REG = {};
+local DISABLED = false;
+function ext_register(name, id, version, ready, title, floor) REG = {id = id, title = title, floor = floor}; end
+function ext_is_disabled(id) return DISABLED and id == 192; end
+package.loaded.lib_player_limit = nil;
+mod = dofile("catalog/extensions/player_limit/lib_player_limit.lua");
+mod.late.next.send_packet = function(pid, data) SENT[#SENT+1] = {pid, data, true}; return 1; end
+mod.late.next.send_packet_unreliable = function(pid, data) SENT[#SENT+1] = {pid, data, false}; return 1; end
+mod.on_load();
+eq(player_limit_max, 255, "player_limit_max defaults to 255");
+eq(mod.get_effective_max_players(), 255, "every id: 0 to 254");
+eq(REG.id, 192, "registered as extension 192");
+eq(REG.floor and REG.floor(), "required", "required above 32 seats, whatever the policy");
+player_limit_max = 300;
+eq(mod.get_effective_max_players(), 255, "clamped to 255");
+player_limit_max = 0;
+eq(mod.get_effective_max_players(), 1, "and to 1");
+player_limit_max = 32;
+eq(mod.get_effective_max_players(), 32, "lowered by the operator: 32");
+eq(REG.floor(), nil, "at 32 nothing is asked of anyone");
+player_limit_max = 255;
+DISABLED = true;
+eq(mod.get_effective_max_players(), 32, "withheld (disabled): 32 seats");
+eq(REG.floor(), nil, "and no floor: disabled stays disabled");
+CONNECTED[40] = true;
+SENT = {};
+mod.late.send_packet(PID_BROADCAST, ch(3, 40, 7));
+eqb(SENT[1] and SENT[1][2], ch(3, 40, 7), "withheld: nothing filtered");
+DISABLED = false;
+ext_is_disabled = nil;
+
+print("\n8. one clock: lib_ext_policy's, when it is there");
+reset();
+player_limit_max = 255;
+CONNECTED[44] = true;
+local DECIDED = false;
+function ext_policy_decided(pid) return DECIDED; end
+mod = load();
+mod.late.next.send_packet = function(pid, data) SENT[#SENT+1] = {pid, data, true}; return 1; end
+mod.late.next.send_packet_unreliable = function(pid, data) SENT[#SENT+1] = {pid, data, false}; return 1; end
+mod.after.on_successful_connect(44);
+mod.late.send_packet(44, ch(15, 44) .. string.rep("s", 82));
+mod.late.send_packet(44, ch(9, 3, 0) .. "x");
+NOW = 60;
+mod.after.tick();
+eq(#SENT, 0, "long past its own fallback, still held: ext_policy has not decided");
+DECIDED = true;
+NOW = 61;
+mod.after.tick();
+eq(#SENT, 1, "decided without 192: what names only itself is sent");
+eq(SENT[1] and SENT[1][2]:byte(2), 1, "its StateData, as player 1");
+ext_policy_decided = nil;
 
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures > 0 and 1 or 0);

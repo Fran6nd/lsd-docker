@@ -31,11 +31,28 @@
 --                    plainer than someone else's, and to find out what
 --                    clients really implement.
 --   EXT_REQUIRED     a client without it cannot leave spectator. It is
---                    told what is missing and that its client needs
---                    updating -- whenever it tries to join, and on the
---                    same interval while it sits there, since a player
---                    who gave up on the menu still needs to know why.
---                    This is the only level that raises the alert.
+--                    told its client is outdated, what it lacks and
+--                    what to install -- whenever it tries to join, and
+--                    every ext_policy_lockout_interval while it sits
+--                    there, since a player who gave up on the menu still
+--                    needs to know why. This is the only level that
+--                    raises the alert.
+--
+-- THE OUTDATED CLIENT. Being held out by a required extension is the
+-- one path for a client too old for this server, whatever extension it
+-- lacks: spectator, the notice in chat (and the alert, for a client that
+-- can show one), repeated until it leaves. Player Limit adds to it what
+-- only it needs -- above 32 seats such a client is sent nothing that
+-- names another player (lib_player_limit) -- and does so on this
+-- module's clock, ext_policy_decided, so both halves agree on the
+-- moment a client becomes outdated.
+--
+-- An extension may also say it is required right now whatever the
+-- policy says: the `floor` it gave ext_register. Player Limit's is
+-- "required" while the server seats more than 32, so no settings file
+-- can let a client that cannot hold 33 players onto a team. A floor
+-- never overrides "disabled": an extension that is not offered is not
+-- in the conversation at all (and Player Limit, withheld, seats 32).
 --
 -- One message per round either way, and the worse news wins: a client
 -- that cannot play at all is not also told about cosmetics.
@@ -91,13 +108,13 @@
 -- failing a requirement, but told nothing, because there is nothing to
 -- tell it yet and it has very likely just not got there.
 --
--- Running out of time is two clocks, not one, because the thing being
--- waited for changes. A client still in limbo may be halfway through a
--- map download and gets ext_policy_grace from connecting. A client that
--- has picked a team cannot be: it got through the map and the version
--- request behind it, so its silence means something after only
--- ext_policy_grace_joined. That second clock is the one a player
--- standing in the game actually waits.
+-- Running out of time is two clocks, not one. Both start only once the
+-- map is through: the version request rides the end of it (send_state
+-- calls demand_fingerprint), and nothing can be answered before it is
+-- asked, so a slow download is never mistaken for silence. From there a
+-- client gets ext_policy_grace; one that has also picked a team gets
+-- only ext_policy_grace_joined, since it has demonstrably processed
+-- everything the question came with.
 --
 -- Which makes the join a race, and the race is handled rather than
 -- avoided: a client that picks a team before its answer arrives is put
@@ -112,6 +129,9 @@
 --           whether it has answered yet. Empty list and answered=false
 --           means undecided
 --   ext_policy_ok(pid)       -> may this client leave spectator
+--   ext_policy_decided(pid)  -> has it answered the handshake, or run out
+--                               of time to: from here a missing
+--                               extension is a verdict, not a wait
 --   ext_policy_apply()       make lib_ext's offered list match the
 --                            policy, after editing ext_policy live
 --
@@ -181,15 +201,16 @@ getcfg("ext_policy", {},
 	"Per-extension levels, by protocol id. Every registered "
 		.."extension should be listed.");
 -- Seconds a client gets to answer the extension announcement before it
--- is judged on the silence. It has to outlast a slow map download on a
--- bad line, since the version request rides the end of the map transfer
--- -- send_map (funcs_send.c:198-208) ends in send_state (:271-275),
--- which is what calls demand_fingerprint (main.c:1204-1223) -- and the
--- answer cannot come before the client has got through it. 30 is
--- generous; the honest answers arrive in one round trip.
-getcfg("ext_policy_grace", 30,
-	"Seconds a client gets to answer the extension handshake while "
-		.."still in limbo.");
+-- is judged on the silence, counted from the version request, which
+-- rides the end of the map transfer -- send_map (funcs_send.c:198-208)
+-- ends in send_state (:271-275), which is what calls demand_fingerprint
+-- (main.c:1204-1223). The download itself is not counted, however slow.
+-- The honest answers arrive in two round trips; 10 is generous, and it
+-- is what a client too old to answer waits on its loading screen above
+-- 32 seats (its StateData names it, and is held until then).
+getcfg("ext_policy_grace", 10,
+	"Seconds a client gets to answer the extension handshake, from the "
+		.."end of the map.");
 -- Seconds of silence that count as an answer once the client has
 -- joined a team, which proves it got through the map and the version
 -- request behind it. Much shorter than the figure above because the
@@ -213,6 +234,13 @@ getcfg("ext_policy_remind", 10,
 getcfg("ext_policy_warn_interval", 60,
 	"Seconds between unprompted re-tellings of what a client is "
 		.."missing.");
+-- And for a player held in spectator, who has nothing else to read: an
+-- outdated client above 32 seats is sent no other player's chat at all,
+-- so the notice is its whole chat. Often enough that it is always on
+-- screen in a client whose chat lines fade.
+getcfg("ext_policy_lockout_interval", 15,
+	"Seconds between re-tellings to a player held in spectator by a "
+		.."required extension.");
 -- THE ALERT IS FOR BEING LOCKED OUT, AND FOR NOTHING ELSE. It goes to
 -- a player held in spectator by a required extension, once, saying one
 -- fixed sentence. A recommended extension never raises it: that player
@@ -262,7 +290,8 @@ local pending_team = pid_connected_table();
 -- as "long ago" happens to work on a host that has been up a while and
 -- silently gags every warning for the first minute after a reboot.
 local told_at = pid_connected_table();
--- pid -> when they connected, which is when the slow clock starts
+-- pid -> when the version request went out, at the end of the map,
+-- which is when the clock starts
 local since = pid_connected_table();
 -- pid -> has the one fixed alert gone out to them yet
 local alerted = pid_connected_table(false);
@@ -354,12 +383,29 @@ end
 -- cost a feature, never somebody's ability to play.
 local DEFAULT_LEVEL = EXT_APPLIED;
 
-local function level_of(id)
+-- The least an extension says it needs right now (its `floor`, see the
+-- header), or nil. Other people's code: one that throws is ignored.
+local function floor_of(id, reg)
+	reg = reg or (ext_registry ~= nil and ext_registry[id]) or nil;
+	if (reg == nil or reg.floor == nil) then
+		return nil;
+	end
+	local ok, v = pcall(reg.floor);
+	return ok and resolve_level(v) or nil;
+end
+
+local function level_of(id, reg)
 	-- An unrecognisable value falls back to applied rather than to
 	-- something stricter, for the same reason. It is logged rather than
 	-- swallowed, though.
-	return resolve_or_moan(ext_policy[id], string.format("ext_policy[0x%02x]", id))
+	local level = resolve_or_moan(ext_policy[id], string.format("ext_policy[0x%02x]", id))
 		or DEFAULT_LEVEL;
+
+	if (level == EXT_DISABLED) then
+		return level;
+	end
+	local floor = floor_of(id, reg);
+	return (floor ~= nil and floor > level) and floor or level;
 end
 
 -- Every registered extension carrying `level`, as {id, title} pairs.
@@ -378,7 +424,7 @@ local function wanted(level)
 	end
 
 	ext_each(function(id, reg)
-		if (level_of(id) == level) then
+		if (level_of(id, reg) == level) then
 			out[#out+1] = {id = id, title = reg.title};
 		end
 	end);
@@ -427,10 +473,15 @@ local function decided(pid)
 		return true;
 	end
 
-	-- Still in limbo, possibly still pulling the map down. This is the
-	-- clock that has to be generous, and the only one that was.
+	-- Asked, at the end of the map, and not yet joined. Before the
+	-- question there is no clock at all: a client still pulling the map
+	-- down is not silent, it has not been asked.
 	local t = since[pid];
 	return t ~= nil and now - t >= ext_policy_grace;
+end
+
+function ext_policy_decided(pid)
+	return decided(pid);
 end
 
 -- May this client leave spectator? Clientless ids always may; everyone
@@ -527,19 +578,15 @@ local function tell_required(pid, missing, answered)
 		-- client looks like from here: it is not that it declined the
 		-- extension, it is that it never heard the question. Naming the
 		-- extensions would be beside the point.
-		say_chat(pid, {en = "Your client never answered the extension handshake,"
-			.. " so it cannot leave spectator. Update it, or use"
-			.. " ZeroSpades."});
+		say_chat(pid, {en = "Your client is outdated: you can only watch."
+			.. " Install ZeroSpades (or update your client), then reconnect."});
 		return;
 	end
 
-	-- one sentence per count, not "it"/"them" spliced in: other
-	-- languages agree more than a pronoun with it
-	say_chat(pid, #missing == 1
-		and {en = "Missing: %(list). You cannot leave spectator without it --"
-			.. " update your client, then reconnect."}
-		or {en = "Missing: %(list). You cannot leave spectator without them --"
-			.. " update your client, then reconnect."},
+	-- no "it"/"them" for the list: other languages agree more than a
+	-- pronoun with it, and one sentence serves any count
+	say_chat(pid, {en = "Your client is outdated (it lacks %(list)): you can only"
+			.. " watch. Install ZeroSpades (or update your client), then reconnect."},
 		{list = list(missing)});
 end
 
@@ -653,8 +700,8 @@ function ext_policy_apply()
 
 	local changed = 0;
 
-	ext_each(function(id)
-		local want_off = level_of(id) == EXT_DISABLED;
+	ext_each(function(id, reg)
+		local want_off = level_of(id, reg) == EXT_DISABLED;
 
 		if (want_off and ext_disable(id)) then
 			changed = changed + 1;
@@ -679,7 +726,7 @@ local function audit()
 	ext_each(function(id, reg)
 		known[id] = reg;
 		lines[#lines+1] = string.format("%s=%s", reg.title,
-			LEVEL_NAME[level_of(id)]);
+			LEVEL_NAME[level_of(id, reg)]);
 	end);
 
 	table.sort(lines);
@@ -719,10 +766,15 @@ end
 
 --============================== CLOCK ===============================--
 
--- The moment a client's clock starts. on_successful_connect is before
--- the map goes out, so the grace period covers the whole download.
-function mod.after.on_successful_connect(pid)
-	since[pid] = get_time();
+-- The moment a client's clock starts: the version request, at the end
+-- of its first map (send_state; later maps do not ask again).
+function mod.after.demand_fingerprint(pid)
+	local now = get_time();
+	for i in piditer(pid) do
+		if (since[i] == nil) then
+			since[i] = now;
+		end
+	end
 end
 
 -- Everything that has to happen after an answer arrives, and the answer
@@ -750,7 +802,8 @@ function mod.after.tick()
 		local want = pending_team[pid];
 		local last = told_at[pid];
 		local due = last == nil
-			or now - last >= ext_policy_warn_interval;
+			or now - last >= math.min(ext_policy_warn_interval,
+				ext_policy_lockout_interval);
 
 		-- Two table lookups and a subtraction before anything costly.
 		-- In the steady state nothing below runs for anybody: no held
@@ -789,7 +842,7 @@ function mod.after.tick()
 				local req, answered = ext_policy_missing(pid, EXT_REQUIRED);
 
 				if (#req > 0) then
-					if (may_tell(pid, ext_policy_warn_interval)) then
+					if (may_tell(pid, ext_policy_lockout_interval)) then
 						tell_required(pid, req, answered);
 					end
 				else
@@ -853,7 +906,7 @@ end
 -- forgotten here outlives its own module, and goes on answering for it.
 local EXPORTS = {
 	"ext_policy_of", "ext_policy_missing", "ext_policy_ok",
-	"ext_policy_apply",
+	"ext_policy_apply", "ext_policy_decided",
 	"EXT_DISABLED", "EXT_APPLIED", "EXT_RECOMMENDED", "EXT_REQUIRED",
 };
 

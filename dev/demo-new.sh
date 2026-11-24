@@ -6,7 +6,8 @@
 # bots (LSD_DEMO_BOTS of them, 20) on its generated course, or another
 # game (LSD_DEMO_GAME=tdm: that many bots a team, a random map from the
 # web, random mode so /va fetches another) -- rewards earned as on any
-# server, seats for the bots and for people, never listed publicly --
+# server, the default 255 seats (bots give theirs to people), never
+# listed publicly --
 # and starts it, restarted if it falls over. Then says where to join.
 #
 #   dev/demo-new.sh          dev/demo-refresh.sh after a change
@@ -41,9 +42,6 @@ docker run --rm -v "$NAME:/data" -e BOTS="$BOTS" -e GAME="$GAME" --entrypoint sh
 	lsdctl set masterlist_enabled false >/dev/null
 	# on the one team, where the game has one
 	lsdctl bots "$BOTS" --no-restart >/dev/null
-	# seats for both teams of bots and for people: above 32, a client
-	# needs the Player Limit extension (ZeroSpades has it)
-	lsdctl set player_limit_max $((BOTS * 2 + 24)) >/dev/null
 	if out=$(lsdctl map web-random "$GAME"); then
 		echo "$out"
 		map=$(echo "$out" | sed -n "s/^added \([^ ]*\)\.vxl.*/\1/p" | head -1)

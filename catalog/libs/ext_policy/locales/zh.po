@@ -12,16 +12,12 @@ msgid "Your client is outdated, please update"
 msgstr "你的客户端已过时，请更新"
 
 #: catalog/libs/ext_policy/lib_ext_policy.lua
-msgid "Your client never answered the extension handshake, so it cannot leave spectator. Update it, or use ZeroSpades."
-msgstr "你的客户端未响应扩展握手，因此无法离开观战。请更新客户端，或使用 ZeroSpades。"
+msgid "Your client is outdated: you can only watch. Install ZeroSpades (or update your client), then reconnect."
+msgstr "你的客户端已过时：你只能观战。请安装 ZeroSpades（或更新客户端）后重新连接。"
 
 #: catalog/libs/ext_policy/lib_ext_policy.lua
-msgid "Missing: %(list). You cannot leave spectator without it -- update your client, then reconnect."
-msgstr "缺少：%(list)。没有它你无法离开观战——请更新客户端后重新连接。"
-
-#: catalog/libs/ext_policy/lib_ext_policy.lua
-msgid "Missing: %(list). You cannot leave spectator without them -- update your client, then reconnect."
-msgstr "缺少：%(list)。没有它们你无法离开观战——请更新客户端后重新连接。"
+msgid "Your client is outdated (it lacks %(list)): you can only watch. Install ZeroSpades (or update your client), then reconnect."
+msgstr "你的客户端已过时（缺少%(list)）：你只能观战。请安装 ZeroSpades（或更新客户端）后重新连接。"
 
 #: catalog/libs/ext_policy/lib_ext_policy.lua
 msgid "Missing: %(list). You can play, but you will not see everything other players do."

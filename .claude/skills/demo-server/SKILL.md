@@ -55,8 +55,12 @@ docker exec lsd-demo lsdctl install <script> --yes
 docker exec lsd-demo lsdctl exec 'exec advance_map()'    # next map now (random: from the web)
 ```
 
-More than 32 seats needs `player_limit_max` (bots x 2 + room for people);
-`demo-new.sh` sets it.
+Seats are 255 by default (ids 0 to 254), bots included, and a person who
+finds them all taken gets a bot's: nothing to set for more bots. A client
+without Player Limit (anything but ZeroSpades, roughly) watches from
+spectator, told to update. A demo made before this may still carry
+`player_limit_max = 44` or so from the old `demo-new.sh`:
+`lsdctl set player_limit_max 255` puts it back to the default.
 
 ## Always check after touching it
 

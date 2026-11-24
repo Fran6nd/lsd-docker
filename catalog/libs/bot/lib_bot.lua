@@ -78,8 +78,10 @@
 -- LIMITATIONS:
 -- * Bots occupy real player slots, so a full server starves
 --   bot_create (it returns nil; retry later) -- and the capacity
---   advertised to the masterlist shrinks by the number of live bots,
---   because those slots aren't free for humans either.
+--   advertised to the masterlist shrinks by the number of live bots.
+--   They never keep a person out, though: a person who connects when
+--   every seat is taken gets a bot's (GIVE WAY, below), and the bot's
+--   owner puts it back when a seat comes free.
 -- * A bot has no peer, so the engine's disconnect can't touch it.
 --   This lib hooks disconnect()/disconnect_now() and destroys the bot
 --   instead, so a kick from anywhere does what the caller meant. Left
@@ -336,6 +338,53 @@ function bot_destroy(pid)
 		-- left; our own after-hook then drops the registry entry
 		on_disconnect(pid);
 	end
+end
+
+-- GIVE WAY. A person who connects when every seat is taken would be
+-- turned away: the core's assign_new_pid finds no free id below
+-- get_effective_max_players and answers MAX_PLAYERS, which
+-- on_any_connect turns into a disconnect with reason 4, "server full"
+-- (funcs_event.c:28-35). Bots are not worth that. So one bot leaves
+-- and its id is the person's: one of the bot engine's fleet if there
+-- is one (lib_botlink marks its own), since they are many and alike;
+-- else any. Its owner finds it gone and tops up again when a seat
+-- comes free -- engine_bots, guards, a gamemode's own bots all do.
+--
+-- Only people reach this hook: bot_create asks the core's own
+-- server.assign_new_pid, which is not the chain, so a bot never makes
+-- another give way. Seats are never more than get_effective_max_players
+-- either way: the person gets the id the bot had.
+local function give_way_victim()
+	local any, fleet;
+	for pid, b in pairs(bots) do
+		if (any == nil or pid > any) then
+			any = pid;
+		end
+		if (b.data ~= nil and b.data.botlink and (fleet == nil or pid > fleet)) then
+			fleet = pid;
+		end
+	end
+	return fleet or any;
+end
+
+function mod.assign_new_pid()
+	local pid = mod.next.assign_new_pid();
+	if (pid < MAX_PLAYERS or next(bots) == nil) then
+		return pid;
+	end
+
+	local victim = give_way_victim();
+	local name = bots[victim].name;
+	local ok, err = pcall(bot_destroy, victim);
+	if (not ok) then
+		log("lib_bot: every seat taken, and bot #%d could not give way: %s",
+			victim, tostring(err));
+		return pid;
+	end
+
+	log("lib_bot: every seat taken: bot #%d (%s) gives way to a person",
+		victim, tostring(name));
+	return mod.next.assign_new_pid();
 end
 
 function bot_walk(pid, keys)

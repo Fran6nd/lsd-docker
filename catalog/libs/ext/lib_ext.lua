@@ -13,7 +13,7 @@
 -- cannot happen if the first module to see packet 60 swallows it.
 --
 -- API (globals):
---   ext_register(name, id, version, ready, title)
+--   ext_register(name, id, version, ready, title, floor)
 --        declare that this server speaks extension `id` at `version`.
 --        `ready` is called as ready(pid) for each client that turns out
 --        to speak the same extension at the same version -- the moment
@@ -23,7 +23,12 @@
 --        player picks a team, so join time is not a safe place to send.
 --        `title` is the extension's name in the specification, e.g.
 --        "Flashlight" -- what a player is told when it is missing, as
---        against `name`, which is the module and is for the log
+--        against `name`, which is the module and is for the log.
+--        `floor`, optional, is called as floor() and answers the least
+--        policy the extension needs right now ("required", say), or nil;
+--        lib_ext_policy never applies less. Player Limit's: required
+--        while the server seats more than 32, since a client without it
+--        cannot be shown the game at all
 --   ext_unregister(id)         stop announcing it (on module unload)
 --   ext_supported(pid, id)     -> version, or nil. True only when both
 --                                 ends named the extension at the same
@@ -36,7 +41,7 @@
 --                                 because both are nil
 --   ext_each(fn)               fn(id, reg) over everything registered,
 --                                 reg being {name=, version=,
---                                 ready=, title=}
+--                                 ready=, title=, floor=}
 --   ext_disable(id) / ext_enable(id)
 --        stop or resume OFFERING an extension. The module stays
 --        loaded; the id is left out of the announcement, nobody can
@@ -81,7 +86,7 @@ getcfg("ext_min_major", 0);
 getcfg("ext_min_minor", 1);
 getcfg("ext_min_patch", 3);
 
--- id -> {name=, version=, ready=, title=}. What this server speaks.
+-- id -> {name=, version=, ready=, title=, floor=}. What this server speaks.
 --
 -- Kept in a global, and that is deliberate rather than sloppy: a module
 -- local would be a fresh empty table every time THIS module reloaded,
@@ -335,14 +340,14 @@ end
 
 --============================== API =================================--
 
-function ext_register(name, id, version, ready, title)
+function ext_register(name, id, version, ready, title, floor)
 	if (type(name) ~= "string" or type(id) ~= "number"
 	    or type(version) ~= "number") then
 		error("ext_register: name, id and version required", 2);
 	end
 
 	registry[id] = {name = name, version = version, ready = ready,
-		title = title or name};
+		title = title or name, floor = floor};
 
 	-- No re-announcement: negotiation happens once per connection (see
 	-- the header). A client already connected was offered the list as it

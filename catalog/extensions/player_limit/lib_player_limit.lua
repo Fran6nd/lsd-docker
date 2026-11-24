@@ -8,8 +8,9 @@
 -- PACKETLESS, which is the whole of the protocol work. There is no
 -- packet id, no sub-packet and nothing to parse: the extension is the
 -- announcement, and lib_ext makes it along with every other one. So
--- this module is two things -- the registration, and the one knob that
--- makes the claim true.
+-- this module is three things -- the registration, the one knob that
+-- makes the claim true, and keeping a client that cannot take the claim
+-- from ever seeing it.
 --
 -- WHY LSd CAN MAKE THE CLAIM AT ALL, and why it is 255 rather than the
 -- 256 the spec used to say. protocol.h:20-21 is the answer to both:
@@ -22,61 +23,84 @@
 -- here runs 0 to 254 and 255 is never a player: it is the first handle
 -- new_fakepid hands out (commands.lua:116-120) and what get_anon_pid
 -- settles on. The reservation the spec asks for is one LSd already
--- keeps, for its own reasons, and the two agree exactly.
+-- keeps, for its own reasons, and the two agree exactly. The ENet host
+-- is made with MAX_PLAYERS+1 peers (main.c:114), so the transport has
+-- room for all of them too.
 --
 -- That reservation is also what the Flashlight extension spends: a
 -- Light Config addressed to 255 is the beam of every player who has
 -- none of their own. Same id, same reason -- it is the one number that
 -- cannot be mistaken for somebody.
 --
--- THE LIMIT ITSELF is player_limit_max, and it defaults to 32, which is
--- DEFAULT_MAX_PLAYERS and the number every client copes with; announcing
--- an extension does not change it. get_effective_max_players is what
--- assign_new_pid counts up to (main.c:187-191) and what the masterlist
--- advertises as capacity (masterlist.lua:25-38, and lib_bot's
+-- THE LIMIT ITSELF is player_limit_max: how many player ids the server
+-- hands out, people and bots together, so N seats are ids 0 to N-1.
+-- 255 by default -- every id there is. get_effective_max_players is
+-- what assign_new_pid counts up to (main.c:187-191), for a person
+-- connecting and for lib_bot making a bot alike, and what the
+-- masterlist advertises as capacity (masterlist.lua:25-38, and lib_bot's
 -- bot-hiding version of the same sum), so it is the one place the
--- number lives. This module hooks it, so a server that raises
--- player_limit_max gets the new count everywhere at once.
+-- number lives. Without this module the core's answer is 32
+-- (DEFAULT_MAX_PLAYERS), which is why a server that cannot speak the
+-- extension never seats more.
 --
--- A WORD BEFORE RAISING IT. A pid is assigned when a client connects,
--- by assign_new_pid out of on_any_connect, and the extension handshake
--- happens later -- a version request, a response, an ExtensionInfo each
--- way. So at the moment the server has to choose an id it does not yet
--- know whether that client can handle a big one, and the extension has
--- no mechanism for it; the ordering is the protocol's, not LSd's.
+-- An operator may lower it. At 32 or fewer, every id fits every client:
+-- nothing below runs, and nobody is asked for anything (the policy
+-- script.lua gives the extension is "applied"). Withholding the
+-- extension (ext_policy 192 = "disabled") has the same effect: a server
+-- that does not tell a client it may see 255 players seats 32.
 --
--- What a client that does NOT speak extension 192 (an "old client") does
--- with a player id of 32 or more is its own business: it holds 32 slots,
--- and it usually drops the player, sometimes worse. So while
--- player_limit_max is above 32 this module makes the claim true from
--- the other side, by never letting such a client SEE one. Another
--- module (lib_ext_policy, policy "required") keeps an old client out of
--- play, in spectator; this one filters what is sent to it. Every packet
--- LSd sends goes through send_packet or send_packet_unreliable, so one
--- hook in each, in mod.late after every other script's, sees them all
--- and splits a broadcast into its recipients, as lib_edit_mode does.
--- Per recipient there are four classes:
+-- BOTS GIVE WAY to people (lib_bot): a person who connects when every
+-- seat is taken gets a bot's. So bots never keep anybody out, whatever
+-- their count; their owners put them back when a seat comes free.
 --
---   all     a bot, or a client that speaks 192: sent as ever
---   wait    has not answered yet: a packet that names no player goes
---           at once (the handshake, map chunks, fog), one that names a
---           player is held in order and an unreliable one (World
---           Update) is dropped; when the client has answered, or the
---           grace (player_limit_grace) runs out, the queue is sent
---           unchanged to a client that speaks 192 and through the
---           filter below to one that does not
---   low     an old client whose own id is below 32: any packet that
---           names a player of 32 or more is dropped (255 is the
---           server, not a player, and passes) and a World Update is
---           cut to its first 32 players
---   alias   an old client whose own id is 32 or more. It cannot be
---           told that id, so it is told it is player ALIAS (1) and
---           nothing about anybody else: no World Update, no packet
---           naming another player. Its own id is rewritten to ALIAS in
---           whatever it is sent. A system chat line passes, since the
---           server speaks as player 0.
+-- THE OUTDATED CLIENT. A pid is assigned when a client connects, by
+-- assign_new_pid out of on_any_connect, and the extension handshake
+-- happens later -- a version request at the end of the map, a response,
+-- an ExtensionInfo each way. So at the moment the server has to choose
+-- an id it does not yet know whether that client can handle a big one;
+-- the ordering is the protocol's, not LSd's.
 --
--- Below or at 32 seats none of this runs: the hooks hand the packet
+-- A client that does NOT speak extension 192 holds 32 player slots. A
+-- packet naming a player of 32 or more -- an ExistingPlayer, a
+-- CreatePlayer, a kill, a chat line, a World Update longer than 32
+-- entries -- indexes past them: dropped at best, a crash or a corrupted
+-- world at worst. So above 32 seats such a client takes the ONE path
+-- every client lacking a required extension takes (lib_ext_policy): it
+-- is held in spectator and told, in chat, that its client is outdated
+-- and what to install. This module registers the extension as required
+-- for as long as the server seats more than 32 (the `floor` lib_ext
+-- carries to lib_ext_policy), so no policy written in the settings can
+-- let such a client onto a team.
+--
+-- And it is sent nothing it cannot take. Every packet LSd sends goes
+-- through send_packet or send_packet_unreliable, so one hook in each, in
+-- mod.late after every other script's, sees them all and splits a
+-- broadcast into its recipients, as lib_edit_mode does. Per recipient
+-- there are three classes:
+--
+--   all       a bot, or a client that speaks 192: sent as ever
+--   wait      has not answered yet: a packet that names no player goes
+--             at once (the handshake, map chunks, the version request),
+--             one that names a player is held in order and an
+--             unreliable one (World Update) is dropped. When the client
+--             has answered, or run out of time to (lib_ext_policy's
+--             clock: ext_policy_decided), the queue is sent unchanged to
+--             a client that speaks 192 and through the filter below to
+--             one that does not
+--   outdated  answered without 192, or never answered. It is sent
+--             nothing about anybody else: no World Update, no packet
+--             naming another player. What names only itself goes, its
+--             own id told as itself when that is below 32 and as ALIAS
+--             (1) when it is not. Packets that name nobody go (the map,
+--             fog, intel and territory positions, a progress bar), and
+--             system chat lines go -- which is how it is told.
+--
+-- So what an outdated client sees is the map, its own spectator, and
+-- the chat: the server's welcome and the lockout notice, repeated. It
+-- believes the server holds one player, itself, with an id below 32,
+-- and it keeps believing that until it leaves.
+--
+-- At 32 seats or fewer none of this runs: the hooks hand the packet
 -- straight on, with no work per recipient at all.
 --
 -- The classification is a set of small pure functions, exposed as
@@ -86,17 +110,17 @@
 -- API (globals): none. Nothing calls a packetless extension; the only
 -- question it answers is "is it agreed with this client", and that is
 -- ext_supported(pid, 192) through lib_ext, the same as for every other
--- extension. A wrapper here would add a name to the global table and
--- nothing else, so there isn't one.
+-- extension.
 local mod = init_mod();
 local bit = require("bit");
 
 local EXT_ID = 192;
 local EXT_VERSION = 1;
 
--- How many players this server will seat. 32 is the core's own
--- DEFAULT_MAX_PLAYERS and the value every client copes with; the
--- number is raised only with the paragraph above in mind.
+-- What a client without the extension holds: 32 slots.
+local LOW = 32;
+
+-- How many players this server will seat, people and bots together.
 --
 -- A COUNT, not a highest id, and the difference is the whole reason
 -- MAX_PLAYERS is the right ceiling rather than one less. assign_new_pid
@@ -109,52 +133,55 @@ local EXT_VERSION = 1;
 --
 -- Clamped at the bottom to 1 as well, since a server that can seat
 -- nobody is a typo rather than a configuration.
-getcfg("player_limit_max", 32,
-	"How many players this server will seat, 1 to 255. Above 32, an "
-		.."old client may mishandle players with high ids.");
-
--- Hooked rather than left alone even at the default, so that the number
--- has one home. An instance that sets player_limit_max gets it applied
--- everywhere the core and the scripts read this -- pid assignment, the
--- anon pid, the advertised capacity -- without hunting for the other
--- places it is spelled.
---
--- Read out of the global on every call instead of being resolved once,
--- which is what makes `player_limit_max = 64` from the console take
--- effect on the next connection rather than the next restart. The
--- masterlist recomputes capacity on every join and disconnect
--- (masterlist.lua:58-74), so the advertised number follows by itself at
--- the next one; it is only the moment between that stays stale.
-function mod.get_effective_max_players()
-	local n = math.floor(tonumber(player_limit_max) or 32);
-
-	return math.max(1, math.min(n, MAX_PLAYERS));
-end
-
---============================== FILTER ==============================--
-
-getcfg("player_limit_grace", 10,
-	"Seconds a connecting client gets to say whether it speaks Player "
-		.."Limit; until then packets naming a player are held for it.");
+getcfg("player_limit_max", 255,
+	"How many players, bots included, this server seats: 1 to 255 (ids "
+		.."0 to N-1). Above 32, a client without Player Limit only watches.");
 getcfg("player_limit_queue_max", 20000,
 	"Most packets held for one client that has not yet said whether it "
 		.."speaks Player Limit.");
 
--- What an old client holds: 32 slots.
-local LOW = 32;
--- The id an old client with a high id is told it has.
+-- The seats in force. Read out of the global on every call instead of
+-- being resolved once, which is what makes `player_limit_max = 64` from
+-- the console take effect on the next connection rather than the next
+-- restart.
+local function seats()
+	local n = math.floor(tonumber(player_limit_max) or MAX_PLAYERS);
+	n = math.max(1, math.min(n, MAX_PLAYERS));
+
+	-- withheld: no client is told it may see more than 32, so none is
+	-- given an id it was not told about
+	if (ext_is_disabled ~= nil and ext_is_disabled(EXT_ID)) then
+		n = math.min(n, LOW);
+	end
+	return n;
+end
+
+-- Hooked rather than left alone, so that the number has one home: pid
+-- assignment (people and bots), the anon pid, the advertised capacity.
+-- The masterlist recomputes capacity on every join and disconnect
+-- (masterlist.lua:58-74), so the advertised number follows by itself.
+function mod.get_effective_max_players()
+	return seats();
+end
+
+-- Above 32 seats every client that lacks the extension is outdated.
+local function big()
+	return seats() > LOW;
+end
+
+--============================== FILTER ==============================--
+
+-- The id an outdated client with a high id is told it has.
 local ALIAS = 1;
 -- 255 is the server, never a player.
 local SERVER = 255;
 
--- protocol.h: World Update, StateData, Kill, Chat
+-- protocol.h: World Update, StateData, Chat
 local PKT_WORLD_UPDATE = 2;
 local PKT_STATE = 15;
 local PKT_KILL = 16;
 local PKT_CHAT = 17;
 local CHAT_SYSTEM = 2;
--- 1 + 24 bytes for each of the 32 players
-local WORLD_UPDATE_MAX = 1 + LOW * 24;
 
 -- Extension packets are 64 + the extension id.
 local PKT_PROPERTIES = 0x40;  -- [pid] at index 2 of sub 0
@@ -201,8 +228,8 @@ end
 -- The player ids a packet names, as {pos, id} in order, where pos is
 -- the 1-based position in the string. {} for a packet that names nobody,
 -- and nil for one that cannot be classified (an extension packet this
--- module does not know, or one too short for its own fields), which a
--- filtered client is never sent. A World Update and the Flashlight
+-- module does not know, or one too short for its own fields), which an
+-- outdated client is never sent. A World Update and the Flashlight
 -- bitmap name players by their place and not by a byte, and are
 -- handled where they are filtered.
 local function ids_in(data)
@@ -315,51 +342,14 @@ local function hide_holders(data, map)
 	return setbyte(data, STATE_FLAGS, flags);
 end
 
-local function low_map(id)
-	if (id < LOW or id == SERVER) then
-		return id;
-	end
-end
-
--- What an old client whose own id is below 32 may be sent, or nil.
-local function filter_low(data)
+-- What an outdated client whose own id is `real` may be sent, or nil:
+-- nothing about anybody else, and itself under an id below 32.
+local function filter_outdated(data, real)
 	local id = string.byte(data, 1);
+	local me = (real < LOW) and real or ALIAS;
 
-	if (id == PKT_WORLD_UPDATE) then
-		return #data > WORLD_UPDATE_MAX and string.sub(data, 1, WORLD_UPDATE_MAX) or data;
-	end
-
-	if (is_light_state(data)) then
-		-- 32 players are 4 bytes of bitmap
-		return #data > 2 + LOW / 8 and string.sub(data, 1, 2 + LOW / 8) or data;
-	end
-
-	if (id == PKT_STATE) then
-		local d = remap(data, low_map);
-		return d and hide_holders(d, low_map);
-	end
-
-	if (is_silent_list(data)) then
-		if (#data % 2 ~= 0) then return nil; end
-		local out = {string.sub(data, 1, 2)};
-		for pos = 3, #data - 1, 2 do
-			if (low_map(string.byte(data, pos)) ~= nil) then
-				out[#out+1] = string.sub(data, pos, pos + 1);
-			end
-		end
-		return #out > 1 and table.concat(out) or nil;
-	end
-
-	return remap(data, low_map);
-end
-
--- What an old client whose own id is `real`, 32 or more, may be sent:
--- nothing about anybody else, and its own id as ALIAS.
-local function filter_alias(data, real)
-	local id = string.byte(data, 1);
-
-	local function alias_map(v)
-		if (v == real) then return ALIAS; end
+	local function own_map(v)
+		if (v == real) then return me; end
 		if (v == SERVER) then return v; end
 	end
 
@@ -367,20 +357,36 @@ local function filter_alias(data, real)
 		return nil;
 	end
 
+	-- A system line is how it is told anything, so it goes whoever it
+	-- is from: from itself as itself, from a player it cannot hold as
+	-- player 0, the speaker server_msg has always used (main.c:1343).
 	if (id == PKT_CHAT and string.byte(data, 3) == CHAT_SYSTEM) then
-		return string.byte(data, 2) == real and setbyte(data, 2, ALIAS) or data;
+		local from = string.byte(data, 2);
+		if (from == real) then
+			return setbyte(data, 2, me);
+		end
+		if (from >= LOW and from ~= SERVER) then
+			return setbyte(data, 2, 0);
+		end
+		return data;
 	end
 
 	if (is_light_state(data)) then
-		-- only its own light, in the place ALIAS has in the bitmap
+		-- only its own light, in its own place: a bitmap as long as it
+		-- takes to reach it (ALIAS: one byte)
 		local byte = string.byte(data, 3 + math.floor(real / 8));
 		local lit = byte ~= nil and bit.band(byte, bit.lshift(1, real % 8)) ~= 0;
-		return string.char(PKT_FLASHLIGHT, 1, lit and bit.lshift(1, ALIAS % 8) or 0);
+		local out = {};
+		for i = 1, math.floor(me / 8) + 1 do out[i] = 0; end
+		if (lit) then
+			out[#out] = bit.lshift(1, me % 8);
+		end
+		return string.char(PKT_FLASHLIGHT, 1, unpack(out));
 	end
 
 	if (id == PKT_STATE) then
-		local d = remap(data, alias_map);
-		return d and hide_holders(d, alias_map);
+		local d = remap(data, own_map);
+		return d and hide_holders(d, own_map);
 	end
 
 	if (is_silent_list(data)) then
@@ -388,16 +394,16 @@ local function filter_alias(data, real)
 		local out = {string.sub(data, 1, 2)};
 		for pos = 3, #data - 1, 2 do
 			if (string.byte(data, pos) == real) then
-				out[#out+1] = string.char(ALIAS, string.byte(data, pos + 1));
+				out[#out+1] = string.char(me, string.byte(data, pos + 1));
 			end
 		end
 		return #out > 1 and table.concat(out) or nil;
 	end
 
-	return remap(data, alias_map);
+	return remap(data, own_map);
 end
 
-mod.filter = {low = filter_low, alias = filter_alias, ids_in = ids_in,
+mod.filter = {outdated = filter_outdated, ids_in = ids_in,
 	names_player = names_player};
 
 --=============================== WHO ================================--
@@ -419,13 +425,21 @@ local function speaks(pid)
 	return ext_supported ~= nil and ext_supported(pid, EXT_ID) ~= nil;
 end
 
--- when each client connected, and what is held for the ones that have
--- not yet answered; both cleared when the client goes
-local since = pid_connected_table();
+-- what is held for the clients that have not yet answered; cleared when
+-- the client goes
 local queue = pid_connected_table();
+-- when each client connected: the clock, only if lib_ext_policy is not
+-- there to keep the one every extension shares
+local since = pid_connected_table();
+local FALLBACK_GRACE = 10;
 
--- Has this client answered, or run out of time to?
+-- Has this client answered, or run out of time to? lib_ext_policy's
+-- answer when it is loaded -- one clock, so the moment a client is held
+-- in spectator and the moment it is shown nobody are the same moment.
 local function decided(pid)
+	if (ext_policy_decided ~= nil) then
+		return ext_policy_decided(pid);
+	end
 	if (ext_replied ~= nil and ext_replied(pid)) then
 		return true;
 	end
@@ -434,7 +448,7 @@ local function decided(pid)
 	if (since[pid] == nil) then
 		since[pid] = now;
 	end
-	return now - since[pid] >= player_limit_grace;
+	return now - since[pid] >= FALLBACK_GRACE;
 end
 
 local function sane_pid(pid)
@@ -449,7 +463,7 @@ local function classify(pid)
 	if (not decided(pid)) then
 		return "wait";
 	end
-	return pid < LOW and "low" or "alias";
+	return "outdated";
 end
 
 --=============================== WIRE ===============================--
@@ -474,16 +488,14 @@ local function flush(pid)
 		queue[pid] = q;
 		return;
 	end
-	if (tonumber(player_limit_max) <= LOW) then
+	if (not big()) then
 		class = "all";
 	end
 
 	for _, data in ipairs(q) do
 		local out = data;
-		if (class == "low") then
-			out = filter_low(data);
-		elseif (class == "alias") then
-			out = filter_alias(data, pid);
+		if (class == "outdated") then
+			out = filter_outdated(data, pid);
 		end
 		if (out ~= nil) then
 			raw_send(pid, out, true);
@@ -520,12 +532,7 @@ local function deliver(pid, data, reliable)
 		return 0;
 	end
 
-	local out;
-	if (class == "low") then
-		out = filter_low(data);
-	else
-		out = filter_alias(data, pid);
-	end
+	local out = filter_outdated(data, pid);
 	if (out == nil) then
 		return 0;
 	end
@@ -535,7 +542,7 @@ end
 -- Every packet LSd sends passes here. With 32 seats or fewer it is the
 -- one comparison and nothing else.
 local function route(pid, data, reliable)
-	if (tonumber(player_limit_max) <= LOW) then
+	if (not big()) then
 		return raw_send(pid, data, reliable);
 	end
 
@@ -579,6 +586,13 @@ function mod.after.tick()
 	end
 end
 
+-- What makes the extension required while the server seats more than
+-- 32, whatever ext_policy says: lib_ext_policy asks this of every
+-- extension that has one.
+local function floor()
+	return big() and "required" or nil;
+end
+
 -- Registering does not re-announce: negotiation happens once per
 -- connection, so a client already connected when this is first loaded
 -- was told a list without it and keeps that list.
@@ -591,7 +605,7 @@ function mod.on_load()
 			.."(its script pulls lib_ext in; check with: lsdctl status)", 0);
 	end
 
-	ext_register("lib_player_limit", EXT_ID, EXT_VERSION, nil, "Player Limit");
+	ext_register("lib_player_limit", EXT_ID, EXT_VERSION, nil, "Player Limit", floor);
 end
 
 -- No EXPORTS sweep, because there are no globals to sweep: see the API

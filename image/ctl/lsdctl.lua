@@ -2494,19 +2494,33 @@ local function migrate(doc)
 		end
 	end
 
-	-- Policies from when every extension came "recommended": one still
-	-- on it takes its extension's default now, for its settings. And
-	-- Player Limit's old 254 seats, the default nobody chose, becomes
-	-- 32: above that, clients without it can only watch.
+	-- Player Limit seats 255 now, every id, bots included. The seats an
+	-- older setup wrote by itself -- 32, and the 254 before it -- under
+	-- one of its questions (each began "How many players may the server
+	-- seat") become 255, and the policy that went with 32 (applied)
+	-- becomes 255's (required). Any other number was chosen, and is
+	-- kept. The section is rewritten with today's question, so a 32 set
+	-- after this is never taken for the old default again.
 	local section = doc:section("player_limit");
-	if (section ~= nil and tonumber(section.player_limit_max) == 254) then
+	local text = F.section(doc.text, "player_limit");
+	local seats = tonumber(section and section.player_limit_max);
+	if ((seats == 32 or seats == 254) and text ~= nil
+	    and string.find(text, "# How many players may the server seat (", 1, true)) then
 		local e = cat():get("player_limit");
 		if (e ~= nil) then
-			section.player_limit_max = 32;
+			section.player_limit_max = 255;
 			doc:write_section(e, section);
+			local policy = doc:get("ext_policy");
+			if (type(policy) == "table" and policy[192] == "applied") then
+				policy[192] = e:default_policy(section, 192);
+				doc:set_policy(policy);
+			end
 			changed = true;
 		end
 	end
+
+	-- Policies from when every extension came "recommended": one still
+	-- on it takes its extension's default now, for its settings.
 	local policy = doc:get("ext_policy");
 	if (type(policy) == "table") then
 		local moved = false;

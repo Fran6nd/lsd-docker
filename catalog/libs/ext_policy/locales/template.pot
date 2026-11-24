@@ -10,15 +10,11 @@ msgid "Your client is outdated, please update"
 msgstr ""
 
 #: catalog/libs/ext_policy/lib_ext_policy.lua
-msgid "Your client never answered the extension handshake, so it cannot leave spectator. Update it, or use ZeroSpades."
+msgid "Your client is outdated: you can only watch. Install ZeroSpades (or update your client), then reconnect."
 msgstr ""
 
 #: catalog/libs/ext_policy/lib_ext_policy.lua
-msgid "Missing: %(list). You cannot leave spectator without it -- update your client, then reconnect."
-msgstr ""
-
-#: catalog/libs/ext_policy/lib_ext_policy.lua
-msgid "Missing: %(list). You cannot leave spectator without them -- update your client, then reconnect."
+msgid "Your client is outdated (it lacks %(list)): you can only watch. Install ZeroSpades (or update your client), then reconnect."
 msgstr ""
 
 #: catalog/libs/ext_policy/lib_ext_policy.lua

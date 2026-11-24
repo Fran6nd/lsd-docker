@@ -91,7 +91,12 @@ scripts.
 ## The bots
 
 Bots that play as players do (`lsdctl bots <n>`: n a team) decide with a
-behaviour tree, a text you can read and replace. Four settings say how
+behaviour tree, a text you can read and replace. They take player ids
+like people do, out of the 255 seats a server has by default
+(`player_limit_max`); a person who finds every seat taken gets a bot's,
+so no number of bots keeps anybody out. A player id above 31 needs a
+client with Player Limit (ZeroSpades); any other client watches from
+spectator, told to update ([catalog](catalog.md#extensions-what-a-client-without-one-costs)). Four settings say how
 they play, each applied within a second, empty by default:
 
 ```sh

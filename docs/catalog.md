@@ -58,21 +58,38 @@ gamemode can switch it for them with
 Each extension has a policy (`ext_policy` in the settings, asked by its
 setup): **applied** -- used by clients that have it, nobody else is
 told; **recommended** -- a client without it is told what it misses;
-**required** -- a client without it watches from spectator. A new server
-turns nobody away:
+**required** -- a client without it is outdated: it watches from
+spectator and is told, in chat every 15 seconds, that its client is
+outdated, what it lacks and to install ZeroSpades. A new server turns
+nobody away but a client that cannot hold more than 32 players:
 
 | extension | without it | default |
 |---|---|---|
 | player_properties, damage_markers, pie_menu, night's Flashlight, kick_reason, message_types, silent_player, edit_mode, teamplay | something cosmetic, or a plain fallback | applied |
 | night's Daytime and Weather | at night, a black fog instead of real darkness | applied by day, recommended at night |
-| player_limit | see below | applied up to 32 seats, required above |
+| player_limit | see below | required above 32 seats (the default is 255), applied at 32 or fewer |
 
-**More than 32 players** (`player_limit_max`, 32 by default): clients
-with Player Limit can play; a client without it watches from spectator
-and is never sent a player id it cannot hold (32 or more) -- and one that
-arrives when 32 ids are already taken is told it is player 1 and sent
-nothing about anybody. Older settings move to these defaults by
-themselves; a policy you chose is kept.
+**255 players** (`player_limit_max`, 255 by default: ids 0 to 254,
+people and bots together). Bots never keep a person out: a person who
+connects when every seat is taken gets a bot's seat (one of the bot
+engine's first), and the bot comes back when a seat is free again;
+`engine_bots` asked for more than fits makes what fits and says so in
+the log. A client with Player Limit (ZeroSpades) plays whatever its id.
+A client without it holds 32 players, so above 32 seats it is outdated,
+whatever `ext_policy` says: it watches from spectator, is told to
+update, and is sent nothing that names another player -- no world
+update, no other player's chat, kill or block -- only the map, itself
+(as player 1 when its own id is 32 or more), and system chat. It sees
+an empty map and the notice; it cannot be crashed by an id it cannot
+hold. A client too old to answer the handshake waits up to 10 seconds
+(`ext_policy_grace`) after the map before it is shown anything.
+
+Lower `player_limit_max` to 32 or fewer and every client plays: set
+Player Limit's policy back to applied as well (`lsdctl setup`, or
+192: "applied" in `ext_policy`). Withholding the extension (192:
+"disabled") also seats 32. Servers set up when 32 (or 254) was the
+default move to 255 by themselves, with Player Limit required; a number
+you chose is kept.
 
 ## Babel
 

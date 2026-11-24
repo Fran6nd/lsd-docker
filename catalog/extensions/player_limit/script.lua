@@ -1,17 +1,19 @@
 return Extension {
 	title = "Player Limit",
-	summary = "More than 32 players, for the clients that can take it.",
+	summary = "Up to 255 players; a client that cannot take more than 32 watches, told to update.",
 	module = "lib_player_limit",
 	ext_id = 192,
 	order = 10,
-	-- Up to 32 seats every client copes, and nothing is asked of anyone.
-	-- Above, a client without the extension watches from spectator, and
-	-- is never shown a player id it cannot hold (lib_player_limit).
+	-- 255 seats by default. Above 32, a client without the extension is
+	-- outdated: it watches from spectator, is told to update, and is
+	-- never shown a player id it cannot hold (lib_player_limit; required
+	-- there whatever this says). Up to 32 seats every client copes, and
+	-- nothing is asked of anyone.
 	policy = function(v)
-		return (tonumber(v.player_limit_max) or 32) > 32 and "required" or "applied";
+		return (tonumber(v.player_limit_max) or 255) > 32 and "required" or "applied";
 	end,
 	questions = {
-		{key = "player_limit_max", type = "number", default = 32, min = 1, max = 255,
-			ask = "How many players may the server seat (above 32, clients without Player Limit can only watch)?"},
+		{key = "player_limit_max", type = "number", default = 255, min = 1, max = 255,
+			ask = "Seats, bots included (255: every player id; 32 or fewer: every client plays, none needs Player Limit)?"},
 	},
 }

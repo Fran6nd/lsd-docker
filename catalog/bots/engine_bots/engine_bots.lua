@@ -71,6 +71,37 @@ local function draw_level()
 	return math.max(1, math.min(10, l));
 end
 
+-- Asked for more than the seats hold: as many as fit, said once in the
+-- log for each shortfall rather than every second, and said again when
+-- it is made up. Seats are player_limit_max, people and bots together
+-- (lib_player_limit; 255 by default), and a person who finds them all
+-- taken gets a bot's (lib_bot), so the fleet is what is left over.
+local short = nil;
+local function seats_full()
+	local n = 0;
+	for _ in piditer(PID_BROADCAST) do n = n + 1; end
+	return n >= get_effective_max_players(), n;
+end
+
+local function say_short(want, have)
+	local missing = want - have;
+	if (missing <= 0) then
+		if (short ~= nil) then
+			log("engine_bots: all %d bots in", want);
+			short = nil;
+		end
+		return;
+	end
+	local ok, full, used = pcall(seats_full);
+	if (not ok or not full or short == missing) then
+		return; -- not for want of seats (a map loading, no engine yet)
+	end
+	short = missing;
+	log("engine_bots: %d bots asked for, %d fit: all %d seats are taken"
+		.. " (player_limit_max %s; people get a bot's seat when they come)",
+		want, have, used, tostring(player_limit_max));
+end
+
 local next_count = 0;
 function mod.after.tick()
 	local now = get_time();
@@ -88,6 +119,7 @@ function mod.after.tick()
 		if (bot_is_bot == nil or not bot_is_bot(pid)) then mine[pid] = nil; end
 	end
 
+	local want_all, have_all = 0, 0;
 	for team = 1, 2 do
 		local n, want = count(team), wanted(team);
 		while (n < want) do
@@ -108,7 +140,9 @@ function mod.after.tick()
 				end
 			end
 		end
+		want_all, have_all = want_all + want, have_all + n;
 	end
+	say_short(want_all, have_all);
 end
 
 function mod.on_unload()
