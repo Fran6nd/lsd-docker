@@ -43,7 +43,9 @@ from one mode to the next is data, and comes over the link:
   the tree drawn with its sub-trees opened in place, compiled first by
   the engine's own compiler. `--as camper` shows beside each weighed
   choice what that kind of bot's weight is, `--tree NAME` draws one,
-  `--check` only says what is wrong, `--words` lists the vocabulary. It
+  `--check` only says what is wrong, `--words` lists the vocabulary,
+  `--split word=value...` rolls 700 bots and counts what each would do in
+  the situation given (tuning: see the tool's head comment). It
   is in the image too: `docker exec <server> bttree /opt/botd/trees/tdm.bt`.
 - **Settings**, `key=value` (`BL_EV_SET`): what the mode's objects mean
   (`intel=fetch`, `tents=defend`...), zones where editing is refused,

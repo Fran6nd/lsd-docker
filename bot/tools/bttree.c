@@ -12,6 +12,22 @@
  *   --check           draw nothing: compile with the engine's own compiler and
  *                     vocabulary, say what is wrong and where, exit 1 if so
  *   --words           list the vocabulary a tree may use, and exit
+ *   --split [WORD=VALUE]...
+ *                     TUNING: who would do what. A situation is given as
+ *                     the worth of the words the tree asks about, a crowd
+ *                     of bots is rolled (--n 700, --mix "camper:2,pusher",
+ *                     --level 5), the tree is ticked once for each by the
+ *                     engine's own bt_tick, and what each ended up doing is
+ *                     counted, in all and by kind of bot:
+ *                         bttree --split --tree tdm_search trees/tdm.bt \
+ *                             rumour=0.6 flank_open=1 "vantage rifle=1"
+ *                     A word not given is 0 (a condition false, a score 0;
+ *                     `always` is 1). A score takes 0 to 1, a condition
+ *                     0 or 1, an action `run` (the default: it is what the
+ *                     bot is then doing), `ok` (done at once, the tree goes
+ *                     on) or `fail`. "word arg=..." sets it for those
+ *                     arguments only. The words asked and not given are
+ *                     listed after, so nothing is 0 by oversight.
  *   --plain           no colours, ASCII lines
  *
  * A tree is always compiled first (as --check does), so what is drawn is
@@ -232,16 +248,180 @@ static void draw(int tree, const char *prefix, int *open, int n_open)
 	}
 }
 
+/* ---- --split: the tree ticked for a crowd, in a situation that is given */
+
+enum { MAX_WORDS = 160, MAX_SET = 128, MAX_OUT = 64 };
+
+static struct { char kind; char name[BT_NAME_MAX]; } words_[3 * MAX_WORDS];
+static int n_words[3];                          /* cond, score, action */
+static struct { char key[96]; char val[32]; int used; } set_[MAX_SET];
+static int n_set;
+static char asked[256][96];
+static int n_asked;
+static int quiet_ask;                           /* an action is not a question */
+
+static const char *word_name(int kind, int i) { return words_[kind * MAX_WORDS + i].name; }
+
+/* What was given for this word with these arguments: "name a b" first,
+ * then "name"; NULL if neither (and it is noted as asked). */
+static const char *given(const char *name, const bt_args *args)
+{
+	char key[96];
+	size_t n = (size_t)snprintf(key, sizeof key, "%s", name);
+	for (int i = 0; args && i < args->count && n < sizeof key; i++)
+		n += (size_t)snprintf(key + n, sizeof key - n, " %s", args->text[i]);
+	for (int pass = 0; pass < 2; pass++) {
+		const char *k = pass ? name : key;
+		for (int i = 0; i < n_set; i++)
+			if (!strcmp(set_[i].key, k)) { set_[i].used = 1; return set_[i].val; }
+	}
+	if (quiet_ask) return NULL;
+	for (int i = 0; i < n_asked; i++)
+		if (!strcmp(asked[i], key)) return NULL;
+	if (n_asked < 256) snprintf(asked[n_asked++], sizeof asked[0], "%s", key);
+	return NULL;
+}
+
+static float worth(const char *name, const bt_args *args)
+{
+	const char *v = given(name, args);
+	if (!v) return !strcmp(name, "always") ? 1.0f : 0.0f;
+	if (!strcmp(v, "yes") || !strcmp(v, "true")) return 1.0f;
+	return (float)atof(v);
+}
+
+static int split_cond(int i, const bt_args *a) { return worth(word_name(0, i), a) > 0.0f; }
+static float split_score(int i, const bt_args *a) { return worth(word_name(1, i), a); }
+static bt_status split_action(int i, const bt_args *a)
+{
+	quiet_ask = 1;
+	const char *v = given(word_name(2, i), a);
+	quiet_ask = 0;
+	if (v && !strcmp(v, "ok")) return BT_SUCCESS;
+	if (v && !strcmp(v, "fail")) return BT_FAILURE;
+	return BT_RUNNING;
+}
+
+/* A leaf is given the bot and its arguments, not its name: so one
+ * function a word, MAX_WORDS of each kind, written by the preprocessor. */
+#define LEAF(i) \
+	static int cf##i(void *b, const bt_args *a) { (void)b; return split_cond(i, a); } \
+	static float sf##i(void *b, const bt_args *a) { (void)b; return split_score(i, a); } \
+	static bt_status af##i(void *b, const bt_args *a, float dt) { (void)b; (void)dt; return split_action(i, a); }
+#define L10(t) LEAF(t##0) LEAF(t##1) LEAF(t##2) LEAF(t##3) LEAF(t##4) LEAF(t##5) LEAF(t##6) LEAF(t##7) LEAF(t##8) LEAF(t##9)
+LEAF(0) LEAF(1) LEAF(2) LEAF(3) LEAF(4) LEAF(5) LEAF(6) LEAF(7) LEAF(8) LEAF(9)
+L10(1) L10(2) L10(3) L10(4) L10(5) L10(6) L10(7) L10(8) L10(9) L10(10) L10(11) L10(12) L10(13) L10(14) L10(15)
+#define P(i) {cf##i, sf##i, af##i},
+#define P10(t) P(t##0) P(t##1) P(t##2) P(t##3) P(t##4) P(t##5) P(t##6) P(t##7) P(t##8) P(t##9)
+static const struct { bt_cond_fn c; bt_score_fn s; bt_action_fn a; } leaf[MAX_WORDS] = {
+	P(0) P(1) P(2) P(3) P(4) P(5) P(6) P(7) P(8) P(9)
+	P10(1) P10(2) P10(3) P10(4) P10(5) P10(6) P10(7) P10(8) P10(9) P10(10) P10(11) P10(12) P10(13) P10(14) P10(15)
+};
+
+static float split_random(void *bot) { return bc_rng_float((bc_rng *)bot); }
+
+/* The engine's words, each bound to a leaf that answers from what was
+ * given. The names come from the engine's own list (bc_vocab_dump). */
+static bt_vocab *split_vocab(void)
+{
+	size_t need = bc_vocab_dump(NULL, 0);
+	char *buf = malloc(need + 1);
+	bt_vocab *v = bt_vocab_new();
+	if (!buf || !v) return NULL;
+	bc_vocab_dump(buf, need + 1);
+	for (char *line = strtok(buf, "\n"); line; line = strtok(NULL, "\n")) {
+		char kind[16], name[BT_NAME_MAX];
+		if (sscanf(line, "%15s %31s", kind, name) != 2) continue;
+		int k = !strcmp(kind, "cond") ? 0 : !strcmp(kind, "score") ? 1 : !strcmp(kind, "action") ? 2 : -1;
+		if (k < 0 || n_words[k] == MAX_WORDS) continue;
+		int i = n_words[k]++;
+		snprintf(words_[k * MAX_WORDS + i].name, BT_NAME_MAX, "%s", name);
+		if (k == 0) bt_vocab_cond(v, name, leaf[i].c);
+		else if (k == 1) bt_vocab_score(v, name, leaf[i].s);
+		else bt_vocab_action(v, name, leaf[i].a, NULL);
+	}
+	free(buf);
+	for (int t = 0; t < BC_T_COUNT; t++) bt_vocab_trait(v, bc_trait_name(t), t);
+	return v;
+}
+
+static int split(const char *text, const char *only, int n, const char *mix, int level)
+{
+	static char full[MAX_TEXT + 256];
+	/* what the engine writes at run time: empty here unless the text has them */
+	snprintf(full, sizeof full, "%s%s%s", text,
+		strstr(text, "\ntree items:") ? "" : "\ntree items:\nnever\n\tif enemy_visible\n",
+		strstr(text, "\ntree extras:") ? "" : "\ntree extras:\nnever\n\tif enemy_visible\n");
+	bt_vocab *v = split_vocab();
+	char err[256] = "";
+	bt_forest *f = v ? bt_compile(v, full, err, sizeof err) : NULL;
+	if (!f) { fprintf(stderr, "bttree: %s\n", err[0] ? err : "no vocabulary"); return 1; }
+	int tree = only ? bt_forest_find(f, only) : 0;
+	if (tree < 0) { fprintf(stderr, "bttree: no tree called %s\n", only); return 1; }
+
+	float mixw[BC_A_COUNT];
+	if (!bc_archetype_weights(mix ? mix : "", mixw)) { fprintf(stderr, "bttree: --mix %s?\n", mix); return 1; }
+
+	static struct { char what[256]; int by[BC_A_COUNT]; int all; } out[MAX_OUT];
+	int n_out = 0, crowd[BC_A_COUNT] = {0};
+	bt_state *st = malloc(bt_state_size(f));
+	if (!st) return 1;
+	for (int k = 0; k < n; k++) {
+		bc_rng r; bc_persona p;
+		bc_rng_seed(&r, 4242 + (uint64_t)k, 11);
+		bc_persona_roll(&p, &r, mixw, level);
+		bt_ctx ctx = {&r, p.trait, BC_T_COUNT, 0.1f, split_random};
+		bt_state_init(st, f);
+		bt_status res = bt_tick(f, tree, st, &ctx);
+		char what[256];
+		if (res == BT_RUNNING) bt_describe(f, st, what, sizeof what);
+		else snprintf(what, sizeof what, res == BT_SUCCESS ? "(done at once)" : "(nothing: the tree failed)");
+		int o = 0;
+		while (o < n_out && strcmp(out[o].what, what)) o++;
+		if (o == MAX_OUT) o = MAX_OUT - 1;
+		else if (o == n_out) { snprintf(out[o].what, sizeof out[o].what, "%s", what); n_out++; }
+		out[o].all++; out[o].by[p.archetype]++; crowd[p.archetype]++;
+		bt_reset(f, st, &ctx);
+	}
+	/* most chosen first */
+	for (int i = 0; i < n_out; i++)
+		for (int j = i + 1; j < n_out; j++)
+			if (out[j].all > out[i].all) { __typeof__(out[0]) t = out[i]; out[i] = out[j]; out[j] = t; }
+
+	printf("%s%d bots, level %d, tree %s%s\n", BOLD, n, level, only ? only : "(the first)", OFF);
+	printf("%6s", "all");
+	for (int a = 0; a < BC_A_COUNT; a++) if (crowd[a]) printf(" %7.7s", bc_archetype_name(a));
+	printf("\n");
+	for (int o = 0; o < n_out; o++) {
+		printf("%5.1f%%", 100.0 * out[o].all / n);
+		for (int a = 0; a < BC_A_COUNT; a++) if (crowd[a]) printf(" %6.0f%%", 100.0 * out[o].by[a] / crowd[a]);
+		printf("  %s%s%s\n", BOLD, out[o].what, OFF);
+	}
+	int head = 0;
+	for (int i = 0; i < n_asked; i++) {
+		if (!strcmp(asked[i], "always")) continue;
+		printf("%s%s%s", head++ ? ", " : "asked and not given (so 0): ", DIM, asked[i]);
+		printf("%s", OFF);
+	}
+	if (head) printf("\n");
+	for (int i = 0; i < n_set; i++)
+		if (!set_[i].used) printf("given but never asked: %s\n", set_[i].key);
+	free(st); bt_forest_free(f); bt_vocab_free(v);
+	return 0;
+}
+
 static int usage(void)
 {
-	fprintf(stderr, "usage: bttree [--tree NAME] [--as ARCHETYPE] [--check] [--words] [--plain] FILE.bt...\n");
+	fprintf(stderr, "usage: bttree [--tree NAME] [--as ARCHETYPE] [--check] [--words] [--plain] FILE.bt...\n"
+		"       bttree --split [--tree NAME] [--n 700] [--mix camper:2,pusher] [--level 5] FILE.bt... [WORD=VALUE]...\n");
 	return 2;
 }
 
 int main(int argc, char **argv)
 {
 	const char *only = NULL, *files[64];
-	int n_files = 0, check = 0, words = 0;
+	int n_files = 0, check = 0, words = 0, do_split = 0, crowd = 700, level = 5;
+	const char *mix = NULL;
 
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--tree") && i + 1 < argc) only = argv[++i];
@@ -249,6 +429,18 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "--check")) check = 1;
 		else if (!strcmp(argv[i], "--words")) words = 1;
 		else if (!strcmp(argv[i], "--plain")) plain = 1;
+		else if (!strcmp(argv[i], "--split")) do_split = 1;
+		else if (!strcmp(argv[i], "--n") && i + 1 < argc) crowd = atoi(argv[++i]);
+		else if (!strcmp(argv[i], "--level") && i + 1 < argc) level = atoi(argv[++i]);
+		else if (!strcmp(argv[i], "--mix") && i + 1 < argc) mix = argv[++i];
+		else if (do_split && strchr(argv[i], '=') && argv[i][0] != '-') {
+			char *eq = strchr(argv[i], '=');
+			if (n_set < MAX_SET) {
+				snprintf(set_[n_set].key, sizeof set_[0].key, "%.*s", (int)(eq - argv[i]), argv[i]);
+				snprintf(set_[n_set].val, sizeof set_[0].val, "%s", eq + 1);
+				n_set++;
+			}
+		}
 		else if (argv[i][0] == '-') return usage();
 		else if (n_files < 64) files[n_files++] = argv[i];
 	}
@@ -310,6 +502,12 @@ int main(int argc, char **argv)
 	bt_vocab_free(v);
 	if (bad) return 1;
 	if (check) { printf("ok: %d file(s)\n", n_files); return 0; }
+	if (do_split) {
+		if (crowd < 1) crowd = 1;
+		if (level < 1) level = 1;
+		if (level > 10) level = 10;
+		return split(all, only, crowd, mix, level);
+	}
 
 	if (as_name) {
 		int a = bc_archetype_by_name(as_name);
