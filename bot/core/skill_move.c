@@ -26,6 +26,18 @@
  *    goes as ONE line (the server wants both ends attached).
  *  - A goal that cannot be reached is left alone for 5 s (aosbot): the
  *    search that proves it is the most expensive there is.
+ *  - SHUT IN. A bot in a place with no way out of it (a closed cube, a pit)
+ *    found no way to one goal, was given another by its tree, found no
+ *    way to that, and so on: a search to the end every few seconds, for
+ *    ever, and the bot standing meanwhile (CubeMaze: 240 of 1251 plans,
+ *    one bot idle a minute). Now: three searches in a row that find no way
+ *    (to whatever goals, within 20 s, no route found between) and the bot
+ *    is SHUT IN for 15 s: bc_move_to answers FAILED without a search, and
+ *    the engine has it pace and look about where it is (engine.c, decide).
+ *    Then one search is let through; if that finds no way it is shut in
+ *    again. So: at most about 4 searches a minute from a shut-in bot. With
+ *    digging allowed the searches find a way (they dig) and none of this
+ *    happens.
  *  - NEVER A LOOP (nav.h). Another route to the SAME goal is started with
  *    bc_nav_follow_again, so the follower can count what it has reported
  *    for that goal; when it answers GIVE_UP the goal FAILS, and is
@@ -61,6 +73,9 @@ void bc_mover_reset(bc_bot *b)
 	b->mv.state = BC_MV_IDLE;
 	b->mv.has_route = 0;
 	b->mv.goal_set = 0;
+	b->mv.noway = 0;
+	b->mv.shut_until = 0.0;
+	b->mv.nocap = 0;
 	b->mv.again = 0;
 	b->mv.gave_n = 0;
 	memset(b->mv.gave_until, 0, sizeof b->mv.gave_until);
@@ -106,12 +121,26 @@ int bc_move_to(bc_bot *b, bl_vec3 pos, float radius)
 	b->wish.radius = radius;
 	if (!e->have_map)
 		return BC_MV_FAILED;
+	if (e->now < mv->shut_until)
+		return BC_MV_FAILED;    /* shut in: no route is asked for */
 	if (!bc_nav_snap(e->map, (int)floorf(pos.x), (int)floorf(pos.y),
 	                 (int)floorf(pos.z + 2.25f + 0.5f), 3, &n))
 		return BC_MV_FAILED;
 	if (mv->goal_set && mv->goal.x == n.x && mv->goal.y == n.y && mv->goal.z == n.z &&
 	    mv->radius == r) {
 		if (mv->state == BC_MV_FAILED && e->now >= mv->retry_at) {
+			/* asked for again: not if the team still knows there is no way */
+			const bl_player *me = bc_me(b);
+			bc_nav_node from;
+			double until;
+
+			from.x = (int16_t)floorf(me->pos.x); from.y = (int16_t)floorf(me->pos.y);
+			from.z = (int16_t)floorf(me->pos.z + 2.75f);
+			until = bc_unreach_until(b, from, n);
+			if (until > e->now) {
+				mv->retry_at = until;
+				return BC_MV_FAILED;
+			}
 			mv->state = BC_MV_PLANNING;
 			mv->plan_since = e->now;
 			mv->partial_tries = 0;
@@ -260,6 +289,7 @@ static void plan_done(bc_bot *b, int st)
 	e->stats.plans++;
 	bc_engine_search_release(e, b);
 	if (st == BC_NAV_DONE) {
+		mv->noway = 0;
 		if (n == 0) {
 			mv->state = BC_MV_ARRIVED;
 			mv->has_route = 0;
@@ -296,10 +326,19 @@ static void plan_done(bc_bot *b, int st)
 			return;
 		}
 		if (!capped && (n == 0 || mv->partial_tries >= 2 || mv->nocap)) {
+			if (e->now - mv->noway_at > 20.0) mv->noway = 0;
+			mv->noway_at = e->now;
+			if (++mv->noway >= 3) {
+				mv->noway = 2;          /* the next one that fails shuts it in again */
+				mv->shut_until = e->now + 15.0;
+				e->stats.shut_in++;
+			}
 			mv->state = BC_MV_FAILED;
 			mv->has_route = 0;
 			mv->retry_at = e->now + UNREACHABLE_SECS;
-			bc_unreach_note(b, mv->plan_from, mv->goal);    /* the team need not find it out again */
+			/* the team need not find it out again -- from where this bot
+			 * set out, not from the dead end its partial routes led it to */
+			bc_unreach_note(b, mv->first_from, mv->goal);
 			return;
 		}
 		mv->partial_tries++;
@@ -397,6 +436,8 @@ void bc_movers_plan(bc_engine *e)
 		}
 		e->search_owner[s] = order[i];
 		mv->plan_from = cur;
+		if (!mv->again && mv->partial_tries == 0)
+			mv->first_from = cur;       /* where it set out for this goal from */
 		mv->search = (int8_t)s;
 		mv->plan_rev = e->map->rev;
 		mv->expansions = 0;

@@ -71,22 +71,22 @@ tree tdm_search:
 pick every=25 sticky=1.5 noise=0.35
 	option teamwork ping_called x3            # a team-mate called
 		tree tdm_answer
-	option curiosity rumour x0.9              # gunfire somewhere, the team saw them there
+	option curiosity rumour x1.2              # gunfire somewhere, the team saw them there
 		do hunt_noise
-	option flank flank_open x0.7              # round to the enemy's base, from behind
+	option flank flank_open x0.9              # round to the enemy's base, from behind
 		do flank
-	option marksman vantage rifle x1.1        # a rifle goes high and waits
+	option marksman vantage rifle x0.95       # a rifle goes high and waits
 		tree tdm_camp
 	option marksman vantage smg x0.6          # an smg sometimes; a shotgun never
 		tree tdm_camp
-	option teamwork has_leader x1.3           # fall in with its leader (a bot or a person: nobody is told)
+	option teamwork has_leader x0.85          # fall in with its leader (a bot or a person: nobody is told)
 		do follow leader
 	option aggression is_leader x1.2          # a leader goes somewhere: the squad is behind it
 		do seek
 	option teamwork mate_near 40 x0.3         # no leader: go with a team-mate a while
 		limit 20
 			do follow mate
-	option aggression always x0.7             # straight at the enemy's base
+	option aggression always x0.9             # straight at the enemy's base
 		do seek
 
 tree tdm_camp:

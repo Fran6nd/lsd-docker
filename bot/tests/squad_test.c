@@ -94,7 +94,7 @@ static void test_draw(void)
 static void test_human(void)
 {
 	bs_sim *s = field(12);
-	int i, k, with = 0, in_line = 0, ticks = 0, on_his_man = 0, shots = 0, idle_max = 0, idle[8] = { 0 }, left = 0;
+	int i, k, with = 0, in_line = 0, ticks = 0, on_his_man = 0, shots = 0, idle_max = 0, idle[8] = { 0 }, left = 0, busy[8] = { 0 };
 	uint32_t seed = 500;
 
 	printf("a person is a leader: bots fall in behind him\n");
@@ -164,13 +164,14 @@ static void test_human(void)
 		bs_step(s);
 		for (i = 0; i < 5; i++) {
 			if (k < 120) continue;
+			busy[i] += (s->intents[i].keys & 15) != 0 || s->intents[i].mouse != 0;
 			if ((s->intents[i].keys & 15) || s->intents[i].mouse) idle[i] = 0;
 			else if (++idle[i] > idle_max) idle_max = idle[i];
 		}
 	}
 	for (i = 0; i < 5; i++)
-		left += bs_dist(s, i, 9) > 15.0f || bc_engine_bot(s->e, i)->squad.leader >= 0;
-	printf("  he is killed: from 2 s on the longest any bot stands with no key down is %.1f s; %d of 5 have gone on or found another\n",
+		left += busy[i] * 10 >= 600 * 8;            /* moving or firing 8 ticks in 10 of the 10 s after */
+	printf("  he is killed: from 2 s on the longest any bot stands with no key down is %.1f s; %d of 5 are on the move or firing 80%% of the time\n",
 	       idle_max / 60.0, left);
 	CHECK(idle_max < 60 * 4);
 	CHECK(left >= 4);

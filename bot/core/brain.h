@@ -98,8 +98,12 @@ typedef struct bc_mover {
 	double gave_until[4];
 	bc_nav_node goal;
 	bc_nav_node plan_from;  /* where the plan in hand started */
+	bc_nav_node first_from; /* where the first plan for this goal started */
 	float partial_d;        /* how far from the goal the last partial route ended */
 	uint8_t nocap;          /* this goal's next search runs to its end */
+	uint8_t noway;          /* searches in a row that found no way to anywhere */
+	double noway_at;        /* the last of them */
+	double shut_until;      /* SHUT IN: no route is asked for before (skill_move.c) */
 	int16_t radius;
 	double plan_since;      /* when it began to wait for a route */
 	double retry_at;        /* a failed goal is not searched again before */
@@ -236,8 +240,8 @@ typedef struct bc_bot {
 	bc_gaze gaze;
 	bc_cover_q cq;
 	struct { uint8_t phase, crouch, tries, peeking, has_peek, pad_[3];
-	         double until, peek_at, peek_until, seen_since, go_since; bl_vec3 goal, peek; } tc;
-	struct { uint8_t phase, crouch, bounds, mode; double until, since, quiet_since; bl_vec3 goal, dest; } bd;
+	         double until, peek_at, peek_until, seen_since, go_since, asked_at; bl_vec3 goal, peek; } tc;
+	struct { uint8_t phase, crouch, bounds, mode; double until, since, quiet_since, asked_at; bl_vec3 goal, dest; } bd;
 	struct { double until, flinched_for; } cr;
 	struct { uint8_t phase, tries, n, pad_; int8_t side; double cd_until, leg_since, side_until;
 	         bl_vec3 w[3]; bc_nav_danger avoid; uint8_t avoid_on; } flank;
@@ -268,6 +272,7 @@ typedef struct bc_bot {
 	struct { double push, idle, until, fired_at; uint8_t run, mode, keys0, pad_[5]; bl_vec3 place; } unstick;
 	struct { bl_vec3 from; double acc; } area;  /* on a route and not leaving a small place */
 	struct { double until; bl_vec3 goal; float mx, my; uint8_t free, pad_[3]; } elsewhere;
+	struct { double turn_at; float mx, my; } pace;      /* shut in: what it does meanwhile */
 	double stuck_said_at;
 	double stuck_out_at;    /* when a goal was last dropped for it */
 	uint32_t stuck_outs;    /* times a goal was dropped for it */
@@ -339,6 +344,7 @@ typedef struct bc_engine_stats {
 	uint32_t last_expansions;   /* in the last think */
 	uint32_t pings, grenades, edits, uses;
 	uint32_t glances, cover_cells, covers, perch_columns, unreach_hits;
+	uint32_t shut_in;           /* times a bot was found to have no way to anywhere */
 	uint32_t plan_caps;         /* plans stopped at plan.cap and walked as far as they got */
 	uint32_t stuck_tries;       /* the watchdog tried a jump, a step back, a sidestep */
 	uint32_t stuck_resets;      /* ... and dropped the goal: the tree decided again */

@@ -252,8 +252,11 @@ int bc_cover_query(bc_bot *b, bl_vec3 threat, int mode, const bl_vec3 *toward, i
 	int same;
 
 	threat = near_threat(me->pos, threat);
+	/* the same question: the same threat and purpose, asked from about the
+	 * same place -- a search in progress is not begun again because the
+	 * bot walked on meanwhile (it never ended), only when it has gone far */
 	same = q->state != CQ_NONE && q->mode == mode && flat(q->threat, threat) < 3.0f &&
-	       flat(q->me, me->pos) < 2.0f && q->has_toward == (toward != NULL) &&
+	       flat(q->me, me->pos) < (q->state == CQ_SEARCH ? 6.0f : 2.0f) && q->has_toward == (toward != NULL) &&
 	       (!toward || flat(q->toward, *toward) < 4.0f);
 	if (same && q->state == CQ_DONE && e->now - q->at < 1.0)
 		return 1;
@@ -479,6 +482,9 @@ bt_status bc_do_take_cover(void *bot, const bt_args *a, float dt)
 		b->tc.phase = TC_NONE;
 		return bc_do_leave_water(bot, a, dt) == BT_FAILURE ? BT_FAILURE : BT_RUNNING;
 	}
+	if (e->now - b->tc.asked_at > 1.0)
+		b->tc.phase = TC_NONE;
+	b->tc.asked_at = e->now;
 	if (b->tc.phase == TC_NONE) {
 		b->tc.phase = TC_SEARCH;
 		b->tc.tries = 0;
@@ -594,6 +600,9 @@ static bt_status bounds(bc_bot *b, bl_vec3 dest, int mode, float arrive)
 		}
 		th = dest;              /* going at a place: that is where he is taken to be */
 	}
+	if (e->now - b->bd.asked_at > 1.0)
+		b->bd.phase = BD_NONE;
+	b->bd.asked_at = e->now;
 	if (b->bd.phase == BD_NONE || b->bd.mode != mode || flat(b->bd.dest, dest) > 12.0f) {
 		b->bd.phase = BD_SEARCH;
 		b->bd.mode = (uint8_t)mode;
@@ -647,7 +656,11 @@ static bt_status bounds(bc_bot *b, bl_vec3 dest, int mode, float arrive)
 		 * second): straight, not by a route that would be thrown away for
 		 * the route to the cover -- two plans a bound, with forty bots
 		 * sharing one planner, was a third of all the plans asked for */
-		{
+		if (b->bd.bounds > 0) {
+			/* in cover already: the next one is looked for from it */
+			stand_on(b, b->bd.goal);
+			b->wish.crouch = b->bd.crouch;
+		} else {
 			float dx = dest.x - me->pos.x, dy = dest.y - me->pos.y, l = sqrtf(dx * dx + dy * dy);
 
 			b->wish.move = BC_MOVE_FREE;
@@ -766,8 +779,11 @@ void bc_do_cover_stop(void *bot, const bt_args *a)
 	bc_bot *b = bot;
 
 	(void)a;
-	b->tc.phase = TC_NONE;
-	b->bd.phase = BD_NONE;
+	/* What it was at is kept: a tree entered afresh (a man came into sight,
+	 * a round landed) asks for the same thing again at once, and a bound
+	 * half run or a cover just reached is not started over from the open.
+	 * Left for over a second, it is forgotten (take_cover and bounds look
+	 * at when they were last asked). */
 	b->cr.until = 0.0;
 	bc_move_stop(b);
 }

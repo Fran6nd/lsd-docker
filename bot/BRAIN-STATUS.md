@@ -1,5 +1,57 @@
 # The brain: senses, skills, vocabulary, engine, trees -- where it stands
 
+## CHECKPOINT scenarios (2026-11-25, later): every behaviour has its scenario
+
+`make -C bot test` is green, no warnings. New: `tests/tactics_test.c` (47
+checks). The numbers, all from the simulation:
+
+| behaviour | scenario | result |
+|---|---|---|
+| flank | 8 bots, 118 voxels to the enemy's base | 8 of 8 arrive; none nearer than 35 voxels to the direct line on the middle of the way; 8 of 8 come onto the base from beyond it; left 4, right 4; the slowest 24 s (direct 12) |
+| hunt_noise | a mate sees a man 95 away behind a wall | the bot goes: within 12 of the place after 14.2 s; with nothing told it does not move |
+| take_high_ground, camp | two hills and a pillar nobody can climb | 2 perches known (not the pillar); two rifles take one each, 4 and 5 voxels up, on `camp` crouched facing the enemy's side 600 of 600 ticks; a third rifle gets none and does something else; shot at, the perch is left |
+| gun and high ground | 30 marksmen on tdm.bt | 30 with a rifle go up, 0 with a shotgun |
+| advance_by_cover | 84 voxels across a field a man watches from the side | in his sight 4.9 s, against 11.1 s straight (44%); 23.2 s against 11.1 s |
+| fall_back_by_cover | hit by a man 34 away | out of his sight after 3.5 s; after 15 s still out of it, 87 from him, 0 rounds fired |
+| the team's memory of no way | a base walled in | the first bot: 3 searches; five more bots joining: 1 search more, 5 goals refused from memory |
+| SHUT IN (new) | a bot in a box with no door, 60 s | 11 searches (was: one every few seconds for ever), found shut in 4 times, never over 0.2 s with no key, no round and its head still; with `edit=dig` it digs out |
+| the split, nothing in sight | 200 characters, a perch free, a rumour, a leader about | flank 46, hunt_noise 35, take_high_ground 18, follow 53, seek 48; rifles go high 14, smgs 4, shotguns 0; flankers flank 27 of 31, pushers seek 28 of 31, supports follow 27 of 27, scouts hunt 20 of 30, campers go high 9 of 21 (a third of them hold a shotgun and cannot) |
+| 20 against 20 | a field of walls | over after 27 s (20-5), stuck 0, longest in one cell with keys down 1.6 s, nobody idle outside cover/camp/hold |
+
+**SHUT IN** (skill_move.c): three searches in a row that find no way, and
+for 15 s `bc_move_to` asks for none; the bot paces what room it has and
+looks about (engine.c, decide), then one search is let through. This is
+the CubeMaze finding (a bot in a closed cube asked for ever and stood).
+
+**tdm.bt's weights were tuned** with `bttree --split` (a perch free, a
+rumour, a leader): high ground 25.6% of all (was 56%), flank 23%, seek
+20%, follow 19%, hunt_noise 12%. Still true and NOT the tree's to mend:
+98% of CAMPERS with a rifle and a free perch take it (marksman 1.8), 95%
+of pushers seek, 96% of supports follow -- an archetype's one high trait
+decides. See "needed from others": persona.c's spreads.
+
+**Also fixed on the way:** a cover search was begun again every time the
+bot had walked two voxels, so a bot advancing never finished one (bounds
+by cover did not work at all while moving); a tree entered afresh (a man
+comes into sight) no longer throws away the bound or the cover in hand;
+the unreachable memory was keyed on the dead end a bot's partial routes
+led to, not on where it set out from, so its team-mates never matched.
+
+### Think cost (M-series laptop, -O2, `bc_engine_think`, a call; the host calls twice a world)
+
+| scene | bots | before this work | now | worst call now |
+|---|---|---|---|---|
+| flat field with walls, 60 s, respawning | 12 | 74 us | 28 us | 1.0 ms |
+| the same | 32 | 127 us | 79 us | 1.2 ms |
+| the same | 40 | 150 us | 121 us | 1.3 ms |
+| 20 v 20 to a result | 40 | -- | 93 us | 1.2 ms |
+| prisonbreakv1 (real map, mostly sea), 120 s | 40 | 404 us, bots frozen | 356 us | 3.4 ms |
+| spud (real map), 120 s | 40 | not measured | 201 us | 1.5 ms |
+| Temple (real map), 120 s | 40 | not measured | 197 us | 2.0 ms |
+
+The mean did not double anywhere; on the flat field it fell, because
+routes are no longer searched to the end and are asked for less often.
+
 ## CHECKPOINT water (2026-11-25): time in the water, a maze, a dig from the water
 
 `make -C bot test` is green, no warnings (behaviour_test 38 checks).

@@ -1444,6 +1444,32 @@ static void decide(bc_engine *e, bc_bot *b, float dt)
 			bt_tick(b->forest, b->tree, b->bt, &c);
 		}
 	}
+	if (e->now < b->mv.shut_until && b->wish.move != BC_MOVE_FREE && b->wish.fire_pid < 0) {
+		/* SHUT IN (skill_move.c): no way to anywhere, and no route is
+		 * asked for. Not a post: it paces what room it has, a new way
+		 * every second or two, and looks about. */
+		if (e->now >= b->pace.turn_at) {
+			float a = bc_rng_range(&b->rng, 0.0f, 6.2831853f);
+
+			b->pace.mx = cosf(a);
+			b->pace.my = sinf(a);
+			b->pace.turn_at = e->now + (double)bc_rng_range(&b->rng, 1.0f, 2.2f);
+		}
+		b->wish.move = BC_MOVE_FREE;
+		b->wish.mx = b->wish.my = 0.0f;
+		if (bc_walk_safe(b, b->pace.mx, b->pace.my)) {
+			b->wish.mx = b->pace.mx;
+			b->wish.my = b->pace.my;
+		} else {
+			b->pace.turn_at = 0.0;
+		}
+		if (b->wish.look == BC_LOOK_AHEAD) {
+			b->wish.look = BC_LOOK_POINT;
+			b->wish.look_at.x = me->pos.x + b->pace.mx * 12.0f;
+			b->wish.look_at.y = me->pos.y + b->pace.my * 12.0f;
+			b->wish.look_at.z = me->pos.z;
+		}
+	}
 	e->stats.decisions++;
 }
 
