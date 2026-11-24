@@ -55,7 +55,10 @@ from one mode to the next is data, and comes over the link:
   situation given (`--why`: what each option was worth), `--trace` shows
   one bot's tree as the engine holds it, with what is RUNNING and why
   each pick chose; `--json`, `--from-json` and `--schema` are for an
-  editor. It is in the image too: `docker exec <server> bttree
+  editor. On a running server, `lsdctl bots list`, `lsdctl bots watch
+  <bot>` (what one is thinking, live) and `lsdctl bots apply` (a tree
+  for one bot, many or all, without a restart) -- TREES.md, sections 14
+  and 16. It is in the image too: `docker exec <server> bttree
   /opt/botd/trees/tdm.bt`.
 - **Settings**, `key=value` (`BL_EV_SET`): what the mode's objects mean
   (`intel=fetch`, `tents=defend`...), zones where editing is refused,

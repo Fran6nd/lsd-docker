@@ -34,6 +34,8 @@
  *   night.reach=<voxels>     and how far it lights (60)
  *   night.far=<voxels>       how far night vision sees a lit lamp (192)
  *   night_vision=0|1       * the bot sees by night as by day (senses.h)
+ *   name=<text>            * what the server calls this bot: only for a
+ *                            person reading a view of it (debug.c)
  *   edit=none|dig|build|all  * what a route may do to the map (none)
  *   spend=<n>                blocks a route may use (50)
  *   water=lethal|safe
@@ -60,6 +62,13 @@
  *                            used on (a guided thing follows the aim)
  *   extra.<name>.tree=<text> a script's addition to every bot (below)
  *   anything else            is kept, for a tree's `if setting <key>`.
+ *
+ * A VALUE TOO LONG FOR ONE RECORD (a tree's text: a record is under 1000
+ * bytes) comes in pieces, each a record of its own: "+key#<total>=..."
+ * first, "+key=..." for those between, and "+key!=..." last
+ * (part_add). The whole is taken only if every piece came -- its length
+ * is the total said -- and is else refused and said: a tree is never run
+ * cut short. The most is 64 KiB.
  *
  * THE ITEMS TREE. The engine knows no item by name. Whoever defines an
  * item sends, with it, a fragment of tree saying when a bot should use
@@ -483,6 +492,8 @@ static void bot_bind(bc_engine *e, bc_bot *b)
 		b->bt_size = need;
 	}
 	bt_state_init(b->bt, f);
+	bt_state_trace(b->bt, b->watched);      /* a watched bot stays watched in its new tree */
+	b->binds++;
 	b->forest = f;
 	b->tree = tree;
 	snprintf(also, sizeof also, "%s_also", name);
@@ -665,6 +676,7 @@ void bc_engine_free(bc_engine *e)
 
 	if (!e)
 		return;
+	free(e->part.buf);
 	if (e->bots)
 		for (i = 0; i < e->max_bots; i++) {
 			if (e->bots[i].used)
@@ -1116,13 +1128,91 @@ static void set_tree(bc_engine *e, bc_bot *b, const char *val)
 		bc_engine_log(e, 1, "tree=%s: no tree of that name, the bots run \"default\"", name);
 }
 
+static void ev_set(bc_engine *e, int pid, const char *text);
+
+/* A piece of a setting too long for one record (its `+` taken off):
+ * "key#total=first piece", "key=next piece" as often as needed, and
+ * "key!=last piece". The whole is applied only when its length is the
+ * total said: a piece lost, pieces of another setting or for another
+ * bot coming in between, an end with no beginning -- refused and said. */
+enum { PART_MAX = 1 << 16 };
+
+static void part_add(bc_engine *e, int pid, const char *text)
+{
+	const char *eq = strchr(text, '='), *mark;
+	char key[64];
+	size_t n, kn;
+	int first, last;
+
+	if (!eq || eq == text)
+		return;
+	mark = eq;
+	while (mark > text && mark[-1] != '#' && mark[-1] != '!' && mark[-1] >= '0' && mark[-1] <= '9') mark--;
+	first = mark > text && mark[-1] == '#';
+	last = eq[-1] == '!';
+	kn = (size_t)((first ? mark : eq) - text) - (size_t)(first || last);
+	if (kn == 0 || kn >= sizeof key)
+		return;
+	memcpy(key, text, kn);
+	key[kn] = 0;
+	if (!e->part.buf && !(e->part.buf = malloc(PART_MAX + sizeof key + 2)))
+		return;
+	if (first) {                /* it says how long the whole is */
+		if (e->part.active && !e->part.bad)
+			bc_engine_log(e, 2, "%s=: a long value was cut short (%d of %d bytes came): ignored", e->part.key,
+			              (int)e->part.len, (int)e->part.want);
+		e->part.active = 1;
+		e->part.bad = 0;
+		e->part.pid = pid;
+		e->part.len = 0;
+		e->part.want = (size_t)strtoul(mark, NULL, 10);
+		strcpy(e->part.key, key);
+		if (e->part.want > PART_MAX) {
+			bc_engine_log(e, 2, "%s=: %d bytes is too long a value (the most is %d): ignored", key, (int)e->part.want, PART_MAX);
+			e->part.bad = 1;
+		}
+	} else if (!e->part.active || e->part.pid != pid || strcmp(e->part.key, key)) {
+		if (last)
+			bc_engine_log(e, 2, "%s=: the end of a long value came without its beginning: ignored", key);
+		return;
+	}
+	n = strlen(eq + 1);
+	if (!e->part.bad && e->part.len + n <= e->part.want) {
+		size_t head = strlen(e->part.key) + 1;
+
+		if (e->part.len == 0)
+			snprintf(e->part.buf, sizeof key + 2, "%s=", e->part.key);
+		memcpy(e->part.buf + head + e->part.len, eq + 1, n + 1);
+		e->part.len += n;
+	} else if (!e->part.bad) {
+		e->part.len += n;       /* more than it said: counted, and refused below */
+	}
+	if (!last)
+		return;
+	e->part.active = 0;
+	if (e->part.bad)
+		return;
+	if (e->part.len != e->part.want) {
+		bc_engine_log(e, 2, "%s=: a long value was cut short (%d of %d bytes came): ignored", e->part.key,
+		              (int)e->part.len, (int)e->part.want);
+		return;
+	}
+	ev_set(e, pid, e->part.buf);
+}
+
 static void ev_set(bc_engine *e, int pid, const char *text)
 {
 	char key[64];
-	const char *eq = strchr(text, '='), *val;
+	const char *eq, *val;
 	bc_bot *b = pid == BL_NO_PLAYER ? NULL : bc_engine_bot(e, pid);
 	size_t n;
 	int i;
+
+	if (text[0] == '+') {
+		part_add(e, pid, text + 1);
+		return;
+	}
+	eq = strchr(text, '=');
 
 	if (!eq || eq == text || (size_t)(eq - text) >= sizeof key)
 		return;
@@ -1132,7 +1222,6 @@ static void ev_set(bc_engine *e, int pid, const char *text)
 	memcpy(key, text, n);
 	key[n] = 0;
 	val = eq + 1;
-
 	if (!strncmp(key, "item.", 5)) {
 		set_item(e, b, key + 5, val, 0);
 		return;
@@ -1159,6 +1248,10 @@ static void ev_set(bc_engine *e, int pid, const char *text)
 		for (i = 0; i < e->max_bots; i++)
 			if (e->bots[i].used && (!b || b == &e->bots[i]))
 				roll_persona(e, &e->bots[i]);
+		return;
+	}
+	if (!strcmp(key, "name")) {
+		if (b) snprintf(b->name, sizeof b->name, "%s", val);
 		return;
 	}
 	if (!strcmp(key, "night_vision")) {
@@ -2157,10 +2250,23 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 	}
 }
 
+void bc_route_text(const bc_bot *b, char *out, size_t out_size)
+{
+	snprintf(out, out_size, "no route");
+	if (b->mv.has_route) {
+		int s = b->mv.follow.step < 0 ? 0 : b->mv.follow.step;
+
+		snprintf(out, out_size, "route %d/%d %s", s, (int)b->mv.route.n,
+		         s < b->mv.route.n ? bc_nav_kind_name(b->mv.route.steps[s].kind) : "end");
+	} else if (b->mv.state == BC_MV_PLANNING && b->wish.move == BC_MOVE_GOTO) {
+		snprintf(out, out_size, "planning");
+	}
+}
+
 size_t bc_engine_describe(const bc_engine *e, int pid, char *out, size_t out_size)
 {
 	const bc_bot *b;
-	char tree[160] = "", route[64] = "no route";
+	char tree[160] = "", route[64];
 	int n;
 
 	if (pid < 0 || pid >= BL_MAX_PLAYERS || e->by_pid[pid] < 0 || !out || !out_size)
@@ -2168,14 +2274,7 @@ size_t bc_engine_describe(const bc_engine *e, int pid, char *out, size_t out_siz
 	b = &e->bots[e->by_pid[pid]];
 	if (b->forest && b->bt)
 		bt_describe(b->forest, b->bt, tree, sizeof tree);
-	if (b->mv.has_route) {
-		int s = b->mv.follow.step < 0 ? 0 : b->mv.follow.step;
-
-		snprintf(route, sizeof route, "route %d/%d %s", s, (int)b->mv.route.n,
-		         s < b->mv.route.n ? bc_nav_kind_name(b->mv.route.steps[s].kind) : "end");
-	} else if (b->mv.state == BC_MV_PLANNING && b->wish.move == BC_MOVE_GOTO) {
-		snprintf(route, sizeof route, "planning");
-	}
+	bc_route_text(b, route, sizeof route);
 	n = snprintf(out, out_size, "%s L%d | %s | %s | sees %d%s",
 	             bc_archetype_name(b->persona.archetype), b->level,
 	             !b->alive ? "dead" : tree[0] ? tree : "idle", route, b->senses.n_visible,

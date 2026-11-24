@@ -772,8 +772,9 @@ for _, s in ipairs(sets) do
 	if (line:find(":night_vision=", 1, true)) then saw_nv = true; else texts[#texts + 1] = line; end
 end
 table.sort(texts);
-check(#texts == 4 and texts[1] == "*:friendly_fire=true" and texts[2] == "*:water.damage=0" and texts[3] == "*:water=safe"
-	and texts[4] == pid .. ":difficulty=3", "...the settings, global and the bot's, the map's water among them", table.concat(texts, ","));
+check(#texts == 5 and texts[1] == "*:friendly_fire=true" and texts[2] == "*:water.damage=0" and texts[3] == "*:water=safe"
+	and texts[4] == pid .. ":difficulty=3" and texts[5]:find("^" .. pid .. ":name=Bot%d+$") ~= nil,
+	"...the settings, global and the bot's (its name among them), the map's water too", table.concat(texts, ","));
 check(saw_nv, "...and whether the bot sees in the dark");
 local od = of(evs, 12);
 check(#od == 1 and od[1].pid == pid and as(od[1], "bl_ev_order").order == 1 and as(od[1], "bl_ev_order").pos.y == 2
@@ -911,6 +912,106 @@ do
 		if (s.pid == npc and ffi.string(s.raw):find("^tree=")) then line = ffi.string(s.raw); end
 	end
 	check(line == "tree=tree courier:\ndo seek\n", "and changed while it plays, as text", line);
+	-- A TREE LONGER THAN ONE RECORD of the link (a record carries under
+	-- 1000 bytes): in pieces the engine puts together, never cut short
+	local long = {"tree big:", "pick every=1"};
+	for i = 1, 60 do
+		long[#long + 1] = "\toption none has_item thing" .. i .. " x" .. i .. "   # a line of padding";
+		long[#long + 1] = "\t\tdo roam";
+	end
+	long = table.concat(long, "\n") .. "\n";
+	check(#long > 3000, "(a text of over 3000 bytes)", #long);
+	check(botlink_set("tree", long, npc) == true, "a long tree is accepted");
+	step(1);
+	local parts = {};
+	for _, s in ipairs(of(engine_events(), 11)) do
+		if (s.pid == npc and ffi.string(s.raw):find("^%+?tree")) then parts[#parts + 1] = ffi.string(s.raw); end
+	end
+	local whole, shaped = "", #parts >= 4;
+	for i, part in ipairs(parts) do
+		local head = i == 1 and ("^%+tree#" .. #long .. "=") or i == #parts and "^%+tree!=" or "^%+tree=";
+		local a, b = part:find(head);
+		if (a == nil or #part > 1000) then shaped = false; else whole = whole .. part:sub(b + 1); end
+	end
+	check(shaped, "it goes as a first piece that says the length, pieces between, and a last one marked", #parts);
+	check(whole == long, "and the pieces are the text, all of it", #whole);
+	-- one too long for anything is refused whole, and said
+	local nlogs = #logs;
+	check(botlink_set("tree", string.rep("x", 70000), npc) == false, "a value over the most is refused");
+	step(1);
+	local sent = false;
+	for _, s in ipairs(of(engine_events(), 11)) do
+		if (s.pid == npc and ffi.string(s.raw):find("tree", 1, true)) then sent = true; end
+	end
+	check(not sent and #logs > nlogs and logs[#logs]:find("too long", 1, true) ~= nil, "nothing of it is sent, and the log says so", logs[#logs]);
+	check(botlink_set("tree", "tree courier:\ndo seek\n", npc) == true, "(and a short one goes as before)");
+	step(1);
+	engine_events();
+	-- A TREE FROM AN ADMINISTRATION TOOL: by name or from a file it left
+	-- in the debug directory, for some bots or for the world; and back
+	local function tree_lines()
+		local got = {};
+		for _, s in ipairs(of(engine_events(), 11)) do
+			local t = ffi.string(s.raw);
+			if (t:find("^%+?tree")) then got[#got + 1] = (s.pid == 255 and "*" or s.pid) .. ":" .. t; end
+		end
+		return table.concat(got, "|");
+	end
+	local other = botlink_add{team = 2};
+	P[other].bot = true;
+	step(1);
+	engine_events();
+	os.execute("mkdir -p '" .. botlink_map_dir .. "botdebug'");
+	local fh = io.open(botlink_map_dir .. "botdebug/apply-1.bt", "wb");
+	fh:write("tree sentry:\ndo hold self 9\n");
+	fh:close();
+	local n, why = botlink_tree_apply({file = "apply-1.bt"}, {npc, other});
+	step(1);
+	check(n == 2 and tree_lines() == npc .. ":tree=tree sentry:\ndo hold self 9\n|" .. other .. ":tree=tree sentry:\ndo hold self 9\n",
+		"a text from a file of the debug directory, for the bots named", tostring(n) .. " " .. tostring(why));
+	n = botlink_tree_apply("tdm", {other});
+	step(1);
+	check(n == 1 and tree_lines() == other .. ":tree=tdm", "a tree by name, for one");
+	n = botlink_tree_revert({npc, other});
+	step(1);
+	check(n == 2 and tree_lines() == npc .. ":tree=|" .. other .. ":tree=", "those bots back to the world's tree");
+	local was = gamemode;
+	gamemode = "ctf";
+	n = botlink_tree_apply({file = "apply-1.bt"});
+	step(1);
+	check(n ~= nil and n >= 2 and tree_lines() == "*:tree=tree sentry:\ndo hold self 9\n", "with no bots named: the world's tree", tostring(n));
+	n = botlink_tree_revert();
+	step(1);
+	check(tree_lines() == "*:tree=ctf", "and the world back to the gamemode's");
+	engine_bots_tree = "mine";
+	botlink_tree_revert();
+	step(1);
+	check(tree_lines() == "*:tree=mine", "or to the operator's choice (engine_bots_tree), when he made one");
+	engine_bots_tree = "";
+	gamemode = was;
+	botlink_tree_revert();
+	step(1);
+	engine_events();
+	-- what is refused: a path, a file there is none of, a bot that is not the engine's, a name that is no name
+	n, why = botlink_tree_apply({file = "../apply-1.bt"}, {npc});
+	check(n == nil and why == "not a file name", "a path is not a file name", why);
+	n, why = botlink_tree_apply({file = "/etc/passwd"}, {npc});
+	check(n == nil and why == "not a file name", "nor is an absolute one", why);
+	n, why = botlink_tree_apply({file = "nothing.bt"}, {npc});
+	check(n == nil and why == "no such file", "a file there is none of", why);
+	n, why = botlink_tree_apply({file = "apply-1.bt"}, {npc, 200});
+	check(n == nil and why ~= nil and why:find("no engine bot", 1, true) ~= nil, "a bot that is not the engine's: nobody gets it", why);
+	n, why = botlink_tree_apply("tree x:\ndo seek", {npc});
+	check(n == nil and why == "not a tree's name", "a text is not a name", why);
+	n, why = botlink_tree_revert({200});
+	check(n == nil, "nor is such a bot reverted");
+	step(1);
+	check(tree_lines() == "", "and nothing of those reached the engine");
+	os.remove(botlink_map_dir .. "botdebug/apply-1.bt");
+	os.execute("rmdir '" .. botlink_map_dir .. "botdebug' 2>/dev/null");
+	botlink_remove(other);
+	step(1);
+	engine_events();
 	local where = botlink_add{team = 2, at = function(pid) return {x = 300.5, y = 310.5, z = 20}; end};
 	P[where].bot = true;
 	check(P[where].pos.x == 300.5, "a function says where, too");

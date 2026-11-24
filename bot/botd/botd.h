@@ -20,6 +20,8 @@ typedef struct botd_opts {
 	int poll_ms;            /* wait between attach tries (default 1000) */
 	int stale_ms;           /* server beat unmoved this long: it is gone (default 5000) */
 	int health_s;           /* seconds between health lines (default 60) */
+	const char *debug_dir;  /* where a viewer asks what the bots think, and is answered (watch.c);
+	                           NULL: $LSD_DATA/rw/botdebug (LSD_DATA: /data); "none": nowhere */
 } botd_opts;
 
 void botd_opts_default(botd_opts *o);
@@ -31,5 +33,26 @@ int botd_run(const botd_opts *o);
 
 /* Ask botd_run to stop, from a signal handler or another thread. */
 void botd_stop(void);
+
+/* The debug channel (watch.c): requests read from a directory, the
+ * engine's answers written there. One of these a session. */
+struct bc_engine;
+typedef struct botd_watch {
+	char dir[512];              /* "": there is none */
+	double next_look, next_roster, next_snap;
+	int live;                   /* requests alive at the last look */
+	int hz, all;                /* what they ask, summed */
+	unsigned char want[256];
+	unsigned char on[256];      /* bots whose snapshot file is there */
+	char *buf;
+	unsigned long cap, written;
+} botd_watch;
+
+void botd_watch_init(botd_watch *w, const char *dir);
+/* Once a round, with the host's clock (seconds). Cheap when nobody
+ * asks. Returns how many requests are alive. */
+int botd_watch_round(botd_watch *w, struct bc_engine *e, double now);
+/* The session is over: nobody is watched, the files are gone. */
+void botd_watch_end(botd_watch *w, struct bc_engine *e);
 
 #endif

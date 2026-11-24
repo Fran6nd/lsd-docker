@@ -35,6 +35,17 @@
 --        `once`: one life -- when it dies it leaves the server.
 --   botlink_remove(pid)
 --   botlink_set(key, value [, pid])      -- a rule or setting, for all or one bot
+--        A value of any length up to 60000 bytes (a tree's text): sent
+--        in pieces when it is over a record, never cut short. -> true,
+--        or false (and a line in the log) for one that is too long.
+--   botlink_tree_apply(tree, pids | nil) -> how many bots, | nil, why
+--        a tree for some bots (their own) or, with no pids, for the
+--        world. `tree` is a name, or {file = "<name>.bt"}: a text an
+--        administration tool left in <botlink_map_dir>botdebug/ (the
+--        name alone, letters digits _ and -: no path is taken).
+--   botlink_tree_revert(pids | nil) -> how many
+--        those bots back to the world's tree; with no pids, the world
+--        back to engine_bots_tree, else the gamemode's.
 --   botlink_order(pid, {order=, pos=, target=, secs=})
 --   botlink_alive() -> is an engine attached and beating
 --   botlink_stats() -> counters (dropped actions, refused ones, ...)
@@ -222,6 +233,28 @@ end
 local function push_text(kind, pid, text, force)
 	text = string.sub(text, 1, 1000);
 	push(kind, pid, text, #text + 1, force);
+end
+
+-- A SETTING, whatever its length. One record carries under 1000 bytes,
+-- and a behaviour tree's text is often longer: such a value goes in
+-- pieces the engine puts together again -- "+key#<total>=..." first,
+-- "+key=..." between, "+key!=..." last -- and takes only when
+-- every one came (bot/core/engine.c, SETTINGS). Never cut short: a tree
+-- that lost its end would still be a tree, and a wrong one.
+local SET_PIECE, SET_MAX = 900, 60000;
+local function push_setting(pid, key, value)
+	value = tostring(value);
+	if (#key + #value + 1 <= 1000) then
+		push_text(11, pid, key .. "=" .. value);
+		return;
+	end
+	local at, first = 1, true;
+	while (#value - at + 1 > SET_PIECE) do
+		push_text(11, pid, "+" .. key .. (first and ("#" .. #value) or "") .. "="
+			.. string.sub(value, at, at + SET_PIECE - 1));
+		at, first = at + SET_PIECE, false;
+	end
+	push_text(11, pid, "+" .. key .. "!=" .. string.sub(value, at));
 end
 
 local function color_int(c)
@@ -538,11 +571,11 @@ end
 
 local function send_settings()
 	for k, v in pairs(settings) do
-		push_text(11, NO_PLAYER, k .. "=" .. tostring(v));
+		push_setting(NO_PLAYER, k, v);
 	end
 	for pid, t in pairs(psettings) do
 		for k, v in pairs(t) do
-			push_text(11, pid, k .. "=" .. tostring(v));
+			push_setting(pid, k, v);
 		end
 	end
 end
@@ -578,9 +611,10 @@ function botlink_add(opts)
 	local level = math.max(1, math.min(10, math.floor(opts.level or 5)));
 	local gun = opts.gun or math.random(0, 2);
 	local at = opts.at;
+	local name = opts.name or string.format("Bot%d", seed % 1000);
 	local pid = bot_create{
 		team = opts.team,
-		name = opts.name or string.format("Bot%d", seed % 1000),
+		name = name,
 		gun = gun, tool = "gun",
 		spawn_at = type(at) == "function" and at
 			or type(at) == "table" and function() return at; end or nil,
@@ -590,6 +624,8 @@ function botlink_add(opts)
 	ours[pid] = {level = level, gun = gun, seed = seed, team = opts.team, once = opts.once == true};
 	blocks[pid], grenades[pid] = 50, 3;
 	announce(pid);
+	-- its name, for a person watching it think (the engine does nothing else with it)
+	botlink_set("name", (string.gsub(string.sub(tostring(name), 1, 30), "[%c=]", " ")), pid);
 	if (opts.tree ~= nil) then
 		botlink_set("tree", opts.tree, pid);
 	end
@@ -606,6 +642,13 @@ function botlink_remove(pid)
 end
 
 function botlink_set(key, value, pid)
+	if (#tostring(key) > 60 or #tostring(value) > SET_MAX) then
+		-- said, and nothing kept or sent: the old value stands
+		log("botlink_set: %s is too long a %s (%d bytes; the most is %d): ignored",
+			string.sub(tostring(key), 1, 60), #tostring(key) > 60 and "name" or "value",
+			#tostring(value), SET_MAX);
+		return false;
+	end
 	if (pid == nil) then
 		settings[key] = value;
 	else
@@ -613,8 +656,67 @@ function botlink_set(key, value, pid)
 		psettings[pid][key] = value;
 	end
 	if (f ~= nil) then
-		push_text(11, pid or NO_PLAYER, key .. "=" .. tostring(value));
+		push_setting(pid or NO_PLAYER, key, value);
 	end
+	return true;
+end
+
+-- A TREE FROM AN ADMINISTRATION TOOL (lsdctl bots apply, and whatever
+-- editor comes to stand on it): for some bots or for the world, live.
+-- The tool has compiled the text already (bttree --check) and says here
+-- only which file of the debug directory holds it -- never a path: the
+-- name is checked, and the directory is this module's own setting. The
+-- console that reaches this is the admin's: applying a tree is an admin
+-- action, and a tree, though not code, decides what commands a bot runs
+-- (`do use <item>`).
+local function tree_pids(pids)
+	local list = {};
+	for _, pid in ipairs(pids or {}) do
+		if (ours[pid] == nil) then return nil, "no engine bot has the id " .. tostring(pid); end
+		list[#list + 1] = pid;
+	end
+	return list;
+end
+
+function botlink_tree_apply(tree, pids)
+	local text = tree;
+	if (type(tree) == "table") then
+		local name = tostring(tree.file or "");
+		if (not string.match(name, "^[%w_%-]+%.bt$")) then
+			return nil, "not a file name";
+		end
+		local fh = io.open(botlink_map_dir .. "botdebug/" .. name, "rb");
+		if (fh == nil) then return nil, "no such file"; end
+		text = fh:read(60001);
+		fh:close();
+		if (text == nil or #text == 0 or #text > 60000) then return nil, "empty, or too long"; end
+	elseif (type(tree) ~= "string" or not string.match(tree, "^[%w_%-%.]+$")) then
+		return nil, "not a tree's name";
+	end
+	if (pids == nil) then
+		botlink_set("tree", text);
+		local n = 0;
+		for _ in pairs(ours) do n = n + 1; end
+		return n;
+	end
+	local list, why = tree_pids(pids);
+	if (list == nil) then return nil, why; end
+	for _, pid in ipairs(list) do botlink_set("tree", text, pid); end
+	return #list;
+end
+
+function botlink_tree_revert(pids)
+	if (pids == nil) then
+		local own = rawget(_G, "engine_bots_tree");
+		botlink_set("tree", (own ~= nil and tostring(own) ~= "") and tostring(own) or tostring(gamemode or "default"));
+		local n = 0;
+		for _ in pairs(ours) do n = n + 1; end
+		return n;
+	end
+	local list, why = tree_pids(pids);
+	if (list == nil) then return nil, why; end
+	for _, pid in ipairs(list) do botlink_set("tree", "", pid); end
+	return #list;
 end
 
 function botlink_order(pid, t)

@@ -21,7 +21,32 @@ every map, `botd: bots: 0 -> N`, and a `botd: health:` line a minute
 the library or header was not found. No `botd: waiting/attached` at all:
 the image has no botd (built without `bot/core/engine.c`).
 
-## 2. What are the bots doing? (server's view)
+## 2. What are the bots THINKING? (the engine's view)
+
+```sh
+docker exec <c> lsdctl bots list                 # every bot: kind, level, health, its tree, what it is doing
+docker exec <c> lsdctl bots watch <name|id> --once --plain    # one frame of its tree (no --once: live, in a terminal)
+docker exec <c> lsdctl bots watch <id> --once --json          # the snapshot itself (bot/TREES.md section 15)
+```
+
+The frame shows the RUNNING path through the tree the engine really
+holds (items and extras included), each pick's timer, and for every
+option `score x weight x factor x luck x sticky = worth` with the one
+held -- so "why is it doing that" is read, not guessed. `--full` draws
+every node. Watching costs the bot nothing it would notice and changes
+nothing it decides; it stops by itself when the viewer goes. `bots
+list` showing every bot `dead` or `idle` for long is section 1's
+business (no map, no link).
+
+To try a different tree on the bots that are playing, without a restart
+(a text that does not compile is refused, nothing changes):
+
+```sh
+docker exec -i <c> lsdctl bots apply - --bot <name|id> < my.bt     # --team N, --archetype K, --each, --all (the world's)
+docker exec <c> lsdctl bots revert --each
+```
+
+## 2b. What are the bots doing? (server's view)
 
 `lsdctl exec 'exec <lua>'` runs Lua in the server; `log(...)` comes back.
 Useful globals: `bot_is_bot(pid)`, `is_joined`, `is_alive`, `get_position`,

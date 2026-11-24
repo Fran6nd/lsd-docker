@@ -138,6 +138,8 @@ typedef struct session {
 	int bots;
 	int user_trees;         /* the operator's directory had trees at the last look */
 	int maps;
+	botd_watch watch;       /* the debug channel (watch.c) */
+	int watchers;
 } session;
 
 static session S;       /* static: survives the longjmp of a SIGBUS */
@@ -561,6 +563,16 @@ static int run_session(session *s)
 		} else {
 			s->world_misses++;
 		}
+		{
+			/* whoever asks what the bots think is answered here, between thinks */
+			int watchers = botd_watch_round(&s->watch, s->e, start);
+			if (watchers != s->watchers) {
+				if (watchers) say("debug: %d request%s in %s: %s at %d a second", watchers, watchers == 1 ? "" : "s",
+				                  s->watch.dir, s->watch.all ? "every bot watched" : "watching what they name", s->watch.hz);
+				else say("debug: nobody watches any more");
+				s->watchers = watchers;
+			}
+		}
 		int bots = bc_engine_bots(s->e);
 		if (bots != bots_was) {
 			say("bots: %d -> %d", bots_was, bots);
@@ -614,7 +626,16 @@ static int session_main(session *s)
 		return END_GONE;
 	}
 	s->user_trees = load_trees(s->e, s->o->trees, s->o->user_trees);
+	{
+		char dir[512];
+		const char *data = getenv("LSD_DATA") && *getenv("LSD_DATA") ? getenv("LSD_DATA") : "/data";
+		if (s->o->debug_dir) snprintf(dir, sizeof dir, "%s", s->o->debug_dir);
+		else snprintf(dir, sizeof dir, "%s/rw/botdebug", data);
+		botd_watch_init(&s->watch, dir);
+		s->watchers = 0;
+	}
 	why = run_session(s);
+	botd_watch_end(&s->watch, s->e);
 	bus_armed = 0;
 	return why;
 }

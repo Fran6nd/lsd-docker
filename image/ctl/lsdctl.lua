@@ -1584,12 +1584,518 @@ command("play", "play [tdm|parkour|ctf|bots|bots_rewards|babel] [random|<page|ur
 		say("It stops by itself when the last player leaves. Ctrl-C stops it now.");
 	end);
 
-command("bots", "bots <n> [--no-restart]",
-	"the bot engine's bots: n a team, or n in all in a game of one team (parkour); 0 for none",
+--======================== THE BOTS' TREES ===========================--
+
+-- Everything a tree editor's backend does, as commands that take and
+-- give JSON (bot/TREES.md, "The editor's backend"): look at the trees,
+-- check and format a text, see the bots and what one is thinking, give
+-- a tree to one bot, to many or to all while they play, take it back,
+-- keep a text as an operator's tree. A future HTTP endpoint is these
+-- with a transport and a password in front, and nothing else.
+--
+-- The work is bttree's (the engine's own compiler) and the server's
+-- (lib_botlink, through the console); what is here is the plumbing and
+-- the checks no caller may skip: a tree's name is letters, digits, _
+-- and - (it becomes a file name); a text is at most 60000 bytes; a text
+-- is compiled before anybody is given it.
+local BTTREE = os.getenv("LSD_BTTREE") or "bttree";
+local TREES_BUILTIN = os.getenv("LSD_BOT_TREES") or "/opt/botd/trees";
+local TREES_USER = DATA .. "/trees";
+local BOTDEBUG = DATA .. "/rw/botdebug";
+local TREE_BYTES = 60000;
+
+local function json_quote(s)
+	return '"' .. string.gsub(tostring(s), '[%c"\\]', function(c)
+		if (c == '"' or c == "\\") then return "\\" .. c; end
+		if (c == "\n") then return "\\n"; end
+		if (c == "\t") then return "\\t"; end
+		return string.format("\\u%04x", string.byte(c));
+	end) .. '"';
+end
+
+-- A value as JSON. A table with [1], or marked {array = true}, is a
+-- list; any other is an object, its keys in `order` (if it names one)
+-- and then by name.
+local ARRAY = {};
+local function json(v)
+	local t = type(v);
+	if (t == "nil") then return "null"; end
+	if (t == "boolean" or t == "number") then return tostring(v); end
+	if (t ~= "table") then return json_quote(v); end
+	if (v[1] ~= nil or getmetatable(v) == ARRAY) then
+		local out = {};
+		for i, x in ipairs(v) do out[i] = json(x); end
+		return "[" .. table.concat(out, ", ") .. "]";
+	end
+	local keys, seen, out = {}, {}, {};
+	for _, k in ipairs(rawget(v, "__order") or {}) do
+		if (v[k] ~= nil) then keys[#keys + 1] = k; seen[k] = true; end
+	end
+	local rest = {};
+	for k in pairs(v) do
+		if (k ~= "__order" and not seen[k]) then rest[#rest + 1] = k; end
+	end
+	table.sort(rest);
+	for _, k in ipairs(rest) do keys[#keys + 1] = k; end
+	for i, k in ipairs(keys) do out[i] = json_quote(k) .. ": " .. json(v[k]); end
+	return "{" .. table.concat(out, ", ") .. "}";
+end
+local function list(t) return setmetatable(t or {}, ARRAY); end
+
+-- JSON read: what bttree and the engine write (no surprises in it).
+local function json_read(text)
+	local at = 1;
+	local value;
+	local function skip() at = string.find(text, "[^ \n\r\t]", at) or #text + 1; end
+	local function str()
+		local out, i = {}, at + 1;
+		while (true) do
+			local j = string.find(text, '["\\]', i);
+			if (j == nil) then error("bad JSON", 0); end
+			out[#out + 1] = string.sub(text, i, j - 1);
+			if (string.sub(text, j, j) == '"') then at = j + 1; break; end
+			local c = string.sub(text, j + 1, j + 1);
+			if (c == "u") then
+				out[#out + 1] = string.char(tonumber(string.sub(text, j + 2, j + 5), 16) % 256);
+				i = j + 6;
+			else
+				out[#out + 1] = ({n = "\n", t = "\t", r = "\r", b = "\b", f = "\f"})[c] or c;
+				i = j + 2;
+			end
+		end
+		return table.concat(out);
+	end
+	value = function()
+		skip();
+		local c = string.sub(text, at, at);
+		if (c == "{") then
+			local o = {};
+			at = at + 1; skip();
+			if (string.sub(text, at, at) == "}") then at = at + 1; return o; end
+			while (true) do
+				skip();
+				local k = str();
+				skip(); at = at + 1;
+				o[k] = value();
+				skip();
+				local d = string.sub(text, at, at);
+				at = at + 1;
+				if (d == "}") then return o; end
+				if (d ~= ",") then error("bad JSON", 0); end
+			end
+		elseif (c == "[") then
+			local a = list();
+			at = at + 1; skip();
+			if (string.sub(text, at, at) == "]") then at = at + 1; return a; end
+			while (true) do
+				a[#a + 1] = value();
+				skip();
+				local d = string.sub(text, at, at);
+				at = at + 1;
+				if (d == "]") then return a; end
+				if (d ~= ",") then error("bad JSON", 0); end
+			end
+		elseif (c == '"') then
+			return str();
+		elseif (string.sub(text, at, at + 3) == "true") then at = at + 4; return true;
+		elseif (string.sub(text, at, at + 4) == "false") then at = at + 5; return false;
+		elseif (string.sub(text, at, at + 3) == "null") then at = at + 4; return nil;
+		end
+		local n = string.match(text, "^-?[%d.eE+-]+", at);
+		if (n == nil) then error("bad JSON", 0); end
+		at = at + #n;
+		return tonumber(n);
+	end
+	local ok, v = pcall(value);
+	return ok and v or nil;
+end
+
+-- A command's output and its exit status.
+local function capture(cmd)
+	local h = io.popen(cmd .. '; echo "LSDCTL-EXIT:$?"');
+	local out = h:read("*a") or "";
+	h:close();
+	local code = tonumber(string.match(out, "LSDCTL%-EXIT:(%d+)%s*$")) or 1;
+	return (string.gsub(out, "LSDCTL%-EXIT:%d+%s*$", "")), code;
+end
+
+local function bttree(args, quiet)
+	return capture(BTTREE .. " " .. args .. (quiet and " 2>/dev/null" or " 2>&1"));
+end
+
+-- How a `bots` command ends when it cannot do what was asked: one line
+-- for a person, or -- with --json -- the same as data, on the standard
+-- output; a status of 1 either way.
+local function bots_fail(flags, message, diagnostics)
+	if (flags.json) then
+		io.write(json({__order = {"format", "version", "ok", "error", "diagnostics"},
+			format = "lsd-bt-error", version = 1, ok = false, error = message,
+			diagnostics = diagnostics}), "\n");
+		os.exit(1);
+	end
+	for _, d in ipairs(diagnostics or {}) do
+		io.stderr:write(string.format("  line %d, column %d: %s\n", d.line or 0, d.column or 0, d.message or ""));
+	end
+	die("%s", message);
+end
+
+local function tree_name_ok(name)
+	return type(name) == "string" and #name <= 31 and string.match(name, "^[%w_%-]+$") ~= nil;
+end
+
+local function bt_files(dir)
+	local out = {};
+	local h = io.popen("ls " .. sh_quote(dir) .. "/*.bt 2>/dev/null");
+	for line in h:lines() do out[#out + 1] = line; end
+	h:close();
+	return out;
+end
+
+-- Every tree of the built-in files and of the operator's, each with
+-- where it is from; one of the operator's with a built-in's name is the
+-- one the engine runs.
+local function all_trees(flags)
+	local trees, by_name = list(), {};
+	for _, from in ipairs({"builtin", "user"}) do
+		local files = bt_files(from == "builtin" and TREES_BUILTIN or TREES_USER);
+		if (#files > 0) then
+			local q = {};
+			for i, f in ipairs(files) do q[i] = sh_quote(f); end
+			-- each of the operator's files alone: one that does not compile must not hide the others
+			for _, arg in ipairs(from == "builtin" and {table.concat(q, " ")} or q) do
+				local out, code = bttree("--list --json " .. arg, true);
+				local doc = code == 0 and json_read(out) or nil;
+				for _, t in ipairs(doc and doc.trees or {}) do
+					t.from = from;
+					t.__order = {"name", "from", "file", "line", "nodes", "refers", "about", "replaced"};
+					if (by_name[t.name] ~= nil) then by_name[t.name].replaced = true; end
+					by_name[t.name] = t;
+					trees[#trees + 1] = t;
+				end
+				if (doc == nil and from == "builtin") then
+					bots_fail(flags, "cannot read the trees in " .. TREES_BUILTIN .. " (is bttree there?)");
+				end
+			end
+		end
+	end
+	return trees, by_name;
+end
+
+-- The text a command was given: a file, or `-` for the standard input.
+-- A JSON tree (what an editor holds) is made text here.
+local function tree_text(flags, source)
+	local text;
+	if (source == nil or source == "-") then
+		text = io.read("*a");
+	else
+		text = read_file(source) or bots_fail(flags, "cannot read " .. tostring(source));
+	end
+	if (text == nil or #text == 0) then bots_fail(flags, "no tree text was given"); end
+	if (#text > 4 * TREE_BYTES) then bots_fail(flags, "too long to be a tree"); end
+	local tmp = os.tmpname();
+	if (string.match(text, "^%s*{")) then
+		write_file(tmp, text);
+		local out, code = bttree("--from-json " .. sh_quote(tmp));
+		os.remove(tmp);
+		if (code ~= 0) then bots_fail(flags, "that JSON is not a tree: " .. (string.gsub(out, "%s+$", ""))); end
+		text = out;
+	end
+	return text;
+end
+
+-- All that is wrong with a text, by the engine's compiler: nil if nothing.
+local function tree_check(text)
+	local tmp = os.tmpname();
+	write_file(tmp, text);
+	local out, code = bttree("--check --json " .. sh_quote(tmp), true);
+	local doc = json_read(out);
+	local names = code == 0 and json_read((bttree("--list --json " .. sh_quote(tmp), true))) or nil;
+	os.remove(tmp);
+	if (doc == nil) then return {{line = 0, column = 0, message = "bttree could not be run"}}; end
+	for _, d in ipairs(doc.diagnostics or {}) do d.file = nil; d.__order = {"line", "column", "message"}; end
+	return (not doc.ok) and doc.diagnostics or nil, names and names.trees or {};
+end
+
+-- The engine's bots, as it says them now (the debug channel).
+local function roster(flags)
+	if (not console_up()) then bots_fail(flags, "the server is not running"); end
+	local out, code = bttree("--bots --json --dir " .. sh_quote(BOTDEBUG));
+	local doc = code == 0 and json_read(out) or nil;
+	if (doc == nil) then
+		bots_fail(flags, "the bot engine does not answer (are there engine bots? lsdctl bots <n>)");
+	end
+	return doc, out;
+end
+
+-- Which bots a command means: --bot a,b (ids or names), --team n,
+-- --archetype x, together; --each, every engine bot one by one; or
+-- --all, which is the world's tree and not a list (a bot that was given
+-- a tree of its own keeps it).
+local function targets(flags, doc)
+	if (flags.all) then return nil; end
+	if (not (flags.bot or flags.team or flags.archetype or flags.each)) then
+		bots_fail(flags, "say whom: --bot <id or name>[,...], --team <1|2>, --archetype <kind>, --each (every bot), or --all (the world's tree)");
+	end
+	local want, pids, missing = {}, list(), {};
+	for w in string.gmatch(flags.bot or "", "[^,]+") do want[#want + 1] = w; end
+	local found = {};
+	for _, b in ipairs(doc.bots or {}) do
+		local hit = false;
+		for i, w in ipairs(want) do
+			if (tostring(b.pid) == w or b.name == w) then hit = true; found[i] = true; end
+		end
+		if (flags.team and tostring(b.team) == tostring(flags.team)) then hit = true; end
+		if (flags.archetype and b.archetype == flags.archetype) then hit = true; end
+		if (flags.each) then hit = true; end
+		if (hit) then pids[#pids + 1] = b.pid; end
+	end
+	for i, w in ipairs(want) do
+		if (not found[i]) then missing[#missing + 1] = w; end
+	end
+	if (#missing > 0) then bots_fail(flags, "no engine bot is called " .. table.concat(missing, ", ")); end
+	if (#pids == 0) then bots_fail(flags, "no engine bot matches"); end
+	return pids;
+end
+
+-- One call into lib_botlink through the console: its answer, a number
+-- of bots, or nil and why.
+local function botlink_call(expr)
+	local out = console({'exec do local n, why = ' .. expr .. '; log("%s", "LSDCTL" .. "-TREE|" .. tostring(n) .. "|" .. tostring(why)); end'}, 1);
+	local r = replies(out, "LSDCTL-TREE|")[1];
+	if (r == nil) then return nil, "the server did not answer (is lib_botlink loaded?)"; end
+	local n, why = string.match(r, "^([^|]*)|(.*)$");
+	if (tonumber(n) == nil) then return nil, why; end
+	return tonumber(n);
+end
+
+-- What each of those bots runs now, read back from the engine.
+local function report(flags, pids, want_tree, what)
+	run("sleep 1.2");
+	local doc = roster(flags);
+	local rows, ok = list(), true;
+	for _, b in ipairs(doc.bots or {}) do
+		local mine = pids == nil;
+		for _, pid in ipairs(pids or {}) do
+			if (pid == b.pid) then mine = true; end
+		end
+		if (mine) then
+			-- for the world's tree, a bot with one of its own is as it should be
+			local good;
+			if (pids == nil) then
+				good = b.tree_set == "bot" or want_tree == nil or b.tree == want_tree;
+			elseif (want_tree == nil) then
+				good = b.tree_set == "world";
+			else
+				good = b.tree == want_tree and b.tree_set == "bot";
+			end
+			ok = ok and good;
+			rows[#rows + 1] = {__order = {"pid", "name", "team", "tree", "tree_from", "tree_set", "ok"},
+				pid = b.pid, name = b.name, team = b.team, tree = b.tree, tree_from = b.tree_from,
+				tree_set = b.tree_set, ok = good};
+		end
+	end
+	local res = {__order = {"format", "version", "ok", "action", "scope", "tree", "world", "bots", "error"},
+		format = "lsd-bt-apply", version = 1, ok = ok, action = what, scope = pids == nil and "world" or "bots",
+		tree = want_tree, world = doc.world and doc.world.tree, bots = rows};
+	if (not ok) then
+		res.error = "the engine did not take it for every bot: see the bot engine's log (docker logs)";
+	end
+	if (flags.json) then
+		io.write(json(res), "\n");
+	else
+		for _, r in ipairs(rows) do
+			say("%s #%-3d %-16s now runs %s%s", r.ok and " " or "!", r.pid, r.name or "", r.tree or "?",
+				r.tree_set == "bot" and " (its own)" or "");
+		end
+		if (pids == nil) then say("the world's tree: %s (a bot given one of its own keeps it: --each reaches every bot)", tostring(res.world)); end
+		if (not ok) then io.stderr:write("lsdctl: " .. res.error .. "\n"); end
+	end
+	if (not ok) then os.exit(1); end
+end
+
+local bots_sub = {};
+
+bots_sub.schema = function(words, flags)
+	local out, code = bttree("--schema");
+	if (code ~= 0) then bots_fail(flags, "bttree --schema failed"); end
+	io.write(out);
+end
+
+bots_sub.trees = function(words, flags)
+	local trees = all_trees(flags);
+	local world = nil;
+	if (console_up()) then
+		local out, code = bttree("--bots --json --dir " .. sh_quote(BOTDEBUG), true);
+		local doc = code == 0 and json_read(out) or nil;
+		world = doc and doc.world and doc.world.tree;
+	end
+	if (flags.json) then
+		io.write(json({__order = {"format", "version", "world", "trees"}, format = "lsd-bt-trees", version = 1,
+			world = world, trees = trees}), "\n");
+		return;
+	end
+	for _, t in ipairs(trees) do
+		say("%-22s %-8s %3d nodes  %s%s", t.name, t.from, t.nodes or 0, t.file,
+			t.replaced and "  (replaced by the operator's)" or "");
+	end
+	if (world ~= nil) then say("the world runs: %s", world); end
+end
+
+bots_sub.tree = function(words, flags)
+	local name = words[2] or bots_fail(flags, "bots tree <name>");
+	local _, by_name = all_trees(flags);
+	local t = by_name[name] or bots_fail(flags, "no tree is called " .. name .. " (lsdctl bots trees)");
+	if (flags.json) then
+		local out, code = bttree("--json --tree " .. sh_quote(name) .. " " .. sh_quote(t.file));
+		if (code ~= 0) then bots_fail(flags, (string.gsub(out, "%s+$", ""))); end
+		io.write(out);
+	else
+		local out, code = bttree("--format --tree " .. sh_quote(name) .. " " .. sh_quote(t.file));
+		if (code ~= 0) then bots_fail(flags, (string.gsub(out, "%s+$", ""))); end
+		io.write(out);
+	end
+end
+
+bots_sub.check = function(words, flags)
+	local text = tree_text(flags, flags.file or words[2]);
+	local bad, names = tree_check(text);
+	if (flags.json) then
+		local tn = list();
+		for _, t in ipairs(names or {}) do tn[#tn + 1] = t.name; end
+		io.write(json({__order = {"format", "version", "ok", "trees", "diagnostics"}, format = "lsd-bt-check", version = 1,
+			ok = bad == nil, trees = tn, diagnostics = list(bad)}), "\n");
+	elseif (bad == nil) then
+		say("ok");
+	else
+		for _, d in ipairs(bad) do say("line %d, column %d: %s", d.line, d.column, d.message); end
+	end
+	if (bad ~= nil) then os.exit(1); end
+end
+
+bots_sub.format = function(words, flags)
+	local text = tree_text(flags, flags.file or words[2]);
+	local bad = tree_check(text);
+	if (bad ~= nil) then bots_fail(flags, "it does not compile", bad); end
+	local tmp = os.tmpname();
+	write_file(tmp, text);
+	local out = bttree("--format " .. sh_quote(tmp));
+	os.remove(tmp);
+	if (flags.json) then
+		io.write(json({__order = {"format", "version", "ok", "text"}, format = "lsd-bt-text", version = 1, ok = true, text = out}), "\n");
+	else
+		io.write(out);
+	end
+end
+
+bots_sub.list = function(words, flags)
+	local doc, raw = roster(flags);
+	if (flags.json) then io.write(raw); return; end
+	say("%4s  %-16s %4s  %-8s %5s %6s  %-20s %s", "id", "name", "team", "kind", "level", "health", "tree", "doing");
+	for _, b in ipairs(doc.bots or {}) do
+		say("%4d  %-16s %4d  %-8s %5d %6d  %-20s %s", b.pid, b.name or "", b.team or 0, b.archetype or "", b.level or 0,
+			b.health or 0, (b.tree or "") .. (b.tree_set == "bot" and " (its own)" or ""), b.doing or "");
+	end
+	say("the world runs: %s", tostring(doc.world and doc.world.tree));
+end
+
+bots_sub.watch = function(words, flags)
+	if (not console_up()) then bots_fail(flags, "the server is not running"); end
+	local cmd = BTTREE .. " --watch --dir " .. sh_quote(BOTDEBUG);
+	if (words[2] ~= nil) then cmd = cmd .. " --bot " .. sh_quote(words[2]); end
+	for _, f in ipairs({"json", "once", "full", "plain"}) do
+		if (flags[f]) then cmd = cmd .. " --" .. f; end
+	end
+	if (flags.hz) then cmd = cmd .. " --hz " .. sh_quote(flags.hz); end
+	if (flags.json and flags.once) then
+		local out, code = capture(cmd .. " 2>/dev/null");
+		if (code ~= 0 or json_read(out) == nil) then bots_fail(flags, "no such bot, or the bot engine does not answer"); end
+		io.write(out);
+		return;
+	end
+	if (not run(cmd)) then os.exit(1); end
+end
+
+bots_sub.apply = function(words, flags)
+	local name, text = words[2], nil;
+	if (flags.file or name == nil or name == "-") then
+		text = tree_text(flags, flags.file or "-");
+		local bad, names = tree_check(text);
+		if (bad ~= nil) then bots_fail(flags, "the tree does not compile: nothing was changed", bad); end
+		if (#text > TREE_BYTES) then bots_fail(flags, string.format("the tree is %d bytes: the most is %d", #text, TREE_BYTES)); end
+		name = names[1] and names[1].name or "main";
+	else
+		local _, by_name = all_trees(flags);
+		if (not tree_name_ok(name) or by_name[name] == nil) then
+			bots_fail(flags, "no tree is called " .. tostring(name) .. " (lsdctl bots trees); for a text: --file <file>, or - for the standard input");
+		end
+	end
+	local doc = roster(flags);
+	local pids = targets(flags, doc);
+	local expr;
+	if (text ~= nil) then
+		local file = string.format("apply-%d-%d.bt", os.time(), math.random(100000, 999999));
+		write_file(BOTDEBUG .. "/" .. file, text);
+		expr = string.format("botlink_tree_apply({file = %q}, %s)", file, pids and ("{" .. table.concat(pids, ", ") .. "}") or "nil");
+		local n, why = botlink_call(expr);
+		os.remove(BOTDEBUG .. "/" .. file);
+		if (n == nil) then bots_fail(flags, "the server refused: " .. tostring(why)); end
+	else
+		expr = string.format("botlink_tree_apply(%q, %s)", name, pids and ("{" .. table.concat(pids, ", ") .. "}") or "nil");
+		local n, why = botlink_call(expr);
+		if (n == nil) then bots_fail(flags, "the server refused: " .. tostring(why)); end
+	end
+	report(flags, pids, name, "apply");
+end
+
+bots_sub.revert = function(words, flags)
+	local doc = roster(flags);
+	local pids = targets(flags, doc);
+	local n, why = botlink_call(string.format("botlink_tree_revert(%s)", pids and ("{" .. table.concat(pids, ", ") .. "}") or "nil"));
+	if (n == nil) then bots_fail(flags, "the server refused: " .. tostring(why)); end
+	report(flags, pids, nil, "revert");
+end
+
+bots_sub.save = function(words, flags)
+	local name = words[2];
+	if (not tree_name_ok(name)) then
+		bots_fail(flags, "bots save <name> [--file <file> | -]: a name of letters, digits, _ and -, 31 at most");
+	end
+	local text = tree_text(flags, flags.file or "-");
+	local bad, names = tree_check(text);
+	if (bad ~= nil) then bots_fail(flags, "the tree does not compile: nothing was saved", bad); end
+	if (#text > TREE_BYTES) then bots_fail(flags, string.format("the tree is %d bytes: the most is %d", #text, TREE_BYTES)); end
+	local tmp = os.tmpname();
+	write_file(tmp, text);
+	local canon = bttree("--format " .. sh_quote(tmp));
+	os.remove(tmp);
+	run("mkdir -p " .. sh_quote(TREES_USER));
+	local path = TREES_USER .. "/" .. name .. ".bt";
+	write_file(path, canon);
+	local tn = list();
+	for _, t in ipairs(names or {}) do tn[#tn + 1] = t.name; end
+	if (flags.json) then
+		io.write(json({__order = {"format", "version", "ok", "file", "trees", "note"}, format = "lsd-bt-saved", version = 1,
+			ok = true, file = path, trees = tn,
+			note = "read by the bot engine at the next map load; run it with: lsdctl bots apply <tree> --all, or the setting engine_bots_tree"}), "\n");
+	else
+		say("saved %s (%s): the bot engine reads it at the next map load", path, table.concat(tn, ", "));
+	end
+end
+
+command("bots", "bots <n> [--no-restart] | bots list | watch [name|id] | trees | tree <name> | check | format | apply | revert | save | schema   [--json]",
+	"the bot engine's bots: n a team (n in all in a game of one team; 0 for none). And their behaviour trees (bot/TREES.md): "
+	.. "list the bots; watch one think; trees, tree <name>; check or format a text (a file, or - for the standard input; a JSON tree too); "
+	.. "apply <tree> | apply --file <f> | apply - to --bot <id or name>[,...], --team <n>, --archetype <kind> or --all, live; "
+	.. "revert the same; save <name> as an operator's tree; schema: all a tree may be made of. --json: answers, and errors, as JSON",
 	function(args)
-		local words, flags = parse_args(args, {});
+		local words, flags = parse_args(args, {bot = true, team = true, archetype = true, file = true, hz = true});
+		local sub = bots_sub[words[1] or ""];
+		if (sub ~= nil) then
+			math.randomseed(os.time());
+			return sub(words, flags);
+		end
 		local n = tonumber(words[1]);
-		if (n == nil) then die("bots <n>"); end
+		if (n == nil) then die("bots <n>, or bots list | watch | trees | tree | check | format | apply | revert | save | schema"); end
 		local doc = open_doc(true);
 		set_bots(doc, math.max(0, math.min(100, math.floor(n))), doc:get("gamemode") or "ctf");
 		doc:save();

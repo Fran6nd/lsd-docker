@@ -11,6 +11,8 @@ cd "$(dirname "$0")/.."
 # it is not a failure of the Lua tests
 if [ -f bot/Makefile ] && command -v cc >/dev/null 2>&1; then
 	make -s -C bot build/libbotlink.so >/dev/null 2>&1 || echo "== (bot/build/libbotlink.so not built; botlink_test will skip)"
+	# and bttree, for tests/bots_ctl_test.lua (lsdctl's `bots` commands), which skips the same way
+	make -s -C bot tools >/dev/null 2>&1 || echo "== (bot/build/bin/bttree not built; bots_ctl_test will skip)"
 fi
 
 # each test's last line is its summary; a failing test prints its

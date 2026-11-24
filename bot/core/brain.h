@@ -210,6 +210,9 @@ typedef struct bc_bot {
 	bt_state *bt;
 	size_t bt_size;
 	char tree_name[BT_NAME_MAX];    /* this bot's own, or "" */
+	char name[32];          /* what the server calls it (the setting name=), for a person */
+	uint8_t watched;        /* debug.c: its picks note what they weighed */
+	uint32_t binds;         /* times it was given a tree: a viewer's cue that the nodes changed */
 	bt_forest *own;         /* this bot's own tree TEXT, compiled (tree=<text> for one bot), or NULL */
 	char *own_text;
 	float trait_mul[BC_T_COUNT];    /* traits= for this bot: a factor a trait (0: none said) */
@@ -409,6 +412,14 @@ struct bc_engine {
 	bc_itemdef idefs[BC_ITEMDEFS_MAX];
 	int nidefs;
 	char *base_text, *custom_text;      /* the trees as given, for recompiling */
+	/* a setting too long for one record, arriving in pieces (engine.c,
+	 * SETTINGS: "+key#total=..."): what has come so far */
+	struct {
+		char *buf;
+		size_t len, want;
+		int pid, active, bad;
+		char key[64];
+	} part;
 
 	bc_setting settings[BC_SETTINGS_MAX];
 	int nsettings;
@@ -435,6 +446,8 @@ struct bc_engine {
 
 const bc_engine_stats *bc_engine_stats_get(const bc_engine *e);
 bc_bot *bc_engine_bot(bc_engine *e, int pid);
+/* "route 14/31 RUNJUMP", "planning" or "no route": for a log and a view */
+void bc_route_text(const bc_bot *b, char *out, size_t out_size);
 const char *bc_engine_setting(const bc_engine *e, const char *key);
 void bc_engine_log(bc_engine *e, int level, const char *fmt, ...);
 /* the search a bot was lent goes back */

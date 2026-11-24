@@ -1060,6 +1060,251 @@ static void test_traits(void)
 	bs_free(s);
 }
 
+/* --- a setting longer than a record ------------------------------------- */
+
+/* as lib_botlink sends it: "+key#total=", "+key=", then "+key!=" */
+static void set_long(bs_sim *s, int pid, const char *key, const char *value, int drop_piece)
+{
+	size_t n = strlen(value), at = 0;
+	char rec[1000];
+	int piece = 0;
+
+	while (n - at > 900) {
+		if (at == 0) snprintf(rec, sizeof rec, "+%s#%d=%.900s", key, (int)n, value);
+		else snprintf(rec, sizeof rec, "+%s=%.900s", key, value + at);
+		if (piece++ != drop_piece) bs_set(s, pid, rec);
+		at += 900;
+	}
+	snprintf(rec, sizeof rec, "+%s!=%s", key, value + at);
+	bs_set(s, pid, rec);
+}
+
+static void test_long_setting(void)
+{
+	bs_sim *s = arena(4);
+	static char tree[9000];
+	size_t n = 0;
+	char d[300];
+	int i;
+
+	printf("a tree longer than one record of the link\n");
+	/* a tree of some 6 KiB, whose LAST option is the only one that can win:
+	 * cut short anywhere it is another tree, or none */
+	n += (size_t)snprintf(tree + n, sizeof tree - n, "tree long:\npick every=1 noise=0\n");
+	for (i = 0; i < 90; i++)
+		n += (size_t)snprintf(tree + n, sizeof tree - n, "\toption none has_item nothing%02d x%d   # padding, never chosen\n\t\tdo roam\n", i, i + 2);
+	n += (size_t)snprintf(tree + n, sizeof tree - n, "\toption none always\n\t\tdo hold self 99\n");
+	CHECK(n > 5000 && n < sizeof tree);
+	bs_start(s);
+	bs_add(s, 0, 1, 1, 5, 0, 41, 215.5f, 250.5f, 1, 0);
+	bs_add(s, 1, 1, 1, 5, 0, 42, 215.5f, 262.5f, 1, 0);
+	bs_set(s, BL_NO_PLAYER, "tree=tdm");
+	bs_run(s, 0.5);
+	/* whole, in pieces: for everybody */
+	set_long(s, BL_NO_PLAYER, "tree", tree, -1);
+	bs_run(s, 1.0);
+	bc_engine_describe(s->e, 0, d, sizeof d);
+	printf("  %d bytes in %d records: %s\n", (int)n, (int)(n / 900) + 1, d);
+	CHECK(s->log2_n == 0 && strstr(d, "hold") != NULL);
+	/* and for one bot, a piece lost on the way: refused and said, the bot keeps its tree */
+	bs_set(s, BL_NO_PLAYER, "tree=tdm");
+	bs_run(s, 0.5);
+	set_long(s, 1, "tree", tree, 2);
+	bs_run(s, 1.0);
+	bc_engine_describe(s->e, 1, d, sizeof d);
+	printf("  with a piece lost: %s\n", s->log2);
+	CHECK(s->log2_n == 1 && strstr(s->log2, "cut short") && !strstr(d, "hold"));
+	CHECK(bc_engine_bot(s->e, 1)->own == NULL);
+	/* the first piece lost: the same */
+	set_long(s, 1, "tree", tree, 0);
+	bs_run(s, 1.0);
+	CHECK(bc_engine_bot(s->e, 1)->own == NULL);
+	CHECK(s->log2_n == 2 && strstr(s->log2, "without its beginning"));
+	/* a short setting after that is itself again */
+	bs_set(s, 1, "tree=default");
+	bs_run(s, 0.5);
+	CHECK(!strcmp(bc_engine_bot(s->e, 1)->tree_name, "default"));
+	/* one that says it is longer than the most */
+	bs_set(s, BL_NO_PLAYER, "+tree#70000=tree x:");
+	bs_set(s, BL_NO_PLAYER, "+tree!=\ndo roam\n");
+	bs_run(s, 0.5);
+	CHECK(s->log2_n == 3 && strstr(s->log2, "too long"));
+	CHECK(!strcmp(s->e->tree_name, "tdm"));
+	/* whole for one bot */
+	set_long(s, 1, "tree", tree, -1);
+	bs_run(s, 1.0);
+	bc_engine_describe(s->e, 1, d, sizeof d);
+	CHECK(bc_engine_bot(s->e, 1)->own != NULL && strstr(d, "hold") != NULL);
+	bs_free(s);
+}
+
+/* --- watching a bot think ------------------------------------------------- */
+
+/* is it JSON: one value, all of the text. A reader of its own, small. */
+static const char *js_skip(const char *q)
+{
+	while (*q == ' ' || *q == '\n' || *q == '\t' || *q == '\r') q++;
+	return q;
+}
+
+static const char *js_value(const char *q, int depth)
+{
+	q = js_skip(q);
+	if (depth > 64) return NULL;
+	if (*q == '{' || *q == '[') {
+		char close = *q == '{' ? '}' : ']';
+		int obj = *q == '{';
+
+		q = js_skip(q + 1);
+		if (*q == close) return q + 1;
+		for (;;) {
+			if (obj) {
+				if (*q != '"' || !(q = js_value(q, depth + 1))) return NULL;
+				q = js_skip(q);
+				if (*q != ':') return NULL;
+				q++;
+			}
+			if (!(q = js_value(q, depth + 1))) return NULL;
+			q = js_skip(q);
+			if (*q == close) return q + 1;
+			if (*q != ',') return NULL;
+			q = js_skip(q + 1);
+		}
+	}
+	if (*q == '"') {
+		for (q++; *q && *q != '"'; q++) {
+			if ((unsigned char)*q < 0x20) return NULL;
+			if (*q == '\\' && !*++q) return NULL;
+		}
+		return *q ? q + 1 : NULL;
+	}
+	if (!strncmp(q, "true", 4)) return q + 4;
+	if (!strncmp(q, "false", 5)) return q + 5;
+	if (!strncmp(q, "null", 4)) return q + 4;
+	{
+		char *end;
+
+		strtod(q, &end);
+		return end == q ? NULL : end;
+	}
+}
+
+static int is_json(const char *text)
+{
+	const char *q = js_value(text, 0);
+
+	return q && !*js_skip(q);
+}
+
+static void test_watch(void)
+{
+	enum { OUT = 1 << 18 };
+	bs_sim *s = arena(8), *r;
+	char *out = malloc(OUT), small[64], want[200];
+	bc_bot *b;
+	size_t n, at = 0;
+	int i, k, diff = 0, path[BT_DEPTH_MAX], np, snaps = 0, weighed = 0;
+
+	printf("a bot watched: what it thinks, as JSON\n");
+	CHECK(is_json("{\"a\": [1, 2.5, \"x\\\"y\", true, null], \"b\": {}}") && !is_json("{\"a\": [1,}") && !is_json("{} x"));
+	bs_start(s);
+	bs_rec_start(s, 60 * 12, 8);
+	teams(s, 4, 91);
+	bs_set(s, 0, "name=Bot \"zero\"");
+	bs_set(s, BL_NO_PLAYER, "item.medkit.tree=seq\n\tif health_below 40\n\tdo use medkit self");
+	bs_run(s, 6.0);
+
+	/* nobody watched: a snapshot all the same, with no worths in it */
+	CHECK(!bc_engine_watched(s->e, 0));
+	n = bc_engine_snapshot(s->e, 0, out, OUT);
+	CHECK(n > 500 && n < OUT && strlen(out) == n && is_json(out));
+	CHECK(strstr(out, "\"format\": \"lsd-bt-snapshot\", \"version\": 1") && strstr(out, "\"traced\": false") && !strstr(out, "\"worth\""));
+	CHECK(strstr(out, "\"name\": \"Bot \\\"zero\\\"\"") != NULL);
+	/* what does not fit is not written in part; the length is still said */
+	CHECK(bc_engine_snapshot(s->e, 0, small, sizeof small) == n && small[0] == 0);
+	CHECK(bc_engine_snapshot(s->e, 0, NULL, 0) == n);
+	CHECK(bc_engine_snapshot(s->e, 200, out, OUT) == 0 && out[0] == 0);
+
+	/* watched: at its next choice the numbers are there, and it says what the state says */
+	bc_engine_watch(s->e, 0, 1);
+	bc_engine_watch(s->e, 200, 1);                     /* no such bot: nothing */
+	CHECK(bc_engine_watched(s->e, 0) && !bc_engine_watched(s->e, 1) && !bc_engine_watched(s->e, 200));
+	bs_run(s, 3.0);
+	b = bc_engine_bot(s->e, 0);
+	n = bc_engine_snapshot(s->e, 0, out, OUT);
+	CHECK(n < OUT && is_json(out) && strstr(out, "\"traced\": true"));
+	CHECK(strstr(out, "\"worth\": {\"score\": ") && strstr(out, "\"held\": true"));
+	CHECK(strstr(out, "\"role\": \"main\", \"name\": \"tdm\"") && strstr(out, "\"role\": \"also\", \"name\": \"tdm_also\""));
+	CHECK(strstr(out, "\"tree\": \"tdm\", \"tree_from\": \"files\"") && strstr(out, "\"archetype\": \""));
+	CHECK(strstr(out, "if has_item medkit") != NULL);          /* the engine's own writing is in it */
+	np = bt_state_running(b->forest, b->bt, b->tree, path, BT_DEPTH_MAX);
+	n = (size_t)snprintf(want, sizeof want, "\"role\": \"main\", \"name\": \"tdm\", \"root\": %d, ", 0);
+	for (k = 0, n = (size_t)snprintf(want, sizeof want, "\"running\": ["); k < np; k++)
+		n += (size_t)snprintf(want + n, sizeof want - n, "%s%d", k ? ", " : "", path[k]);
+	snprintf(want + n, sizeof want - n, "]");
+	CHECK(b->alive ? np > 0 && strstr(out, want) != NULL : 1);
+	if (b->alive && !strstr(out, want)) printf("  wanted %s\n", want);
+	snprintf(want, sizeof want, "\"binding\": %u", (unsigned)b->binds);
+	CHECK(strstr(out, want) != NULL);
+	/* a change of tree: still watched, and the binding says the nodes changed */
+	k = (int)b->binds;
+	bs_set(s, 0, "tree=tree post:\npick every=1\n\toption none always\n\t\tdo hold self 99\n");
+	bs_run(s, 1.5);
+	n = bc_engine_snapshot(s->e, 0, out, OUT);
+	CHECK(is_json(out) && (int)b->binds == k + 1 && strstr(out, "\"tree\": \"post\", \"tree_from\": \"own\""));
+	CHECK(strstr(out, "\"traced\": true") && strstr(out, "\"worth\"") && strstr(out, "\"doing\": \"pick:none > hold\""));
+	bs_set(s, 0, "tree=");
+	bc_engine_watch(s->e, 0, 0);
+	bs_run(s, 1.5);
+	n = bc_engine_snapshot(s->e, 0, out, OUT);
+	CHECK(is_json(out) && strstr(out, "\"traced\": false") && strstr(out, "\"tree_from\": \"files\""));
+
+	/* the roster */
+	n = bc_engine_roster(s->e, out, OUT);
+	CHECK(n < OUT && strlen(out) == n && is_json(out) && strstr(out, "\"format\": \"lsd-bt-bots\", \"version\": 1"));
+	CHECK(strstr(out, "\"world\": {\"tree\": \"tdm\"") && strstr(out, "{\"name\": \"ctf\", \"from\": \"files\"}"));
+	CHECK(!strstr(out, "\"name\": \"items\""));
+	for (i = 0, k = 0; (size_t)i + 7 < n; i++) k += !strncmp(out + i, "{\"pid\": ", 8);
+	CHECK(k == 8);
+	CHECK(bc_engine_roster(s->e, small, sizeof small) == n && small[0] == 0);
+	printf("  a snapshot of a tdm bot: %d bytes; the roster of 8: %d bytes\n", (int)bc_engine_snapshot(s->e, 1, NULL, 0), (int)n);
+
+	/* WATCHING CHANGES NOTHING: the recording above (12 s, with the watch,
+	 * the tree changes and all) played again with EVERY bot watched from
+	 * the start and a snapshot taken at every think gives the same intents */
+	r = arena(8);
+	bs_start(r);
+	for (i = 0; i < s->rec_n; i++) {
+		int m = 0;
+
+		while (at < s->rec_ev_end[i]) {
+			const bl_record *rec = (const bl_record *)(const void *)(s->rec_ev + at);
+
+			bc_engine_event(r->e, rec);
+			at += (rec->size + 3u) & ~3u;
+		}
+		for (k = 0; k < BL_MAX_PLAYERS; k++) bc_engine_watch(r->e, k, 1);
+		bc_engine_think(r->e, &s->rec_w[i], r->intents, 1.0f / 60.0f, s->budget);
+		for (k = 0; k < BL_MAX_PLAYERS && m < 8; k++)
+			if (s->p[k].used && s->p[k].bot) {
+				if (memcmp(&r->intents[k], &s->rec_out[(size_t)i * 8 + (size_t)m], sizeof(bl_intent))) diff++;
+				if (i % 20 == m) {
+					n = bc_engine_snapshot(r->e, k, out, OUT);
+					snaps++;
+					if (!is_json(out)) diff += 100000;
+					weighed += strstr(out, "\"worth\"") != NULL;
+				}
+				m++;
+			}
+	}
+	printf("  %d thinks replayed with all 8 watched, %d snapshots taken (%d with worths): %d intents differ\n", s->rec_n, snaps, weighed, diff);
+	CHECK(s->rec_n == 60 * 12 && diff == 0 && snaps > 200 && weighed > snaps / 2);
+	CHECK(bc_engine_stats_get(r->e)->decisions == bc_engine_stats_get(s->e)->decisions);
+	bs_free(r);
+	bs_free(s);
+	free(out);
+}
+
 static void test_cost(int per_team)
 {
 	bs_sim *s = arena(per_team * 2);
@@ -1176,6 +1421,8 @@ int main(void)
 	test_settings();
 	test_own_tree();
 	test_traits();
+	test_long_setting();
+	test_watch();
 	printf("cost (this machine, -O2; a flat field with walls, NOT a real map)\n");
 	test_cost(6);
 	test_cost(16);

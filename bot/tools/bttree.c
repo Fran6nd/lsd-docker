@@ -79,9 +79,12 @@
  */
 #include <ctype.h>
 #include <math.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "bt.h"
@@ -613,6 +616,7 @@ static int schema(FILE *o)
 		if (a) fputc(',', o);
 		jpad(o, 2); fputs("{", o); jkv(o, "name", bc_archetype_name(a)); fputs(", ", o);
 		jkv(o, "doc", bc_archetype_doc(a));
+		fputs(",", o);
 		for (int pass = 0; pass < 2; pass++) {
 			jpad(o, 3); fputs(pass ? "\"spread\": {" : "\"weights\": {", o);
 			for (int t = 0; t < BC_T_COUNT; t++) {
@@ -777,14 +781,18 @@ static void json_node(FILE *o, const bt_source *src, int id, int pad)
 	fputc('}', o);
 }
 
+static const char *json_only;       /* --json --tree NAME: that tree alone */
+
 static void json_file(FILE *o, const char *path, const bt_source *src, int pad)
 {
 	bt_tree t;
+	int some = 0;
 	jpad(o, pad); fputs("{", o);
 	if (path) { jkv(o, "file", path); fputs(", ", o); }
 	fputs("\"trees\": [", o);
 	for (int i = 0; bt_source_tree(src, i, &t); i++) {
-		if (i) fputc(',', o);
+		if (json_only && strcmp(json_only, t.name)) continue;
+		if (some++) fputc(',', o);
 		jpad(o, pad + 1); fputs("{", o);
 		jkv(o, "name", t.name);
 		fprintf(o, ", \"line\": %d, \"header\": %s", t.line, t.header ? "true" : "false");
@@ -795,7 +803,7 @@ static void json_file(FILE *o, const char *path, const bt_source *src, int pad)
 		jpad(o, pad + 1); fputs("}", o);
 	}
 	jpad(o, pad); fputs("]", o);
-	if (bt_source_tail(src)) { fputs(", ", o); jkey(o, "tail"); jlines(o, bt_source_tail(src)); }
+	if (bt_source_tail(src) && !json_only) { fputs(", ", o); jkey(o, "tail"); jlines(o, bt_source_tail(src)); }
 	fputs("}", o);
 }
 
@@ -1522,6 +1530,376 @@ static int check_doc(const bt_vocab *v, const char *path)
 
 /* ---- main ----------------------------------------------------------------- */
 
+/* ---- --list: the trees of the files, for whoever chooses one ------------ */
+
+static void count_under(const bt_source *src, int id, int *nodes, FILE *refs, int *n_refs)
+{
+	bt_node n;
+	bt_source_node(src, id, &n);
+	(*nodes)++;
+	if (n.kind == BT_K_TREE && refs) { if ((*n_refs)++) fputs(", ", refs); jstr(refs, n.name); }
+	for (int k = n.first_child; k >= 0;) {
+		bt_node ch;
+		count_under(src, k, nodes, refs, n_refs);
+		bt_source_node(src, k, &ch);
+		k = ch.next_sibling;
+	}
+}
+
+static int list_trees(int as_json)
+{
+	bt_tree t;
+	int some = 0;
+	if (as_json) fputs("{\"format\": \"lsd-bt-trees\", \"version\": 1, \"trees\": [", stdout);
+	for (int f = 0; f < n_files; f++)
+		for (int i = 0; bt_source_tree(files[f].src, i, &t); i++) {
+			int nodes = 0, n_refs = 0;
+			if (as_json) {
+				printf("%s\n  {", some++ ? "," : "");
+				jkv(stdout, "name", t.name); fputs(", ", stdout);
+				jkv(stdout, "file", files[f].path);
+				printf(", \"line\": %d, \"refers\": [", t.line);
+				count_under(files[f].src, t.root, &nodes, stdout, &n_refs);
+				printf("], \"nodes\": %d", nodes);
+				if (t.above || t.comment) {
+					/* what its author said of it: the comment lines right above it, or the one on its line */
+					char said[600] = "";
+					size_t n = 0;
+					for (const char *q = t.above; q && *q; q += strcspn(q, "\n"), q += *q == '\n') {
+						if (*q != '#') { n = 0; said[0] = 0; continue; }
+						const char *w = q + 1 + (q[1] == ' ');
+						n += (size_t)snprintf(said + n, n < sizeof said ? sizeof said - n : 0, "%s%.*s", n ? " " : "", (int)strcspn(w, "\n"), w);
+						if (n >= sizeof said) n = sizeof said - 1;
+					}
+					if (t.comment) snprintf(said, sizeof said, "%s", t.comment);
+					if (said[0]) { fputs(", ", stdout); jkv(stdout, "about", said); }
+				}
+				fputs("}", stdout);
+			} else {
+				count_under(files[f].src, t.root, &nodes, NULL, &n_refs);
+				printf("%-24s %4d nodes  %s:%d\n", t.name, nodes, files[f].path, t.line);
+			}
+		}
+	if (as_json) fputs("\n]}\n", stdout);
+	return 0;
+}
+
+/* one tree's own text, cut from the canonical text of its file */
+static int format_tree(const bt_vocab *v, const char *only)
+{
+	for (int f = 0; f < n_files; f++) {
+		int i = has_tree(files[f].src, only);
+		if (i < 0) continue;
+		char *text = canonical(files[f].src);
+		bt_source *c = text ? bt_parse(v, text, NULL) : NULL;
+		bt_tree t, next;
+		if (!c) return 1;
+		bt_source_tree(c, i, &t);
+		int from = t.line, to = 1 << 30;
+		for (const char *q = t.above; q && *q; q++) from -= *q == '\n';
+		if (bt_source_tree(c, i + 1, &next)) {
+			to = next.line;
+			for (const char *q = next.above; q && *q; q++) to -= *q == '\n';
+		}
+		int line = 1;
+		for (const char *q = text; *q; line++) {
+			size_t len = strcspn(q, "\n");
+			if (line >= from && line < to && !(line == from && len == 0)) printf("%.*s\n", (int)len, q);
+			q += len + (q[len] == '\n');
+		}
+		free(text);
+		bt_source_free(c);
+		return 0;
+	}
+	fprintf(stderr, "bttree: no tree called %s\n", only);
+	return 1;
+}
+
+/* ---- --watch, --bots: the engine's own bots, live ------------------------
+ * botd answers requests left in a directory (bot/botd/watch.c): a file
+ * `<name>.req` saying whom to watch, kept alive by being written again.
+ * What comes back is the engine's JSON (bot/TREES.md, "the live view"),
+ * passed through with --json, or drawn. */
+
+static char watch_dir[600], req_path[700];
+static volatile sig_atomic_t watch_stop;
+
+static void on_stop(int sig) { (void)sig; watch_stop = 1; }
+static void req_remove(void) { if (req_path[0]) remove(req_path); }
+
+static double mono(void)
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
+
+static void nap_ms(int ms)
+{
+	struct timespec ts = { ms / 1000, (long)(ms % 1000) * 1000000L };
+	nanosleep(&ts, NULL);
+}
+
+static int request_write(const char *watch, int hz)
+{
+	char tmp[720];
+	snprintf(tmp, sizeof tmp, "%s.tmp", req_path);
+	FILE *fh = fopen(tmp, "wb");
+	if (!fh) return 0;
+	fprintf(fh, "watch=%s\nhz=%d\n", watch, hz);
+	fclose(fh);
+	return rename(tmp, req_path) == 0;
+}
+
+static int watch_begin(const char *dir)
+{
+	const char *data = getenv("LSD_DATA") && *getenv("LSD_DATA") ? getenv("LSD_DATA") : "/data";
+	struct stat st;
+	if (dir) snprintf(watch_dir, sizeof watch_dir, "%s", dir);
+	else snprintf(watch_dir, sizeof watch_dir, "%s/rw/botdebug", data);
+	if (stat(watch_dir, &st) != 0 || !S_ISDIR(st.st_mode)) {
+		fprintf(stderr, "bttree: no %s: the bot engine (botd) makes it when it runs with bots\n", watch_dir);
+		return 0;
+	}
+	snprintf(req_path, sizeof req_path, "%s/bttree-%d.req", watch_dir, (int)getpid());
+	atexit(req_remove);
+	signal(SIGINT, on_stop);
+	signal(SIGTERM, on_stop);
+	return 1;
+}
+
+/* <dir>/<name>, whole, if it is there and was written after `since`
+ * (0: whenever); the caller frees it */
+static char *watch_read(const char *name, time_t since)
+{
+	char path[720];
+	struct stat st;
+	snprintf(path, sizeof path, "%s/%s", watch_dir, name);
+	if (stat(path, &st) != 0 || (since && st.st_mtime < since)) return NULL;
+	return slurp(path, NULL);
+}
+
+/* the roster, asked for and waited for (3 s) */
+static jv *roster_get(char **raw)
+{
+	time_t t0 = time(NULL);
+	double until = mono() + 3.0;
+	if (!request_write("", 4)) { fprintf(stderr, "bttree: cannot write in %s\n", watch_dir); return NULL; }
+	while (mono() < until && !watch_stop) {
+		char *text = watch_read("bots.json", t0 - 1);
+		if (text) {
+			jr r = { text, 0 };
+			jv *doc = jread(&r, 0);
+			if (!r.bad && doc && doc->type == 'o') { if (raw) *raw = text; else free(text); return doc; }
+			jfree(doc);
+			free(text);
+		}
+		nap_ms(50);
+	}
+	fprintf(stderr, "bttree: the bot engine does not answer in %s (is the server running, with engine bots?)\n", watch_dir);
+	return NULL;
+}
+
+static double jnumber(const jv *o, const char *key, double dflt)
+{
+	const jv *v = jget(o, key);
+	return v && v->type == '#' ? v->number : dflt;
+}
+
+static int jtrue(const jv *o, const char *key)
+{
+	const jv *v = jget(o, key);
+	return v && v->type == 't';
+}
+
+static int bots_cmd(const char *dir, int as_json)
+{
+	char *raw = NULL;
+	if (!watch_begin(dir)) return 1;
+	jv *doc = roster_get(&raw);
+	if (!doc) return 1;
+	if (as_json) {
+		fputs(raw, stdout);
+	} else {
+		const jv *bots = jget(doc, "bots"), *world = jget(doc, "world");
+		printf("%sthe world runs the tree %s%s\n", DIM, jtext(world, "tree") ? jtext(world, "tree") : "?", OFF);
+		printf("%s%4s  %-16s %4s  %-8s %5s %6s  %-18s %s%s\n", BOLD, "pid", "name", "team", "kind", "level", "health", "tree", "doing", OFF);
+		for (const jv *b = bots && bots->type == 'a' ? bots->kids : NULL; b; b = b->next) {
+			char tree[64];
+			const char *from = jtext(b, "tree_set");
+			snprintf(tree, sizeof tree, "%s%s", jtext(b, "tree") ? jtext(b, "tree") : "", from && !strcmp(from, "bot") ? " (its own)" : "");
+			printf("%4d  %-16s %4d  %-8s %5d %6d  %-18s %s\n", (int)jnumber(b, "pid", -1), jtext(b, "name") ? jtext(b, "name") : "",
+			       (int)jnumber(b, "team", 0), jtext(b, "archetype") ? jtext(b, "archetype") : "", (int)jnumber(b, "level", 0),
+			       (int)jnumber(b, "health", 0), tree, jtext(b, "doing") ? jtext(b, "doing") : "");
+		}
+	}
+	free(raw);
+	jfree(doc);
+	return 0;
+}
+
+/* a snapshot drawn: the nodes are a flat list with each one's parent */
+typedef struct vnode { const jv *j; int id, parent, running, shown, hidden; const char *kind, *text; } vnode;
+
+static void view_words(const vnode *n)
+{
+	const char *sp = strchr(n->text, ' '), *rest = sp ? sp : "";
+	if (!strcmp(n->kind, "do")) printf("%sdo%s %s%s%s", ACT, OFF, BOLD, sp ? sp + 1 : "", OFF);
+	else if (!strcmp(n->kind, "if") || !strcmp(n->kind, "unless")) printf("%s%s%s%s", ASK, n->kind, OFF, rest);
+	else printf("%s%s%s%s", KEY, n->kind, OFF, rest);
+}
+
+static void view_node(vnode *v, int n, int i, const char *prefix, int last)
+{
+	const vnode *nd = &v[i];
+	const char *tee = plain ? (last ? "`- " : "|- ") : (last ? "└─ " : "├─ ");
+	const char *bar = plain ? (last ? "   " : "|  ") : (last ? "   " : "│  ");
+	const jv *w = jget(nd->j, "worth");
+	printf("%s%4d %s%s%s%s%s%s", DIM, nd->id, OFF, nd->running ? (plain ? "> " : "▶ ") : "  ", DIM, prefix, tee, OFF);
+	if (nd->running) printf("%s", BOLD);
+	view_words(nd);
+	if (!strcmp(nd->kind, "pick") && jget(nd->j, "remaining"))
+		printf("  %s[chose %.1f s ago, again in %.1f s]%s", DIM, jnumber(nd->j, "elapsed", 0), jnumber(nd->j, "remaining", 0), OFF);
+	else if (!strcmp(nd->kind, "cooldown") && jget(nd->j, "remaining"))
+		printf("  %s[cooling: %.1f s left]%s", DIM, jnumber(nd->j, "remaining", 0), OFF);
+	else if (jget(nd->j, "remaining"))
+		printf("  %s[%.1f s in, %.1f s left]%s", DIM, jnumber(nd->j, "elapsed", 0), jnumber(nd->j, "remaining", 0), OFF);
+	if (w && !(jnumber(w, "score", 0) > 0))
+		printf("  %sscore 0%s", DIM, OFF);
+	else if (w)
+		printf("  %s%.2f x %.2f x %s x %.2f x %.2f = %s%.3f%s%s", DIM, jnumber(w, "score", 0), jnumber(w, "weight", 0),
+		       num(jnumber(w, "factor", 1)), jnumber(w, "luck", 0), jnumber(w, "sticky", 1), OFF, jnumber(w, "worth", 0),
+		       jtrue(w, "held") ? "  <- held" : "", OFF);
+	if (nd->hidden) printf("  %s(+%d)%s", DIM, nd->hidden, OFF);
+	printf("%s\n", OFF);
+	char deeper[1024];
+	snprintf(deeper, sizeof deeper, "%s%s", prefix, bar);
+	int lastkid = -1;
+	for (int k = i + 1; k < n; k++) if (v[k].parent == nd->id && v[k].shown) lastkid = k;
+	for (int k = i + 1; k < n; k++) if (v[k].parent == nd->id && v[k].shown) view_node(v, n, k, deeper, k == lastkid);
+}
+
+/* `full`: every node; else the RUNNING path, what hangs directly from
+ * it (a pick's options, a seq's steps), and a count of the rest */
+static void view_snapshot(const jv *doc, int full)
+{
+	const jv *bot = jget(doc, "bot"), *nodes = jget(doc, "nodes"), *trees = jget(doc, "trees"), *wts = jget(bot, "weights");
+	int n = 0, k = 0;
+	for (const jv *x = nodes && nodes->type == 'a' ? nodes->kids : NULL; x; x = x->next) n++;
+	vnode *v = calloc((size_t)n + 1, sizeof *v);
+	if (!v) return;
+	for (const jv *x = nodes && nodes->type == 'a' ? nodes->kids : NULL; x; x = x->next, k++) {
+		v[k].j = x;
+		v[k].id = (int)jnumber(x, "id", -1);
+		v[k].parent = (int)jnumber(x, "parent", -1);
+		v[k].running = jtrue(x, "running");
+		v[k].kind = jtext(x, "kind") ? jtext(x, "kind") : "?";
+		v[k].text = jtext(x, "text") ? jtext(x, "text") : "?";
+	}
+	for (k = 0; k < n; k++) {
+		int pr = 0;
+		for (int q = 0; q < k; q++) if (v[q].id == v[k].parent) pr = v[q].running && v[q].shown;
+		v[k].shown = full || v[k].parent < 0 || v[k].running || pr;
+	}
+	for (k = n - 1; k >= 0; k--) {              /* what is not shown, counted on the nearest shown one above */
+		if (v[k].shown) continue;
+		for (int q = k - 1, want = v[k].parent; q >= 0; q--)
+			if (v[q].id == want) { if (v[q].shown) { v[q].hidden++; break; } want = v[q].parent; }
+	}
+	printf("%s%s%s  #%d, team %d: a %s, level %d, health %d, %s%s\n", BOLD, jtext(bot, "name") && *jtext(bot, "name") ? jtext(bot, "name") : "bot", OFF,
+	       (int)jnumber(bot, "pid", -1), (int)jnumber(bot, "team", 0), jtext(bot, "archetype") ? jtext(bot, "archetype") : "?",
+	       (int)jnumber(bot, "level", 0), (int)jnumber(bot, "health", 0), jtrue(bot, "alive") ? "alive" : "DEAD", OFF);
+	printf("%s%s; sees %d, %s%s%s\n", DIM, jtext(bot, "route") ? jtext(bot, "route") : "", (int)jnumber(bot, "sees", 0),
+	       jtext(bot, "alert") ? jtext(bot, "alert") : "", jnumber(bot, "target", -1) >= 0 ? ", fighting #" : "",
+	       jnumber(bot, "target", -1) >= 0 ? num(jnumber(bot, "target", -1)) : "");
+	fputs("weights:", stdout);
+	for (const jv *t = wts && wts->type == 'o' ? wts->kids : NULL; t; t = t->next)
+		if (t->key && strcmp(t->key, "none")) printf(" %s %.2f", t->key, t->type == '#' ? t->number : 0.0);
+	printf("%s\n", OFF);
+	for (const jv *t = trees && trees->type == 'a' ? trees->kids : NULL; t; t = t->next) {
+		int root = (int)jnumber(t, "root", -1);
+		const char *from = jtext(bot, "tree_from");
+		printf("\n%s%s%s %s(%s%s)%s  %s%s%s\n", BOLD, jtext(t, "name") ? jtext(t, "name") : "?", OFF, DIM,
+		       jtext(t, "role") && !strcmp(jtext(t, "role"), "also") ? "ticked beside, at every decision" : "its tree",
+		       from && !strcmp(from, "own") ? ", its own" : "", OFF, BOLD,
+		       jtext(t, "role") && !strcmp(jtext(t, "role"), "main") && jtext(bot, "doing") ? jtext(bot, "doing") : "", OFF);
+		for (k = 0; k < n; k++) if (v[k].id == root) view_node(v, n, k, "", 1);
+	}
+	if (!jtrue(doc, "traced")) printf("%s(not traced yet: the options' numbers come at its next choice)%s\n", DIM, OFF);
+	printf("%s  id   an option: score x weight x factor x luck x sticky = worth%s%s\n", DIM, full ? "" : "   (+N): nodes not shown; --full shows all", OFF);
+	free(v);
+}
+
+static int watch_cmd(const char *dir, const char *who, int hz, int once, int as_json, int full)
+{
+	if (!watch_begin(dir)) return 1;
+	jv *ros = roster_get(NULL);
+	if (!ros) return 1;
+	const jv *bots = jget(ros, "bots");
+	int pid = -1;
+	char *end = NULL;
+	long asked = who ? strtol(who, &end, 10) : -1;
+	for (const jv *b = bots && bots->type == 'a' ? bots->kids : NULL; b && pid < 0; b = b->next) {
+		const char *name = jtext(b, "name");
+		if (!who ? jtrue(b, "alive") : end && !*end ? (long)jnumber(b, "pid", -1) == asked : name && !strcmp(name, who))
+			pid = (int)jnumber(b, "pid", -1);
+	}
+	if (pid < 0 && !who && bots && bots->kids) pid = (int)jnumber(bots->kids, "pid", -1);
+	jfree(ros);
+	if (pid < 0) {
+		fprintf(stderr, who ? "bttree: no bot called %s (bttree --bots lists them)\n" : "bttree: the engine has no bot%s\n", who ? who : "");
+		return 1;
+	}
+	char list[16], name[32], *prev = NULL;
+	snprintf(list, sizeof list, "%d", pid);
+	snprintf(name, sizeof name, "bot-%d.json", pid);
+	if (hz < 1) hz = 4;
+	if (hz > 20) hz = 20;
+	time_t t0 = time(NULL);
+	double began = mono(), touched = 0, heard = mono();
+	int frames = 0, rc = 0;
+	while (!watch_stop) {
+		double now = mono();
+		if (now - touched >= 3.0) { request_write(list, hz); touched = now; }
+		char *text = watch_read(name, t0 - 1);
+		if (text && (!prev || strcmp(text, prev))) {
+			jr r = { text, 0 };
+			jv *doc = jread(&r, 0);
+			heard = now;
+			if (!r.bad && doc && doc->type == 'o') {
+				/* one snapshot only: the first where a pick on the RUNNING path has
+				 * its numbers (or what there is after 4 s) */
+				const jv *nodes = jget(doc, "nodes");
+				int ready = !once || now - began > 4.0;
+				for (const jv *x = nodes && nodes->type == 'a' ? nodes->kids : NULL; x && !ready; x = x->next)
+					ready = jtrue(x, "running") && jget(x, "worth") != NULL;
+				if (ready && as_json) { fputs(text, stdout); fflush(stdout); }
+				else if (ready) {
+					if (!once && colour) fputs("\033[H\033[J", stdout);
+					else if (frames) fputs("\n", stdout);
+					view_snapshot(doc, full);
+					fflush(stdout);
+				}
+				frames += ready;
+			}
+			jfree(doc);
+			free(prev);
+			prev = text;
+			if (once && frames) break;
+		} else {
+			free(text);
+			if (now - heard > 5.0) {
+				fprintf(stderr, "bttree: nothing more about bot %d (it left, or the engine stopped)\n", pid);
+				rc = 1;
+				break;
+			}
+		}
+		nap_ms(1000 / hz / 2 > 20 ? 1000 / hz / 2 : 20);
+	}
+	free(prev);
+	return rc;
+}
+
 static int usage(void)
 {
 	fprintf(stderr,
@@ -1530,13 +1908,16 @@ static int usage(void)
 		"       bttree --split [--why] [--tree NAME] [--n 700] [--mix camper:2,pusher] [--level 5] FILE.bt... [WORD=VALUE]...\n"
 		"       bttree --trace [--json] [--tree NAME] [--as ARCHETYPE] [--seed 0] [--level 5] [--secs 0] FILE.bt... [WORD=VALUE]...\n"
 		"       bttree --json [--expanded] FILE.bt... | --from-json FILE | --format FILE.bt... | --roundtrip FILE.bt...\n"
-		"       bttree --words [--md] | --schema | --doc FILE.md...\n");
+		"       bttree --words [--md] | --schema | --doc FILE.md... | --list [--json] FILE.bt...\n"
+		"       bttree --bots [--json] [--dir DIR]                              the engine's bots, now\n"
+		"       bttree --watch [--bot PID|NAME] [--full] [--once] [--json] [--hz 4] [--dir DIR]   one of them, live\n");
 	return 2;
 }
 
 int main(int argc, char **argv)
 {
-	const char *only = NULL, *mix = NULL, *from = NULL;
+	const char *only = NULL, *mix = NULL, *from = NULL, *dir = NULL, *who = NULL, *view = NULL;
+	int do_watch = 0, do_bots = 0, do_list = 0, hz = 4, once = 0, full_view = 0;
 	char *paths[MAX_FILES];
 	int n_paths = 0, check = 0, list = 0, md = 0, do_split = 0, do_trace = 0, with_why = 0, crowd = 700, level = 5, seed = 0;
 	int json = 0, expanded = 0, do_schema = 0, do_doc = 0, do_format = 0, do_round = 0;
@@ -1558,6 +1939,15 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "--doc")) do_doc = 1;
 		else if (!strcmp(argv[i], "--format")) do_format = 1;
 		else if (!strcmp(argv[i], "--roundtrip")) do_round = 1;
+		else if (!strcmp(argv[i], "--watch")) do_watch = 1;
+		else if (!strcmp(argv[i], "--bots")) do_bots = 1;
+		else if (!strcmp(argv[i], "--list")) do_list = 1;
+		else if (!strcmp(argv[i], "--once")) once = 1;
+		else if (!strcmp(argv[i], "--full")) full_view = 1;
+		else if (!strcmp(argv[i], "--bot") && i + 1 < argc) who = argv[++i];
+		else if (!strcmp(argv[i], "--view") && i + 1 < argc) view = argv[++i];
+		else if (!strcmp(argv[i], "--dir") && i + 1 < argc) dir = argv[++i];
+		else if (!strcmp(argv[i], "--hz") && i + 1 < argc) hz = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "--from-json") && i + 1 < argc) from = argv[++i];
 		else if (!strcmp(argv[i], "--n") && i + 1 < argc) crowd = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "--level") && i + 1 < argc) level = atoi(argv[++i]);
@@ -1589,6 +1979,16 @@ int main(int argc, char **argv)
 		return 0;
 	}
 	if (do_schema) return schema(stdout);
+	if (view) {                             /* a snapshot somebody kept, drawn */
+		char *text = slurp(view, NULL);
+		jr r = { text, 0 };
+		jv *doc = text ? jread(&r, 0) : NULL;
+		if (!doc || r.bad || doc->type != 'o') { fprintf(stderr, "bttree: %s is not a snapshot\n", view); return 1; }
+		view_snapshot(doc, full_view);
+		return 0;
+	}
+	if (do_bots) return bots_cmd(dir, json);
+	if (do_watch) return watch_cmd(dir, who, hz, once, json, full_view);
 
 	bt_vocab *v = bt_vocab_new();
 	if (!v || !bc_vocab_register(v)) { fprintf(stderr, "bttree: no vocabulary\n"); return 1; }
@@ -1626,7 +2026,14 @@ int main(int argc, char **argv)
 	if (check) { printf("ok: %d file(s)\n", n_files); return 0; }
 	if (do_round) return roundtrip(v);
 	if (do_trace) return trace(only, seed, level, secs, json);
-	if (json) { json_all(stdout, expanded); return 0; }
+	if (do_list) return list_trees(json);
+	if (json) {
+		if (only && has_tree(whole, only) < 0) { fprintf(stderr, "bttree: no tree called %s\n", only); return 1; }
+		json_only = only;
+		json_all(stdout, expanded);
+		return 0;
+	}
+	if (do_format && only) return format_tree(v, only);
 	if (do_format) {
 		for (int i = 0; i < n_files; i++) {
 			char *text = canonical(files[i].src);

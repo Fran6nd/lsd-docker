@@ -25,7 +25,7 @@ B=bot/build/bin/bttree
 | Question | Command |
 |---|---|
 | What does the tree look like, sub-trees opened? | `$B bot/trees/tdm.bt` (`--tree NAME` for one, `--plain` for a pipe) |
-| Does it compile, with today's words? | `$B --check bot/trees/*.bt` (also the last step of `make -C bot test`) |
+| Does it compile, with today's words? | `$B --check bot/trees/*.bt` (also in `make -C bot test`): EVERY mistake, each with its line -- wrong words and wrong arguments (a word for a number, a place there is none of) |
 | What words are there? | `$B --words` (`\| grep '^score'`); `bot/VOCAB.md` is the same as a page |
 | How does a kind of bot weigh each option? | `$B --as camper bot/trees/tdm.bt` |
 | **In this situation, who does what?** | `$B --split ...` (below) |
@@ -145,7 +145,15 @@ is ever above 0 on a real map (a perch found, a rumour heard). Then:
 - live: the `demo-server` skill to put it on the demo, `bot-live-debug`
   to see what bots are doing (the engine's "stuck" lines print each
   bot's `pick:... > action` path, the same text as --split's rows).
-- A tree can be tried on a running server without a rebuild:
+- **On a running server** (TREES.md sections 14 and 16): `lsdctl bots
+  list` and `lsdctl bots watch <bot>` show what each bot is doing and,
+  option by option, why (the same numbers as `--trace`, live);
+  `lsdctl bots apply - --bot <bot> < file.bt` (or `--team`,
+  `--archetype`, `--each`, `--all`) gives a tree to bots that are
+  playing, `revert` takes it back, `save <name>` keeps it as an
+  operator's tree. A text that does not compile is refused with every
+  mistake.
+- A tree can also be tried from the server's Lua:
   `botlink_set("tree", <text>)` from `lsdctl exec`, or -- an operator's
   way -- a file `<name>.bt` in the data volume's `trees/` (read again at
   each map load; a tree named like a built-in one replaces it) and the

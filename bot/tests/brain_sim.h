@@ -901,6 +901,18 @@ static inline void bs_think(bs_sim *s)
 		at += (r->size + 3u) & ~3u;
 	}
 	t0 = bs_now_us();
+	{
+		/* BS_WATCH=1 in the environment: every bot watched (engine.h), for
+		 * measuring what watching costs and that it changes nothing */
+		static int watch_all = -1;
+
+		if (watch_all < 0) watch_all = getenv("BS_WATCH") != NULL;
+		if (watch_all) {
+			int k;
+
+			for (k = 0; k < BL_MAX_PLAYERS; k++) bc_engine_watch(s->e, k, 1);
+		}
+	}
 	bc_engine_think(s->e, &s->w, s->intents, 1.0f / 60.0f, s->budget);
 	t0 = bs_now_us() - t0;
 	s->think_us += t0;

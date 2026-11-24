@@ -92,4 +92,27 @@ int bc_engine_bots(const bc_engine *e);
  * The length written; 0 for no such bot. */
 size_t bc_engine_describe(const bc_engine *e, int pid, char *out, size_t out_size);
 
+/* WATCHING A BOT THINK (debug.c; the formats are specified in
+ * bot/TREES.md). The core writes text into the host's buffer and does
+ * no I/O; how often, and where it goes, is the host's.
+ *
+ * bc_engine_watch: have bot `pid`'s picks note what they weigh (bt.h's
+ * tracing), or stop. It changes nothing the bot decides. A bot nobody
+ * watches pays nothing; watching survives a change of tree, not the
+ * bot's removal. */
+void bc_engine_watch(bc_engine *e, int pid, int on);
+int bc_engine_watched(const bc_engine *e, int pid);
+
+/* One bot as JSON ("lsd-bt-snapshot"): who it is, what it perceives,
+ * its route, and its tree as this engine holds it -- node ids, what is
+ * RUNNING, timers, and each option's score, weight, factor, luck, sticky
+ * and worth (those only while it is watched). Returns the length in
+ * full; if that is not under out_size nothing usable was written (out
+ * is ""): give a larger buffer. 0 for no such bot. */
+size_t bc_engine_snapshot(const bc_engine *e, int pid, char *out, size_t out_size);
+
+/* Every bot in a line each, the trees the engine has and the one the
+ * world runs, as JSON ("lsd-bt-bots"). Sized as bc_engine_snapshot. */
+size_t bc_engine_roster(const bc_engine *e, char *out, size_t out_size);
+
 #endif

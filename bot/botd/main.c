@@ -13,6 +13,8 @@ static void usage(FILE *f)
 	      "  --user-trees DIR  the operator's own *.bt, read after those and again at each\n"
 	      "                map: a tree of a built-in's name replaces it (default $LSD_DATA/trees,\n"
 	      "                LSD_DATA defaulting to /data)\n"
+	      "  --debug-dir DIR  where a viewer asks what the bots think and is answered in\n"
+	      "                files (bttree --watch; default $LSD_DATA/rw/botdebug; `none`: nowhere)\n"
 	      "  --hz N        rounds a second (default 60)\n"
 	      "  --budget N    planner expansions one think may spend (default 3000)\n"
 	      "  --bots N      bots the engine is sized for (default 64)\n"
@@ -44,6 +46,7 @@ int main(int argc, char **argv)
 		else if (!strcmp(a, "--file") && more) o.file = argv[++i];
 		else if (!strcmp(a, "--trees") && more) o.trees = argv[++i];
 		else if (!strcmp(a, "--user-trees") && more) o.user_trees = argv[++i];
+		else if (!strcmp(a, "--debug-dir") && more) o.debug_dir = argv[++i];
 		else if (!strcmp(a, "--hz") && more) o.hz = number(argv[++i], 1, 1000, "--hz");
 		else if (!strcmp(a, "--budget") && more) o.budget = number(argv[++i], 0, 1000000, "--budget");
 		else if (!strcmp(a, "--bots") && more) o.max_bots = number(argv[++i], 1, 256, "--bots");

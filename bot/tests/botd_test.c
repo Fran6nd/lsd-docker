@@ -18,6 +18,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <utime.h>
 
 static int checks, failed;
 #define CHECK(c) do { checks++; if (!(c)) { failed++; \
@@ -50,12 +51,15 @@ static struct {
 } fake;
 
 static uint8_t isbot[256];
+static _Atomic int watched[256], snaps;
 
 static void fake_reset(void)
 {
 	pthread_mutex_lock(&mu);
 	memset((void *)&fake, 0, sizeof fake);
 	memset(isbot, 0, sizeof isbot);
+	for (int i = 0; i < 256; i++) atomic_store(&watched[i], 0);
+	atomic_store(&snaps, 0);
 	pthread_mutex_unlock(&mu);
 }
 
@@ -124,6 +128,19 @@ int bc_engine_bots(const bc_engine *e) { (void)e; return atomic_load(&fake.bots)
 size_t bc_engine_describe(const bc_engine *e, int pid, char *out, size_t n)
 { (void)e; (void)pid; (void)out; (void)n; return 0; }
 
+void bc_engine_watch(bc_engine *e, int pid, int on)
+{ (void)e; if (pid >= 0 && pid < 256 && isbot[pid]) atomic_store(&watched[pid], on); }
+int bc_engine_watched(const bc_engine *e, int pid)
+{ (void)e; return pid >= 0 && pid < 256 && atomic_load(&watched[pid]); }
+size_t bc_engine_snapshot(const bc_engine *e, int pid, char *out, size_t n)
+{
+	(void)e;
+	if (pid < 0 || pid >= 256 || !isbot[pid]) return 0;
+	return (size_t)snprintf(out, n, "{\"format\": \"lsd-bt-snapshot\", \"pid\": %d, \"n\": %d}\n", pid, atomic_fetch_add(&snaps, 1));
+}
+size_t bc_engine_roster(const bc_engine *e, char *out, size_t n)
+{ (void)e; return (size_t)snprintf(out, n, "{\"format\": \"lsd-bt-bots\", \"bots\": %d}\n", atomic_load(&fake.bots)); }
+
 /* ---- the fake server ---- */
 
 typedef struct server {
@@ -179,12 +196,15 @@ static void *run_botd(void *arg)
 }
 /* the operator's trees for the next runner; by default a directory there is none of */
 static const char *user_trees = "/nonexistent/botd_test_user_trees";
+/* and where a viewer would ask what the bots think: nowhere, by default */
+static const char *debug_dir = "none";
 
 static void runner_start(runner *r, const char *file, const char *trees)
 {
 	botd_opts_default(&r->o);
 	r->o.file = file; r->o.trees = trees; r->o.poll_ms = 50; r->o.stale_ms = 400; r->o.health_s = 1;
 	r->o.user_trees = user_trees;
+	r->o.debug_dir = debug_dir;
 	r->rc = -1; atomic_store(&r->done, 0);
 	pthread_create(&r->th, NULL, run_botd, r);
 }
@@ -476,6 +496,129 @@ static void test_user_trees(void)
 	user_trees = "/nonexistent/botd_test_user_trees";
 }
 
+/* ---- the debug channel: a request file in, snapshots out ---- */
+
+static char dbg[300];
+static int has(const char *name)
+{
+	char p[400];
+	struct stat st;
+	snprintf(p, sizeof p, "%s/%s", dbg, name);
+	return stat(p, &st) == 0;
+}
+static int holds(const char *name, const char *what)
+{
+	char p[400], text[400] = "";
+	snprintf(p, sizeof p, "%s/%s", dbg, name);
+	FILE *fh = fopen(p, "rb");
+	if (!fh) return 0;
+	size_t n = fread(text, 1, sizeof text - 1, fh);
+	text[n] = 0;
+	fclose(fh);
+	return strstr(text, what) != NULL && text[n ? n - 1 : 0] == '\n';   /* whole: it ends as it was written */
+}
+static void request(const char *name, const char *text, int age_s)
+{
+	char p[400];
+	snprintf(p, sizeof p, "%s/%s", dbg, name);
+	write_file(p, text, strlen(text));
+	if (age_s) {
+		struct utimbuf t;
+		t.actime = t.modtime = time(NULL) - age_s;
+		utime(p, &t);
+	}
+}
+static void unrequest(const char *name) { char p[400]; snprintf(p, sizeof p, "%s/%s", dbg, name); unlink(p); }
+static int c_snap3(void *a) { (void)a; return has("bot-3.json") && has("bots.json"); }
+static int c_no_snap3(void *a) { (void)a; return !has("bot-3.json"); }
+static int c_snap3_and_9(void *a) { (void)a; return has("bot-3.json") && has("bot-9.json"); }
+static int c_nothing(void *a) { (void)a; return !has("bot-3.json") && !has("bots.json") && !has("bot-9.json"); }
+static int c_bots2(void *a) { (void)a; return atomic_load(&fake.bots) >= 2; }
+static int c_many_snaps(void *a) { (void)a; return atomic_load(&snaps) >= 12; }
+
+static void test_watch(void)
+{
+	fake_reset();
+	snprintf(dbg, sizeof dbg, "%s/botd_test_%d_debug", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp", (int)getpid());
+	debug_dir = dbg;
+
+	server s;
+	server_make(&s, "w");
+	server_start(&s);
+	runner r;
+	runner_start(&r, s.path, treedir);
+	CHECK(wait_for(c_attached, &s, 2000));
+	bl_ev_bot eb; memset(&eb, 0, sizeof eb);
+	push_ev(&s, BL_EV_BOT, 3, &eb, sizeof eb);
+	push_ev(&s, BL_EV_BOT, 9, &eb, sizeof eb);
+	CHECK(wait_for(c_bots2, NULL, 2000));
+
+	/* botd made the directory, its own alone; with nobody asking, nothing is written */
+	struct stat st;
+	CHECK(stat(dbg, &st) == 0 && S_ISDIR(st.st_mode) && (st.st_mode & 0777) == 0700);
+	sleep_ms(700);
+	CHECK(c_nothing(NULL) && atomic_load(&snaps) == 0 && !atomic_load(&watched[3]));
+
+	/* requests that count for nothing: one gone stale, one too long, one that is a link, one not named .req */
+	char big[3000], p[400], q[400];
+	memset(big, 'x', sizeof big - 1); big[sizeof big - 1] = 0;
+	memcpy(big, "watch=3\n", 8);
+	request("old.req", "watch=3\n", 60);
+	request("big.req", big, 0);
+	request("notes.txt", "watch=3\n", 0);
+	snprintf(p, sizeof p, "%s/notes.txt", dbg); snprintf(q, sizeof q, "%s/link.req", dbg);
+	CHECK(symlink(p, q) == 0);
+	sleep_ms(700);
+	CHECK(c_nothing(NULL) && atomic_load(&snaps) == 0 && !atomic_load(&watched[3]));
+
+	/* one that counts: bot 3 watched, its snapshot and the roster written whole */
+	request("a.req", "watch=3\nhz=20\n", 0);
+	CHECK(wait_for(c_snap3, NULL, 2000));
+	CHECK(holds("bot-3.json", "\"lsd-bt-snapshot\", \"pid\": 3") && holds("bots.json", "\"lsd-bt-bots\", \"bots\": 2"));
+	CHECK(atomic_load(&watched[3]) == 1 && atomic_load(&watched[9]) == 0 && !has("bot-9.json"));
+	CHECK(!has("bot-3.json.new") && !has("bots.json.new"));
+	/* at the rate asked: 20 a second (over a tenth and under twice that, on a busy machine) */
+	int n0 = atomic_load(&snaps);
+	double t0 = now_s();
+	CHECK(wait_for(c_many_snaps, NULL, 3000));
+	sleep_ms(500);
+	double rate = (atomic_load(&snaps) - n0) / (now_s() - t0);
+	printf("  snapshots of one bot at hz=20: %.1f a second\n", rate);
+	CHECK(rate > 5.0 && rate < 40.0);
+
+	/* a second viewer, another bot; a bot nobody has (77): no file, no harm */
+	request("b.req", "watch=9,77\n", 0);
+	CHECK(wait_for(c_snap3_and_9, NULL, 2000));
+	CHECK(atomic_load(&watched[9]) == 1 && !has("bot-77.json"));
+	/* the first changes its mind: 3 is let go, its file removed; 9 stays */
+	request("a.req", "watch=\n", 0);
+	CHECK(wait_for(c_no_snap3, NULL, 2000));
+	CHECK(atomic_load(&watched[3]) == 0 && atomic_load(&watched[9]) == 1 && has("bot-9.json") && has("bots.json"));
+	/* `all` */
+	request("a.req", "watch=all\n", 0);
+	CHECK(wait_for(c_snap3_and_9, NULL, 2000));
+	CHECK(atomic_load(&watched[3]) == 1);
+	/* the viewers go: nobody is watched, the files are gone */
+	unrequest("a.req"); unrequest("b.req");
+	CHECK(wait_for(c_nothing, NULL, 2000));
+	CHECK(atomic_load(&watched[3]) == 0 && atomic_load(&watched[9]) == 0);
+	int n1 = atomic_load(&snaps);
+	sleep_ms(600);
+	CHECK(atomic_load(&snaps) == n1);
+
+	/* watching when the session ends: left clean */
+	request("a.req", "watch=3\n", 0);
+	CHECK(wait_for(c_snap3, NULL, 2000));
+	bl_shutdown(s.f);
+	CHECK(runner_wait(&r, 1000));
+	CHECK(c_nothing(NULL));
+	server_halt(&s);
+	bl_close(s.f); unlink(s.path);
+	unrequest("a.req"); unrequest("old.req"); unrequest("big.req"); unrequest("notes.txt"); unrequest("link.req");
+	CHECK(rmdir(dbg) == 0);                      /* nothing of botd's left in it */
+	debug_dir = "none";
+}
+
 int main(void)
 {
 	make_trees();
@@ -493,6 +636,8 @@ int main(void)
 	test_reattach(1);
 	printf("-- the operator's trees\n");
 	test_user_trees();
+	printf("-- the debug channel\n");
+	test_watch();
 
 	char p[300];
 	snprintf(p, sizeof p, "%s/a.bt", treedir); unlink(p);
