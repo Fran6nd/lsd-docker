@@ -1319,7 +1319,7 @@ local GAMES = {
 	{value = "tdm", label = "tdm", hint = "team deathmatch: every kill scores", maps = "ctf", bots = true},
 	{value = "parkour", label = "parkour", hint = "one team, no enemies: run a generated course against the clock",
 		maps = "generated", bots = true, teams = 1},
-	{value = "ctf", label = "ctf", hint = "capture the flag", maps = "ctf"},
+	{value = "ctf", label = "ctf", hint = "capture the flag", maps = "ctf", bots = true},
 	{value = "bots", label = "bots", hint = "team deathmatch with bots, day and night", maps = "ctf"},
 	{value = "bots_rewards", label = "bots_rewards", hint = "bots, with every reward free and unlimited", maps = "ctf"},
 	{value = "babel", label = "babel", hint = "build a tower to the enemy's flag", maps = "babel"},
