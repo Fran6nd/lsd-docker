@@ -36,11 +36,11 @@ static float near_enemy(const bc_bot *b)
 	return sqrtf(dx * dx + dy * dy + dz * dz);
 }
 
-static int in_cover(const bc_bot *b)
+static int in_cover(const bc_bot *b, float secs)
 {
 	int t = b->fight.target >= 0 ? b->fight.target : b->senses.lost.valid ? b->senses.lost.by : -1;
 
-	return t >= 0 && !b->senses.k[t].visible && b->e->now - b->senses.k[t].seen_at < 5.0;
+	return t >= 0 && !b->senses.k[t].visible && b->e->now - b->senses.k[t].seen_at < (double)secs;
 }
 
 static float ammo_frac(const bc_bot *b)
@@ -96,7 +96,7 @@ static int sky_clear(const bc_bot *b)
 	return (bc_map_col(b->e->map, x, y) & above) == 0;
 }
 
-static int hurt_ally(const bc_bot *b, float radius)
+static int hurt_ally(const bc_bot *b, float radius, float hp)
 {
 	const bl_player *me = bc_me(b);
 	int i;
@@ -105,7 +105,7 @@ static int hurt_ally(const bc_bot *b, float radius)
 		const bl_player *p = &b->e->w.players[i];
 		float dx = p->pos.x - me->pos.x, dy = p->pos.y - me->pos.y;
 
-		if (i != b->pid && p->state == BL_ALIVE && p->team == me->team && p->hp < 50 &&
+		if (i != b->pid && p->state == BL_ALIVE && p->team == me->team && (float)p->hp < hp &&
 		    dx * dx + dy * dy <= radius * radius)
 			return 1;
 	}
@@ -206,7 +206,7 @@ static int c_target_in_cover(void *bot, const bt_args *a)
 	bc_bot *b = bot;
 
 	(void)a; (void)b;
-	return in_cover(b);
+	return in_cover(b, arg(a, 0, 5.0f));
 }
 
 static int c_outnumbered(void *bot, const bt_args *a)
@@ -214,7 +214,7 @@ static int c_outnumbered(void *bot, const bt_args *a)
 	bc_bot *b = bot;
 
 	(void)a; (void)b;
-	return b->senses.n_visible > 1 + bc_mates_within(b, bc_me(b)->pos, 20.0f);
+	return b->senses.n_visible > 1 + bc_mates_within(b, bc_me(b)->pos, arg(a, 0, 20.0f));
 }
 
 static int c_health_below(void *bot, const bt_args *a)
@@ -358,7 +358,7 @@ static int c_allies_hurt_near(void *bot, const bt_args *a)
 	bc_bot *b = bot;
 
 	(void)a; (void)b;
-	return hurt_ally(b, arg(a, 0, 10.0f));
+	return hurt_ally(b, arg(a, 0, 10.0f), arg(a, 1, 50.0f));
 }
 
 static int c_mate_within(void *bot, const bt_args *a)
@@ -382,7 +382,7 @@ static int c_spotted_new(void *bot, const bt_args *a)
 	bc_bot *b = bot;
 
 	(void)a; (void)b;
-	return b->e->now - b->senses.spotted_new_at < 2.0;
+	return b->e->now - b->senses.spotted_new_at < (double)arg(a, 0, 2.0f);
 }
 
 static int c_losing(void *bot, const bt_args *a)
@@ -398,7 +398,10 @@ static int c_sniped(void *bot, const bt_args *a)
 	bc_bot *b = bot;
 
 	(void)a; (void)b;
-	return b->e->now - b->senses.hurt_at < 3.0 && b->senses.threat.valid && b->e->now - b->senses.threat.at < 3.0 && b->senses.threat_dist > 50.0f;
+	double secs = (double)arg(a, 1, 3.0f);
+
+	return b->e->now - b->senses.hurt_at < secs && b->senses.threat.valid && b->e->now - b->senses.threat.at < secs &&
+	       b->senses.threat_dist > arg(a, 0, 50.0f);
 }
 
 static int c_setting(void *bot, const bt_args *a)
@@ -534,7 +537,7 @@ static float s_outnumbered(void *bot, const bt_args *a)
 {
 	bc_bot *b = bot;
 
-	(void)a; return clamp01(0.34f * (float)(b->senses.n_visible - 1 - bc_mates_within(b, bc_me(b)->pos, 20.0f)));
+	return clamp01(0.34f * (float)(b->senses.n_visible - 1 - bc_mates_within(b, bc_me(b)->pos, arg(a, 0, 20.0f))));
 }
 
 static float s_night(void *bot, const bt_args *a)
@@ -855,8 +858,8 @@ static const word WORDS[] = {
 	{ VK_C, "enemy_within", 1, { NREQ("voxels") }, "the nearest enemy in sight is nearer than that", c_enemy_within, NULL, NULL, NULL },
 	{ VK_C, "enemy_beyond", 1, { NREQ("voxels") }, "an enemy is in sight and the nearest is farther than that", c_enemy_beyond, NULL, NULL, NULL },
 	{ VK_C, "enemies_grouped", 2, { NREQ("count"), NREQ("radius") }, "that many known enemies stand within radius of one another", c_enemies_grouped, NULL, NULL, NULL },
-	{ VK_C, "target_in_cover", NOARGS, "the man being fought was seen under 5 s ago and is out of sight now", c_target_in_cover, NULL, NULL, NULL },
-	{ VK_C, "outnumbered", NOARGS, "more enemies in sight than team-mates within 20, itself included", c_outnumbered, NULL, NULL, NULL },
+	{ VK_C, "target_in_cover", 1, { NOPT("secs", 5.0f) }, "the man being fought was seen under that many seconds ago (default 5) and is out of sight now", c_target_in_cover, NULL, NULL, NULL },
+	{ VK_C, "outnumbered", 1, { NOPT("radius", 20.0f) }, "more enemies in sight than team-mates within radius (default 20), itself included", c_outnumbered, NULL, NULL, NULL },
 	{ VK_C, "health_below", 1, { NRANGE("hp", 0.0f, 100.0f) }, "its health is under that (of 100)", c_health_below, NULL, NULL, NULL },
 	{ VK_C, "hurt_recently", 1, { NOPT("secs", 3.0f) }, "it lost health within that many seconds (default 3)", c_hurt_recently, NULL, NULL, NULL },
 	{ VK_C, "ammo_below", 1, { NRANGE("fraction", 0.0f, 1.0f) }, "rounds left, magazine and reserve, are under that fraction of a full load", c_ammo_below, NULL, NULL, NULL },
@@ -877,12 +880,12 @@ static const word WORDS[] = {
 	{ VK_C, "lamp_on", NOARGS, "its flashlight is lit", c_lamp_on, NULL, NULL, NULL },
 	{ VK_C, "has_item", 1, { TEXT("name") }, "it holds at least one of that inventory item", c_has_item, NULL, NULL, NULL },
 	{ VK_C, "sky_clear", NOARGS, "nothing solid above its head (a thing that comes down from the sky needs it)", c_sky_clear, NULL, NULL, NULL },
-	{ VK_C, "allies_hurt_near", 1, { NREQ("radius") }, "a team-mate under 50 health is within radius", c_allies_hurt_near, NULL, NULL, NULL },
+	{ VK_C, "allies_hurt_near", 2, { NREQ("radius"), NOPT("hp", 50.0f) }, "a team-mate under hp health (default 50) is within radius", c_allies_hurt_near, NULL, NULL, NULL },
 	{ VK_C, "mate_within", 1, { NREQ("voxels") }, "a live team-mate is that near", c_mate_within, NULL, NULL, NULL },
 	{ VK_C, "alone", 1, { NOPT("voxels", 25.0f) }, "no live team-mate within that (default 25)", c_alone, NULL, NULL, NULL },
-	{ VK_C, "spotted_new", NOARGS, "it has just seen an enemy its team did not know of", c_spotted_new, NULL, NULL, NULL },
+	{ VK_C, "spotted_new", 1, { NOPT("secs", 2.0f) }, "it has seen, within that many seconds (default 2), an enemy its team did not know of", c_spotted_new, NULL, NULL, NULL },
 	{ VK_C, "losing", NOARGS, "it is in a fight, under 45 health and outnumbered, or under 30 and just hit", c_losing, NULL, NULL, NULL },
-	{ VK_C, "sniped", NOARGS, "it was hit within 3 s from more than 50 voxels away", c_sniped, NULL, NULL, NULL },
+	{ VK_C, "sniped", 2, { NOPT("voxels", 50.0f), NOPT("secs", 3.0f) }, "it was hit within secs (default 3) from farther than voxels (default 50)", c_sniped, NULL, NULL, NULL },
 	{ VK_C, "setting", 2, { TEXT("key"), TEXT_OPT("value", "any value: the setting is set") }, "the gamemode's setting <key> is set (to <value>, if said): how a mode's tree reads the mode's own rules", c_setting, NULL, NULL, NULL },
 	{ VK_C, "chance", 1, { NRANGE("probability", 0.0f, 1.0f) }, "true that often, by the bot's own dice", c_chance, NULL, NULL, NULL },
 	{ VK_C, "knows", 1, { PLACE }, "the bot knows of such a place now", c_knows, NULL, NULL, NULL },
@@ -900,7 +903,7 @@ static const word WORDS[] = {
 	{ VK_S, "alone", 1, { NOPT("voxels", 40.0f) }, "0 beside a team-mate, rising to 1 at that distance (default 40) or with none alive", NULL, s_alone, NULL, NULL },
 	{ VK_S, "grenade_worth", NOARGS, "1 when a grenade is worth throwing now (see the condition)", NULL, s_grenade_worth, NULL, NULL },
 	{ VK_S, "grenade_near", NOARGS, "1 when an enemy grenade would hurt it here", NULL, s_grenade_near, NULL, NULL },
-	{ VK_S, "outnumbered", NOARGS, "0 when not; else how badly, up to 1", NULL, s_outnumbered, NULL, NULL },
+	{ VK_S, "outnumbered", 1, { NOPT("radius", 20.0f) }, "0 when not (enemies in sight against team-mates within radius, default 20); else how badly, up to 1", NULL, s_outnumbered, NULL, NULL },
 	{ VK_S, "night", NOARGS, "1 by night", NULL, s_night, NULL, NULL },
 	{ VK_S, "calm", NOARGS, "1 when nothing is known, 0.3 when suspicious, 0 engaged", NULL, s_calm, NULL, NULL },
 	{ VK_S, "has_item", 1, { TEXT("name") }, "1 if it holds one", NULL, s_has_item, NULL, NULL },
@@ -927,7 +930,7 @@ static const word WORDS[] = {
 	{ VK_A, "flank", 1, { PLACE_OPT("enemy_area") }, "to the place (default: the enemy's area) the long way round, by a side of its own choosing, so as to come at it from behind. SUCCESS there; FAILURE too near to go round, no ground either side, no way", NULL, NULL, bc_do_flank, bc_do_tactics_stop },
 	{ VK_A, "hunt_noise", NOARGS, "go to the freshest rumour of the enemy (see the score). SUCCESS on seeing the place from near; FAILURE none, no way", NULL, NULL, bc_do_hunt_noise, bc_do_tactics_stop },
 	{ VK_A, "take_high_ground", NOARGS, "claim the best free perch for its gun and go up to it. SUCCESS on it; FAILURE none free, no way up", NULL, NULL, bc_do_take_high_ground, bc_do_tactics_stop },
-	{ VK_A, "camp", 1, { NNOTE("secs", "its patience: 25 to 120 s by its caution and marksmanship") }, "stay where it is, crouched, sweeping the arc toward the enemy, firing at what appears. SUCCESS after two kills, when shot at, or when its patience is out (25 to 120 s by character, or secs): it then gives up its perch and takes another next time", NULL, NULL, bc_do_camp, bc_do_tactics_stop },
+	{ VK_A, "camp", 2, { NNOTE("secs", "its patience: 25 to 120 s by its caution and marksmanship"), NOPT("kills", 2.0f) }, "stay where it is, crouched, sweeping the arc toward the enemy, firing at what appears. SUCCESS after `kills` kills (default 2), when shot at, or when its patience is out (25 to 120 s by character, or secs; 0: by character): it then gives up its perch and takes another next time", NULL, NULL, bc_do_camp, bc_do_tactics_stop },
 	{ VK_A, "leave_water", NOARGS, "to the nearest dry ground. SUCCESS dry; RUNNING on the way; FAILURE none within 48", NULL, NULL, bc_do_leave_water, bc_do_tactics_stop },
 	{ VK_C, "carrying_intel", NOARGS, "it carries the other team's intel", c_carrying_intel, NULL, NULL, NULL },
 	{ VK_C, "their_intel_home", NOARGS, "the other team's intel lies where the server put it", c_their_intel_home, NULL, NULL, NULL },
@@ -950,7 +953,7 @@ static const word WORDS[] = {
 	{ VK_S, "near_their_base", 1, { NOPT("voxels", 40.0f) }, "1 at the other team's base, falling to 0 at that distance (default 40)", NULL, s_near_their_base, NULL, NULL },
 	{ VK_S, "mates_near", 1, { NREQ("radius") }, "0 with no team-mate within radius, 1 with three or more", NULL, s_mates_near, NULL, NULL },
 	{ VK_A, "fetch", NOARGS, "go to the other team's intel where it lies and walk onto it (the server gives it to whoever of the other team stands within 3 of it). SUCCESS carrying it; FAILURE none, somebody has it, no way", NULL, NULL, bc_do_fetch, bc_do_objective_stop },
-	{ VK_A, "carry_home", NOARGS, "the carrier runs for its own base by a route that keeps away from the enemies it knows of, shooting only at a man within 14. RUNNING while it carries; SUCCESS when it no longer does; FAILURE no base, no way", NULL, NULL, bc_do_carry_home, bc_do_objective_stop },
+	{ VK_A, "carry_home", 1, { NOPT("voxels", 14.0f) }, "the carrier runs for its own base by a route that keeps away from the enemies it knows of, shooting only at a man within voxels (default 14). RUNNING while it carries; SUCCESS when it no longer does; FAILURE no base, no way", NULL, NULL, bc_do_carry_home, bc_do_objective_stop },
 	{ VK_A, "escort", NOARGS, "stay by the team-mate who carries the intel: ahead of him toward the base and to a side, shooting what it sees. RUNNING; FAILURE nobody carries", NULL, NULL, bc_do_escort, bc_do_objective_stop },
 	{ VK_A, "intercept", NOARGS, "cut off the enemy who carries this team's intel: to the point of his way home it can reach before he does, and fight him on sight. RUNNING; FAILURE nobody has it", NULL, NULL, bc_do_intercept, bc_do_objective_stop },
 	{ VK_A, "guard", 2, { PLACE_OPT("own_intel"), NOPT("secs", 30.0f) }, "hold near a place (default own_intel) at a spot of its own on the side the enemy comes from, crouched if careful, watching that way, shooting what appears. SUCCESS after secs (default 30); FAILURE no such place, no way", NULL, NULL, bc_do_guard, bc_do_objective_stop },
@@ -966,7 +969,7 @@ static const word WORDS[] = {
 	{ VK_S, "unguarded", 4, { PLACE_OPT("own_intel"), NOPT("radius", 20.0f), NOPT("count", 2.0f), ONE_NOTE("only", "dropped", "whatever its state, but for one somebody carries") }, "1 while fewer than count team-mates (default 2) are on guard within radius (default 20) of the place (default own_intel), else 0; 0 for an intel somebody carries; with the word `dropped`, only while that intel lies where a carrier fell", NULL, s_unguarded, NULL, NULL },
 	{ VK_A, "fight", NOARGS, "fight the enemy it has chosen (nearest in sight, kept until another is at half his distance): close to its own range, strafe, burst, reload, spade when it comes to that. RUNNING while he lives; SUCCESS on his death; FAILURE with nobody", NULL, NULL, bc_do_fight, bc_do_stop },
 	{ VK_A, "go_to", 2, { PLACE, NOPT("radius", 2.0f) }, "walk to a place (jumping, digging, bridging as the mode allows), shooting what it meets on the way. SUCCESS there, FAILURE with no such place or no way", NULL, NULL, bc_do_go_to, bc_do_stop },
-	{ VK_A, "retreat", NOARGS, "run to the nearest place the enemy cannot see, back turned. SUCCESS hidden (or after 10 s), FAILURE with nothing to run from", NULL, NULL, bc_do_retreat, bc_do_stop },
+	{ VK_A, "retreat", 1, { NOPT("secs", 10.0f) }, "run to the nearest place the enemy cannot see, back turned. SUCCESS hidden (or after secs, default 10), FAILURE with nothing to run from", NULL, NULL, bc_do_retreat, bc_do_stop },
 	{ VK_A, "investigate", NOARGS, "go to the place most worth searching, look round it, then forget it. SUCCESS looked, FAILURE none or no way", NULL, NULL, bc_do_investigate, bc_do_stop },
 	{ VK_A, "roam", NOARGS, "walk to somewhere the team has not been lately: round where the enemy was last met, else between the two bases, else anywhere -- not round its own base. Always RUNNING: what a bot does in a world with nothing to seek", NULL, NULL, bc_do_roam, bc_do_stop },
 	{ VK_A, "follow", 1, { ONE_OPT("who", "mate|caller|order|leader", "mate") }, "keep a station 3 voxels from a player: the nearest team-mate who is going somewhere (default), the caller of the ping it answers, or the order's man. `leader`: fall in with its leader -- beside and behind him, never in front of his gun; where he is going, not at his heels; shooting what he shoots; stopping near him when he stops. RUNNING; FAILURE with nobody, or a man who stays put too long", NULL, NULL, bc_do_follow, bc_do_stop },

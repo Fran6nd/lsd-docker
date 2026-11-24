@@ -224,6 +224,13 @@ against 5, nobody seeing anybody).
 
 ## (e) The vocabulary added (all neutral; vocab.h has every word)
 
+- 2026-11-25: numbers that were fixed are arguments now, same defaults
+  (DECISIONS.md, "Done in this step"): `camp [secs] [kills]`, `retreat
+  [secs]`, `sniped [voxels] [secs]`, `outnumbered [radius]`,
+  `target_in_cover [secs]`, `spotted_new [secs]`, `allies_hurt_near
+  <radius> [hp]`, `carry_home [voxels]`. What still decides WHAT in C,
+  and the plan for each: DECISIONS.md.
+
 - shot at, cover: `under_fire`, `in_cover`, `pressed`, `standoff`,
   `enemy_far`; `crouch`, `take_cover`, `advance_by_cover`,
   `fall_back_by_cover`.

@@ -35,7 +35,7 @@ DONE (commit), BLOCKED (on what).
 | 1 | This file | DONE |
 | 2 | Study of tree diagrams + a visual proof of concept for the owner to choose from | DOING (agent) |
 | 3 | Report: how botd is built, CPU with 30 bots, where the bottlenecks are | DOING (agent) |
-| 4 | Audit: every decision about WHAT that still lives in C; plan to move each | DOING (brain agent) |
+| 4 | Audit: every decision about WHAT that still lives in C; plan to move each | REVIEW (brain agent): bot/DECISIONS.md; 8 numbers made word arguments |
 | 5 | Archetypes as a data file beside the trees | TODO (after 4) |
 | 6 | Bots look where they are heading; shot at: cover within the field of view, else face the threat, never turn the back to search | TODO (brain agent, after 4) |
 | 7 | Bots stuck on a roof bridge or dig their way down (engine_bots_edit=all) | TODO (brain agent) |
@@ -54,3 +54,14 @@ DONE (commit), BLOCKED (on what).
 - 2026-11-24: file created. HEAD 6a9f0c3 ("wip", the owner's commit of
   the tooling agent's unfinished docs pass). Demo: ctf, 10 bots a team,
   engine_bots_edit=all, image built from c41c01f.
+- 2026-11-25 (brain agent, step A, item 4): bot/DECISIONS.md written --
+  50 places in bot/core where C decides WHAT or carries a tree author's
+  number, each with file:function, its kind (HOW / WHAT / NUMBER), the
+  move and its risk, and the moves in priority order (1: cover in view,
+  step B; 2: stranded bots, step C; 3: rest times as arguments; 4: seek
+  as tree structure; ...). Done now, same defaults so no tree and no
+  bench number moves: `camp [secs] [kills]`, `retreat [secs]`, `sniped
+  [voxels] [secs]`, `outnumbered [radius]` (cond and score),
+  `target_in_cover [secs]`, `spotted_new [secs]`, `allies_hurt_near
+  <radius> [hp]`, `carry_home [voxels]`; test in skills_test. VOCAB.md
+  regenerated. make -C bot test and dev/test.sh green.

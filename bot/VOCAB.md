@@ -25,8 +25,10 @@ For `if` and `unless`: true or false.
 - **`enemies_grouped <count> <radius>`** -- that many known enemies stand within radius of one another
   - `count`: a number; must be given
   - `radius`: a number; must be given
-- **`target_in_cover`** -- the man being fought was seen under 5 s ago and is out of sight now
-- **`outnumbered`** -- more enemies in sight than team-mates within 20, itself included
+- **`target_in_cover [secs]`** -- the man being fought was seen under that many seconds ago (default 5) and is out of sight now
+  - `secs`: a number; left out: 5
+- **`outnumbered [radius]`** -- more enemies in sight than team-mates within radius (default 20), itself included
+  - `radius`: a number; left out: 20
 - **`health_below <hp>`** -- its health is under that (of 100)
   - `hp`: a number, 0 to 100; must be given
 - **`hurt_recently [secs]`** -- it lost health within that many seconds (default 3)
@@ -51,15 +53,19 @@ For `if` and `unless`: true or false.
 - **`has_item <name>`** -- it holds at least one of that inventory item
   - `name`: a word; must be given
 - **`sky_clear`** -- nothing solid above its head (a thing that comes down from the sky needs it)
-- **`allies_hurt_near <radius>`** -- a team-mate under 50 health is within radius
+- **`allies_hurt_near <radius> [hp]`** -- a team-mate under hp health (default 50) is within radius
   - `radius`: a number; must be given
+  - `hp`: a number; left out: 50
 - **`mate_within <voxels>`** -- a live team-mate is that near
   - `voxels`: a number; must be given
 - **`alone [voxels]`** -- no live team-mate within that (default 25)
   - `voxels`: a number; left out: 25
-- **`spotted_new`** -- it has just seen an enemy its team did not know of
+- **`spotted_new [secs]`** -- it has seen, within that many seconds (default 2), an enemy its team did not know of
+  - `secs`: a number; left out: 2
 - **`losing`** -- it is in a fight, under 45 health and outnumbered, or under 30 and just hit
-- **`sniped`** -- it was hit within 3 s from more than 50 voxels away
+- **`sniped [voxels] [secs]`** -- it was hit within secs (default 3) from farther than voxels (default 50)
+  - `voxels`: a number; left out: 50
+  - `secs`: a number; left out: 3
 - **`setting <key> [value]`** -- the gamemode's setting <key> is set (to <value>, if said): how a mode's tree reads the mode's own rules
   - `key`: a word; must be given
   - `value`: a word; left out: any value: the setting is set
@@ -124,7 +130,8 @@ For `option <trait> <score>`: 0 to 1, how much the situation calls for the optio
   - `voxels`: a number; left out: 40
 - **`grenade_worth`** -- 1 when a grenade is worth throwing now (see the condition)
 - **`grenade_near`** -- 1 when an enemy grenade would hurt it here
-- **`outnumbered`** -- 0 when not; else how badly, up to 1
+- **`outnumbered [radius]`** -- 0 when not (enemies in sight against team-mates within radius, default 20); else how badly, up to 1
+  - `radius`: a number; left out: 20
 - **`night`** -- 1 by night
 - **`calm`** -- 1 when nothing is known, 0.3 when suspicious, 0 engaged
 - **`has_item <name>`** -- 1 if it holds one
@@ -190,11 +197,13 @@ For `do`. Each says what it answers: RUNNING while it goes on, SUCCESS or FAILUR
   - `place`: a [place](#places); left out: `enemy_area`
 - **`hunt_noise`** -- go to the freshest rumour of the enemy (see the score). SUCCESS on seeing the place from near; FAILURE none, no way
 - **`take_high_ground`** -- claim the best free perch for its gun and go up to it. SUCCESS on it; FAILURE none free, no way up
-- **`camp [secs]`** -- stay where it is, crouched, sweeping the arc toward the enemy, firing at what appears. SUCCESS after two kills, when shot at, or when its patience is out (25 to 120 s by character, or secs): it then gives up its perch and takes another next time
+- **`camp [secs] [kills]`** -- stay where it is, crouched, sweeping the arc toward the enemy, firing at what appears. SUCCESS after `kills` kills (default 2), when shot at, or when its patience is out (25 to 120 s by character, or secs; 0: by character): it then gives up its perch and takes another next time
   - `secs`: a number; left out: its patience: 25 to 120 s by its caution and marksmanship
+  - `kills`: a number; left out: 2
 - **`leave_water`** -- to the nearest dry ground. SUCCESS dry; RUNNING on the way; FAILURE none within 48
 - **`fetch`** -- go to the other team's intel where it lies and walk onto it (the server gives it to whoever of the other team stands within 3 of it). SUCCESS carrying it; FAILURE none, somebody has it, no way
-- **`carry_home`** -- the carrier runs for its own base by a route that keeps away from the enemies it knows of, shooting only at a man within 14. RUNNING while it carries; SUCCESS when it no longer does; FAILURE no base, no way
+- **`carry_home [voxels]`** -- the carrier runs for its own base by a route that keeps away from the enemies it knows of, shooting only at a man within voxels (default 14). RUNNING while it carries; SUCCESS when it no longer does; FAILURE no base, no way
+  - `voxels`: a number; left out: 14
 - **`escort`** -- stay by the team-mate who carries the intel: ahead of him toward the base and to a side, shooting what it sees. RUNNING; FAILURE nobody carries
 - **`intercept`** -- cut off the enemy who carries this team's intel: to the point of his way home it can reach before he does, and fight him on sight. RUNNING; FAILURE nobody has it
 - **`guard [place] [secs]`** -- hold near a place (default own_intel) at a spot of its own on the side the enemy comes from, crouched if careful, watching that way, shooting what appears. SUCCESS after secs (default 30); FAILURE no such place, no way
@@ -204,7 +213,8 @@ For `do`. Each says what it answers: RUNNING while it goes on, SUCCESS or FAILUR
 - **`go_to <place> [radius]`** -- walk to a place (jumping, digging, bridging as the mode allows), shooting what it meets on the way. SUCCESS there, FAILURE with no such place or no way
   - `place`: a [place](#places); must be given
   - `radius`: a number; left out: 2
-- **`retreat`** -- run to the nearest place the enemy cannot see, back turned. SUCCESS hidden (or after 10 s), FAILURE with nothing to run from
+- **`retreat [secs]`** -- run to the nearest place the enemy cannot see, back turned. SUCCESS hidden (or after secs, default 10), FAILURE with nothing to run from
+  - `secs`: a number; left out: 10
 - **`investigate`** -- go to the place most worth searching, look round it, then forget it. SUCCESS looked, FAILURE none or no way
 - **`roam`** -- walk to somewhere the team has not been lately: round where the enemy was last met, else between the two bases, else anywhere -- not round its own base. Always RUNNING: what a bot does in a world with nothing to seek
 - **`follow [mate|caller|order|leader]`** -- keep a station 3 voxels from a player: the nearest team-mate who is going somewhere (default), the caller of the ping it answers, or the order's man. `leader`: fall in with its leader -- beside and behind him, never in front of his gun; where he is going, not at his heels; shooting what he shoots; stopping near him when he stops. RUNNING; FAILURE with nobody, or a man who stays put too long

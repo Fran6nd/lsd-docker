@@ -21,6 +21,7 @@ LSd (sandboxed, one thread, 60 ticks a second)        botd (its own process and 
 | [TREES.md](TREES.md) | the reference: every keyword, how a tree is compiled and run, what a server script can do, watching a bot think, the JSON a tool is built on and the `lsdctl bots` operations |
 | [VOCAB.md](VOCAB.md) | the words a tree may use (generated: `make doc`; `make test` fails when it is stale) |
 | `core/*.h` | each module's header is its documentation; `core/bt.h` the tree runtime, `core/engine.h` the door between the host and the core |
+| [DECISIONS.md](DECISIONS.md) | every choice of WHAT to do still made in C, and where each should go (the tree, a word's argument, a setting) |
 | [BRAIN-STATUS.md](BRAIN-STATUS.md), [NAV-STATUS.md](NAV-STATUS.md) | what the bots can and cannot do today, the open list, the bench and its baseline |
 | `.claude/skills/bot-*` | for an agent: `bot-behaviour` (adding a behaviour), `bot-tree-tuning` (designing and tuning a tree), `bot-live-debug` (bots misbehaving on a server), `bot-engine-work` (larger work) |
 

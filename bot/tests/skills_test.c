@@ -497,6 +497,57 @@ static void test_ping_once(void)
 	bs_free(s);
 }
 
+/* A number a word used to hard-code is its argument now, with the same
+ * default (bot/DECISIONS.md): the default reads as before, the argument
+ * changes the answer. */
+static void test_word_args(void)
+{
+	static const char *const trees[2] = {
+		"tree=tree t:\nselect\n\tseq\n\t\tif sniped\n\t\tdo hold self 30\n\tdo look_around\n",
+		"tree=tree t:\nselect\n\tseq\n\t\tif sniped 30\n\t\tdo hold self 30\n\tdo look_around\n"
+	};
+	int k, held[2];
+
+	printf("a word's argument where a number was\n");
+	for (k = 0; k < 2; k++) {
+		bs_sim *s = game();
+		bl_vec3 from;
+
+		bs_start(s);
+		bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, 9, 220.5f, 256.5f, 1, 0);
+		bs_add(s, 1, 0, 2, 5, BL_GUN_RIFLE, 1, 260.5f, 256.5f, -1, 0);
+		bs_set(s, BL_NO_PLAYER, trees[k]);
+		bs_run(s, 0.5);
+		from.x = s->p[1].body.pos.x; from.y = s->p[1].body.pos.y; from.z = s->p[1].body.pos.z;
+		bs_hurt(s, 0, 10, 1, from, 0);
+		held[k] = seen_doing(s, 0, "hold", 1.0);
+		bs_free(s);
+	}
+	printf("  hit from 40 voxels: `if sniped` held %d of 60 ticks, `if sniped 30` %d\n", held[0], held[1]);
+	CHECK(held[0] == 0);
+	CHECK(held[1] > 30);
+
+	{
+		bs_sim *s = game();
+		int i, first = -1, was = -1;
+		char d[300];
+
+		bs_start(s);
+		bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, 9, 220.5f, 256.5f, 1, 0);
+		bs_add(s, 1, 0, 2, 5, BL_GUN_RIFLE, 1, 250.5f, 256.5f, -1, 0);
+		bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tseq\n\t\tdo retreat 2\n\t\tdo hold self 60\n\tdo hold self 60\n");
+		for (i = 0; i < 60 * 6 && first < 0; i++) {
+			bs_step(s);
+			bc_engine_describe(s->e, 0, d, sizeof d);
+			if (strstr(d, "retreat")) { if (was < 0) was = i; }
+			else if (was >= 0) first = i - was;
+		}
+		printf("  `retreat 2` in sight of him: done after %.1f s\n", first / 60.0);
+		CHECK(first >= 60 * 1 && first < 60 * 3);
+		bs_free(s);
+	}
+}
+
 int main(void)
 {
 	test_kill_standing();
@@ -509,6 +560,7 @@ int main(void)
 	test_edits();
 	test_bridge_shot_out();
 	test_ping_once();
+	test_word_args();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;
 }

@@ -614,7 +614,7 @@ bt_status bc_do_retreat(void *bot, const bt_args *a, float dt)
 	bl_vec3 threat;
 	int st;
 
-	(void)a; (void)dt;
+	(void)dt;
 	if (!bc_place_of(b, "enemy", &threat) && !bc_place_of(b, "threat", &threat)) {
 		b->cover.valid = 0;
 		return BT_FAILURE;
@@ -632,7 +632,7 @@ bt_status bc_do_retreat(void *bot, const bt_args *a, float dt)
 		}
 		b->cover.valid = 1;
 		b->cover.since = e->now;
-		b->cover.until = e->now + 10.0;
+		b->cover.until = e->now + (double)(a->count > 0 && a->num[0] > 0.0f ? a->num[0] : 10.0f);
 	}
 	st = bc_move_to(b, b->cover.goal, 1.0f);
 	b->wish.fire_pid = -1;

@@ -240,7 +240,7 @@ bt_status bc_do_carry_home(void *bot, const bt_args *a, float dt)
 	float fd[BC_AVOID_MAX];
 	bl_vec3 home;
 
-	(void)a; (void)dt;
+	(void)dt;
 	if (!bc_carrying(b) || !e->w.tent[team - 1].present) {
 		b->carry.n = 0;
 		return bc_carrying(b) ? BT_FAILURE : BT_SUCCESS;
@@ -281,7 +281,7 @@ bt_status bc_do_carry_home(void *bot, const bt_args *a, float dt)
 	}
 	st = bc_move_to(b, home, 1.0f);
 	/* it does not stop to duel: only a man it is about to run into */
-	if (s->nearest >= 0 && flat(s->k[s->nearest].pos, me->pos) < 14.0f)
+	if (s->nearest >= 0 && flat(s->k[s->nearest].pos, me->pos) < (a->count > 0 && a->num[0] > 0.0f ? a->num[0] : 14.0f))
 		bc_fire_at_will(b);
 	if (st == BC_MV_FAILED) {
 		if (b->carry.n) {

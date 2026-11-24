@@ -764,7 +764,8 @@ bt_status bc_do_camp(void *bot, const bt_args *a, float dt)
 	}
 	if (p) p->claim_until = e->now + 45.0;
 	/* found, done enough here, or bored: somewhere else next */
-	if (b->senses.shot_at > b->camp.since || b->kills >= b->camp.kills0 + 2 || e->now >= b->camp.patience_until) {
+	if (b->senses.shot_at > b->camp.since || b->kills >= b->camp.kills0 + (a->count > 1 && a->num[1] >= 1.0f ? (int)a->num[1] : 2) ||
+	    e->now >= b->camp.patience_until) {
 		perch_leave(b, 1);
 		b->camp.cd_until = e->now + 6.0;
 		return BT_SUCCESS;
