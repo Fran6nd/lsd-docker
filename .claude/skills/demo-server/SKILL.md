@@ -1,0 +1,66 @@
+---
+name: demo-server
+description: Set up, update, reconfigure or remove the local demo server (container lsd-demo) the owner plays on. Use when asked to "update the local instance", "refresh the demo", "put N bots in the demo", change its gamemode/map/bots, or when a change should be tried live.
+---
+
+# The local demo server
+
+One container, `lsd-demo`, on UDP 32887, with a volume of the same name.
+Never touch it for a test of your own: use another name
+(`LSD_DEMO_NAME=lsd-x LSD_DEMO_PORT=32890`).
+
+## The three scripts
+
+```sh
+dev/demo-new.sh       # build from the working tree, fresh volume: tdm, engine bots, random map
+dev/demo-refresh.sh   # rebuild from the working tree, keep the volume (settings, maps)
+dev/demo-clean.sh     # container, volume and image gone
+```
+
+`LSD_DEMO_BOTS` (20) is the bots a team for `demo-new.sh`. The demo is
+unlisted, in random-map mode (`/va` or a round's end fetches a new map
+from the web), rewards earned (not infinite).
+
+## When the working tree is mid-change
+
+Agents may be editing `bot/` or `catalog/`. Both scripts build from the
+working tree, so a half-edited tree gives a broken demo. Build from the
+last commit instead:
+
+```sh
+W=<scratchpad>/wt; rm -rf $W; git worktree prune
+git worktree add -q --detach $W HEAD
+rsync -a --exclude .git --exclude '*.o' lsd/ $W/lsd/     # the submodule's files
+docker build -q -t lsd-docker:demo $W
+git worktree remove --force $W
+docker rm -f lsd-demo
+docker run -d --name lsd-demo --restart unless-stopped -p 32887:32887/udp -v lsd-demo:/data lsd-docker:demo
+```
+
+## Changing it
+
+Settings change with the container stopped or running (a `set` restarts
+the server unless `--no-restart`):
+
+```sh
+docker exec lsd-demo lsdctl set engine_bots_count 20     # bots a team
+docker exec lsd-demo lsdctl set engine_bots_team1 0      # one team its own count; -1 = the count
+docker exec lsd-demo lsdctl set engine_bots_team2 1
+docker exec lsd-demo lsdctl gamemode ctf --yes
+docker exec lsd-demo lsdctl install <script> --yes
+docker exec lsd-demo lsdctl exec 'exec advance_map()'    # next map now (random: from the web)
+```
+
+More than 32 seats needs `player_limit_max` (bots x 2 + room for people);
+`demo-new.sh` sets it.
+
+## Always check after touching it
+
+```sh
+docker exec lsd-demo lsdctl status | grep -E 'server|gamemode|maps'
+docker logs lsd-demo 2>&1 | grep -E 'botd: (attached|bots:|map loaded|stall)|lib_botlink|attempt to|traceback' | tail
+```
+
+Then say what is running (gamemode, bots, map) and the address:
+`ipconfig getifaddr en0` gives the LAN address, port 32887. For anything
+about bots misbehaving, use the `bot-live-debug` skill.
