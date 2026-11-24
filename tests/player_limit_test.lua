@@ -36,18 +36,27 @@ function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
 function log() end
 function get_time() return NOW; end
 function pid_connected_table() return {}; end
-function piditer(pid)
-	if (pid == PID_BROADCAST) then
-		local list = {};
-		for i in pairs(CONNECTED) do list[#list+1] = i; end
-		table.sort(list);
-		local n = 0;
-		return function() n = n + 1; return list[n]; end
+local TEAM = {};
+-- as main.c's pid_matches, over the connected ids below MAX_PLAYERS
+-- (lua.c do_piditer): a fake pid (255 and up, under the set flags)
+-- matches nobody, so it is never iterated
+local function pid_matches(set, pid)
+	local flags, data = math.floor(set / 0x20000000), set % 0x20000000;
+	if (flags == 1) then return CONNECTED[pid] == true; end
+	if (flags == 2) then return CONNECTED[pid] == true and pid ~= data; end
+	if (flags == 3) then return CONNECTED[pid] == true and TEAM[pid] == data; end
+	if (flags == 4) then
+		return pid ~= math.floor(data / 256) and CONNECTED[pid] == true and TEAM[pid] ~= data % 256;
 	end
-	-- as lua.c's do_piditer: only pids under MAX_PLAYERS, so a fake pid
-	-- (get_anon_pid, 255 and up) is never iterated
-	local done = pid >= MAX_PLAYERS;
-	return function() if (done) then return nil; end done = true; return pid; end
+	return set == pid;
+end
+function piditer(set)
+	local list = {};
+	for i = 0, MAX_PLAYERS - 1 do
+		if (pid_matches(set, i)) then list[#list+1] = i; end
+	end
+	local n = 0;
+	return function() n = n + 1; return list[n]; end
 end
 function bot_is_bot(pid) return BOTS[pid] == true; end
 function get_ipaddr(pid) return BOTS[pid] and 0 or 1; end
@@ -58,7 +67,7 @@ function ext_register() end
 local SENT = {};
 local function reset()
 	SENT = {};
-	CONNECTED, BOTS, SPEAKS, REPLIED = {}, {}, {}, {};
+	CONNECTED, BOTS, SPEAKS, REPLIED, TEAM = {}, {}, {}, {}, {};
 	NOW = 0;
 	player_limit_max = 64;
 end
@@ -396,6 +405,56 @@ mod.after.tick();
 eq(#SENT, 1, "decided without 192: what names only itself is sent");
 eq(SENT[1] and SENT[1][2]:byte(2), 1, "its StateData, as player 1");
 ext_policy_decided = nil;
+
+print("\n9. not a seat: the console, a fake pid, the broadcast sets");
+reset();
+player_limit_max = 255;
+CONNECTED[3], CONNECTED[7], CONNECTED[40], CONNECTED[41] = true, true, true, true;
+TEAM[3], TEAM[7], TEAM[40], TEAM[41] = 0, 1, 0, 1;
+REPLIED[7], REPLIED[40] = true, true;
+SPEAKS[3], SPEAKS[41], REPLIED[3], REPLIED[41] = true, true, true, true;
+mod = load();
+mod.late.next.send_packet = function(pid, data) SENT[#SENT+1] = {pid, data, true}; return 1; end
+mod.late.next.send_packet_unreliable = function(pid, data) SENT[#SENT+1] = {pid, data, false}; return 1; end
+NOW = 100;
+for _, fake in ipairs({255, 256, 0x1fffffff}) do
+	SENT = {};
+	mod.late.send_packet(fake, ch(17, 0, 2) .. "door placed");
+	eq(#SENT, 1, string.format("to %d (console, fake pid): sent once", fake));
+	eq(SENT[1] and SENT[1][1], fake, "addressed to it, down the chain");
+	eqb(SENT[1] and SENT[1][2], ch(17, 0, 2) .. "door placed", "untouched");
+	SENT = {};
+	mod.late.send_packet_unreliable(fake, ch(3, 40, 1));
+	eq(#SENT, 1, string.format("to %d unreliable, naming #40: untouched too", fake));
+end
+local function got() local t = {}; for _, e in ipairs(SENT) do t[e[1]] = (t[e[1]] or 0) + 1; end return t; end
+SENT = {};
+mod.late.send_packet(0x60000000 + 0, ch(3, 3, 1));        -- PID_BROADCAST_TEAM(0)
+local g = got();
+check(g[3] == 1 and g[40] == nil and g[7] == nil and g[41] == nil,
+	"team 0: the 192 client #3 gets it, outdated #40 is not shown #3");
+SENT = {};
+mod.late.send_packet(0x40000000 + 3, ch(17, 0, 2) .. "x");   -- PID_BROADCAST_EXCEPT(3)
+g = got();
+check(g[3] == nil and g[7] == 1 and g[40] == 1 and g[41] == 1, "all but #3, each once");
+SENT = {};
+mod.late.send_packet(0x80000000 + 41 * 256 + 0, ch(17, 0, 2) .. "x");   -- EXCEPT_TEAM_AND_PLAYER(0, 41)
+g = got();
+check(g[7] == 1 and g[41] == nil and g[3] == nil and g[40] == nil, "except team 0 and #41: only #7");
+
+print("\n10. the anon pid is a seat, never 255");
+reset();
+player_limit_max = 255;
+mod = load();
+local CORE_ANON = 255;
+mod.next.get_anon_pid = function() return CORE_ANON; end
+eq(mod.get_anon_pid(), 254, "the core says 255 (just past 255 seats): the highest free seat instead");
+CONNECTED[254], CONNECTED[253] = true, true;
+eq(mod.get_anon_pid(), 252, "the highest free one");
+for i = 0, 254 do CONNECTED[i] = true; end
+eq(mod.get_anon_pid(), 255, "none free at all: the core's answer stands");
+CORE_ANON = 32;
+eq(mod.get_anon_pid(), 32, "at 32 seats the core's own (32) stands");
 
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures > 0 and 1 or 0);

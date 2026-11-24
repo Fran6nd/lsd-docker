@@ -74,13 +74,14 @@ end
 -- Asked for more than the seats hold: as many as fit, said once in the
 -- log for each shortfall rather than every second, and said again when
 -- it is made up. Seats are player_limit_max, people and bots together
--- (lib_player_limit; 255 by default), and a person who finds them all
--- taken gets a bot's (lib_bot), so the fleet is what is left over.
+-- (lib_player_limit; 255 by default), less the one lib_bot keeps free
+-- for the server's own hand, and a person who finds them all taken gets
+-- a bot's (lib_bot), so the fleet is what is left over.
 local short = nil;
 local function seats_full()
 	local n = 0;
 	for _ in piditer(PID_BROADCAST) do n = n + 1; end
-	return n >= get_effective_max_players(), n;
+	return n >= get_effective_max_players() - 1, n;
 end
 
 local function say_short(want, have)
@@ -97,8 +98,8 @@ local function say_short(want, have)
 		return; -- not for want of seats (a map loading, no engine yet)
 	end
 	short = missing;
-	log("engine_bots: %d bots asked for, %d fit: all %d seats are taken"
-		.. " (player_limit_max %s; people get a bot's seat when they come)",
+	log("engine_bots: %d bots asked for, %d fit: %d seats are taken, one kept"
+		.. " free (player_limit_max %s; people get a bot's seat when they come)",
 		want, have, used, tostring(player_limit_max));
 end
 

@@ -285,6 +285,13 @@ function bot_resilence()
 	end
 end
 
+-- Seats nobody holds, of get_effective_max_players.
+local function free_seats()
+	local n = 0;
+	for _ in piditer(PID_BROADCAST) do n = n + 1; end
+	return get_effective_max_players() - n;
+end
+
 function bot_create(opts)
 	if (opts.team ~= 1 and opts.team ~= 2) then
 		error("bot_create: team must be 1 or 2", 2);
@@ -300,6 +307,10 @@ function bot_create(opts)
 		return nil; -- map loading
 	end
 
+	-- the last free seat is the server's own hand (GIVE WAY, below)
+	if (free_seats() <= 1) then
+		return nil; -- server full
+	end
 	local pid = server.assign_new_pid();
 	if (pid >= MAX_PLAYERS) then
 		return nil; -- server full
@@ -354,6 +365,14 @@ end
 -- server.assign_new_pid, which is not the chain, so a bot never makes
 -- another give way. Seats are never more than get_effective_max_players
 -- either way: the person gets the id the bot had.
+--
+-- AND ONE SEAT STAYS FREE while there are bots. The server acts through
+-- a free slot when nobody does (get_anon_pid: map_layout's doors, every
+-- block a script places), and with no slot free that is 255, which the
+-- Lua API refuses -- a door would stop the tick that moved it. So a bot
+-- is never made into the last free seat, and a person who takes it
+-- makes a bot give way to keep one. With no bots left, people may fill
+-- every seat: 255 people on one server is not a case worth a reserve.
 local function give_way_victim()
 	local any, fleet;
 	for pid, b in pairs(bots) do
@@ -367,24 +386,40 @@ local function give_way_victim()
 	return fleet or any;
 end
 
-function mod.assign_new_pid()
-	local pid = mod.next.assign_new_pid();
-	if (pid < MAX_PLAYERS or next(bots) == nil) then
-		return pid;
-	end
-
+local function give_way()
 	local victim = give_way_victim();
 	local name = bots[victim].name;
 	local ok, err = pcall(bot_destroy, victim);
 	if (not ok) then
 		log("lib_bot: every seat taken, and bot #%d could not give way: %s",
 			victim, tostring(err));
-		return pid;
+		return false;
 	end
 
 	log("lib_bot: every seat taken: bot #%d (%s) gives way to a person",
 		victim, tostring(name));
-	return mod.next.assign_new_pid();
+	return true;
+end
+
+function mod.assign_new_pid()
+	local pid = mod.next.assign_new_pid();
+	if (next(bots) == nil) then
+		return pid;
+	end
+
+	if (pid >= MAX_PLAYERS) then
+		if (not give_way()) then
+			return pid;
+		end
+		pid = mod.next.assign_new_pid();
+	end
+
+	-- the person is not connected yet, so the seat it is given still
+	-- counts as free: one free means it was the last
+	if (pid < MAX_PLAYERS and next(bots) ~= nil and free_seats() <= 1) then
+		give_way();
+	end
+	return pid;
 end
 
 function bot_walk(pid, keys)

@@ -164,6 +164,36 @@ function mod.get_effective_max_players()
 	return seats();
 end
 
+-- THE SERVER'S OWN HAND. get_anon_pid is the free player slot the
+-- server acts through when nobody does -- map_layout's doors and
+-- platforms, babel, every set_block_color(get_anon_pid(), ...) before a
+-- block_action. The core's answer is the slot just past the seats
+-- (main.c get_anon_pid: `i = get_effective_max_players()`, free since
+-- no seat reaches it). With 255 seats that is 255 -- MAX_PLAYERS, which
+-- every Lua call taking a player id refuses ("plid is invalid (255)",
+-- lua.c check_plid): the editor's first door raised it. So above the
+-- core's answer, the highest free seat is the hand instead -- what the
+-- core itself falls back to when its slot is taken, searched from the
+-- top since people and bots are given the lowest. Only when all 255 ids
+-- are taken is there none; lib_bot keeps one free whenever it has bots.
+function mod.get_anon_pid()
+	local pid = mod.next.get_anon_pid();
+	if (pid < MAX_PLAYERS) then
+		return pid;
+	end
+
+	local taken = {};
+	for i in piditer(PID_BROADCAST) do
+		taken[i] = true;
+	end
+	for i = MAX_PLAYERS - 1, 0, -1 do
+		if (not taken[i]) then
+			return i;
+		end
+	end
+	return pid;
+end
+
 -- Above 32 seats every client that lacks the extension is outdated.
 local function big()
 	return seats() > LOW;
@@ -456,6 +486,19 @@ local function sane_pid(pid)
 	return pid ~= nil and pid >= 0 and pid < MAX_PLAYERS and pid % 1 == 0;
 end
 
+-- A broadcast set (PID_BROADCAST, _EXCEPT, _TEAM, ...): a flag in the
+-- top bits (state.h PID_SET_FLAG), split into its recipients. Anything
+-- else that is not a seat -- the console's 255, a new_fakepid handle
+-- (commands.lua is_fakepid: MAX_PLAYERS up to 0x20000000) -- is nobody's
+-- client and nobody we filter for: it goes on down the chain untouched,
+-- to lib_sock or whoever owns it. piditer would match nobody for it and
+-- the packet would vanish.
+local SET_FLAGS = 0x20000000;
+local function is_set(pid)
+	pid = tonumber(pid);
+	return pid ~= nil and pid >= SET_FLAGS;
+end
+
 local function classify(pid)
 	if (not person(pid) or speaks(pid)) then
 		return "all";
@@ -548,6 +591,9 @@ local function route(pid, data, reliable)
 
 	if (sane_pid(pid)) then
 		return deliver(pid, data, reliable);
+	end
+	if (not is_set(pid)) then
+		return raw_send(pid, data, reliable);
 	end
 
 	for i in piditer(pid) do

@@ -105,3 +105,14 @@ DONE (commit), BLOCKED (on what).
   at once -- a sprinter's footsteps are now heard at 12 (a walker's 8).
   BRAIN-STATUS.md's bench table re-run in full (every scene and four real
   maps). DECISIONS.md row 7 (retreat's second cover finder) left open.
+- 2026-11-25 (limit agent, item 0 fix after the CI smoke failure of
+  2026.11.25.1): with 255 seats the core's get_anon_pid answered 255
+  (the slot just past the seats), which every Lua call taking a player
+  id refuses -- map_layout's set_block_color(get_anon_pid()) made the
+  editor's first door fail ("plid is invalid (255)"), so no layout was
+  saved. lib_player_limit now hooks get_anon_pid: above the core's
+  answer, the highest free seat. lib_bot keeps one seat free while it
+  has bots (a bot never takes the last; a person who takes it makes a
+  bot give way). lib_player_limit's send hooks pass a fake pid (the
+  console's 255, new_fakepid handles) down the chain untouched instead
+  of iterating it to nobody. Tests for both; smoke green twice.

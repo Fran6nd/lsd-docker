@@ -49,6 +49,14 @@ package.preload["lib_bulk_destroy"] = function() return true; end
 -- lib_player_limit's get_effective_max_players, as the core asks it
 local pl = dofile("catalog/extensions/player_limit/lib_player_limit.lua");
 function get_effective_max_players() return pl.get_effective_max_players(); end
+-- main.c's get_anon_pid: the slot just past the seats, if free
+pl.next.get_anon_pid = function()
+	local i = get_effective_max_players();
+	if (i < MAX_PLAYERS and not CONNECTED[i]) then return i; end
+	for j = 0, MAX_PLAYERS - 1 do if (not CONNECTED[j]) then return j; end end
+	return MAX_PLAYERS;
+end
+function get_anon_pid() return pl.get_anon_pid(); end
 
 -- the core: main.c's assign_new_pid, counting up to the seats; and the
 -- connect/disconnect a bot goes through
@@ -107,38 +115,43 @@ for _, n in ipairs({32, 40, 100}) do
 	eq(bots, n, "no bot had to leave");
 end
 
-print("\n3. every seat taken by bots: a bot gives way");
+print("\n3. every seat bots may have: a bot gives way, one seat stays free");
 reset();
-eq(fill(300, true), 255, "bots stop at 255, ids 0 to 254");
-eq(server.assign_new_pid(), MAX_PLAYERS, "the core alone would turn a person away");
+eq(fill(300, true), 254, "bots stop at 254: the last seat is the server's own hand");
+eq(get_anon_pid(), 254, "and that is the anon pid, a real seat (not 255)");
 local pid = person_connects();
-check(pid >= 0 and pid < 255, "the person gets an id", pid);
-check(not bot_is_bot(pid), "and it is no longer a bot's");
-eq(pid, 254, "the highest of the fleet gave way");
+eq(pid, 254, "a person takes the free seat");
+check(not CONNECTED[253], "and the highest of the fleet gave way, to keep one free");
+eq(get_anon_pid(), 253, "the anon pid is still a free seat");
 check(string.find(LOGS[#LOGS] or "", "gives way", 1, true), "said in the log", LOGS[#LOGS]);
 eq(bot_create{team = 1, name = "again"}, nil, "a bot asking now finds no seat: bots never make bots give way");
 pid = person_connects();
-eq(pid, 253, "a second person: a second bot");
+eq(pid, 253, "a second person: the next seat, and the next bot gives way");
+check(get_anon_pid() < MAX_PLAYERS, "never 255 while there are bots", get_anon_pid());
 
 print("\n4. the fleet gives way before a gamemode's own bots");
 reset();
-player_limit_max = 4;
+player_limit_max = 5;
 fill(2, false);   -- a hostage, say: ids 0, 1
-fill(2, true);    -- engine bots: 2, 3
+fill(2, true);    -- engine bots: 2, 3; 4 stays free
 pid = person_connects();
-eq(pid, 3, "an engine bot's seat");
+eq(pid, 4, "the free seat");
+check(not CONNECTED[3], "an engine bot gave way to keep one free");
 pid = person_connects();
-eq(pid, 2, "the other engine bot's");
+eq(pid, 3, "the next person: that seat");
+check(not CONNECTED[2], "and the other engine bot gave way");
 pid = person_connects();
-eq(pid, 1, "then any bot's");
+eq(pid, 2, "then the gamemode's own bots");
 pid = person_connects();
-eq(pid, 0, "and the last");
-eq(person_connects(), MAX_PLAYERS, "people alone fill it: full is full");
+eq(pid, 1, "one by one");
+pid = person_connects();
+eq(pid, 0, "and the last: with no bots, people fill every seat");
+eq(person_connects(), MAX_PLAYERS, "full is full");
 
 print("\n5. an operator's cap applies to bots and people together");
 reset();
 player_limit_max = 32;
-eq(fill(40, true), 32, "32 seats: 32 bots");
+eq(fill(40, true), 31, "32 seats: 31 bots, one kept free");
 pid = person_connects();
 check(pid < 32, "a person still gets in, under 32", pid);
 player_limit_max = 255;
@@ -162,10 +175,10 @@ NOW = 1;
 eb.after.tick();
 local n = 0;
 for i in pairs(CONNECTED) do if (bot_is_bot(i)) then n = n + 1; end end
-eq(n, 10, "16 asked for, 10 seats: 10 made");
+eq(n, 9, "16 asked for, 10 seats: 9 made, one kept free");
 local said = 0;
 for _, l in ipairs(LOGS) do
-	if (string.find(l, "16 bots asked for, 10 fit", 1, true)) then said = said + 1; end
+	if (string.find(l, "16 bots asked for, 9 fit", 1, true)) then said = said + 1; end
 end
 eq(said, 1, "and the log says so");
 NOW = 2;
