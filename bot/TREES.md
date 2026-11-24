@@ -151,7 +151,7 @@ exactly one, leaves none.
 |---|---|---|
 | [`seq`](#seq) | 1 or more | `seq` |
 | [`select`](#select) | 1 or more | `select` |
-| [`pick`](#pick-and-option) | 1 or more, all `option` | `pick [every=<secs>] [sticky=<x>] [noise=<x>]`, or `pick roll=once`, `pick roll=life` |
+| [`pick`](#pick-and-option) | 1 or more, all `option` | `pick [every=<secs>] [sticky=<x>] [noise=<x>]`, or `pick roll=once`, `pick roll=life`, `pick roll=each [every=<secs>]` |
 | [`option`](#pick-and-option) | 1 | `option <trait> <score> [score's arguments] [x<factor>]` |
 | [`if`](#if-and-unless) | none | `if <condition> [arguments]` |
 | [`unless`](#if-and-unless) | none | `unless <condition> [arguments]` |
@@ -426,7 +426,8 @@ If what you want is one bot that really varies:
   the bot's own dice each time it is asked: `if chance 0.2` at the top
   of a `seq` lets a fifth of the tries through.
 
-The one place where worth IS a chance is a pick that rolls, below.
+The one place where worth IS a chance is a pick that rolls, below: a role
+drawn once, or a lottery drawn at every choice.
 
 ### Why this and not a lottery
 
@@ -582,6 +583,69 @@ characters within one team that plays one game.
 two intels are, which is a situation and changes; its weighed
 `ctf_duty`, chosen again whenever an intel changes hands, is the right
 tool for that.
+
+### A lottery at every choice: `pick roll=each`
+
+`roll=once` and `roll=life` draw a role and keep it. `roll=each` draws
+**again every time the pick chooses**: the first tick, every `every`
+seconds (default 2, as for a plain pick), and whenever the chosen
+option's child ends. Each time, one option is drawn with a chance in
+proportion to its worth -- `score x the bot's weight for the trait x
+factor`, no luck, no sticky -- from **the bot's own dice** (not its
+identity: the same bot does not draw the same twice), and ticked until
+the next choice.
+
+```bt
+pick roll=each every=8
+	option flank always x0.9              # worth 0.9
+		do flank
+	option none always x0.9               # worth 0.9
+		do seek
+	option marksman always x1.2           # worth 1.2 for a bot of weight 1
+		do hold self 10
+```
+
+With worths 0.9, 0.9 and 1.2 the same bot, in the same situation, flanks
+30 % of the times it chooses, seeks 30 % and holds 40 %. (A plain pick
+would take the 1.2 every time.)
+
+- `every` is meaningful and may be written. `sticky` and `noise` mean
+  nothing -- there is no best to favour, and the lottery is the luck --
+  and the compiler refuses them.
+- The draw may land on the option already held: that option then
+  **simply goes on**; it is not stopped and started again. The option
+  being left is [stopped](#7-when-an-action-is-stopped) once, as for a
+  plain pick.
+- An option whose score is 0 at the choice is never drawn. With none
+  above 0 the pick fails, draws nothing, and asks again at the next tick.
+- A jolt (`bt_restart`) or a `bt_reset` makes it choose, and so draw,
+  again at the next tick, and stops what it was doing -- exactly what a
+  plain pick does there. Nothing is kept: there is no role.
+- Scores here are the situation of the moment, as for a plain pick; the
+  draw is made with them as they are at the choice.
+- `--split` runs one tick for each bot of the crowd, so it shows **one
+  draw each**: the crowd's shares approximate the odds of a single bot's
+  choice, within the noise of the crowd's size. `--trace` and the live
+  snapshot show each option's share and which one the last draw took.
+
+**It must never be used for a priority list of reactions.** An option
+worth a tenth of another still wins one choice in eleven: a bot that
+sometimes takes a walk while a grenade is at its feet. Use it only where
+**every option is acceptable at any moment** -- idle behaviour, which
+way to patrol, which of several harmless things to do while waiting.
+Anything that must win when it applies belongs in a plain pick (factors
+as ranks) or in a `select` above.
+
+The three ways of choosing, side by side:
+
+| | `pick` (best worth wins) | `roll=once` / `roll=life` | `roll=each` |
+|---|---|---|---|
+| chooses by | the highest worth, with luck and sticky | a draw in proportion to worth | a draw in proportion to worth |
+| chosen again | every `every` s, and when the child ends | never in the life (once: never at all) | every `every` s, and when the child ends |
+| the same bot in the same situation, next time | the same option, nearly always | the same option: it is its role | any option, in proportion to worth |
+| a weak option (a tenth of the best) | never wins | wins in its share of the crowd -- and keeps winning for that bot | wins its share of the choices of every bot |
+| scores should be | the situation | facts about the bot | the situation, if every option is acceptable |
+| use it for | reactions, priorities, plans | characters, roles | variety within one bot: idle behaviour, which way to patrol |
 
 ### Three ways a pick is used
 
@@ -1390,7 +1454,7 @@ counted, in all and by kind of bot.
   `=fail` to see the fallback. `tell` ends at once by itself;
 - `--n`, `--mix`, `--level` set the crowd. Each rolled bot has its own
   identity, so a `pick roll=once` shows its real shares -- give it a
-  larger `--n` (7000) to see them to the percent;
+  larger `--n` (7000) to see them to the percent. A `pick roll=each` is drawn once by each bot of the crowd: the shares come out as the odds of one bot's choice;
 - the line **"asked and not given (so 0)"** is every word the tree
   consulted that was left at 0; "given but never asked" is a typo, or a
   branch that was not reached;
@@ -1618,8 +1682,8 @@ a viewer knows its picture of the nodes is stale.
 | `comment` | any node, any tree | the comment on its line, without the `#` |
 | `above` | any node, any tree | the lines between the node before and this one: `# ...` comments as written and `""` for an empty line |
 | `children` | nodes that have some | in order |
-| `roll` | `pick` | `weighed` (the default), `once` or `life` ([section 6](#a-role-drawn-and-kept-pick-rollonce-pick-rolllife)) |
-| `every`, `sticky`, `noise` | `pick` | the numbers in force (not written for a pick that rolls) |
+| `roll` | `pick` | `weighed` (the default), `once`, `life` or `each` ([section 6](#a-role-drawn-and-kept-pick-rollonce-pick-rolllife), [each](#a-lottery-at-every-choice-pick-rolleach)) |
+| `every`, `sticky`, `noise` | `pick` | the numbers in force (not written for a pick that rolls once or per life; with `each`, `every` is, `sticky` and `noise` are not) |
 | `trait`, `score`, `args`, `factor` | `option` | `args` are the score's, as written (strings) |
 | `cond`, `args` | `if`, `unless` | |
 | `action`, `args` | `do` | |
@@ -1646,7 +1710,8 @@ through `--from-json`: it never writes tree text itself.
 - Each node's words are put together from its fields. `text`, `id`,
   `line` and `column` are ignored: they describe what was read.
 - A `pick`'s `every`, `sticky`, `noise` and an `option`'s `factor` are
-  written unless the number is absent, or is listed in `defaults` and
+  written (but for a pick with `roll` `once` or `life`, which has none of
+  the three, and `roll` `each`, which has `every` only) unless the number is absent, or is listed in `defaults` and
   still equal to the default. So changing the number is enough; an
   editor need not maintain `defaults`.
 - `above` lines that do not begin with `#` are made comments. `comment`
@@ -1830,9 +1895,9 @@ another, and `--once --json` gives one.
 | node `line` | its line in the text the engine compiled (the files one after another, then what it wrote): good for order, not for opening a file |
 | node `running` | it is on a RUNNING path |
 | node `child` | a `seq` or `select`: the child it will resume at; a `pick`: the option it holds (for a pick that rolls: its role, RUNNING or not) |
-| node `roll` | a pick that rolls: `once` or `life` |
+| node `roll` | a pick that rolls: `once`, `life` or `each` |
 | node `elapsed`, `remaining` | seconds: a RUNNING `pick` (since it chose; until it chooses again), `wait`, `limit`; `remaining` alone on a `cooldown` that is cooling |
-| node `worth` | an `option` its pick has weighed since the watching began: `score`, `weight`, `factor`, `luck`, `sticky` (1, or 1 + the pick's sticky if it was the one held), `worth` (their product), `held` (it is the one the pick holds now). Under a pick that rolls: `share` (its part of the lottery, 0 to 1) and `draw` (the number drawn, the same for every option); `luck` and `sticky` are 1 |
+| node `worth` | an `option` its pick has weighed since the watching began: `score`, `weight`, `factor`, `luck`, `sticky` (1, or 1 + the pick's sticky if it was the one held), `worth` (their product), `held` (it is the one the pick holds now). Under a pick that rolls: `share` (its part of the lottery, 0 to 1) and `draw` (the number drawn, the same for every option; for `each`, the last one); `luck` and `sticky` are 1 |
 
 A snapshot of a bot of the tdm tree is about 13 KiB.
 

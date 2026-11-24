@@ -474,7 +474,7 @@ static const kindspec KINDS[BT_K_COUNT] = {
 	  "its children in order, the first that does not fail: a priority list; resumes at the child that was RUNNING", {{0}} },
 	{ "pick", "options", "the answer of the option chosen; FAILURE when no option has a score above 0",
 	  "a weighed choice among its options: the one worth most to this bot (score x trait weight x factor x luck) is ticked",
-	  { { "roll", "enum", "roll=<weighed|once|life>", 0, 0, 0, 0, "weighed (the default): the option worth most, chosen again and again. once: an option DRAWN, each with a chance in proportion to its worth, the same for this bot for good -- a role. life: drawn anew each life. With once or life, every, sticky and noise are not written" },
+	  { { "roll", "enum", "roll=<weighed|once|life|each>", 0, 0, 0, 0, "weighed (the default): the option worth most, chosen again and again. once: an option DRAWN, each with a chance in proportion to its worth, the same for this bot for good -- a role. life: drawn anew each life. each: a lottery drawn again at every choice (every is kept; sticky and noise are not written). With once or life, every, sticky and noise are not written" },
 	    { "every", "number", "every=<secs>", 0, 2, 0, NOMAX, "seconds between two choices; it also chooses again whenever the option chosen ends" },
 	    { "sticky", "number", "sticky=<x>", 0, 0.25, 0, NOMAX, "the option being done is worth this much more, as a fraction of its own worth" },
 	    { "noise", "number", "noise=<x>", 0, 0.1, 0, 1, "luck: each option's worth is multiplied by a draw within 1 +- this" } } },
@@ -587,7 +587,7 @@ static int schema(FILE *o)
 			jkv(o, "type", p->type); fputs(", ", o);
 			jkv(o, "written", p->form);
 			fprintf(o, ", \"required\": %s", p->required ? "true" : "false");
-			if (!strcmp(p->type, "enum")) fputs(", \"values\": [\"weighed\", \"once\", \"life\"], \"default\": \"weighed\"", o);
+			if (!strcmp(p->type, "enum")) fputs(", \"values\": [\"weighed\", \"once\", \"life\", \"each\"], \"default\": \"weighed\"", o);
 			if (!strcmp(p->type, "number")) {
 				if (!p->required) fprintf(o, ", \"default\": %s", num(p->def));
 				fprintf(o, ", \"min\": %s", num(p->min));
@@ -742,7 +742,7 @@ static void json_node(FILE *o, const bt_source *src, int id, int pad)
 			{ "every", BT_W_EVERY }, { "sticky", BT_W_STICKY }, { "noise", BT_W_NOISE } };
 		int some = 0;
 		fprintf(o, ", \"roll\": \"%s\", \"every\": %s, \"sticky\": %s, \"noise\": %s, \"defaults\": [",
-			n.roll == BT_ROLL_ONCE ? "once" : n.roll == BT_ROLL_LIFE ? "life" : "weighed", num(n.every), num(n.sticky), num(n.noise));
+			n.roll == BT_ROLL_ONCE ? "once" : n.roll == BT_ROLL_LIFE ? "life" : n.roll == BT_ROLL_EACH ? "each" : "weighed", num(n.every), num(n.sticky), num(n.noise));
 		if (!(n.written & BT_W_ROLL)) { some++; jstr(o, "roll"); }
 		for (int k = 0; k < 3; k++)
 			if (!(n.written & S[k].bit)) { if (some++) fputs(", ", o); jstr(o, S[k].name); }
@@ -915,8 +915,8 @@ static void sput_node(sb *b, const jv *node, int depth)
 	if (!strcmp(kind, "pick")) {
 		static const struct { const char *name; double def; } S[3] = { { "every", 2 }, { "sticky", 0.25 }, { "noise", 0.1 } };
 		const char *roll = jtext(node, "roll");
-		int rolls = roll && strcmp(roll, "weighed");
-		if (rolls) { sput(b, " roll="); sput(b, roll); }
+		int rolls = roll && (!strcmp(roll, "once") || !strcmp(roll, "life"));
+		if (roll && strcmp(roll, "weighed")) { sput(b, " roll="); sput(b, roll); }
 		/* a pick that rolls has no every, sticky or noise: the numbers an
 		 * editor still holds for it are not written */
 		for (int k = 0; k < 3; k++)
@@ -1367,6 +1367,13 @@ static int split(const char *only, int n, const char *mix, int level, int with_w
 }
 
 /* one bot, and its tree as the engine holds it */
+/* is pick `id` one that draws again at every choice */
+static int each_parent(const bt_forest *f, int id)
+{
+	bt_node pk;
+	return bt_forest_node(f, id, &pk) && pk.roll == BT_ROLL_EACH;
+}
+
 static void trace_node(const bt_forest *f, const bt_state *st, int id, const char *prefix, int last, const int *path, int n_path)
 {
 	bt_node n;
@@ -1381,7 +1388,14 @@ static void trace_node(const bt_forest *f, const bt_state *st, int id, const cha
 	printf("%s", OFF);
 	if (on_path) printf("%s", BOLD);
 	node_words(&n);
-	if (n.kind == BT_K_PICK && n.roll)
+	if (n.kind == BT_K_PICK && n.roll == BT_ROLL_EACH)
+	{
+		if (ns.running)
+			printf("  %s[a lottery at every choice: drawn %.1f s ago, again in %.1f s]%s", DIM, (double)ns.elapsed, (double)ns.remaining, OFF);
+		else
+			printf("  %s[a lottery at every choice]%s", DIM, OFF);
+	}
+	else if (n.kind == BT_K_PICK && n.roll)
 		printf("  %s[a role, drawn %s]%s", DIM, n.roll == BT_ROLL_ONCE ? "once for this bot" : "for this life", OFF);
 	else if (n.kind == BT_K_PICK && ns.running)
 		printf("  %s[chose %.1f s ago, again in %.1f s]%s", DIM, (double)ns.elapsed, (double)ns.remaining, OFF);
@@ -1397,7 +1411,8 @@ static void trace_node(const bt_forest *f, const bt_state *st, int id, const cha
 				printf("  %sscore 0: not to be chosen%s", DIM, OFF);
 			else if (w[k].option == id && w[k].weighed && w[k].share > 0)       /* a lottery */
 				printf("  %s%.2f x %.2f x %s = %.3f: %s%.0f%% of the draw%s%s", DIM, (double)w[k].score, (double)w[k].weight,
-					num(w[k].factor), (double)w[k].worth, OFF, 100.0 * (double)w[k].share, w[k].held ? "  <- its role" : "", OFF);
+					num(w[k].factor), (double)w[k].worth, OFF, 100.0 * (double)w[k].share,
+					w[k].held ? (each_parent(f, n.parent) ? "  <- the last draw" : "  <- its role") : "", OFF);
 			else if (w[k].option == id && w[k].weighed)
 				printf("  %s%.2f x %.2f x %s x %.2f x %.2f = %s%.3f%s%s", DIM, (double)w[k].score, (double)w[k].weight,
 					num(w[k].factor), (double)w[k].luck, (double)w[k].sticky, OFF, (double)w[k].worth,
@@ -1764,6 +1779,14 @@ static void view_words(const vnode *n)
 	else printf("%s%s%s%s", KEY, n->kind, OFF, rest);
 }
 
+/* is node `id` a pick that draws again at every choice */
+static int view_each(const vnode *v, int n, int id)
+{
+	for (int k = 0; k < n; k++)
+		if (v[k].id == id) return jtext(v[k].j, "roll") && !strcmp(jtext(v[k].j, "roll"), "each");
+	return 0;
+}
+
 static void view_node(vnode *v, int n, int i, const char *prefix, int last)
 {
 	const vnode *nd = &v[i];
@@ -1779,14 +1802,16 @@ static void view_node(vnode *v, int n, int i, const char *prefix, int last)
 		printf("  %s[cooling: %.1f s left]%s", DIM, jnumber(nd->j, "remaining", 0), OFF);
 	else if (jget(nd->j, "remaining"))
 		printf("  %s[%.1f s in, %.1f s left]%s", DIM, jnumber(nd->j, "elapsed", 0), jnumber(nd->j, "remaining", 0), OFF);
-	if (jtext(nd->j, "roll"))
+	if (jtext(nd->j, "roll") && !strcmp(jtext(nd->j, "roll"), "each"))
+		printf("  %s[a lottery at every choice]%s", DIM, OFF);
+	else if (jtext(nd->j, "roll"))
 		printf("  %s[a role, drawn %s]%s", DIM, !strcmp(jtext(nd->j, "roll"), "once") ? "once for this bot" : "for this life", OFF);
 	if (w && !(jnumber(w, "score", 0) > 0))
 		printf("  %sscore 0%s", DIM, OFF);
 	else if (w && jget(w, "share"))
 		printf("  %s%.2f x %.2f x %s = %.3f: %s%.0f%% of the draw%s%s", DIM, jnumber(w, "score", 0), jnumber(w, "weight", 0),
 		       num(jnumber(w, "factor", 1)), jnumber(w, "worth", 0), OFF, 100.0 * jnumber(w, "share", 0),
-		       jtrue(w, "held") ? "  <- its role" : "", OFF);
+		       jtrue(w, "held") ? (view_each(v, n, nd->parent) ? "  <- the last draw" : "  <- its role") : "", OFF);
 	else if (w)
 		printf("  %s%.2f x %.2f x %s x %.2f x %.2f = %s%.3f%s%s", DIM, jnumber(w, "score", 0), jnumber(w, "weight", 0),
 		       num(jnumber(w, "factor", 1)), jnumber(w, "luck", 0), jnumber(w, "sticky", 1), OFF, jnumber(w, "worth", 0),

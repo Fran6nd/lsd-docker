@@ -121,6 +121,15 @@ An option's worth = `score x the bot's trait weight x factor x luck`.
   highest worth; one bot in one situation chooses the same nearly every
   time, and the percentages `--split` prints are shares of a crowd of
   different characters, not odds for one bot.
+- **Variety inside one bot** is `pick roll=each [every=<secs>]`: a
+  lottery drawn AGAIN at every choice (first tick, every `every`, when
+  the child ends), in proportion to `score x weight x factor`, from the
+  bot's own dice -- worths 0.9 / 0.9 / 1.2 are 30 / 30 / 40 % of its
+  choices. `sticky` and `noise` are refused. Use it only where every
+  option is acceptable (idle behaviour, which way to patrol), NEVER for a
+  priority list of reactions: an option worth a tenth of another still
+  wins one choice in eleven. `--split` shows one draw per bot, so its
+  shares approximate the odds. (TREES.md section 6.)
 - **A role that lasts** is `pick roll=once` (or `roll=life`): there the
   option is DRAWN, with a chance in proportion to `score x weight x
   factor`, once for each bot and kept (TREES.md section 6). Its scores

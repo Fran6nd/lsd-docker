@@ -203,7 +203,7 @@ static void tree_nodes(jb *j, const bc_bot *b, int tree, int *first)
 		jstr(j, n.text);
 		jput(j, ", \"line\": %d, \"running\": %s", n.line, running && b->alive ? "true" : "false");
 		if (n.comment) { jput(j, ", \"comment\": "); jstr(j, n.comment); }
-		if (n.kind == BT_K_PICK && n.roll) jput(j, ", \"roll\": \"%s\"", n.roll == BT_ROLL_ONCE ? "once" : "life");
+		if (n.kind == BT_K_PICK && n.roll) jput(j, ", \"roll\": \"%s\"", n.roll == BT_ROLL_ONCE ? "once" : n.roll == BT_ROLL_EACH ? "each" : "life");
 		if (ns.child >= 0) jput(j, ", \"child\": %d", ns.child);
 		if (ns.running && (n.kind == BT_K_PICK || n.kind == BT_K_WAIT || n.kind == BT_K_LIMIT)) {
 			jput(j, ", \"elapsed\": "); jnum(j, ns.elapsed);

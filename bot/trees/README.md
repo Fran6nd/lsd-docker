@@ -413,7 +413,7 @@ pick every=3 sticky=0.5 noise=0
 		do seek
 ```
 
-Here, and only here, worth IS a chance: with `roll=once` an option is
+Here, and in `roll=each` (a lottery drawn again at every choice, for variety inside one bot: TREES.md section 6), worth IS a chance: with `roll=once` an option is
 drawn with a probability in proportion to `score x weight x factor`, the
 same for a given bot in every life and on every map. The scores under it
 must be *facts about the bot* (its gun, what it holds, `always`), not

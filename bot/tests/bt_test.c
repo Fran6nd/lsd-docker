@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static int checks, failed;
 #define CHECK(c) do { checks++; if (!(c)) { failed++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -1706,6 +1707,201 @@ static void test_roll(void)
 	(void)err; (void)count;
 }
 
+/* ---- pick roll=each: a lottery drawn again at every choice ------------- */
+
+static int draws;
+static float rnd_counted(void *b) { draws++; return rnd(b); }
+
+static void test_roll_each(void)
+{
+	Rig r, r2;
+	Bot b, b2;
+	bt_worth w[4];
+	bt_node n;
+	int i, role, count[4], last, switches, stops;
+	static const char X1_10_1[] =
+		"pick roll=each every=0\n\toption a sc 0\n\t\tdo act 0\n\toption a sc 1 x10\n\t\tdo act 1\n\toption a sc 2\n\t\tdo act 2\n";
+	bot_init(&b, 21);
+	for (i = 0; i < N; i++) { b.ret[i] = BT_RUNNING; b.sc[i] = 1.0f; }
+
+	/* THE SHARES, over the choices of ONE bot (an identity is no part of it) */
+	if (rig_open(&r, X1_10_1, &b)) {
+		memset(count, 0, sizeof count);
+		r.ctx.identity = 99;
+		for (i = 0; i < 6000; i++) { role = role_of(&r); CHECK(role >= 0 && role <= 2); if (role >= 0) count[role]++; }
+		printf("  roll=each, options x1 x10 x1, 6000 choices of one bot: %d, %d, %d\n", count[0], count[1], count[2]);
+		CHECK(count[0] > 400 && count[0] < 600 && count[2] > 400 && count[2] < 600 && count[1] > 4900 && count[1] < 5100);
+		rig_close(&r);
+	}
+
+	/* the 0.9 / 0.9 / 1.2 of the doc: 30%, 30%, 40% */
+	bot_init(&b, 22);
+	for (i = 0; i < N; i++) { b.ret[i] = BT_RUNNING; b.sc[i] = 1.0f; }
+	b.sc[0] = 0.9f; b.sc[1] = 0.9f; b.sc[2] = 1.2f;
+	if (rig_open(&r, "pick roll=each every=0\n\toption a sc 0\n\t\tdo act 0\n\toption a sc 1\n\t\tdo act 1\n\toption a sc 2\n\t\tdo act 2\n", &b)) {
+		memset(count, 0, sizeof count);
+		for (i = 0; i < 6000; i++) { role = role_of(&r); if (role >= 0) count[role]++; }
+		printf("  roll=each, worths 0.9 0.9 1.2, 6000 choices: %d, %d, %d\n", count[0], count[1], count[2]);
+		CHECK(count[0] > 1650 && count[0] < 1950 && count[1] > 1650 && count[1] < 1950 && count[2] > 2250 && count[2] < 2550);
+		rig_close(&r);
+	}
+
+	/* the trait weight is in it: 3 against 1 is 3 in 4; a score of 0 is never drawn */
+	bot_init(&b, 23);
+	for (i = 0; i < N; i++) { b.ret[i] = BT_RUNNING; b.sc[i] = 1.0f; }
+	if (rig_open(&r, "pick roll=each every=0\n\toption a sc 0\n\t\tdo act 0\n\toption b sc 1\n\t\tdo act 1\n", &b)) {
+		int first = 0;
+		r.w[1] = 3.0f; r.w[2] = 1.0f;
+		for (i = 0; i < 4000; i++) first += role_of(&r) == 0;
+		printf("  roll=each, a trait weight of 3 against 1: %d of 4000 took the first\n", first);
+		CHECK(first > 2880 && first < 3120);
+		b.sc[0] = 0.0f;
+		for (i = 0; i < 500; i++) CHECK(role_of(&r) == 1);
+		/* all 0: the pick fails, draws nothing, and asks again at the next tick */
+		b.sc[1] = 0.0f;
+		draws = 0;
+		r.ctx.random = rnd_counted;
+		CHECK(rig_tick(&r, 0.1f) == BT_FAILURE && rig_tick(&r, 0.1f) == BT_FAILURE && draws == 0);
+		b.sc[1] = 0.5f;
+		CHECK(role_of(&r) == 1 && draws == 1);
+		rig_close(&r);
+	}
+
+	/* `every` is respected, and a child that ends is a choice: draws counted */
+	bot_init(&b, 24);
+	for (i = 0; i < N; i++) { b.ret[i] = BT_RUNNING; b.sc[i] = 1.0f; }
+	if (rig_open(&r, "pick roll=each every=1\n\toption a sc 0\n\t\tdo act 0\n\toption a sc 1\n\t\tdo act 1\n", &b)) {
+		bt_node_state ns;
+		draws = 0;
+		r.ctx.random = rnd_counted;
+		for (i = 0; i < 4; i++) { rig_tick(&r, 0.1f); CHECK(draws == 1); }     /* held between choices */
+		CHECK(bt_state_node(r.f, r.s, 0, &ns) && ns.running && ns.child >= 0);
+		for (i = 4; i < 100; i++) rig_tick(&r, 0.1f);
+		printf("  roll=each every=1, 100 ticks of 0.1 s: %d draws\n", draws);
+		CHECK(draws >= 9 && draws <= 11);
+		draws = 0;
+		b.ret[0] = b.ret[1] = BT_SUCCESS;                /* the child ends at once: a draw at each tick */
+		for (i = 0; i < 20; i++) rig_tick(&r, 0.1f);
+		CHECK(draws == 20);
+		rig_close(&r);
+	}
+	/* the default `every` is a plain pick's (2 s) */
+	bot_init(&b, 25);
+	for (i = 0; i < N; i++) { b.ret[i] = BT_RUNNING; b.sc[i] = 1.0f; }
+	if (rig_open(&r, "pick roll=each\n\toption a sc 0\n\t\tdo act 0\n\toption a sc 1\n\t\tdo act 1\n", &b)) {
+		r.ctx.random = rnd_counted;
+		draws = 0;
+		for (i = 0; i < 100; i++) rig_tick(&r, 0.1f);       /* 10 s */
+		CHECK(draws >= 4 && draws <= 6);
+		rig_close(&r);
+	}
+
+	/* THE HELD OPTION DRAWN AGAIN GOES ON: it is stopped only when left, and once */
+	bot_init(&b, 26);
+	for (i = 0; i < N; i++) { b.ret[i] = BT_RUNNING; b.sc[i] = 1.0f; }
+	if (rig_open(&r, "pick roll=each every=0\n\toption a sc 0\n\t\tdo act 0\n\toption a sc 1\n\t\tdo act 1\n", &b)) {
+		last = -1; switches = 0;
+		for (i = 0; i < 400; i++) {
+			role = role_of(&r);
+			if (last >= 0 && role != last) switches++;
+			last = role;
+		}
+		stops = b.stops[0] + b.stops[1];
+		printf("  roll=each, 400 choices of two: %d switches, %d stops\n", switches, stops);
+		CHECK(switches > 100 && switches < 300 && stops == switches);
+		CHECK(b.calls[0] + b.calls[1] == 400);
+		rig_close(&r);
+	}
+	/* one option alone: drawn every tick, never stopped */
+	bot_init(&b, 27);
+	for (i = 0; i < N; i++) { b.ret[i] = BT_RUNNING; b.sc[i] = 1.0f; }
+	if (rig_open(&r, "pick roll=each every=0\n\toption a sc 0\n\t\tdo act 0\n", &b)) {
+		for (i = 0; i < 50; i++) CHECK(role_of(&r) == 0);
+		CHECK(b.stops[0] == 0 && b.calls[0] == 50);
+		rig_close(&r);
+	}
+
+	/* A JOLT: as a plain pick, it chooses at once and stops what it did (once); bt_reset likewise */
+	bot_init(&b, 28);
+	for (i = 0; i < N; i++) { b.ret[i] = BT_RUNNING; b.sc[i] = 1.0f; }
+	if (rig_open(&r, "pick roll=each every=100\n\toption a sc 0\n\t\tdo act 0\n\toption a sc 1\n\t\tdo act 1\n", &b)) {
+		r.ctx.random = rnd_counted;
+		draws = 0;
+		for (i = 0; i < 10; i++) rig_tick(&r, 0.1f);
+		CHECK(draws == 1);
+		bt_restart(r.f, r.s, &r.ctx);
+		CHECK(b.stops[0] + b.stops[1] == 1);
+		rig_tick(&r, 0.1f);
+		CHECK(draws == 2);
+		for (i = 0; i < 10; i++) rig_tick(&r, 0.1f);
+		CHECK(draws == 2);
+		bt_reset(r.f, r.s, &r.ctx);
+		CHECK(b.stops[0] + b.stops[1] == 2);
+		rig_tick(&r, 0.1f);
+		CHECK(draws == 3);
+		rig_close(&r);
+	}
+
+	/* REPLAY: the same random stream, the same sequence of options */
+	bot_init(&b, 31); bot_init(&b2, 31);
+	for (i = 0; i < N; i++) { b.ret[i] = b2.ret[i] = BT_RUNNING; b.sc[i] = b2.sc[i] = 1.0f; }
+	if (rig_open(&r, X1_10_1, &b) && rig_open(&r2, X1_10_1, &b2)) {
+		int same = 0;
+		r.ctx.identity = 5; r2.ctx.identity = 6;           /* the identity is not what it draws from */
+		for (i = 0; i < 500; i++) same += role_of(&r) == role_of(&r2);
+		CHECK(same == 500);
+		rig_close(&r); rig_close(&r2);
+	}
+
+	/* what it shows: the shares, the last draw, the option held */
+	bot_init(&b, 32);
+	for (i = 0; i < N; i++) { b.ret[i] = BT_RUNNING; b.sc[i] = 1.0f; }
+	if (rig_open(&r, "pick roll=each\n\toption a sc 0\n\t\tdo act 0\n\toption b sc 1\n\t\tdo act 1\n", &b)) {
+		r.w[1] = 3.0f; r.w[2] = 1.0f;
+		bt_state_trace(r.s, 1);
+		role = role_of(&r);
+		CHECK(bt_state_worths(r.f, r.s, 0, w, 4) == 2 && w[0].weighed && w[1].weighed);
+		CHECK(near(w[0].share, 0.75f) && near(w[1].share, 0.25f) && w[0].draw == w[1].draw && w[0].draw >= 0.0f && w[0].draw < 1.0f);
+		CHECK(w[0].luck == 1.0f && w[0].sticky == 1.0f && near(w[0].worth, 3.0f));
+		CHECK(w[role].held && !w[1 - role].held && (w[0].draw < 0.75f) == (role == 0));
+		rig_close(&r);
+	}
+
+	/* as data, in the text written back, and what may not be written */
+	{
+		bt_source *src = bt_parse(vocab, "pick roll=each every=3\n  option a sc 0\n    do act 0\n", NULL);
+		char *text;
+		CHECK(src != NULL);
+		if (src) {
+			CHECK(bt_source_node(src, 0, &n) && n.kind == BT_K_PICK && n.roll == BT_ROLL_EACH && n.written == (BT_W_ROLL | BT_W_EVERY));
+			CHECK(n.every == 3.0f);
+			bt_source_free(src);
+		}
+		text = canonical(vocab, "pick   roll=each   every=3\n  option a sc 0\n    do act 0\n", NULL);
+		CHECK(text && !strncmp(text, "pick roll=each every=3\n", 23));
+		free(text);
+	}
+	bad("pick roll=each sticky=1\n\toption a sc 0\n\t\tdo act 0\n", 1, "sticky and noise have no meaning");
+	bad("pick noise=0 roll=each\n\toption a sc 0\n\t\tdo act 0\n", 1, "roll=each");
+	bad("pick roll=each every=2 noise=0.1\n\toption a sc 0\n\t\tdo act 0\n", 1, "no meaning");
+}
+
+/* a plain pick's tick, timed: the cost of choosing must not have grown */
+static void bench_plain_pick(void)
+{
+	Rig r;
+	Bot b;
+	int i;
+	clock_t t0;
+	bot_init(&b, 41);
+	for (i = 0; i < N; i++) { b.ret[i] = BT_RUNNING; b.sc[i] = 1.0f; }
+	if (!rig_open(&r, "pick every=0\n\toption a sc 0\n\t\tdo act 0\n\toption a sc 1\n\t\tdo act 1\n\toption a sc 2\n\t\tdo act 2\n", &b)) return;
+	t0 = clock();
+	for (i = 0; i < 2000000; i++) rig_tick(&r, 0.1f);
+	printf("  a plain pick of three, every=0: %.1f ns a tick\n", 1e9 * (double)(clock() - t0) / CLOCKS_PER_SEC / 2000000.0);
+	rig_close(&r);
+}
+
 int main(void)
 {
 	int i;
@@ -1736,6 +1932,8 @@ int main(void)
 	test_arg_specs();
 	test_diagnose();
 	test_roll();
+	test_roll_each();
+	bench_plain_pick();
 	bt_vocab_free(vocab);
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;

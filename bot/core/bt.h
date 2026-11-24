@@ -72,7 +72,21 @@
  * tick after a reset, from the worths as they are then: so the scores
  * of such options should be facts about the bot (its gun, what it
  * holds), not the situation of the moment. `every`, `sticky` and `noise`
- * mean nothing with `roll=` and may not be written with it.
+ * mean nothing with `roll=once` and `roll=life` and may not be written
+ * with them.
+ *
+ *   pick roll=each [every=<secs>]
+ *
+ * A LOTTERY AT EVERY CHOICE. The choice is made when a plain pick makes
+ * it (the first tick, every `every` seconds, whenever the option's child
+ * ends), but it is a draw, as above: one option, each with a chance in
+ * proportion to its worth (score x trait weight x factor: no luck, no
+ * sticky), from the bot's own randomness (bt_ctx.random, not its
+ * identity), and ticked until the next choice. The draw may land on the
+ * option already held: that one then goes on, it is not stopped. An
+ * option whose score is 0 is never drawn; with none above 0, pick fails
+ * (and draws nothing). Like a plain pick, it chooses afresh after
+ * bt_restart and bt_reset. `sticky` and `noise` may not be written.
  *
  * THE TEXT. One node a line, children indented under their parent by
  * one step more: a tab, or two or four spaces -- whichever the text's
@@ -271,7 +285,7 @@ const char *bt_kind_name(int kind);
 /* which of a node's numbers the text gave (the others are the defaults) */
 enum { BT_W_EVERY = 1, BT_W_STICKY = 2, BT_W_NOISE = 4, BT_W_FACTOR = 8, BT_W_ROLL = 16 };
 /* how a pick chooses (its `roll=`) */
-enum { BT_ROLL_WEIGHED = 0, BT_ROLL_ONCE = 1, BT_ROLL_LIFE = 2 };
+enum { BT_ROLL_WEIGHED = 0, BT_ROLL_ONCE = 1, BT_ROLL_LIFE = 2, BT_ROLL_EACH = 3 };
 
 typedef struct bt_node {
 	int id;                     /* its index (see above) */
@@ -417,11 +431,13 @@ typedef struct bt_worth {
 	float sticky;       /* 1 + the pick's sticky if it was the one held
 	                       when the pick chose, else 1 */
 	float worth;        /* the five multiplied: the highest was chosen */
-	/* a pick that rolls (roll=once, roll=life): luck and sticky are 1,
-	 * `held` is the role it drew (RUNNING or not), and */
+	/* a pick that rolls (roll=once, roll=life, roll=each): luck and sticky
+	 * are 1, `held` is the role it drew (RUNNING or not; for roll=each the
+	 * option it holds now), and */
 	float share;        /* this option's part of the lottery, 0 to 1: its
 	                       worth over the sum of them all */
-	float draw;         /* the draw, in [0, 1): the same for every option */
+	float draw;         /* the draw, in [0, 1): the same for every option (for
+	                       roll=each, the last one made) */
 } bt_worth;
 /* The options of pick `pick` (a forest id) as last weighed. Returns how
  * many options it has, 0 if `pick` is not a pick; writes at most `max`. */

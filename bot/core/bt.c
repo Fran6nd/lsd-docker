@@ -190,6 +190,10 @@ const char *bt_vocab_set_values(const bt_vocab *v, const char *name)
 
 /* ---- the compiled forest -------------------------------------------- */
 
+/* a pick that keeps what it drew (roll=once, roll=life), against one that
+ * chooses again (plain, roll=each) */
+#define ROLE(n) ((n)->roll == BT_ROLL_ONCE || (n)->roll == BT_ROLL_LIFE)
+
 typedef struct bnode {
 	uint8_t kind;
 	uint8_t roll;           /* pick: BT_ROLL_* */
@@ -507,7 +511,8 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 				if (!strcmp(vs, "weighed")) b->roll = BT_ROLL_WEIGHED;
 				else if (!strcmp(vs, "once")) b->roll = BT_ROLL_ONCE;
 				else if (!strcmp(vs, "life")) b->roll = BT_ROLL_LIFE;
-				else { fail(p, line, "pick: roll is weighed, once or life, not '%s'", vs); return 0; }
+				else if (!strcmp(vs, "each")) b->roll = BT_ROLL_EACH;
+				else { fail(p, line, "pick: roll is weighed, once or life, or each, not '%s'", vs); return 0; }
 				pn->written |= BT_W_ROLL;
 				continue;
 			}
@@ -526,7 +531,12 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 				return 0;
 			}
 		}
-		if (b->roll && (pn->written & (BT_W_EVERY | BT_W_STICKY | BT_W_NOISE))) {
+		if (b->roll == BT_ROLL_EACH && (pn->written & (BT_W_STICKY | BT_W_NOISE))) {
+			at(p, t[1]);
+			fail(p, line, "pick: with roll=each the option is drawn by its worth alone: sticky and noise have no meaning (every does)");
+			return 0;
+		}
+		if (ROLE(b) && (pn->written & (BT_W_EVERY | BT_W_STICKY | BT_W_NOISE))) {
 			at(p, t[1]);
 			fail(p, line, "pick: with roll=%s the choice is drawn once and kept: every, sticky and noise have no meaning",
 			     b->roll == BT_ROLL_ONCE ? "once" : "life");
@@ -1125,7 +1135,7 @@ static void stop_range(const bt_forest *f, int i, bt_state *s, const bt_ctx *c, 
 		const bnode *n = &f->nodes[k];
 		slot *sl = &s->s[k];
 		if (n->kind == K_DO && sl->run && n->stop) n->stop(c->bot, &n->args);
-		if (n->kind == K_PICK && n->roll && !all) { sl->cur = 0; continue; }   /* a role drawn is kept */
+		if (n->kind == K_PICK && ROLE(n) && !all) { sl->cur = 0; continue; }   /* a role drawn is kept */
 		if (all || n->kind != K_COOLDOWN) sl->t = 0;
 		sl->cur = 0;
 		sl->run = 0;
@@ -1184,11 +1194,13 @@ static double identity_draw(uint64_t identity, int32_t key)
 	return (double)(z >> 11) / 9007199254740992.0;
 }
 
-/* THE LOTTERY of a pick that rolls: the option the draw `u` lands on,
+/* THE LOTTERY of a pick that rolls: the option the draw `*u` lands on,
  * each having a share of [0, 1) in proportion to its worth -- score x
  * the bot's weight x factor, no luck, nothing for the one held. -1 when
- * no option has a score above 0. */
-static int roll_choose(const bt_forest *f, int i, bt_state *s, const bt_ctx *c, double u)
+ * no option has a score above 0. A `*u` below 0 is not drawn yet: it is
+ * drawn from the bot's dice if there is something to draw from, and
+ * written back. */
+static int roll_choose(const bt_forest *f, int i, bt_state *s, const bt_ctx *c, double *u)
 {
 	const bnode *n = &f->nodes[i];
 	double sum = 0, acc = 0;
@@ -1196,17 +1208,27 @@ static int roll_choose(const bt_forest *f, int i, bt_state *s, const bt_ctx *c, 
 	for (o = i + 1; o < n->end; o = f->nodes[o].end) {
 		const bnode *on = &f->nodes[o];
 		float sc = on->score(c->bot, &on->args);
-		if (s->trace) note_worth(s, o, sc, weight_of(c, on->trait), u, 1.0);
+		if (s->trace) note_worth(s, o, sc, weight_of(c, on->trait), *u < 0 ? 0.0 : *u, 1.0);
 		if (sc > 0) { sum += (double)sc * weight_of(c, on->trait) * on->factor; last = o; }
 	}
 	if (last < 0 || !(sum > 0)) return -1;
-	/* (the scores are asked a second time: once a life, and they are facts) */
+	if (*u < 0) {
+		*u = draw(c);
+		if (s->trace)
+			for (o = i + 1; o < n->end; o = f->nodes[o].end) {
+				oslot w;
+				memcpy(&w, &s->s[o], sizeof w);
+				w.luck = (float)*u;
+				memcpy(&s->s[o], &w, sizeof w);
+			}
+	}
+	/* (the scores are asked a second time: once a choice, and they are facts) */
 	for (o = i + 1; o < n->end; o = f->nodes[o].end) {
 		const bnode *on = &f->nodes[o];
 		float sc = on->score(c->bot, &on->args);
 		if (!(sc > 0)) continue;
 		acc += (double)sc * weight_of(c, on->trait) * on->factor;
-		if (u * sum < acc) return o;
+		if (*u * sum < acc) return o;
 	}
 	return last;
 }
@@ -1230,15 +1252,17 @@ static bt_status tick(const bt_forest *f, int i, bt_state *s, const bt_ctx *c)
 		return seq ? BT_SUCCESS : BT_FAILURE;
 	}
 	case K_PICK: {
-		if (n->roll) {
+		if (ROLE(n)) {
 			/* a role: drawn at the first tick after a reset, then kept --
 			 * the child is ticked again and again, whatever it answers.
 			 * sl->run: the option held + 1; sl->t: the draw */
 			if (!sl->run) {
 				int best;
+				double u;
 				if (n->roll == BT_ROLL_ONCE && c->identity) sl->t = identity_draw(c->identity, n->trait);
 				else if (sl->t >= 0) sl->t = -1.0 - (double)draw(c);   /* drawn once; kept as -(1 + u) */
-				best = roll_choose(f, i, s, c, sl->t < 0 ? -sl->t - 1.0 : sl->t);
+				u = sl->t < 0 ? -sl->t - 1.0 : sl->t;
+				best = roll_choose(f, i, s, c, &u);
 				if (best < 0) return BT_FAILURE;                       /* nothing to draw yet: asked again */
 				sl->run = best + 1;
 			}
@@ -1247,7 +1271,11 @@ static bt_status tick(const bt_forest *f, int i, bt_state *s, const bt_ctx *c)
 			return r;
 		}
 		if (sl->cur == 0 || s->now - sl->t >= n->every) {
-			int best = pick_choose(f, i, s, c);
+			int best;
+			if (n->roll == BT_ROLL_EACH) {
+				double u = -1.0;
+				best = roll_choose(f, i, s, c, &u);     /* a draw at every choice, from the bot's dice */
+			} else best = pick_choose(f, i, s, c);
 			/* (the option's child is stopped, not the option: its slot
 			 * holds nothing but what pick_choose noted there) */
 			if (best < 0) {
@@ -1334,7 +1362,7 @@ void bt_restart(const bt_forest *f, bt_state *s, const bt_ctx *c)
 		const bnode *n = &f->nodes[k];
 		slot *sl = &s->s[k];
 		if (n->kind == K_DO && sl->run && n->stop) n->stop(c->bot, &n->args);
-		if (n->kind == K_PICK && n->roll) { sl->cur = 0; continue; }   /* its role is its own still */
+		if (n->kind == K_PICK && ROLE(n)) { sl->cur = 0; continue; }   /* its role is its own still */
 		memset(sl, 0, sizeof *sl);
 	}
 }
@@ -1566,7 +1594,7 @@ int bt_state_node(const bt_forest *f, const bt_state *s, int i, bt_node_state *o
 		break;
 	case K_PICK:
 		out->running = sl->cur != 0;
-		if (n->roll) { out->child = sl->run ? sl->run - 1 : -1; break; }      /* its role, RUNNING or not */
+		if (ROLE(n)) { out->child = sl->run ? sl->run - 1 : -1; break; }      /* its role, RUNNING or not */
 		out->child = sl->cur ? sl->cur - 1 : -1;
 		if (sl->cur) { since = s->now - sl->t; left = n->every - since; }
 		break;
@@ -1633,7 +1661,7 @@ int bt_state_worths(const bt_forest *f, const bt_state *s, int pick, bt_worth *o
 		w = &out[n];
 		memset(w, 0, sizeof *w);
 		w->option = o;
-		w->held = roll ? s->s[pick].run == o + 1 : s->s[pick].cur == o + 1;
+		w->held = roll == BT_ROLL_ONCE || roll == BT_ROLL_LIFE ? s->s[pick].run == o + 1 : s->s[pick].cur == o + 1;
 		w->factor = on->factor;
 		if (rec.sticky == 0.0f) continue;
 		w->weighed = 1;
