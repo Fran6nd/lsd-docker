@@ -231,9 +231,12 @@ bt_status bc_do_fight(void *bot, const bt_args *a, float dt)
 	b->wish.crouch = b->wish.jump = 0;
 
 	if (!k->visible) {
-		/* lost a moment ago: to where he was, the head on the place */
-		b->wish.look = BC_LOOK_POINT;
-		b->wish.look_at = k->pos;
+		/* lost a moment ago: to where he was, the head on the place while
+		 * the place is in its sight; round a wall, where it goes */
+		if (flat < 24.0f && bc_sight_clear(e->have_map ? e->map : NULL, me->pos, k->pos)) {
+			b->wish.look = BC_LOOK_POINT;
+			b->wish.look_at = k->pos;
+		}
 		b->wish.fire_pid = -1;
 		f->strafing = 0;
 		bc_move_to(b, k->pos, 2.0f);

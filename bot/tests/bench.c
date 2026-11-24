@@ -29,6 +29,11 @@
  *   wading_pct       living bot-time in the water
  *   plans, plans_capped, plans_no_way, expansions_per_plan
  *   kills, stuck (one cell, keys down, over 3 s), goals_dropped (the net)
+ *   head_on_heading_pct  of the time a bot travels (over 3 voxels/s, on the
+ *                    ground, nobody in its sight, not shot at for 3 s): the head within 30
+ *                    degrees of the way it goes
+ *   head_away_spells over a second at a stretch travelling so with the head
+ *                    more than 60 degrees off
  *   result_s         seconds to the last man of a team (fight*), -1: none
  *   captures_in_4_games, games_with_a_capture, first_capture_mean_s, pickups, drops (ctf)
  */
@@ -40,6 +45,9 @@ static const float EYE = (float)G - 2.25f;
 typedef struct tally {
 	long alive, idle, waiting, wet;
 	int spell[BL_MAX_PLAYERS], longest;
+	/* the head while travelling with nobody in its sight */
+	long travel, on_heading;
+	int away[BL_MAX_PLAYERS], away_spells;
 } tally;
 
 static void out(const char *scene, const char *metric, double v, const char *unit)
@@ -55,10 +63,29 @@ static void watch(bs_sim *s, tally *t)
 	for (i = 0; i < BL_MAX_PLAYERS; i++) {
 		const bc_bot *b;
 
-		if (!s->p[i].used || !s->p[i].bot || !s->p[i].alive) { t->spell[i] = 0; continue; }
+		if (!s->p[i].used || !s->p[i].bot || !s->p[i].alive) { t->spell[i] = t->away[i] = 0; continue; }
 		b = bc_engine_bot(s->e, i);
 		t->alive++;
 		t->wet += s->p[i].body.wade != 0;
+		{
+			/* travelling: moving over 3 voxels a second on the ground, with
+			 * nobody in its sight and no round at it for 3 s. On the heading: the head within 30
+			 * degrees of the way the body goes. Away: over 60 degrees off
+			 * for more than a second at a stretch */
+			float vx = s->p[i].body.vel.x, vy = s->p[i].body.vel.y, v = sqrtf(vx * vx + vy * vy);
+			float ox = s->p[i].ori.x, oy = s->p[i].ori.y, o = sqrtf(ox * ox + oy * oy), c;
+
+			if (b && b->senses.n_visible == 0 && s->e->now - b->senses.shot_at > 3.0 && !s->p[i].body.airborne &&
+			    v * 32.0f > 3.0f && o > 0.1f) {
+				c = (vx * ox + vy * oy) / (v * o);
+				t->travel++;
+				t->on_heading += c >= 0.866f;
+				if (c < 0.5f) { if (++t->away[i] == 60) t->away_spells++; }
+				else t->away[i] = 0;
+			} else {
+				t->away[i] = 0;
+			}
+		}
 		if ((s->intents[i].keys & 15) || s->intents[i].mouse) { t->spell[i] = 0; continue; }
 		t->idle++;
 		if (b && b->mv.state == BC_MV_PLANNING && b->wish.move == BC_MOVE_GOTO) t->waiting++;
@@ -80,6 +107,10 @@ static void report(const char *scene, bs_sim *s, const tally *t)
 		out(scene, "waiting_pct", 100.0 * (double)t->waiting / (double)t->alive, "%");
 		out(scene, "longest_idle_s", t->longest / 60.0, "s");
 		out(scene, "wading_pct", 100.0 * (double)t->wet / (double)t->alive, "%");
+	}
+	if (t->travel) {
+		out(scene, "head_on_heading_pct", 100.0 * (double)t->on_heading / (double)t->travel, "%");
+		out(scene, "head_away_spells", t->away_spells, "");
 	}
 	out(scene, "plans", st->plans, "");
 	out(scene, "plans_capped", st->plan_caps, "");
@@ -263,6 +294,10 @@ static void scene_ctf(int per, int near)
 	if (t.alive) {
 		out(name, "no_key_pct", 100.0 * (double)t.idle / (double)t.alive, "%");
 		out(name, "waiting_pct", 100.0 * (double)t.waiting / (double)t.alive, "%");
+	}
+	if (t.travel) {
+		out(name, "head_on_heading_pct", 100.0 * (double)t.on_heading / (double)t.travel, "%");
+		out(name, "head_away_spells", t.away_spells, "");
 	}
 }
 

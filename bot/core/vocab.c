@@ -639,6 +639,15 @@ static int c_gun_is(void *bot, const bt_args *a) { return gun_named(bot, a, 0); 
 static int c_under_fire(void *bot, const bt_args *a) { bc_bot *b = bot; return b->e->now - b->senses.shot_at < (double)arg(a, 0, 3.0f); }
 static int c_in_cover(void *bot, const bt_args *a) { bc_bot *b = bot; bl_vec3 th; (void)a; return bc_threat_place(b, &th) && !bc_exposed_to(b, th); }
 static int c_in_harmful_water(void *bot, const bt_args *a) { (void)a; return bc_in_harmful_water(bot); }
+static int cover_in_view(bc_bot *b, const bt_args *a)
+{
+	bl_vec3 th;
+
+	return !bc_in_harmful_water(b) && bc_threat_place(b, &th) &&
+	       bc_cover_view(b, th, (int)arg(a, 0, 12.0f), arg(a, 1, 120.0f));
+}
+static int c_cover_in_view(void *bot, const bt_args *a) { return cover_in_view(bot, a); }
+static float s_cover_in_view(void *bot, const bt_args *a) { return cover_in_view(bot, a) ? 1.0f : 0.0f; }
 static float s_gun_is(void *bot, const bt_args *a) { return gun_named(bot, a, 0) ? 1.0f : 0.0f; }
 static float s_under_fire(void *bot, const bt_args *a) { return fire_fresh(bot, arg(a, 0, 4.0f)); }
 static float s_pressed(void *bot, const bt_args *a) { (void)a; return pressed(bot); }
@@ -911,6 +920,8 @@ static const word WORDS[] = {
 	{ VK_C, "gun_is", 1, { ONE_REP("gun", "rifle|smg|shotgun") }, "its gun is one of those named", c_gun_is, NULL, NULL, NULL },
 	{ VK_C, "under_fire", 1, { NOPT("secs", 3.0f) }, "it was shot at within that many seconds (default 3): hurt by somebody, a round that passed within 2.5 voxels, a team-mate killed within 12", c_under_fire, NULL, NULL, NULL },
 	{ VK_C, "in_cover", NOARGS, "what threatens it (the man it fights, where a hit came from) has no line of sight to its body as it stands", c_in_cover, NULL, NULL, NULL },
+	{ VK_C, "cover_in_view", 2, { NOPT("steps", 12.0f), NOPT("degrees", 120.0f) }, "there is cover from what threatens it within that many steps walked (default 12) and a cone of that many degrees (default 120, the whole angle) about the bearing to the threat: cover it can see as it faces him, ahead or across, not behind its back", c_cover_in_view, NULL, NULL, NULL },
+	{ VK_S, "cover_in_view", 2, { NOPT("steps", 12.0f), NOPT("degrees", 120.0f) }, "1 when there is cover in view (see the condition), else 0", NULL, s_cover_in_view, NULL, NULL },
 	{ VK_C, "in_harmful_water", NOARGS, "it is wading in water that hurts (the settings water=lethal or water.damage)", c_in_harmful_water, NULL, NULL, NULL },
 	{ VK_S, "gun_is", 1, { ONE_REP("gun", "rifle|smg|shotgun") }, "1 if its gun is one of those named, else 0", NULL, s_gun_is, NULL, NULL },
 	{ VK_S, "under_fire", 1, { NOPT("secs", 4.0f) }, "1 just shot at (see the condition), falling to 0 over that many seconds (default 4)", NULL, s_under_fire, NULL, NULL },
@@ -923,7 +934,7 @@ static const word WORDS[] = {
 	{ VK_S, "rumour", NOARGS, "how fresh the freshest rumour of the enemy is -- a noise it heard, a team-mate's sighting, the team's last meeting -- that is over 10 away and it has not just been to: 1 just now, 0 none", NULL, s_rumour, NULL, NULL },
 	{ VK_S, "vantage", 1, { ONE_NOTE_REP("gun", "rifle|smg|shotgun", "any gun") }, "1 when the team knows a perch nobody has claimed (high, a long view toward the enemy, a way up) and its gun is one of those named (any, when none is)", NULL, s_vantage, NULL, NULL },
 	{ VK_A, "crouch", 1, { NNOTE("secs", "the flinch: 0.3 to 1 s by its caution, once for a burst of fire") }, "down where it stands, turned to what shot at it, shooting if it sees him. With no time said it is the flinch: 0.3 to 1 s by character, once for a burst of fire (asked again it succeeds at once)", NULL, NULL, bc_do_crouch, bc_do_cover_stop },
-	{ VK_A, "take_cover", NOARGS, "to the best cover from what threatens it (near, well hidden, a way out behind, no team-mate in it); there crouched if the cover is low, facing the threat, peeking to fire -- rarely and long for the careful, hardly stopping for the bold. No cover in reach: crouched where it stands, turned to the threat. SUCCESS after its time there (0.8 to 14 s by character); FAILURE with no threat", NULL, NULL, bc_do_take_cover, bc_do_cover_stop },
+	{ VK_A, "take_cover", 3, { ONE_OPT("where", "any|in_view", "any"), NOPT("steps", 12.0f), NOPT("degrees", 120.0f) }, "to the best cover from what threatens it (near, well hidden, a way out behind, no team-mate in it), within that many steps walked (default 12), moving with its head on the threat (backing, sidestepping: never turning its back), turned to him before it sets off; there crouched if the cover is low, facing the threat, peeking to fire -- rarely and long for the careful, hardly stopping for the bold. `any`: cover in any direction; with none in reach, crouched where it stands, turned to the threat. `in_view`: only cover within that cone (default 120 degrees, the whole angle) about the bearing to the threat -- ahead or across, as it faces him -- and FAILURE at once with none (the tree then has it face him: `crouch`). SUCCESS after its time there (0.8 to 14 s by character); FAILURE with no threat", NULL, NULL, bc_do_take_cover, bc_do_cover_stop },
 	{ VK_A, "advance_by_cover", 2, { PLACE_OPT("enemy"), NOPT_NOTE("radius", 3.0f, "at the enemy, with no radius said: its own fighting distance") }, "toward a place (default: the enemy) from cover to cover, a pause at each by character; a run where no cover gains ground. SUCCESS there (at a man: at its own fighting distance); FAILURE no such place, no way", NULL, NULL, bc_do_advance_by_cover, bc_do_cover_stop },
 	{ VK_A, "fall_back_by_cover", 1, { PLACE_OPT("own_base") }, "away from what threatens it toward a place (default own_base; with none, straight away), from cover to cover, not firing. SUCCESS out of sight with no round for 3 s, or there; FAILURE with no threat", NULL, NULL, bc_do_fall_back_by_cover, bc_do_cover_stop },
 	{ VK_A, "seek", NOARGS, "go and find the enemy: to his base by the direct way, shooting what it meets; there and nobody, on to where the team last met him, then back as far as the middle, and round again. With no bases, or no way to his, it roams. Always RUNNING: a tree's last resort", NULL, NULL, bc_do_seek, bc_do_stop },

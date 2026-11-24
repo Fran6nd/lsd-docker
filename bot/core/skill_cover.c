@@ -31,6 +31,13 @@
  *               "of similar cost", not a tour of the map)
  *     BACK      the same toward the place fallen back on, and never a
  *               cell nearer the threat than the bot is
+ *     VIEW      HIDE, but only cells within a cone (120 degrees, the
+ *               whole angle) about the bearing to the threat -- cover it
+ *               can see as it faces him, ahead or across, never behind its
+ *               back -- and + 0.1 a voxel nearer him, not 0.35. Run to its
+ *               end at once (bc_cover_view): the condition cover_in_view
+ *               must answer now, and take_cover in_view takes its answer
+ *               from the cache.
  * BUDGETED: `budget` cells are examined a call (the skills give 48 to 64:
  * a cell is two to six rays), the search keeps its place in the bot and
  * goes on at the next decision -- a full reach takes a third of a second,
@@ -41,7 +48,12 @@
  * THE SKILLS on it:
  *   crouch            the flinch: down where it stands, facing the shot,
  *                     0.3 to 1 s by character. Once a burst of fire.
- *   take_cover        the best cover from the threat, at a run; there,
+ *   take_cover        the best cover from the threat (`in_view`: in view
+ *                     of it, else FAILURE so the tree has it face him),
+ *                     turned to him first, then moving there WITH THE
+ *                     HEAD ON HIM -- backing, sidestepping, never turning
+ *                     round to run (the owner: "you do not watch back to
+ *                     find cover"); there,
  *                     crouched if the cover needs it, facing the threat,
  *                     PEEKING to fire: standing up from behind a low wall,
  *                     a step out from behind a high one, then back.
@@ -173,7 +185,7 @@ static void cq_push(bc_cover_q *q, int dx, int dy, int z, int d)
 	q->tail++;
 }
 
-static void cq_begin(bc_bot *b, bl_vec3 threat, int mode, const bl_vec3 *toward, int radius)
+static void cq_begin(bc_bot *b, bl_vec3 threat, int mode, const bl_vec3 *toward, int radius, float cone)
 {
 	bc_engine *e = b->e;
 	const bl_player *me = bc_me(b);
@@ -191,6 +203,7 @@ static void cq_begin(bc_bot *b, bl_vec3 threat, int mode, const bl_vec3 *toward,
 	q->me = me->pos;
 	q->me_td = flat(me->pos, threat);
 	q->me_dd = toward ? flat(me->pos, *toward) : 0.0f;
+	q->cone = cone;
 	q->best_score = 1e30f;
 	q->head = q->tail = 0;
 	q->cells = 0;
@@ -242,7 +255,23 @@ static float mates_at(const bc_bot *b, bl_vec3 c)
 	return add;
 }
 
+static int cover_query(bc_bot *b, bl_vec3 threat, int mode, const bl_vec3 *toward, int radius, int budget, float cone);
+
 int bc_cover_query(bc_bot *b, bl_vec3 threat, int mode, const bl_vec3 *toward, int radius, int budget)
+{
+	return cover_query(b, threat, mode, toward, radius, budget, -1.0f);
+}
+
+int bc_cover_view(bc_bot *b, bl_vec3 threat, int radius, float degrees)
+{
+	float cone = cosf(0.5f * degrees * 3.14159265f / 180.0f);
+
+	if (degrees >= 360.0f) cone = -1.0f;
+	cover_query(b, threat, BC_COVER_VIEW, NULL, radius, BC_COVER_QUEUE, cone);
+	return b->cq.state == CQ_DONE && b->cq.found;
+}
+
+static int cover_query(bc_bot *b, bl_vec3 threat, int mode, const bl_vec3 *toward, int radius, int budget, float cone)
 {
 	static const int8_t nb[8][2] = { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { -1, -1 }, { 1, -1 } };
 	bc_engine *e = b->e;
@@ -257,11 +286,13 @@ int bc_cover_query(bc_bot *b, bl_vec3 threat, int mode, const bl_vec3 *toward, i
 	 * bot walked on meanwhile (it never ended), only when it has gone far */
 	same = q->state != CQ_NONE && q->mode == mode && flat(q->threat, threat) < 3.0f &&
 	       flat(q->me, me->pos) < (q->state == CQ_SEARCH ? 6.0f : 2.0f) && q->has_toward == (toward != NULL) &&
-	       (!toward || flat(q->toward, *toward) < 4.0f);
+	       (!toward || flat(q->toward, *toward) < 4.0f) &&
+	       (mode != BC_COVER_VIEW || (q->radius == (radius > BC_COVER_R ? BC_COVER_R : radius < 2 ? 2 : radius) &&
+	                                  fabsf(q->cone - cone) < 1e-3f));
 	if (same && q->state == CQ_DONE && e->now - q->at < 1.0)
 		return 1;
 	if (!same || q->state == CQ_DONE)
-		cq_begin(b, threat, mode, toward, radius);
+		cq_begin(b, threat, mode, toward, radius, cone);
 
 	while (q->state == CQ_SEARCH && budget-- > 0 && q->head < q->tail) {
 		const uint8_t *c = q->q[q->head++];
@@ -272,7 +303,7 @@ int bc_cover_query(bc_bot *b, bl_vec3 threat, int mode, const bl_vec3 *toward, i
 
 		/* nearest first: once walking there alone costs more than the best
 		 * found, nothing farther can win */
-		if (q->mode == BC_COVER_HIDE && 0.6f * (float)d > q->best_score) {
+		if ((q->mode == BC_COVER_HIDE || q->mode == BC_COVER_VIEW) && 0.6f * (float)d > q->best_score) {
 			q->head = q->tail;
 			break;
 		}
@@ -295,6 +326,17 @@ int bc_cover_query(bc_bot *b, bl_vec3 threat, int mode, const bl_vec3 *toward, i
 		sc = (float)d;
 		if (q->mode == BC_COVER_HIDE) {
 			sc += 0.35f * (q->me_td - td);
+		} else if (q->mode == BC_COVER_VIEW) {
+			/* in the cone toward him, as it faces him: ahead or across,
+			 * never behind its back. Nearer him is no fault here */
+			if (d > 0) {
+				float bx = eye.x - q->me.x, by = eye.y - q->me.y, tx = q->threat.x - q->me.x, ty = q->threat.y - q->me.y;
+				float bl = sqrtf(bx * bx + by * by), tl0 = sqrtf(tx * tx + ty * ty);
+
+				if (bl > 1e-3f && tl0 > 1e-3f && (bx * tx + by * ty) / (bl * tl0) < q->cone)
+					continue;
+			}
+			sc += 0.1f * (q->me_td - td);
 		} else {
 			gain = q->me_dd - flat(eye, q->toward);
 			if (gain < 2.5f || (float)d > 1.6f * gain + 4.0f)
@@ -469,10 +511,12 @@ bt_status bc_do_take_cover(void *bot, const bt_args *a, float dt)
 	bc_engine *e = b->e;
 	const bl_player *me = bc_me(b);
 	const float *t = b->persona.trait;
+	int view = a && a->count > 0 && !strcmp(a->text[0], "in_view");
+	int radius = a && a->count > 1 && a->num[1] > 0.0f ? (int)a->num[1] : 12;
+	float degrees = a && a->count > 2 && a->num[2] > 0.0f ? a->num[2] : 120.0f;
 	bl_vec3 th;
 	int st;
 
-	(void)a;
 	if (!bc_threat_place(b, &th)) {
 		b->tc.phase = TC_NONE;
 		return BT_FAILURE;
@@ -482,9 +526,10 @@ bt_status bc_do_take_cover(void *bot, const bt_args *a, float dt)
 		b->tc.phase = TC_NONE;
 		return bc_do_leave_water(bot, a, dt) == BT_FAILURE ? BT_FAILURE : BT_RUNNING;
 	}
-	if (e->now - b->tc.asked_at > 1.0)
+	if (e->now - b->tc.asked_at > 1.0 || b->tc.view != view)
 		b->tc.phase = TC_NONE;
 	b->tc.asked_at = e->now;
+	b->tc.view = (uint8_t)view;
 	if (b->tc.phase == TC_NONE) {
 		b->tc.phase = TC_SEARCH;
 		b->tc.tries = 0;
@@ -496,8 +541,16 @@ bt_status bc_do_take_cover(void *bot, const bt_args *a, float dt)
 		b->wish.crouch = 1;
 		bc_fire_at_will(b);
 		look_at_place(b, th);
-		if (!bc_cover_query(b, th, BC_COVER_HIDE, NULL, 12, 48))
+		if (view) {
+			/* only what it can see facing him; none: the tree's again
+			 * (it faces him, or falls back: its choice, not this word's) */
+			if (!bc_cover_view(b, th, radius, degrees)) {
+				b->tc.phase = TC_NONE;
+				return BT_FAILURE;
+			}
+		} else if (!bc_cover_query(b, th, BC_COVER_HIDE, NULL, radius, 48)) {
 			return BT_RUNNING;
+		}
 		if (!b->cq.found) {
 			b->tc.phase = TC_BARE;
 			b->tc.until = e->now + (double)bc_rng_range(&b->rng, 2.0f, 3.5f);
@@ -512,9 +565,22 @@ bt_status bc_do_take_cover(void *bot, const bt_args *a, float dt)
 			b->tc.phase = TC_GO;
 		return BT_RUNNING;
 	case TC_GO:
-		st = bc_move_to(b, b->tc.goal, 0.0f);
+		/* the head on him all the way: it backs or sidesteps to the cover,
+		 * it does not turn round to run there. And it turns to him before
+		 * it sets off (hit from behind: it looks first) */
+		look_at_place(b, th);
 		if (t[BC_T_AGGRESSION] > 1.3f)
 			bc_fire_at_will(b);         /* a pusher shoots on the way */
+		{
+			float dx = th.x - me->pos.x, dy = th.y - me->pos.y, l = sqrtf(dx * dx + dy * dy);
+
+			if (l > 1e-3f && (dx * me->ori.x + dy * me->ori.y) / l < 0.8f && e->now - b->tc.go_since < 1.5) {
+				b->wish.move = BC_MOVE_NONE;
+				b->wish.crouch = 1;
+				return BT_RUNNING;
+			}
+		}
+		st = bc_move_to(b, b->tc.goal, 0.0f);
 		if (st == BC_MV_ARRIVED) {
 			tc_arrive(b, th);
 		} else if (st == BC_MV_FAILED || e->now - b->tc.go_since > 8.0) {

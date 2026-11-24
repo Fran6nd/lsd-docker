@@ -101,6 +101,14 @@ pick every=20 sticky=1.5 noise=0.3
 	option none always x0.25                  # nothing else: toward their intel
 		tree ctf_net
 
+# Cover in view, facing what shot at it; none in view: down, facing him.
+tree ctf_take_cover:
+select
+	seq
+		if cover_in_view
+		do take_cover in_view
+	do crouch 3
+
 tree ctf_round:
 seq
 	always
@@ -121,8 +129,8 @@ seq
 	pick every=2.5 sticky=0.5 noise=0.2
 		option aggression enemy_visible       # fight back from where it stands
 			do fight
-		option caution under_fire x0.9        # to cover, and fight from it
-			do take_cover
+		option caution under_fire x0.9        # to cover it can see, facing him; none: face him
+			tree ctf_take_cover
 		option caution pressed                # hurt or outnumbered: back, from cover to cover
 			do fall_back_by_cover
 		option objective their_intel_home x1.2 # the keen on the game run on for their intel, shooting

@@ -3,6 +3,7 @@
 #include <dirent.h>
 
 #include "brain_sim.h"
+#include <stdlib.h>
 
 static int checks, failed;
 #define CHECK(c) do { checks++; if (!(c)) { failed++; printf("  FAILED %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -116,7 +117,7 @@ static void leaf_of(bs_sim *s, int pid, char *out, size_t n)
 static void test_vocab_and_trees(void)
 {
 	bs_sim *s = bs_new(G, 4);
-	static char dump[16384], text[32768], err[200];
+	static char dump[32768], text[32768], err[200];
 	bt_vocab *v = bt_vocab_new();
 	bt_forest *f;
 	size_t n = bc_vocab_dump(dump, sizeof dump), len = 0;
@@ -1196,6 +1197,19 @@ static int is_json(const char *text)
 	return q && !*js_skip(q);
 }
 
+/* the watched bot kept alive: what is looked at is its thinking, and a
+ * death in the arena's fight (which one is the trees' business) would
+ * leave nothing to look at */
+static void run_alive(bs_sim *s, double secs, int pid)
+{
+	int i;
+
+	for (i = 0; i < (int)(secs * 60.0); i++) {
+		if (s->p[pid].alive) s->p[pid].hp = 250;       /* above a head shot */
+		bs_step(s);
+	}
+}
+
 static void test_watch(void)
 {
 	enum { OUT = 1 << 18 };
@@ -1212,7 +1226,7 @@ static void test_watch(void)
 	teams(s, 4, 91);
 	bs_set(s, 0, "name=Bot \"zero\"");
 	bs_set(s, BL_NO_PLAYER, "item.medkit.tree=seq\n\tif health_below 40\n\tdo use medkit self");
-	bs_run(s, 6.0);
+	run_alive(s, 6.0, 0);
 
 	/* nobody watched: a snapshot all the same, with no worths in it */
 	CHECK(!bc_engine_watched(s->e, 0));
@@ -1229,7 +1243,7 @@ static void test_watch(void)
 	bc_engine_watch(s->e, 0, 1);
 	bc_engine_watch(s->e, 200, 1);                     /* no such bot: nothing */
 	CHECK(bc_engine_watched(s->e, 0) && !bc_engine_watched(s->e, 1) && !bc_engine_watched(s->e, 200));
-	bs_run(s, 3.0);
+	run_alive(s, 3.0, 0);
 	b = bc_engine_bot(s->e, 0);
 	n = bc_engine_snapshot(s->e, 0, out, OUT);
 	CHECK(n < OUT && is_json(out) && strstr(out, "\"traced\": true"));
@@ -1249,7 +1263,7 @@ static void test_watch(void)
 	/* a change of tree: still watched, and the binding says the nodes changed */
 	k = (int)b->binds;
 	bs_set(s, 0, "tree=tree post:\npick every=1\n\toption none always\n\t\tdo hold self 99\n");
-	bs_run(s, 1.5);
+	run_alive(s, 1.5, 0);
 	n = bc_engine_snapshot(s->e, 0, out, OUT);
 	CHECK(is_json(out) && (int)b->binds == k + 1 && strstr(out, "\"tree\": \"post\", \"tree_from\": \"own\""));
 	CHECK(strstr(out, "\"traced\": true") && strstr(out, "\"worth\"") && strstr(out, "\"doing\": \"pick:none > hold\""));

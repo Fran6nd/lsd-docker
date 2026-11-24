@@ -40,7 +40,11 @@ select
 tree default_cover:
 seq
 	do crouch                                 # the flinch, facing the shot
-	do take_cover
+	select
+		seq
+			if cover_in_view              # cover it can see as it faces him
+			do take_cover in_view         # there, its eyes on him all the way
+		do crouch 3                       # none: down where it stands, facing him
 
 tree default_also:
 seq

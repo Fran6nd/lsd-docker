@@ -2171,7 +2171,7 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 	bc_aim_v3 eye, cur;
 	bl_vec3 ori, look_at = b->wish.look_at;
 	uint8_t keys = 0, mouse = 0, flags = BL_I_VALID, tool = b->wish.tool;
-	int nav, precise = 0, flying = 0, look = b->wish.look, look_pid = b->wish.look_pid, on_target = 0;
+	int nav, precise = 0, flying = 0, look = b->wish.look, look_pid = b->wish.look_pid, on_target = 0, heading = 0;
 	float dist = 1e9f, dx, dy, dz, wx = 0.0f, wy = 0.0f;
 
 	memset(&out, 0, sizeof out);
@@ -2180,7 +2180,9 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 	/* --- the route */
 	nav = bc_mover_act(b, &body, &cmd);
 	if (nav) {
-		int kind = cmd.step >= 0 && cmd.step < b->mv.route.n ? b->mv.route.steps[cmd.step].kind : 0;
+		/* past the last step (braking at the end) is no move that needs
+		 * the facing: the head is not snapped round to the follower's */
+		int kind = cmd.step >= 0 && cmd.step < b->mv.route.n ? b->mv.route.steps[cmd.step].kind : BC_NAV_WALK;
 
 		precise = cmd.edit != BC_NAV_EDIT_NONE ||
 		          !(kind == BC_NAV_WALK || kind == BC_NAV_SPRINT || kind == BC_NAV_CROUCH);
@@ -2213,9 +2215,20 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 		precise = 0;
 	/* travelling with nothing to aim at: the head is its own (skill_look.c) */
 	b->gaze.free = 0;
-	if (nav && !precise && look == BC_LOOK_AHEAD && !e->gaze_off && bc_look_travel(b, &cmd, &look_at)) {
+	if (nav && !precise && look == BC_LOOK_AHEAD && !e->gaze_off) {
+		heading = bc_look_travel(b, &cmd, &look_at);
+		b->gaze.free = heading != 0;
+		if (heading == 1) look = BC_LOOK_POINT;
+		heading = heading == 2;
+	}
+	/* walked by hand (no route: a bound begun, a pace, somewhere else for
+	 * a moment) with nothing to look at: the way it walks */
+	if (!nav && look == BC_LOOK_AHEAD && b->wish.move == BC_MOVE_FREE && !e->gaze_off &&
+	    (b->wish.mx != 0.0f || b->wish.my != 0.0f)) {
 		look = BC_LOOK_POINT;
-		b->gaze.free = 1;
+		look_at = me->pos;
+		look_at.x += b->wish.mx * 8.0f;
+		look_at.y += b->wish.my * 8.0f;
 	}
 
 	/* --- the head */
@@ -2231,10 +2244,12 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 
 		if (l > 1e-4f) { o.x = cmd.ori.x / l; o.y = cmd.ori.y / l; o.z = cmd.ori.z / l; }
 		else o = cur;
+		if (heading)
+			o = bc_look_heading(b, o, dt);  /* on the heading, turned to it as a head turns */
 		bc_aim_snap(&b->aim, o);
 		b->aim.ori = o;
 		ori.x = o.x; ori.y = o.y; ori.z = o.z;
-		keys = cmd.keys;
+		keys = heading ? remap_keys(cmd.keys, cmd.ori, ori, 0) : cmd.keys;
 	} else {
 		int firing = e->now < b->fight.burst_until;
 

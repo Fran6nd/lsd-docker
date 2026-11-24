@@ -60,7 +60,9 @@ enum {
 	BC_LEADERS_MAX = 8          /* a team's leaders */
 };
 
-enum { BC_COVER_HIDE = 0, BC_COVER_ADVANCE, BC_COVER_BACK };
+/* BC_COVER_VIEW: HIDE, but only cells within a cone toward the threat
+ * (bc_cover_view): cover the bot can see as it faces what shot at it */
+enum { BC_COVER_HIDE = 0, BC_COVER_ADVANCE, BC_COVER_BACK, BC_COVER_VIEW };
 
 enum { BC_MOVE_NONE = 0, BC_MOVE_GOTO, BC_MOVE_FREE };
 enum { BC_LOOK_AHEAD = 0, BC_LOOK_POINT, BC_LOOK_TARGET };
@@ -156,6 +158,7 @@ typedef struct bc_cover_q {
 	int16_t radius;
 	bl_vec3 threat, toward, me;
 	float me_td, me_dd;     /* the bot's distance to the threat, to `toward` */
+	float cone;             /* BC_COVER_VIEW: the cosine of the cone's half-angle */
 	bc_nav_node origin;
 	uint16_t head, tail;
 	float best_score;
@@ -264,7 +267,7 @@ typedef struct bc_bot {
 	 * skill_cover.c, skill_tactics.c) */
 	bc_gaze gaze;
 	bc_cover_q cq;
-	struct { uint8_t phase, crouch, tries, peeking, has_peek, pad_[3];
+	struct { uint8_t phase, crouch, tries, peeking, has_peek, view, pad_[2];
 	         double until, peek_at, peek_until, seen_since, go_since, asked_at; bl_vec3 goal, peek; } tc;
 	struct { uint8_t phase, crouch, bounds, mode; double until, since, quiet_since, asked_at; bl_vec3 goal, dest; } bd;
 	struct { double until, flinched_for; } cr;
@@ -544,8 +547,13 @@ int bc_nearest_mate(const bc_bot *b, float *dist);
 /* --- skill_look.c ------------------------------------------------------ */
 
 /* ACT, on a plain stretch of route with nothing to aim at: where the head
- * looks. 0 when the follower must keep it (see the file). */
+ * looks. 0 when the follower must keep it (see the file); 1 a glance, at
+ * `at`, the aim model's; 2 ON THE HEADING: the follower's facing, turned
+ * to by bc_look_heading (a turn eased in, no reaction delay) */
 int bc_look_travel(bc_bot *b, const bc_nav_cmd *cmd, bl_vec3 *at);
+/* The head turned from where it is toward `want` (a unit vector) as far as
+ * it turns in dt: most of the way at once, at most 400 degrees a second. */
+bc_aim_v3 bc_look_heading(const bc_bot *b, bc_aim_v3 want, float dt);
 
 /* --- skill_cover.c ----------------------------------------------------- */
 
@@ -557,6 +565,11 @@ int bc_look_travel(bc_bot *b, const bc_nav_cmd *cmd, bl_vec3 *at);
  * counts. Asked again with the same things it goes on, or answers from
  * what it found under a second ago. */
 int bc_cover_query(bc_bot *b, bl_vec3 threat, int mode, const bl_vec3 *toward, int radius, int budget);
+/* Cover in view (the condition cover_in_view, take_cover in_view): a
+ * BC_COVER_VIEW search within `radius` walked steps and a cone of
+ * `degrees` (the whole angle) about the bearing to the threat, run to its
+ * end at once (cached a second, as any query). 1 found, b->cq says where. */
+int bc_cover_view(bc_bot *b, bl_vec3 threat, int radius, float degrees);
 /* What this bot is hiding from or would: the man it fights, where a hit
  * came from, the nearest enemy it knows of. 0 with none. */
 int bc_threat_place(bc_bot *b, bl_vec3 *out);

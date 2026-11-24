@@ -37,7 +37,9 @@ select
 		do seek                               # the net: the enemy's base
 
 # Shot at (hurt, a round close by, a mate dropped beside it): down at
-# once, then one of these -- by caution, health, and the odds.
+# once, then one of these -- by caution, health, and the odds. Nobody
+# turns his back to go looking for cover: cover it can see as it faces
+# him, or it faces him where it is. Only falling back moves it away.
 tree tdm_under_fire:
 seq
 	do crouch                                 # the flinch, facing the shot
@@ -45,7 +47,7 @@ seq
 		option aggression enemy_visible       # fight back from where it stands
 			do fight
 		option caution under_fire x1.1        # to cover, and fight from it
-			do take_cover
+			tree tdm_take_cover
 		option caution pressed x1.4           # hurt or outnumbered: back, from cover to cover
 			do fall_back_by_cover
 		option greed grenade_worth x0.6       # he is behind something: a grenade
@@ -54,6 +56,16 @@ seq
 			do advance_by_cover search
 		option none always x0.1               # nothing known of the shot: on with the game
 			do seek
+
+# Cover it can see, facing what shot at it -- ahead or across, never
+# behind its back -- and it goes there with its eyes on him. None in
+# view: down where it stands, facing him, shooting if it sees him.
+tree tdm_take_cover:
+select
+	seq
+		if cover_in_view
+		do take_cover in_view
+	do crouch 3
 
 # An enemy in sight, and not (or no longer) under fire.
 tree tdm_contact:

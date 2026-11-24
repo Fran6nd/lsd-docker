@@ -3,22 +3,30 @@
  *
  * A bot walking a route with nothing to aim at used to have the
  * follower's facing for a head: it turned exactly as it steered, cell by
- * cell, which reads as a machine on rails. Here the head is its own on
- * every stretch where the facing is not needed to make the move:
+ * cell, which reads as a machine on rails. Then (2026-11-24) the head was
+ * the aim model's on every plain stretch, at a point 6 blocks ahead along
+ * the route, with a glance every 2 to 6 s of up to 1.5 s: measured on the
+ * bench, the head was within 30 degrees of the way the body went only a
+ * third to a half of the travelling time (corners re-triggered the aim
+ * model's reaction delay at every turn of a route, and the glances were
+ * long). The owner: "bots should look where they are headed more". So now
+ * (2026-11-25), HEADING FIRST, glances the exception:
  *
- *  - MOSTLY AHEAD, but a few blocks ahead along the ROUTE (6), not at the
- *    next cell: the head comes round a corner before the feet do, and
- *    does not twitch with each stride.
- *  - GLANCES, timed by character and level (one every 2 to 6 s) and more
- *    than twice as often when alert (a noise, a hit, a man lost, within
- *    the last 12 s; the first of them comes at once): at the place most
- *    worth a look (where a noise came from, where a man was lost, where
- *    the enemy is expected), at an opening beside the route it is about
- *    to pass (a bearing 40 to 115 degrees off the way it goes along which
- *    it can see 14 blocks, best where the bearing next to it is shut: a
- *    corner), and over a shoulder now and then. A glance lasts the head's
- *    own reaction time and 0.45 to 1 s more: the aim model (aim.h) makes
- *    the turn, so it is a person's turn.
+ *  - ON THE HEADING: the follower's own facing, but turned to as a head
+ *    turns (bc_look_heading: most of the error at once, eased, at most
+ *    400 degrees a second, no reaction delay -- a walker does not "react"
+ *    to his own path), and the keys re-expressed for that head. So no
+ *    twitch cell by cell, and no lag of half a second at each corner.
+ *  - GLANCES, short and fewer: one every 4.5 to 9 s by character and
+ *    level, 0.6 of that when alert (a noise, a hit, a man lost, within the
+ *    last 12 s; the first comes at once), lasting the head's reaction time,
+ *    the turn there (at about 300 degrees a second) and 0.25 to 0.55 s
+ *    to take it in, the aim model (aim.h) making the turn there
+ *    and bc_look_heading the turn back. At the place most worth a look
+ *    (where a noise came from, a man was lost, the enemy is expected), at
+ *    an opening beside the route it is about to pass (a bearing 40 to 115
+ *    degrees off the way it goes along which it can see 14 blocks, best
+ *    after a wall: a corner), and over a shoulder rarely (more when alert).
  *  - Sight is the head's cone (senses.c reads the facing the server has),
  *    so a glance that falls on an enemy is how he gets seen.
  *
@@ -32,9 +40,9 @@
  *              SPRINT, CROUCH, no edit, not into water) over cells with
  *              nothing to fall off beside them: each of the 8 columns
  *              round has a wall, or a floor at most one down;
- *    aligned   fewer than 4 such steps ahead: the head is still the aim
- *              model's but looks where the follower faces, so that when
- *              the follower takes it back there is nothing to snap;
+ *    aligned   fewer than 4 such steps ahead: on the heading, no glance
+ *              begun, so that when the follower takes it back there is
+ *              nothing to snap;
  *    kept      fewer than 2: the follower's, as before.
  * A glance is only begun with 6 such steps ahead. (Wanted from nav: a
  * flag in bc_nav_cmd, "the facing is free this tick", and how many ticks
@@ -46,7 +54,6 @@
 #include "brain.h"
 
 enum { CLEAR_GLANCE = 6, CLEAR_FREE = 4, CLEAR_KEPT = 2 };
-static const float AHEAD = 6.0f;
 
 static int plain_step(const bc_nav_step *s)
 {
@@ -72,13 +79,6 @@ static int open_cell(const bc_map *m, bc_nav_node n)
 	return 1;
 }
 
-static float flat(bl_vec3 a, bl_vec3 b)
-{
-	float dx = a.x - b.x, dy = a.y - b.y;
-
-	return sqrtf(dx * dx + dy * dy);
-}
-
 static int alert_now(const bc_bot *b)
 {
 	const bc_senses *s = &b->senses;
@@ -95,12 +95,12 @@ static double interval(bc_bot *b)
 {
 	const float *t = b->persona.trait;
 	float ch = 0.55f + 0.25f * t[BC_T_CURIOSITY] + 0.20f * t[BC_T_CAUTION];
-	float v = bc_rng_range(&b->rng, 2.2f, 5.5f);
+	float v = bc_rng_range(&b->rng, 4.5f, 9.0f);
 
 	if (ch < 0.6f) ch = 0.6f;
 	if (ch > 1.6f) ch = 1.6f;
 	v = v / ch * (1.25f - 0.05f * (float)b->level);
-	if (alert_now(b)) v *= 0.45f;
+	if (alert_now(b)) v *= 0.6f;
 	return (double)v;
 }
 
@@ -110,7 +110,7 @@ static int choose(bc_bot *b, float hx, float hy, bl_vec3 probe, bl_vec3 *out)
 	bc_engine *e = b->e;
 	const bl_player *me = bc_me(b);
 	int alert = alert_now(b), have_place = 0, what = 0;
-	float w_place, w_side = 2.0f, w_back = alert ? 0.9f : 0.35f, x;
+	float w_place, w_side = 2.0f, w_back = alert ? 0.6f : 0.15f, x;
 	bl_vec3 place;
 
 	if (bc_senses_search(&b->senses, &e->sense, e->now, &place, &what) || bc_enemy_area(b, &place)) {
@@ -171,6 +171,34 @@ static int choose(bc_bot *b, float hx, float hy, bl_vec3 probe, bl_vec3 *out)
 	return 1;
 }
 
+static float wrap(float a)
+{
+	while (a > 3.14159265f) a -= 6.2831853f;
+	while (a < -3.14159265f) a += 6.2831853f;
+	return a;
+}
+
+bc_aim_v3 bc_look_heading(const bc_bot *b, bc_aim_v3 want, float dt)
+{
+	bc_aim_v3 cur = b->aim.ori, o;
+	float cy = atan2f(cur.y, cur.x), cp = asinf(cur.z < -1.0f ? -1.0f : cur.z > 1.0f ? 1.0f : cur.z);
+	float wy = atan2f(want.y, want.x), wp = asinf(want.z < -1.0f ? -1.0f : want.z > 1.0f ? 1.0f : want.z);
+	float ey = wrap(wy - cy), ep = wp - cp, f = 1.0f - expf(-12.0f * dt), cap = 7.0f * dt;     /* 400 degrees a second */
+	float sy = ey * f, sp = ep * f;
+
+	if (!(cur.x == cur.x) || (cur.x == 0.0f && cur.y == 0.0f && cur.z == 0.0f))
+		return want;
+	if (sy > cap) sy = cap;
+	if (sy < -cap) sy = -cap;
+	if (fabsf(ey) < 0.02f) sy = ey;
+	cy += sy;
+	cp += sp;
+	o.x = cosf(cy) * cosf(cp);
+	o.y = sinf(cy) * cosf(cp);
+	o.z = sinf(cp);
+	return o;
+}
+
 int bc_look_travel(bc_bot *b, const bc_nav_cmd *cmd, bl_vec3 *at)
 {
 	bc_engine *e = b->e;
@@ -179,7 +207,7 @@ int bc_look_travel(bc_bot *b, const bc_nav_cmd *cmd, bl_vec3 *at)
 	bc_gaze *g = &b->gaze;
 	float hl = sqrtf(cmd->ori.x * cmd->ori.x + cmd->ori.y * cmd->ori.y), hx, hy;
 	int i = cmd->step, k, clear;
-	bl_vec3 ahead, probe;
+	bl_vec3 probe;
 
 	if (i < 0 || i >= r->n || hl < 1e-4f || !e->have_map) {
 		g->until = 0.0;
@@ -200,30 +228,14 @@ int bc_look_travel(bc_bot *b, const bc_nav_cmd *cmd, bl_vec3 *at)
 		return 0;
 	}
 	if (clear < CLEAR_FREE) {
-		/* a move that needs the facing is near: look where the follower does */
+		/* a move that needs the facing is near: on the heading, so that
+		 * when the follower takes it back there is nothing to snap */
 		g->until = 0.0;
-		*at = me->pos;
-		at->x += hx * 8.0f;
-		at->y += hy * 8.0f;
-		return 1;
-	}
-
-	/* ahead: the first cell of the route that far off */
-	for (k = i; k < r->n; k++) {
-		ahead.x = (float)r->steps[k].to.x + 0.5f;
-		ahead.y = (float)r->steps[k].to.y + 0.5f;
-		ahead.z = (float)r->steps[k].to.z - 2.25f;
-		if (flat(ahead, me->pos) >= AHEAD)
-			break;
+		return 2;
 	}
 	probe = me->pos;
 	probe.x += hx * 3.0f;
 	probe.y += hy * 3.0f;
-	if (k >= r->n && flat(ahead, me->pos) < 2.5f) {
-		ahead = me->pos;        /* nearly there: not at its own feet */
-		ahead.x += hx * AHEAD;
-		ahead.y += hy * AHEAD;
-	}
 
 	if (g->until > 0.0) {
 		if (e->now < g->until) {
@@ -234,7 +246,7 @@ int bc_look_travel(bc_bot *b, const bc_nav_cmd *cmd, bl_vec3 *at)
 		g->next_at = e->now + interval(b);
 	}
 	if (g->next_at == 0.0)
-		g->next_at = e->now + (double)bc_rng_range(&b->rng, 0.6f, 2.5f);
+		g->next_at = e->now + (double)bc_rng_range(&b->rng, 1.5f, 4.0f);
 	{
 		/* something just happened: the next look does not wait its turn */
 		int alert = alert_now(b);
@@ -245,7 +257,12 @@ int bc_look_travel(bc_bot *b, const bc_nav_cmd *cmd, bl_vec3 *at)
 	}
 	if (e->now >= g->next_at && clear >= CLEAR_GLANCE) {
 		if (choose(b, hx, hy, probe, &g->at)) {
-			g->until = e->now + (double)(b->aim.tune.reaction_sec + bc_rng_range(&b->rng, 0.45f, 1.0f));
+			/* long enough to get there (the turn, at about 300 degrees
+			 * a second) and take it in; no longer */
+			float dx = g->at.x - me->pos.x, dy = g->at.y - me->pos.y, l = sqrtf(dx * dx + dy * dy);
+			float turn = l > 1e-3f ? acosf(fmaxf(-1.0f, fminf(1.0f, (dx * hx + dy * hy) / l))) / 5.2f : 0.0f;
+
+			g->until = e->now + (double)(b->aim.tune.reaction_sec + turn + bc_rng_range(&b->rng, 0.25f, 0.55f));
 			g->glances++;
 			e->stats.glances++;
 			*at = g->at;
@@ -253,6 +270,5 @@ int bc_look_travel(bc_bot *b, const bc_nav_cmd *cmd, bl_vec3 *at)
 		}
 		g->next_at = e->now + 0.5 * interval(b);
 	}
-	*at = ahead;
-	return 1;
+	return 2;
 }

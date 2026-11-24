@@ -31,13 +31,13 @@ DONE (commit), BLOCKED (on what).
 
 | # | Item | State |
 |---|---|---|
-| 0 | 255 players by default; joining a server with 32+ bots works; outdated clients take the spectator path | DOING (agent) |
+| 0 | 255 players by default; joining a server with 32+ bots works; outdated clients take the spectator path | REVIEW (Lua only, no C; tests green, live run on lsd-limit) |
 | 1 | This file | DONE |
 | 2 | Study of tree diagrams + a visual proof of concept for the owner to choose from | DOING (agent) |
 | 3 | Report: how botd is built, CPU with 30 bots, where the bottlenecks are | DOING (agent) |
 | 4 | Audit: every decision about WHAT that still lives in C; plan to move each | REVIEW (brain agent): bot/DECISIONS.md; 8 numbers made word arguments |
 | 5 | Archetypes as a data file beside the trees | TODO (after 4) |
-| 6 | Bots look where they are heading; shot at: cover within the field of view, else face the threat, never turn the back to search | TODO (brain agent, after 4) |
+| 6 | Bots look where they are heading; shot at: cover within the field of view, else face the threat, never turn the back to search | DOING (brain agent): checkpoint 2026-11-25, both parts in, numbers in the log |
 | 7 | Bots stuck on a roof bridge or dig their way down (engine_bots_edit=all) | TODO (brain agent) |
 | 8 | A babel tree, sent by babel_plus only when bots are added; no bots, no engine | TODO (brain agent) |
 | 9 | Remove battle_bots and the gamemodes bots, bots_rewards (setup, scripts, docs, migration of servers that run them) | TODO (after 0) |
@@ -48,6 +48,7 @@ DONE (commit), BLOCKED (on what).
 | 14 | Proposal to the owner: a behaviour's HOW written in Lua (a script skill a tree can `do`) | REPORTED, waiting for a yes |
 | 15 | Editor backend gaps: a game list as data, a quiet roster poll, an outline for text that does not compile | TODO (with 11) |
 | 16 | A release (the published image predates `lsdctl bots`; the editor refuses it) | when the owner asks |
+| 17 | Hostage gamemode: the hostages as engine bots with a tree of their own (botlink_add with a tree), falling back to today's lib_bot hostages with no engine; guards kept | TODO (brain agent, after 8) |
 
 ## Log
 
@@ -65,3 +66,33 @@ DONE (commit), BLOCKED (on what).
   `target_in_cover [secs]`, `spotted_new [secs]`, `allies_hurt_near
   <radius> [hp]`, `carry_home [voxels]`; test in skills_test. VOCAB.md
   regenerated. make -C bot test and dev/test.sh green.
+- 2026-11-25 (limit agent, item 0): cause -- player_limit_max defaulted
+  to 32 and bots take ids like people, so 32 bots held ids 0-31 and the
+  core's assign_new_pid answered 255: "server full" (disconnect reason
+  4) for every client, ZeroSpades or not. Now: player_limit_max 255 by
+  default (ids 0-254, bots included; an operator may lower it); a person
+  who finds every seat taken gets a bot's (lib_bot, engine bots first);
+  engine_bots says once in the log when it is short of seats. Above 32
+  seats a client without Player Limit takes the one outdated path
+  (lib_ext_policy, required -- a `floor` lib_player_limit registers, so
+  no policy can let it play): spectator, told every 15 s it is outdated
+  and to install ZeroSpades, and sent nothing that names another player
+  (the old "low" class is gone; only itself, as 1 above 31, the map and
+  system chat). One clock for both: from the end of the map, 10 s.
+  lsdctl init moves a 32 or 254 written under an old setup question to
+  255 (and policy applied -> required); a chosen number is kept.
+  demo-new.sh and the tree editor no longer set player_limit_max.
+- 2026-11-25 (brain agent, item 6, checkpoint): the travelling head is ON
+  THE HEADING (the follower's facing, turned to as a head turns, no
+  reaction delay at each corner; glances every 4.5-9 s, short; investigate
+  and a lost man looked at only while the place is in sight). Bench, share
+  of travelling time (nobody in sight, not shot at for 3 s) with the head
+  within 30 degrees of the way the body goes, before -> after: arena12 35
+  -> 71, arena32 22 -> 55, arena40 33 -> 48, fight6 44 -> 78, fight20 43
+  -> 70, sea40 72 -> 90, ctf10 47 -> 77 %; spells over 1 s with the head
+  over 60 degrees off, ctf10: 388 -> 45. Shot at: `cover_in_view` (cond,
+  score) and `take_cover [any|in_view] [steps] [degrees]`; take_cover moves
+  with the head on the threat and turns to it before setting off; the
+  under-fire branches of tdm/ctf/default say "cover in view: take it;
+  else crouch facing him". Scenarios in behaviour_test. Item 17 added
+  (hostages as engine bots, owner's request).

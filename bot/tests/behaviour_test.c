@@ -128,7 +128,7 @@ static void test_look(void)
 	       saw1, of, 100.0 * share1, (double)g1 / (double)of);
 	CHECK(saw0 == 0 && g0 == 0);
 	CHECK(saw1 >= of / 4);
-	CHECK(share1 > 0.08 && share1 < 0.5);
+	CHECK(share1 > 0.03 && share1 < 0.2);      /* its own head, but on the heading first (2026-11-25: was 0.08 to 0.5) */
 	CHECK(share0 < 0.03);
 	look_pass(1, 1, &saw2, &of, &share2, &g2);
 	look_pass(0, 1, &saw0, &of, &share0, &g0);
@@ -226,6 +226,115 @@ static void test_cover(void)
 	CHECK(crouched_at >= 0 && crouched_at < 20);
 	CHECK(faced * 10 >= k * 8);
 	CHECK(fabsf(s->p[0].body.pos.x - 230.5f) < 2.0f);
+	bs_free(s);
+}
+
+/* SHOT AT, THE OWNER'S RULE: no turning the back to go looking for cover.
+ * Cover it can see as it faces him, reached with the head on him; none in
+ * view, it faces him where it is. The shipped trees' branch, written out. */
+static const char COVER_FACING[] =
+	"tree=tree t:\nselect\n\tseq\n\t\tif under_fire 6\n\t\tdo crouch\n\t\tselect\n\t\t\tseq\n\t\t\t\tif cover_in_view\n"
+	"\t\t\t\tdo take_cover in_view\n\t\t\tdo crouch 3\n\twait 60\n";
+
+static float facing_cos(const bs_sim *s, int pid, bl_vec3 at)
+{
+	float dx = at.x - s->p[pid].body.pos.x, dy = at.y - s->p[pid].body.pos.y, l = sqrtf(dx * dx + dy * dy);
+	float ox = s->p[pid].ori.x, oy = s->p[pid].ori.y, o = sqrtf(ox * ox + oy * oy);
+
+	return l > 1e-3f && o > 1e-3f ? (dx * ox + dy * oy) / (l * o) : 1.0f;
+}
+
+static void test_cover_in_view(void)
+{
+	bs_sim *s;
+	bl_vec3 th;
+	int i, ticks, on, moving, moving_on, hidden_at, turned_at;
+	float moved_before_turn = 0.0f, minx;
+
+	printf("shot at: cover in view, facing him\n");
+
+	/* (1) from the front, the only cover behind it */
+	s = field(4, 180.5f, 330.5f);
+	bs_box(s, 224, 252, G - 4, 224, 260, G - 1, 1);
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, COVER_FACING);
+	bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, seed_with(BC_T_CAUTION, 1.3f, 1.6f, 10), 230.5f, 256.5f, 1, 0);
+	bs_add(s, 1, 0, 2, 5, BL_GUN_RIFLE, 1, 275.5f, 256.5f, -1, 0);
+	bs_run(s, 1.0);
+	th = eye_of(s, 1);
+	bs_hurt(s, 0, 30, 1, th, 0);
+	ticks = on = 0;
+	minx = 1e9f;
+	for (i = 0; i < 60 * 4; i++) {
+		s->p[1].hp = 100;
+		bs_step(s);
+		if (s->p[0].body.pos.x < minx) minx = s->p[0].body.pos.x;
+		if (i < 30) continue;
+		ticks++;
+		on += facing_cos(s, 0, th) > 0.707f;
+	}
+	printf("  from the front, cover only behind: head within 45 degrees of him on %d of %d ticks; it went back to x %.1f (the wall is at 224)\n",
+	       on, ticks, (double)minx);
+	CHECK(on * 10 >= ticks * 9);
+	CHECK(minx > 227.0f);
+	bs_free(s);
+
+	/* (2) cover in view, to the side ahead */
+	s = field(4, 180.5f, 330.5f);
+	bs_box(s, 240, 258, G - 4, 240, 266, G - 1, 1);
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, COVER_FACING);
+	bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, seed_with(BC_T_CAUTION, 1.3f, 1.6f, 10), 230.5f, 256.5f, 1, 0);
+	bs_add(s, 1, 0, 2, 5, BL_GUN_RIFLE, 1, 275.5f, 256.5f, -1, 0);
+	bs_run(s, 1.0);
+	th = eye_of(s, 1);
+	bs_hurt(s, 0, 30, 1, th, 0);
+	moving = moving_on = 0;
+	hidden_at = -1;
+	for (i = 0; i < 60 * 6; i++) {
+		s->p[1].hp = 100;
+		bs_step(s);
+		if (bc_body_speed(&s->p[0].body) > 1.0f) {
+			moving++;
+			moving_on += facing_cos(s, 0, th) > 0.707f;
+		}
+		if (hidden_at < 0 && !sees(s, 1, 0) && bc_body_speed(&s->p[0].body) < 0.5f) hidden_at = i;
+	}
+	printf("  cover ahead to the side: out of his sight and at rest after %.1f s, at %.1f %.1f; moving %d ticks, the head within 45 degrees of him on %d\n",
+	       hidden_at / 60.0, (double)s->p[0].body.pos.x, (double)s->p[0].body.pos.y, moving, moving_on);
+	CHECK(hidden_at >= 0 && hidden_at < 60 * 5);
+	CHECK(s->p[0].body.pos.x > 230.5f && s->p[0].body.pos.x < 240.0f && s->p[0].body.pos.y > 258.0f);     /* ahead and across, not back */
+	CHECK(moving > 10 && moving_on * 10 >= moving * 8);
+	bs_free(s);
+
+	/* (3) hit from behind by a man it never saw: it turns to him first */
+	s = field(4, 180.5f, 330.5f);
+	bs_box(s, 221, 258, G - 4, 221, 266, G - 1, 1);
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, COVER_FACING);
+	bs_set(s, BL_NO_PLAYER, "sight=20");
+	bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, seed_with(BC_T_CAUTION, 1.3f, 1.6f, 10), 230.5f, 256.5f, 1, 0);
+	bs_add(s, 1, 0, 2, 5, BL_GUN_RIFLE, 1, 185.5f, 256.5f, 1, 0);
+	bs_run(s, 1.0);
+	th = eye_of(s, 1);
+	bs_hurt(s, 0, 30, 1, th, 0);
+	turned_at = hidden_at = -1;
+	for (i = 0; i < 60 * 6; i++) {
+		float dx, dy;
+
+		bs_step(s);
+		dx = s->p[0].body.pos.x - 230.5f; dy = s->p[0].body.pos.y - 256.5f;
+		if (turned_at < 0) {
+			moved_before_turn = sqrtf(dx * dx + dy * dy);
+			if (facing_cos(s, 0, th) > 0.707f) turned_at = i;
+		}
+		if (hidden_at < 0 && !sees(s, 1, 0) && bc_body_speed(&s->p[0].body) < 0.5f) hidden_at = i;
+	}
+	printf("  hit from behind, unseen: turned to him after %.2f s, having moved %.1f; in cover in view after %.1f s, at %.1f %.1f\n",
+	       turned_at / 60.0, (double)moved_before_turn, hidden_at / 60.0, (double)s->p[0].body.pos.x, (double)s->p[0].body.pos.y);
+	CHECK(turned_at >= 0 && turned_at < 90);       /* a turn round: reaction and the turn */
+	CHECK(moved_before_turn < 1.0f);
+	CHECK(hidden_at >= 0 && s->p[0].body.pos.x < 230.0f && s->p[0].body.pos.x > 221.0f);
 	bs_free(s);
 }
 
@@ -531,6 +640,7 @@ int main(void)
 	test_look();
 	test_aim_in_air();
 	test_cover();
+	test_cover_in_view();
 	test_stuck_in_water();
 	test_harmful_water();
 	test_waiting_for_routes();

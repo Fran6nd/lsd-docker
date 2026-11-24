@@ -403,8 +403,12 @@ bt_status bc_do_investigate(void *bot, const bt_args *a, float dt)
 		b->inv.until = 0.0;
 	}
 	st = bc_move_to(b, b->inv.place, 3.0f);
-	b->wish.look = BC_LOOK_POINT;
-	b->wish.look_at = b->inv.place;
+	/* the head on the place once it can be seen from here; on the way
+	 * round to it, where it goes (the travel glances favour the place) */
+	if (flat_dist(me->pos, b->inv.place) < 24.0f && bc_sight_clear(e->have_map ? e->map : NULL, me->pos, b->inv.place)) {
+		b->wish.look = BC_LOOK_POINT;
+		b->wish.look_at = b->inv.place;
+	}
 	bc_fire_at_will(b);
 	if (st == BC_MV_FAILED) {
 		bc_senses_searched(&b->senses, b->inv.what);

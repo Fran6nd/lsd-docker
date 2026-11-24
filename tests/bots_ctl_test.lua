@@ -98,7 +98,10 @@ do
 	check(code == 0 and out:find("tdm ") ~= nil and out:find("builtin", 1, true) ~= nil, "and as a table for a person");
 
 	out, code = bots("tree default_cover");
-	check(code == 0 and out == "tree default_cover:\nseq\n\tdo crouch                                 # the flinch, facing the shot\n\tdo take_cover\n",
+	check(code == 0 and out == "tree default_cover:\nseq\n\tdo crouch                                 # the flinch, facing the shot\n"
+		.. "\tselect\n\t\tseq\n\t\t\tif cover_in_view                  # cover it can see as it faces him\n"
+		.. "\t\t\tdo take_cover in_view             # there, its eyes on him all the way\n"
+		.. "\t\tdo crouch 3                           # none: down where it stands, facing him\n",
 		"one tree as text, canonical", out);
 	out, code = bots("tree default_cover --json");
 	d = decode(out);

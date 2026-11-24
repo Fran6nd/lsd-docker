@@ -81,6 +81,9 @@ For `if` and `unless`: true or false.
 - **`under_fire [secs]`** -- it was shot at within that many seconds (default 3): hurt by somebody, a round that passed within 2.5 voxels, a team-mate killed within 12
   - `secs`: a number; left out: 3
 - **`in_cover`** -- what threatens it (the man it fights, where a hit came from) has no line of sight to its body as it stands
+- **`cover_in_view [steps] [degrees]`** -- there is cover from what threatens it within that many steps walked (default 12) and a cone of that many degrees (default 120, the whole angle) about the bearing to the threat: cover it can see as it faces him, ahead or across, not behind its back
+  - `steps`: a number; left out: 12
+  - `degrees`: a number; left out: 120
 - **`in_harmful_water`** -- it is wading in water that hurts (the settings water=lethal or water.damage)
 - **`carrying_intel`** -- it carries the other team's intel
 - **`their_intel_home`** -- the other team's intel lies where the server put it
@@ -137,6 +140,9 @@ For `option <trait> <score>`: 0 to 1, how much the situation calls for the optio
 - **`has_item <name>`** -- 1 if it holds one
   - `name`: a word; must be given
 - **`ammo_low`** -- 0 with a full load, 1 with none
+- **`cover_in_view [steps] [degrees]`** -- 1 when there is cover in view (see the condition), else 0
+  - `steps`: a number; left out: 12
+  - `degrees`: a number; left out: 120
 - **`gun_is <rifle|smg|shotgun>...`** -- 1 if its gun is one of those named, else 0
   - `gun`: one of `rifle|smg|shotgun`; may be given several times; must be given
 - **`under_fire [secs]`** -- 1 just shot at (see the condition), falling to 0 over that many seconds (default 4)
@@ -186,7 +192,10 @@ For `do`. Each says what it answers: RUNNING while it goes on, SUCCESS or FAILUR
 
 - **`crouch [secs]`** -- down where it stands, turned to what shot at it, shooting if it sees him. With no time said it is the flinch: 0.3 to 1 s by character, once for a burst of fire (asked again it succeeds at once)
   - `secs`: a number; left out: the flinch: 0.3 to 1 s by its caution, once for a burst of fire
-- **`take_cover`** -- to the best cover from what threatens it (near, well hidden, a way out behind, no team-mate in it); there crouched if the cover is low, facing the threat, peeking to fire -- rarely and long for the careful, hardly stopping for the bold. No cover in reach: crouched where it stands, turned to the threat. SUCCESS after its time there (0.8 to 14 s by character); FAILURE with no threat
+- **`take_cover [any|in_view] [steps] [degrees]`** -- to the best cover from what threatens it (near, well hidden, a way out behind, no team-mate in it), within that many steps walked (default 12), moving with its head on the threat (backing, sidestepping: never turning its back), turned to him before it sets off; there crouched if the cover is low, facing the threat, peeking to fire -- rarely and long for the careful, hardly stopping for the bold. `any`: cover in any direction; with none in reach, crouched where it stands, turned to the threat. `in_view`: only cover within that cone (default 120 degrees, the whole angle) about the bearing to the threat -- ahead or across, as it faces him -- and FAILURE at once with none (the tree then has it face him: `crouch`). SUCCESS after its time there (0.8 to 14 s by character); FAILURE with no threat
+  - `where`: one of `any|in_view`; left out: `any`
+  - `steps`: a number; left out: 12
+  - `degrees`: a number; left out: 120
 - **`advance_by_cover [place] [radius]`** -- toward a place (default: the enemy) from cover to cover, a pause at each by character; a run where no cover gains ground. SUCCESS there (at a man: at its own fighting distance); FAILURE no such place, no way
   - `place`: a [place](#places); left out: `enemy`
   - `radius`: a number; left out: 3 (at the enemy, with no radius said: its own fighting distance)

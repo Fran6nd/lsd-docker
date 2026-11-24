@@ -37,6 +37,15 @@ in sight of the man ends after 2 s).
 | `allies_hurt_near` | a mate under 50 health | `allies_hurt_near <radius> [hp]`, default 50 |
 | `carry_home` | shoots only at a man within 14 | `carry_home [voxels]`, default 14 |
 
+## Done since (step B, 2026-11-25)
+
+Rows 1, 2 and 9: `cover_in_view [steps] [degrees]` (condition and score)
+and `take_cover [any|in_view] [steps] [degrees]`; take_cover moves with
+the head on the threat whatever the mode; the shipped trees say "cover in
+view: take it; else face him (`crouch 3`)". The travelling head is on the
+heading, glances short and fewer. Row 7 (the second, older cover finder
+of `retreat`) is still open.
+
 ## The table
 
 ### Being shot at, cover, looking
