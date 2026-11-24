@@ -99,6 +99,9 @@ For `if` and `unless`: true or false.
   - `place`: a [place](#places); left out: `own_intel`
   - `radius`: a number; left out: 20
   - `count`: a number; left out: 2
+- **`fact <name> [min]`** -- a fact a server script set (botlink_set("fact.<name>", number), for every bot or for this one) is at least min; with no min, is above 0. False for a fact nobody set
+  - `name`: a word; must be given
+  - `min`: a number; left out: any value above 0
 
 ## Scores
 
@@ -167,6 +170,8 @@ For `option <trait> <score>`: 0 to 1, how much the situation calls for the optio
   - `radius`: a number; left out: 20
   - `count`: a number; left out: 2
   - `only`: one of `dropped`; left out: whatever its state, but for one somebody carries
+- **`fact <name>`** -- the value of a fact a server script set, kept within 0 to 1; 0 for one nobody set
+  - `name`: a word; must be given
 
 ## Actions
 
@@ -221,6 +226,9 @@ For `do`. Each says what it answers: RUNNING while it goes on, SUCCESS or FAILUR
   - `mode`: one of `on|off|auto`; must be given
 - **`obey`** -- do what the server's order says: go, hold, hunt a player, follow one. FAILURE with no order, SUCCESS when it is done
 - **`look_around`** -- stand and look left, right and behind. SUCCESS after three looks
+- **`tell <name> [word]...`** -- tell the server's scripts a word of the tree's own, with up to three more: whoever listens for that name (botlink_on) is called with this bot and the words. SUCCESS at once, heard or not. The same name from the same bot goes at most once in 0.2 s: put it under a cooldown, or where it is reached once
+  - `name`: a word; must be given
+  - `word`: a word; may be given several times; left out: nothing more
 - **`reload`** -- reload now if the magazine is not full. SUCCESS asked, FAILURE nothing to do
 
 ## Traits

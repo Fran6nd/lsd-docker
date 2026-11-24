@@ -149,6 +149,8 @@ static const struct { const char *name, *alias, *doc; } PLACES[PL_COUNT] = {
 	{ "carrier", NULL, "the team-mate who carries the other team's intel" },
 	{ "intercept", NULL, "where to cut the thief off on his way home" },
 };
+/* and, beside those, any place a server script named: written `@name`
+ * in a tree, set with place.<name>= (engine.c, THE BRIDGE) */
 
 int bc_place_count(void) { return PL_COUNT; }
 
@@ -170,6 +172,8 @@ int bc_place_of(bc_bot *b, const char *name, bl_vec3 *out)
 	int team = me->team, other = team == 1 ? 2 : 1, i, pl = PL_SELF;
 	const bl_object *o = NULL;
 
+	if (name && name[0] == '@')         /* a place a server script named */
+		return bc_splace_get(b, name + 1, out);
 	if (name) {
 		for (pl = 0; pl < PL_COUNT; pl++)
 			if (!strcmp(name, PLACES[pl].name) || (PLACES[pl].alias && !strcmp(name, PLACES[pl].alias)))
@@ -762,6 +766,38 @@ bt_status bc_do_lamp(void *bot, const bt_args *a, float dt)
 
 	(void)dt;
 	b->lamp = !strcmp(m, "on") ? BC_LAMP_ON : !strcmp(m, "off") ? BC_LAMP_OFF : BC_LAMP_AUTO;
+	return BT_SUCCESS;
+}
+
+bt_status bc_do_tell(void *bot, const bt_args *a, float dt)
+{
+	bc_bot *b = bot;
+	bc_engine *e = b->e;
+	char text[200];
+	uint32_t h = 2166136261u;
+	size_t n = 0;
+	const char *c;
+	int i;
+
+	(void)dt;
+	if (a->count < 1)
+		return BT_FAILURE;
+	for (c = a->text[0]; *c; c++) h = (h ^ (uint8_t)*c) * 16777619u;
+	for (i = 0; i < 4; i++)
+		if (b->told[i].name == h && b->told[i].at > 0.0 && e->now - b->told[i].at < 0.2) {
+			e->stats.tells_dropped++;       /* said a moment ago: a tree that tells at every tick */
+			return BT_SUCCESS;
+		}
+	for (i = 0; i < 4 && b->told[i].name != h; i++) ;
+	if (i == 4) i = b->told_next++ & 3;
+	b->told[i].name = h;
+	b->told[i].at = e->now > 0.0 ? e->now : 1e-9;
+	for (i = 0; i < a->count && n < sizeof text; i++)
+		n += (size_t)snprintf(text + n, sizeof text - n, "%s%s", i ? " " : "", a->text[i]);
+	if (n >= sizeof text) n = sizeof text - 1;
+	if (e->host.action)
+		e->host.action(e->host.ctx, BL_AC_TELL, b->pid, text, (uint32_t)n + 1);
+	e->stats.tells++;
 	return BT_SUCCESS;
 }
 

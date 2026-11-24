@@ -789,6 +789,23 @@ static float s_unguarded(void *bot, const bt_args *a)
 	return c_watched(bot, a) ? 0.0f : 1.0f;
 }
 
+/* what a server script set (engine.c, THE BRIDGE) */
+static int c_fact(void *bot, const bt_args *a)
+{
+	float v;
+
+	if (a->count < 1 || !bc_fact_get(bot, a->text[0], &v))
+		return 0;
+	return a->count > 1 ? v >= a->num[1] : v > 0.0f;
+}
+
+static float s_fact(void *bot, const bt_args *a)
+{
+	float v;
+
+	return a->count > 0 && bc_fact_get(bot, a->text[0], &v) ? clamp01(v) : 0.0f;
+}
+
 enum { VK_C, VK_S, VK_A };         /* the same numbers as bt.h's BT_WORD_* */
 
 typedef struct word {
@@ -961,6 +978,9 @@ static const word WORDS[] = {
 	{ VK_A, "lamp", 1, { ONE("mode", "on|off|auto") }, "flashlight: lit, out (as a bot starts), or auto (lit by night). Never lit by day. SUCCESS at once", NULL, NULL, bc_do_lamp, NULL },
 	{ VK_A, "obey", NOARGS, "do what the server's order says: go, hold, hunt a player, follow one. FAILURE with no order, SUCCESS when it is done", NULL, NULL, bc_do_obey, bc_do_stop },
 	{ VK_A, "look_around", NOARGS, "stand and look left, right and behind. SUCCESS after three looks", NULL, NULL, bc_do_look_around, bc_do_stop },
+	{ VK_C, "fact", 2, { TEXT("name"), { "min", BT_ARG_NUMBER, 0, 0, 0, 0, 0, NULL, NULL, 0.0f, 0.0f, 0.0f, NULL, "any value above 0" } }, "a fact a server script set (botlink_set(\"fact.<name>\", number), for every bot or for this one) is at least min; with no min, is above 0. False for a fact nobody set", c_fact, NULL, NULL, NULL },
+	{ VK_S, "fact", 1, { TEXT("name") }, "the value of a fact a server script set, kept within 0 to 1; 0 for one nobody set", NULL, s_fact, NULL, NULL },
+	{ VK_A, "tell", 2, { TEXT("name"), { "word", BT_ARG_TEXT, 0, 1, 0, 0, 0, NULL, NULL, 0.0f, 0.0f, 0.0f, NULL, "nothing more" } }, "tell the server's scripts a word of the tree's own, with up to three more: whoever listens for that name (botlink_on) is called with this bot and the words. SUCCESS at once, heard or not. The same name from the same bot goes at most once in 0.2 s: put it under a cooldown, or where it is reached once", NULL, NULL, bc_do_tell, NULL },
 	{ VK_A, "reload", NOARGS, "reload now if the magazine is not full. SUCCESS asked, FAILURE nothing to do", NULL, NULL, bc_do_reload, NULL },
 };
 
@@ -1034,6 +1054,10 @@ int bc_vocab_register(bt_vocab *v)
 		n += (size_t)snprintf(places + n, n < sizeof places ? sizeof places - n : 0, "%s%s%s%s", n ? "|" : "", name,
 		                      alias ? "|" : "", alias ? alias : "");
 	}
+	/* and any place a server script names: `@name` (engine.c, THE BRIDGE).
+	 * The sign is what lets a place nobody has declared compile, while a
+	 * built-in place misspelt is still a mistake */
+	n += (size_t)snprintf(places + n, n < sizeof places ? sizeof places - n : 0, "|@*");
 	ok &= n < sizeof places && bt_vocab_set(v, "place", places);
 	return ok;
 }

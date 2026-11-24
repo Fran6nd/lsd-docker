@@ -58,6 +58,8 @@ typedef struct bs_player {
 	int stuck_events;
 	char last_cmd[96];
 	int cmds;
+	char last_tell[96];         /* `do tell ...`, as the server would be handed it */
+	int tells;
 } bs_player;
 
 typedef struct bs_action { uint8_t type, pid; uint32_t bytes; uint8_t data[96]; } bs_action;
@@ -701,6 +703,10 @@ static inline int bs_do_action(bs_sim *s, const bs_action *a)
 		bs_ping(s, a->pid, g.pos.x, g.pos.y, g.pos.z, g.reason);
 		return 1;
 	}
+	case BL_AC_TELL:
+		snprintf(p->last_tell, sizeof p->last_tell, "%s", (const char *)a->data);
+		p->tells++;
+		return 1;
 	case BL_AC_COMMAND:
 		snprintf(p->last_cmd, sizeof p->last_cmd, "%s", (const char *)a->data);
 		p->cmds++;

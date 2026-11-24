@@ -1358,6 +1358,243 @@ static void test_role(void)
 	CHECK(n[1] >= 15 && n[0] + n[1] + n[2] == 24);
 }
 
+/* --- the bridge: facts, places and words between a script and the trees --- */
+
+static float dist_to(const bs_sim *s, int pid, float x, float y)
+{
+	float dx = s->p[pid].body.pos.x - x, dy = s->p[pid].body.pos.y - y;
+
+	return sqrtf(dx * dx + dy * dy);
+}
+
+static void test_bridge(void)
+{
+	bs_sim *s = arena(4);
+	char d[300], set[80];
+	bc_bot *b0, *b1;
+	float v;
+	bl_vec3 at;
+	int i, logs;
+
+	printf("the bridge: facts, places and tell\n");
+	bs_start(s);
+	bs_add(s, 0, 1, 1, 5, 0, 71, 215.5f, 250.5f, 1, 0);
+	bs_add(s, 1, 1, 1, 5, 0, 72, 215.5f, 262.5f, 1, 0);
+	/* a tree that reads a fact and goes to a script's place */
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\npick every=1 noise=0\n\toption none fact alarm x10\n\t\tseq\n\t\t\tdo go_to @post 2\n\t\t\tdo hold @post 99\n\toption none always\n\t\tdo hold self 99\n");
+	bs_run(s, 1.0);
+	b0 = bc_engine_bot(s->e, 0); b1 = bc_engine_bot(s->e, 1);
+	CHECK(s->log2_n == 0);
+	bc_engine_describe(s->e, 0, d, sizeof d);
+	CHECK(strstr(d, "hold") && !bc_fact_get(b0, "alarm", &v) && !bc_place_of(b0, "@post", &at));
+
+	/* FACTS: the world's; a bot's own over it; forgotten */
+	bs_set(s, BL_NO_PLAYER, "fact.alarm=0.4");
+	bs_set(s, 1, "fact.alarm=0");
+	bs_run(s, 0.2);
+	CHECK(bc_fact_get(b0, "alarm", &v) && v == 0.4f && bc_fact_get(b1, "alarm", &v) && v == 0.0f);
+	{
+		bt_args a;
+		bt_vocab *voc = bt_vocab_new();
+		bt_forest *f;
+		bt_state *st;
+		bt_ctx c;
+		char err[200];
+
+		/* the two words, through a tree: the condition with and without a floor, the score kept within 0 to 1 */
+		memset(&a, 0, sizeof a);
+		bc_vocab_register(voc);
+		f = bt_compile(voc, "tree a:\nif fact alarm\ntree b:\nif fact alarm 0.5\ntree c:\nif fact alarm 0.4\ntree d:\nif fact nothing\n"
+		                    "tree e:\npick\n\toption none fact alarm\n\t\tdo reload\ntree g:\npick\n\toption none fact big\n\t\tdo reload\n", err, sizeof err);
+		CHECK(f != NULL);
+		if (f) {
+			bt_worth w[2];
+
+			st = malloc(bt_state_size(f));
+			bt_state_init(st, f);
+			bt_state_trace(st, 1);
+			memset(&c, 0, sizeof c);
+			c.bot = b0;
+			CHECK(bt_tick(f, 0, st, &c) == BT_SUCCESS && bt_tick(f, 1, st, &c) == BT_FAILURE && bt_tick(f, 2, st, &c) == BT_SUCCESS);
+			CHECK(bt_tick(f, 3, st, &c) == BT_FAILURE);
+			c.bot = b1;                                 /* its own 0: not above 0 */
+			CHECK(bt_tick(f, 0, st, &c) == BT_FAILURE);
+			c.bot = b0;
+			bs_set(s, BL_NO_PLAYER, "fact.big=7");
+			bs_run(s, 0.1);
+			bt_tick(f, 4, st, &c); bt_tick(f, 5, st, &c);
+			{
+				bt_tree te, tg;
+
+				bt_forest_tree(f, 4, &te); bt_forest_tree(f, 5, &tg);
+				CHECK(bt_state_worths(f, st, te.root, w, 2) == 1 && w[0].score > 0.39f && w[0].score < 0.41f);
+				CHECK(bt_state_worths(f, st, tg.root, w, 2) == 1 && w[0].score == 1.0f);
+			}
+			free(st);
+			bt_forest_free(f);
+		}
+		bt_vocab_free(voc);
+	}
+	bs_set(s, 1, "fact.alarm=");
+	bs_set(s, BL_NO_PLAYER, "fact.big=");
+	bs_run(s, 0.2);
+	CHECK(bc_fact_get(b1, "alarm", &v) && v == 0.4f && !bc_fact_get(b0, "big", &v));      /* its own forgotten: the world's again */
+
+	/* PLACES: not set, the bots stay (go_to fails: the tree's next rule); set, they go */
+	bs_run(s, 2.0);
+	CHECK(dist_to(s, 0, 215.5f, 250.5f) < 3.0f);
+	bs_set(s, BL_NO_PLAYER, "place.post=240.5 256.5 0");
+	bs_set(s, 1, "place.post=222.5 268.5 0");          /* this one's own post */
+	bs_run(s, 12.0);
+	printf("  with fact.alarm and place.post set: #0 is %.1f from the world's post, #1 %.1f from its own\n",
+	       (double)dist_to(s, 0, 240.5f, 256.5f), (double)dist_to(s, 1, 222.5f, 268.5f));
+	CHECK(dist_to(s, 0, 240.5f, 256.5f) < 4.0f && dist_to(s, 1, 222.5f, 268.5f) < 4.0f);
+	CHECK(bc_place_of(b0, "@post", &at) && at.x == 240.5f && bc_place_of(b1, "@post", &at) && at.x == 222.5f);
+	/* a place that is a player: where he is, while he lives */
+	bs_set(s, BL_NO_PLAYER, "place.chief=pid 1");
+	bs_run(s, 0.2);
+	CHECK(bc_place_of(b0, "@chief", &at) && fabsf(at.x - s->p[1].body.pos.x) < 0.01f);
+	bs_set(s, 1, "place.post=");
+	bs_set(s, BL_NO_PLAYER, "place.chief=");
+	bs_run(s, 0.2);
+	CHECK(bc_place_of(b1, "@post", &at) && at.x == 240.5f && !bc_place_of(b0, "@chief", &at));
+	CHECK(s->log2_n == 0);
+
+	/* what is refused, each said: a name that is none, a value that is none, one too many */
+	logs = s->log2_n;
+	bs_set(s, BL_NO_PLAYER, "fact.bad-name=1");
+	bs_set(s, BL_NO_PLAYER, "fact.alarm=high");
+	bs_set(s, BL_NO_PLAYER, "place.post=here");
+	bs_set(s, BL_NO_PLAYER, "place.x y=1 2 3");
+	bs_run(s, 0.2);
+	CHECK(s->log2_n == logs + 4 && bc_fact_get(b0, "alarm", &v) && v == 0.4f);
+	for (i = 0; i < BC_FACTS_MAX + 2; i++) {
+		snprintf(set, sizeof set, "fact.f%d=1", i);
+		bs_set(s, BL_NO_PLAYER, set);
+	}
+	for (i = 0; i < BC_BOT_FACTS_MAX + 1; i++) {
+		snprintf(set, sizeof set, "fact.own%d=1", i);
+		bs_set(s, 0, set);
+	}
+	for (i = 0; i < BC_SPLACES_MAX + 1; i++) {
+		snprintf(set, sizeof set, "place.p%d=1 2 3", i);
+		bs_set(s, BL_NO_PLAYER, set);
+	}
+	bs_run(s, 0.5);
+	printf("  one fact too many: %s\n", s->log2);
+	/* the world had alarm already: 63 more fit of 66; a bot's 8 of 9; places: post is there, 31 more of 33 */
+	CHECK(s->log2_n == logs + 4 + 3 + 1 + 2 && strstr(s->log2, "no room"));
+	CHECK(bc_fact_get(b0, "f62", &v) && !bc_fact_get(b0, "f63", &v) && bc_fact_get(b0, "own7", &v) && !bc_fact_get(b0, "own8", &v));
+	bs_free(s);
+
+	/* TELL: a word and its arguments, once; said at every decision, it is bounded */
+	s = arena(4);
+	bs_start(s);
+	bs_add(s, 0, 1, 1, 5, 0, 73, 215.5f, 250.5f, 1, 0);
+	bs_add(s, 1, 1, 1, 5, 0, 74, 215.5f, 262.5f, 1, 0);
+	bs_set(s, 0, "tree=tree once:\nseq\n\talways\n\t\tcooldown 600\n\t\t\tdo tell ring_bell north 3\n\tdo hold self 99\n");
+	bs_set(s, 1, "tree=tree chatty:\nseq\n\tdo tell here\n\tdo tell there\n");
+	bs_run(s, 5.0);
+	printf("  told once: \"%s\" (%d); told at every decision for 5 s: %d sent, %u dropped\n", s->p[0].last_tell, s->p[0].tells,
+	       s->p[1].tells, (unsigned)bc_engine_stats_get(s->e)->tells_dropped);
+	CHECK(s->p[0].tells == 1 && !strcmp(s->p[0].last_tell, "ring_bell north 3"));
+	/* two names, each at most once in 0.2 s: some 25 of each in 5 s, of 100 asked */
+	CHECK(s->p[1].tells >= 30 && s->p[1].tells <= 70 && bc_engine_stats_get(s->e)->tells_dropped > 100);
+	CHECK(bc_engine_stats_get(s->e)->tells == (uint32_t)(s->p[0].tells + s->p[1].tells));
+	bs_free(s);
+}
+
+/* THE OWNER'S KIND OF GAME, whole: villagers go about near a place the
+ * script named; the script raises an alarm (a fact); they run to the
+ * church (another place), and the guard rings the bell (a word to the
+ * script) once on getting there; the alarm over, they go back. Recorded
+ * and played again: the same intents. */
+static const char VILLAGE[] =
+	"tree villager:\n"
+	"pick every=1 noise=0\n"
+	"\toption none fact alarm x10\n"            /* the alarm: to the church, and stay */
+	"\t\tseq\n"
+	"\t\t\tdo go_to @church 5\n"
+	"\t\t\tdo hold @church 60\n"
+	"\toption none always\n"                    /* the day: about the village */
+	"\t\tseq\n"
+	"\t\t\tdo go_to @village 8\n"
+	"\t\t\tdo look_around\n"
+	"\t\t\twait 2\n";
+static const char GUARD[] =
+	"tree guard:\n"
+	"pick every=1 noise=0\n"
+	"\toption none fact alarm x10\n"
+	"\t\tseq\n"
+	"\t\t\tdo go_to @church 3\n"
+	"\t\t\talways\n"
+	"\t\t\t\tcooldown 600\n"                    /* once */
+	"\t\t\t\t\tdo tell ring_bell church\n"
+	"\t\t\tdo hold @church 60\n"
+	"\toption none always\n"
+	"\t\tdo hold @village 30\n";
+
+static void test_village(void)
+{
+	bs_sim *s = arena(8), *r;
+	char set[600];
+	float far_church = 0.0f, far_village = 0.0f, far_back = 0.0f;
+	int i, k, diff = 0;
+	size_t at = 0;
+
+	printf("a village: an alarm, a church, a bell\n");
+	bs_start(s);
+	bs_rec_start(s, 60 * 60, 6);
+	for (i = 0; i < 6; i++)
+		bs_add(s, i, 1, 1, 4, i % 3, 80000u + (uint32_t)i * 31u, 210.5f + (float)i * 2.0f, 244.5f + (float)(i % 2) * 3.0f, 1, 0);
+	bs_set(s, BL_NO_PLAYER, "place.village=214.5 246.5 0");
+	bs_set(s, BL_NO_PLAYER, "place.church=286.5 268.5 0");
+	for (i = 0; i < 6; i++) {
+		snprintf(set, sizeof set, "tree=%s", i == 0 ? GUARD : VILLAGE);
+		bs_set(s, i, set);
+	}
+	bs_run(s, 10.0);
+	for (i = 0; i < 6; i++) if (dist_to(s, i, 214.5f, 246.5f) > far_village) far_village = dist_to(s, i, 214.5f, 246.5f);
+	CHECK(far_village < 14.0f && s->p[0].tells == 0);
+	bs_set(s, BL_NO_PLAYER, "fact.alarm=1");                  /* the script raises the alarm */
+	bs_run(s, 30.0);
+	for (i = 0; i < 6; i++) if (dist_to(s, i, 286.5f, 268.5f) > far_church) far_church = dist_to(s, i, 286.5f, 268.5f);
+	CHECK(far_church < 8.0f);
+	CHECK(s->p[0].tells == 1 && !strcmp(s->p[0].last_tell, "ring_bell church"));
+	for (i = 1; i < 6; i++) CHECK(s->p[i].tells == 0);
+	bs_set(s, BL_NO_PLAYER, "fact.alarm=");                   /* over */
+	bs_run(s, 20.0);
+	for (i = 0; i < 6; i++) if (dist_to(s, i, 214.5f, 246.5f) > far_back) far_back = dist_to(s, i, 214.5f, 246.5f);
+	printf("  the farthest from the village before: %.1f; from the church 30 s after the alarm: %.1f; the bell rung %d time (\"%s\");\n"
+	       "  from the village 20 s after it ended: %.1f\n", (double)far_village, (double)far_church, s->p[0].tells, s->p[0].last_tell, (double)far_back);
+	CHECK(far_back < 14.0f && s->p[0].tells == 1);
+	CHECK(s->log2_n == 0);
+
+	/* the same events and worlds, thought again: the same intents */
+	r = arena(8);
+	bs_start(r);
+	for (i = 0; i < s->rec_n; i++) {
+		int n = 0;
+
+		while (at < s->rec_ev_end[i]) {
+			const bl_record *rec = (const bl_record *)(const void *)(s->rec_ev + at);
+
+			bc_engine_event(r->e, rec);
+			at += (rec->size + 3u) & ~3u;
+		}
+		bc_engine_think(r->e, &s->rec_w[i], r->intents, 1.0f / 60.0f, s->budget);
+		for (k = 0; k < BL_MAX_PLAYERS && n < 6; k++)
+			if (s->p[k].used && s->p[k].bot) {
+				if (memcmp(&r->intents[k], &s->rec_out[(size_t)i * 6 + (size_t)n], sizeof(bl_intent))) diff++;
+				n++;
+			}
+	}
+	printf("  %d thinks played again: %d intents differ\n", s->rec_n, diff);
+	CHECK(s->rec_n == 60 * 60 && diff == 0);
+	bs_free(r);
+	bs_free(s);
+}
+
 static void test_cost(int per_team)
 {
 	bs_sim *s = arena(per_team * 2);
@@ -1477,6 +1714,8 @@ int main(void)
 	test_long_setting();
 	test_watch();
 	test_role();
+	test_bridge();
+	test_village();
 	printf("cost (this machine, -O2; a flat field with walls, NOT a real map)\n");
 	test_cost(6);
 	test_cost(16);

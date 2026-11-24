@@ -1007,6 +1007,57 @@ do
 	check(n == nil, "nor is such a bot reverted");
 	step(1);
 	check(tree_lines() == "", "and nothing of those reached the engine");
+	-- THE BRIDGE: facts and places go as settings, for all or for one;
+	-- a word from a tree (`do tell`) comes back to whoever listens
+	local function bridge_lines()
+		local got = {};
+		for _, s in ipairs(of(engine_events(), 11)) do
+			local t = ffi.string(s.raw);
+			if (t:find("^fact%.") or t:find("^place%.")) then got[#got + 1] = (s.pid == 255 and "*" or s.pid) .. ":" .. t; end
+		end
+		table.sort(got);
+		return table.concat(got, "|");
+	end
+	botlink_set("fact.alarm", 1);
+	botlink_set("fact.alarm", 0.5, npc);
+	botlink_set("place.church", "286.5 268.5 30");
+	botlink_set("place.boss", "pid " .. other, npc);
+	step(1);
+	check(bridge_lines() == "*:fact.alarm=1|*:place.church=286.5 268.5 30|" .. npc .. ":fact.alarm=0.5|" .. npc .. ":place.boss=pid " .. other,
+		"a fact and a place, for everybody and for one bot, reach the engine as they were said");
+	botlink_set("fact.alarm", "");
+	botlink_set("place.church", "");
+	step(1);
+	check(bridge_lines() == "*:fact.alarm=|*:place.church=", "and are forgotten with an empty value");
+	local heard, before = {}, botlink_stats();
+	botlink_on("ring_bell", function(pid, words) heard[#heard + 1] = pid .. ":" .. table.concat(words, ","); end);
+	local function tell(pid, text)
+		local buf = ffi.new("char[?]", #text + 1, text);
+		act(8, pid, buf, #text + 1);
+	end
+	tell(npc, "ring_bell church 3");
+	tell(other, "ring_bell");
+	tell(npc, "nobody_listens x");
+	step(1);
+	local st = botlink_stats();
+	check(#heard == 2 and heard[1] == npc .. ":church,3" and heard[2] == other .. ":", "`do tell` calls the listener with the bot and the words",
+		table.concat(heard, " "));
+	check(st.tells - before.tells == 3 and st.tells_unheard - before.tells_unheard == 1 and st.errors == before.errors
+		and st.ac_refused == before.ac_refused, "a word nobody listens for is counted, and is no error");
+	botlink_on("ring_bell", function() error("the rope broke"); end);
+	local nwarn = #logs;
+	tell(npc, "ring_bell");
+	tell(npc, "ring_bell");
+	step(1);
+	st = botlink_stats();
+	check(#logs == nwarn + 1 and logs[#logs]:find("the rope broke", 1, true) ~= nil and st.tells_unheard - before.tells_unheard == 2
+		and st.errors == before.errors, "a listener that raises is said once and dropped", logs[#logs]);
+	botlink_on("ring_bell", function(pid) heard[#heard + 1] = "again"; end);
+	botlink_off("ring_bell");
+	tell(npc, "ring_bell");
+	step(1);
+	check(#heard == 2, "botlink_off: nobody listens any more");
+	check(not pcall(botlink_on, "x", "not a function") and not pcall(botlink_on, 3, function() end), "botlink_on wants a name and a function");
 	os.remove(botlink_map_dir .. "botdebug/apply-1.bt");
 	os.execute("rmdir '" .. botlink_map_dir .. "botdebug' 2>/dev/null");
 	botlink_remove(other);

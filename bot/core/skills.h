@@ -143,6 +143,10 @@ bt_status bc_do_lamp(void *bot, const bt_args *a, float dt);
 bt_status bc_do_obey(void *bot, const bt_args *a, float dt);
 bt_status bc_do_look_around(void *bot, const bt_args *a, float dt);
 bt_status bc_do_reload(void *bot, const bt_args *a, float dt);
+/* tell <name> [args...]: a word for the server's scripts (BL_AC_TELL):
+ * SUCCESS at once. The same word from the same bot is sent at most once
+ * in 0.2 s; one too soon is dropped (and counted), and still succeeds. */
+bt_status bc_do_tell(void *bot, const bt_args *a, float dt);
 /* skill_cover.c */
 bt_status bc_do_crouch(void *bot, const bt_args *a, float dt);
 bt_status bc_do_take_cover(void *bot, const bt_args *a, float dt);

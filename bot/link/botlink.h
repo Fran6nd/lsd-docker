@@ -34,7 +34,7 @@
 
 enum {
 	BL_MAGIC = 0x4B4E4C42,     /* "BLNK", little-endian */
-	BL_VERSION = 1,
+	BL_VERSION = 2,            /* 2: BL_AC_TELL */
 	BL_MAX_PLAYERS = 256,      /* every id the server can seat */
 	BL_NO_PLAYER = 255,
 	BL_RING_BYTES = 1 << 18,   /* each queue: 256 KiB, a power of two */
@@ -253,8 +253,12 @@ enum bl_action {
 	BL_AC_COMMAND = 4,     /* text: a command line to run as the bot, no slash */
 	BL_AC_COLOR = 5,       /* uint32 0x00RRGGBB: the colour it builds in */
 	BL_AC_LOG = 6,         /* text: a line for the server's log */
-	BL_AC_PING = 7         /* bl_ac_ping: ping a place for its team, as a
+	BL_AC_PING = 7,        /* bl_ac_ping: ping a place for its team, as a
 	                          player's /pingmark does (Teamplay) */
+	BL_AC_TELL = 8         /* text: "<name> [args...]" -- a word from the
+	                          bot's tree (`do tell <name> ...`) for whatever
+	                          server script listens for that name. Not a
+	                          command: nothing is run by it */
 };
 
 typedef struct bl_ac_block {

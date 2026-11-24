@@ -194,6 +194,19 @@ typedef struct bc_order {
 
 struct bc_engine;
 
+/* THE BRIDGE to a server's scripts (engine.c): a FACT is a number a
+ * script named and set, a PLACE a point (or a player) it named. The
+ * engine knows none of them: it carries the names. */
+enum { BC_BRIDGE_NAME = 24, BC_FACTS_MAX = 64, BC_BOT_FACTS_MAX = 8, BC_SPLACES_MAX = 32, BC_BOT_SPLACES_MAX = 4 };
+
+typedef struct bc_fact { char name[BC_BRIDGE_NAME]; float value; } bc_fact;      /* name "": free */
+typedef struct bc_splace {
+	char name[BC_BRIDGE_NAME];
+	uint8_t follows;        /* 1: it is where player `pid` is, while he lives */
+	uint8_t pid;
+	bl_vec3 pos;
+} bc_splace;
+
 typedef struct bc_bot {
 	struct bc_engine *e;
 	uint8_t used, pid, level, gun;
@@ -211,6 +224,12 @@ typedef struct bc_bot {
 	size_t bt_size;
 	char tree_name[BT_NAME_MAX];    /* this bot's own, or "" */
 	char name[32];          /* what the server calls it (the setting name=), for a person */
+	/* what a server script told this bot alone (engine.c, THE BRIDGE):
+	 * over the world's of the same name */
+	bc_fact facts[BC_BOT_FACTS_MAX];
+	bc_splace places[BC_BOT_SPLACES_MAX];
+	struct { uint32_t name; double at; } told[4];   /* its last tells, for the rate bound */
+	uint8_t told_next;
 	uint8_t watched;        /* debug.c: its picks note what they weighed */
 	uint32_t binds;         /* times it was given a tree: a viewer's cue that the nodes changed */
 	bt_forest *own;         /* this bot's own tree TEXT, compiled (tree=<text> for one bot), or NULL */
@@ -355,6 +374,8 @@ typedef struct bc_engine_stats {
 	uint32_t plan_caps;         /* plans stopped at plan.cap and walked as far as they got */
 	uint32_t stuck_tries;       /* the watchdog tried a jump, a step back, a sidestep */
 	uint32_t stuck_resets;      /* ... and dropped the goal: the tree decided again */
+	uint32_t tells;             /* `do tell` sent to the server */
+	uint32_t tells_dropped;     /* ... and not sent: the same word from the same bot within 0.2 s */
 } bc_engine_stats;
 
 struct bc_engine {
@@ -412,6 +433,8 @@ struct bc_engine {
 	bc_itemdef idefs[BC_ITEMDEFS_MAX];
 	int nidefs;
 	char *base_text, *custom_text;      /* the trees as given, for recompiling */
+	bc_fact facts[BC_FACTS_MAX];        /* the world's (THE BRIDGE) */
+	bc_splace places[BC_SPLACES_MAX];
 	/* a setting too long for one record, arriving in pieces (engine.c,
 	 * SETTINGS: "+key#total=..."): what has come so far */
 	struct {
@@ -446,6 +469,11 @@ struct bc_engine {
 
 const bc_engine_stats *bc_engine_stats_get(const bc_engine *e);
 bc_bot *bc_engine_bot(bc_engine *e, int pid);
+/* THE BRIDGE, read: a fact's value (the bot's own, else the world's);
+ * a script's place, without its `@`. 0 when there is none of that name
+ * (or the player it follows is not alive). */
+int bc_fact_get(const bc_bot *b, const char *name, float *out);
+int bc_splace_get(const bc_bot *b, const char *name, bl_vec3 *out);
 /* "route 14/31 RUNJUMP", "planning" or "no route": for a log and a view */
 void bc_route_text(const bc_bot *b, char *out, size_t out_size);
 const char *bc_engine_setting(const bc_engine *e, const char *key);

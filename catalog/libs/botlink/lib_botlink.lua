@@ -46,6 +46,14 @@
 --   botlink_tree_revert(pids | nil) -> how many
 --        those bots back to the world's tree; with no pids, the world
 --        back to engine_bots_tree, else the gamemode's.
+--   botlink_set("fact.<name>", number [, pid])   a fact a tree reads
+--        (`if fact <name> [min]`, `option <trait> fact <name>`), for
+--        every bot or one; "" forgets it
+--   botlink_set("place.<name>", "x y z" | "pid <n>" [, pid])   a place a
+--        tree names `@<name>`: a point, or where that player is; ""
+--        forgets it
+--   botlink_on(name, function(pid, words) end), botlink_off(name)
+--        what a tree's `do tell <name> [words...]` calls
 --   botlink_order(pid, {order=, pos=, target=, secs=})
 --   botlink_alive() -> is an engine attached and beating
 --   botlink_stats() -> counters (dropped actions, refused ones, ...)
@@ -104,7 +112,9 @@ local tick_n, wcount, map_seq, map_file_n = 0, 0, 1, 0;
 local loading = false;
 local acting = nil;        -- the bot whose action is being applied
 
-local stats = {ev_dropped = 0, ac_dropped = 0, ac_refused = 0, attaches = 0, actions = 0, errors = 0};
+local stats = {ev_dropped = 0, ac_dropped = 0, ac_refused = 0, attaches = 0, actions = 0, errors = 0,
+	tells = 0, tells_unheard = 0};
+local tell_handlers = {};  -- name -> function(pid, args), for a tree's `do tell <name> ...`
 
 local ours = {};           -- pid -> {level=, gun=, seed=, team=}
 local life, blocks, grenades = {}, {}, {};
@@ -719,6 +729,24 @@ function botlink_tree_revert(pids)
 	return #list;
 end
 
+-- A WORD FROM A BOT'S TREE: `do tell <name> [words...]` in a tree calls
+-- the function given here for that name, with the bot and the words
+-- (strings, three at most). What the function does is the script's: this
+-- is how a tree does something the engine has no word for -- ring a
+-- bell, open a door, score a point. One handler a name (the last given);
+-- one that raises is logged and dropped. A tell nobody listens for is
+-- counted (botlink_stats().tells_unheard) and is not an error.
+function botlink_on(name, fn)
+	if (type(name) ~= "string" or type(fn) ~= "function") then
+		error("botlink_on(name, function(pid, words) ... end)", 2);
+	end
+	tell_handlers[name] = fn;
+end
+
+function botlink_off(name)
+	tell_handlers[name] = nil;
+end
+
 function botlink_order(pid, t)
 	if (ours[pid] == nil) then return; end
 	local o = type(t.order) == "number" and t.order or ORDERS[string.lower(tostring(t.order or "none"))] or 0;
@@ -1119,6 +1147,25 @@ local function drain_actions()
 					log("botlink: #%d: %s", pid, payload_text(size));
 					return true;
 				elseif (kind == 7) then return do_ping(pid);
+				elseif (kind == 8) then
+					-- a word from the bot's tree (`do tell <name> ...`): for
+					-- whoever listens for that name; nobody is not an error
+					local words = {};
+					for w in string.gmatch(payload_text(size), "%S+") do words[#words + 1] = w; end
+					local name = table.remove(words, 1);
+					local h = name ~= nil and tell_handlers[name] or nil;
+					stats.tells = stats.tells + 1;
+					if (h == nil) then
+						stats.tells_unheard = stats.tells_unheard + 1;
+						return true;
+					end
+					local good, why = pcall(h, pid, words);
+					if (not good) then
+						-- one that raises is said once and let go, as a listener of the inventory is
+						tell_handlers[name] = nil;
+						warn("the handler of tell %s failed and is dropped: %s", tostring(name), tostring(why));
+					end
+					return true;
 				end
 				return false;
 			end);
