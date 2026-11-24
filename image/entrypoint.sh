@@ -112,7 +112,7 @@ bot_helper() {
 		fails=0
 		while [ -z "$stopping" ]; do
 			started=$(date +%s)
-			su-exec lsd botd --file "$(bot_link)" &
+			su-exec lsd botd --bots 255 --file "$(bot_link)" &
 			pid=$!
 			while kill -0 "$pid" 2>/dev/null; do
 				wait "$pid" || true
