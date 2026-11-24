@@ -1462,7 +1462,8 @@ getcfg("night_far", 192,
 -- THE LAMP BEHAVIOUR, in one place so it can be adjusted. A fragment of
 -- the engine's behaviour tree in its text format (bot/core/bt.h; the
 -- words are bot/core/vocab.h's), indented with TABS. Read it as: with
--- night vision stay dark; shot at while blind, light up; the stealthy
+-- night vision stay dark; shot at while blind, light up; nobody seen or
+-- heard for 25 s, light up (or the stealthy stay blind for good); the stealthy
 -- stay dark and listen; otherwise light up at night. By day `night`
 -- scores 0, so none of it does anything.
 local BOT_TREE = table.concat({
@@ -1470,6 +1471,8 @@ local BOT_TREE = table.concat({
 	"\toption none night_vision x10",
 	"\t\tdo lamp off",
 	"\toption none hit_in_dark x10",
+	"\t\tdo lamp on",
+	"\toption none quiet 25 x5",
 	"\t\tdo lamp on",
 	"\toption stealth night",
 	"\t\tdo lamp off",
