@@ -66,6 +66,17 @@ const char *bc_trait_name(int trait);
 int bc_archetype_by_name(const char *name);
 const char *bc_archetype_name(int archetype);
 
+/* Their one line each, for a person: "take the fight, close the
+ * distance". NULL for no such trait or archetype. */
+const char *bc_trait_doc(int trait);
+const char *bc_archetype_doc(int archetype);
+
+/* What an archetype draws a trait around, and how widely (the standard
+ * deviation of the draw): 1 and 0 for BC_T_NONE. 0 for no such pair. */
+int bc_archetype_trait(int archetype, int trait, float *centre, float *spread);
+/* the bounds every trait is kept within */
+void bc_trait_range(float *min, float *max);
+
 /* "camper:2,pusher:3" into BC_A_COUNT weights (those unnamed 0; all 1
  * when the text is empty). 0 on a name it does not know. */
 int bc_archetype_weights(const char *text, float *weights);

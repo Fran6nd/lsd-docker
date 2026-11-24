@@ -623,7 +623,12 @@ text ──lines──▶ words ──nodes──▶ trees as written ──refe
    that keyword: numbers are numbers, a `pick` has only known settings,
    and every leaf **name is looked up in the vocabulary** -- a condition
    after `if`, an action after `do`, a trait and a score after `option`.
-   A name nobody registered is a mistake. The node is placed under the
+   A name nobody registered is a mistake. So are **arguments the word
+   does not take**: each word says what it takes ([VOCAB.md](VOCAB.md)),
+   and one too many or too few, a word where a number goes, a number out
+   of its range, a place there is none of, a word that is not one of
+   those allowed are refused -- `line 5: go_to: no place called
+   nowhere`. The node is placed under the
    last node one step less indented, and the shape is checked: a leaf
    takes no children, a decorator exactly one, an `option` sits directly
    under a `pick` and a `pick` has only options.
@@ -637,9 +642,15 @@ text ──lines──▶ words ──nodes──▶ trees as written ──refe
    with the C function its name stands for. One block of memory, never
    changed after.
 
-The compiler stops at the first mistake and says where and what:
-`line 12: no action called figth` (and, for a tool, the column).
+The engine says the first mistake, where and what: `line 12: no action
+called figth`. `bttree --check` says **every** mistake of a text at once
+(each with its line and, for a tool, its column): a line whose words are
+wrong keeps its place, so what is under it is still read; what merely
+follows from a line that had to be dropped is not said twice.
 A text that does not compile changes nothing: the trees running stay.
+The same holds for what arrives while the server runs: an item's or a
+script's fragment with a wrong word or a wrong argument is said in the
+log with its line and left out, and a tree sent whole is refused.
 
 ### One forest, one state a bot
 
@@ -719,10 +730,11 @@ and `none`, which is 1 for everybody.
 **archetype** -- soldier, camper, pusher, flanker, support, sapper,
 scout -- drawn by the mix the server set (all equal when unset). Each
 trait is then drawn around that archetype's centre for it, with a spread
-of 0.2 to 0.25, and kept within 0.2 and 3. A pusher's aggression is
-about 1.9 and his caution about 0.6, but no two pushers are alike. The
-roll comes from the bot's own seed: the same seed is the same character.
-The means for each archetype are the table in
+of 0.25 to 0.4, and kept within 0.2 and 3. A pusher's aggression is
+about 1.9 and his caution about 0.6, but no two pushers are alike -- one
+in five or so of each kind does something else than its kind. The roll
+comes from the bot's own seed: the same seed is the same character. The
+centre and spread of each archetype for each trait are the table in
 [VOCAB.md](VOCAB.md#archetypes).
 
 Three things lean the whole crowd, all settings the server sends

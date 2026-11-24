@@ -128,29 +128,69 @@ static void test_vocab_and_trees(void)
 	CHECK(bc_vocab_register(v));
 	CHECK(strstr(dump, "action use <item>") && strstr(dump, "cond has_night_vision") &&
 	      strstr(dump, "score hurt_in_fight") && strstr(dump, "cond enemies_grouped <count> <radius>"));
-	/* every word of the dump is a word a tree can use */
+	/* every word of the dump is a word a tree can use, with an argument
+	 * of the right kind for each it must be given (the compiler checks) */
 	len += (size_t)snprintf(text + len, sizeof text - len, "tree all:\nselect\n\tpick\n");
 	for (line = strtok(dump, "\n"); line; line = strtok(NULL, "\n")) {
 		char kind[16], name[40];
 
 		if (sscanf(line, "%15s %39s", kind, name) != 2) continue;
 		words++;
-		if (!strcmp(kind, "score"))
-			len += (size_t)snprintf(text + len, sizeof text - len, "\t\toption none %s\n\t\t\tdo roam\n", name);
 	}
-	bc_vocab_dump(dump, sizeof dump);
-	for (line = strtok(dump, "\n"); line; line = strtok(NULL, "\n")) {
-		char kind[16], name[40];
+	{
+		bc_word w;
+		int i, k, pass;
 
-		if (sscanf(line, "%15s %39s", kind, name) != 2) continue;
-		if (!strcmp(kind, "cond")) len += (size_t)snprintf(text + len, sizeof text - len, "\tif %s x\n", name);
-		if (!strcmp(kind, "action")) len += (size_t)snprintf(text + len, sizeof text - len, "\tdo %s x\n", name);
+		for (pass = 0; pass < 2; pass++)
+			for (i = 0; bc_vocab_word(i, &w); i++) {
+				if ((w.kind == BT_WORD_SCORE) != (pass == 0)) continue;
+				len += (size_t)snprintf(text + len, sizeof text - len, "%s%s", w.kind == BT_WORD_SCORE ? "\t\toption none "
+				                        : w.kind == BT_WORD_COND ? "\tif " : "\tdo ", w.name);
+				for (k = 0; k < w.n_args; k++) {
+					const bt_arg_spec *a = &w.args[k];
+					char first[32];
+
+					snprintf(first, sizeof first, "%.*s", a->values ? (int)strcspn(a->values, "|") : 0, a->values ? a->values : "");
+					len += (size_t)snprintf(text + len, sizeof text - len, " %s",
+					                        a->type == BT_ARG_NUMBER ? "1" : a->type == BT_ARG_TEXT ? "x" : a->values ? first : "self");
+				}
+				len += (size_t)snprintf(text + len, sizeof text - len, "%s", w.kind == BT_WORD_SCORE ? "\n\t\t\tdo roam\n" : "\n");
+			}
 	}
 	CHECK(words == bc_vocab_count() && words > 60);
 	f = bt_compile(v, text, err, sizeof err);
 	if (!f) printf("  %s\n", err);
 	CHECK(f != NULL);
 	if (f) bt_forest_free(f);
+	/* and an argument of the wrong kind is a mistake, said with the word */
+	{
+		static const struct { const char *text, *what; } bad[] = {
+			{ "do go_to nowhere\n", "no place called nowhere" },
+			{ "do go_to\n", "<place> is missing" },
+			{ "do go_to own_base near\n", "<radius> is a number" },
+			{ "do go_to own_base 2 3\n", "2 arguments at most" },
+			{ "do fight him\n", "takes no argument" },
+			{ "do lamp bright\n", "not one of on|off|auto" },
+			{ "if chance 2\n", "between 0 and 1" },
+			{ "if enemy_within -3\n", "0 or more" },
+			{ "pick\n\toption none vantage rifle bow\n\t\tdo roam\n", "'bow' is not one of" },
+			{ "pick\n\toption none unguarded our_intel 15 2 fallen\n\t\tdo roam\n", "not one of dropped" },
+		};
+		size_t k;
+
+		for (k = 0; k < sizeof bad / sizeof bad[0]; k++) {
+			f = bt_compile(v, bad[k].text, err, sizeof err);
+			CHECK(f == NULL && strstr(err, bad[k].what));
+			if (f || !strstr(err, bad[k].what)) printf("  {%s}: %s\n", bad[k].text, f ? "compiled" : err);
+			if (f) bt_forest_free(f);
+		}
+		/* the other names a place answers to, a repeated argument, a factor after the arguments */
+		f = bt_compile(v, "pick\n\toption none unguarded our_intel 15 2 dropped x3\n\t\tdo guard their_intel\n"
+		                  "\toption none vantage rifle smg shotgun\n\t\tdo ping enemy_group Need help\n", err, sizeof err);
+		if (!f) printf("  %s\n", err);
+		CHECK(f != NULL);
+		if (f) bt_forest_free(f);
+	}
 	bt_vocab_free(v);
 	printf("  %d words\n", words);
 
@@ -694,6 +734,24 @@ static void test_items(void)
 	bs_run(s, 15.0);
 	CHECK(s->p[0].cmds == i);
 	CHECK(s->p[0].stuck_events == 0);
+	bs_free(s);
+
+	/* a fragment whose words exist but whose ARGUMENT does not: refused
+	 * the same way, with its line and what is wrong; and a tree sent for
+	 * everybody with one is refused whole, the old one staying */
+	s = arena(4);
+	bs_start(s);
+	bs_add(s, 0, 1, 1, 5, 0, 21, 215.5f, 250.5f, 1, 0);
+	bs_set(s, BL_NO_PLAYER, "tree=tdm");
+	bs_set(s, BL_NO_PLAYER, "item.flare.tree=seq\n  if enemy_visible\n  do use flare nowhere");
+	bs_set(s, 0, "item.flare=1");
+	bs_run(s, 1.0);
+	printf("  a bad argument in an item's tree: %s\n", s->log2);
+	CHECK(s->log2_n == 1 && strstr(s->log2, "item flare") && strstr(s->log2, "line 3") && strstr(s->log2, "no place called nowhere"));
+	bs_set(s, BL_NO_PLAYER, "tree=tree mine:\nselect\n\tdo hold self soon\n");
+	bs_run(s, 1.0);
+	printf("  and in a tree sent whole: %s\n", s->log2);
+	CHECK(s->log2_n == 2 && strstr(s->log2, "line 3") && strstr(s->log2, "<secs> is a number"));
 	bs_free(s);
 
 	/* greed: the same thing held, used at different rates */

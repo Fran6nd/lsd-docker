@@ -158,12 +158,15 @@ static bt_source *whole;           /* every file as one source, not linked */
 static bt_forest *forest;          /* `full`, compiled with the engine's words */
 
 typedef struct diag { const char *file; int line, column; char message[280]; } diag;
-static diag diags[MAX_FILES + 1];
+enum { MAX_DIAGS = 200, DIAGS_A_FILE = 50 };
+static diag diags[MAX_DIAGS];
 static int n_diags;
 
 static void add_diag(const char *file, const bt_diag *d, const char *prefix)
 {
-	diag *g = &diags[n_diags++];
+	diag *g;
+	if (n_diags == MAX_DIAGS) return;
+	g = &diags[n_diags++];
 	g->file = file;
 	g->line = d->line;
 	g->column = d->column;
@@ -237,7 +240,7 @@ static int load(const bt_vocab *v, char **paths, int n)
 	for (int i = 0; i < n; i++) {
 		file *f = &files[n_files++];
 		size_t len;
-		bt_diag d;
+		bt_diag d, ds[DIAGS_A_FILE];
 		f->path = paths[i];
 		f->text = slurp(paths[i], &len);
 		if (!f->text) {
@@ -246,8 +249,9 @@ static int load(const bt_vocab *v, char **paths, int n)
 			add_diag(f->path, &d, "");
 			continue;
 		}
-		f->src = bt_parse(v, f->text, &d);
-		if (!f->src) add_diag(f->path, &d, "");
+		int nd = bt_diagnose(v, f->text, 0, ds, DIAGS_A_FILE);     /* every mistake, not the first */
+		for (int k = 0; k < nd; k++) add_diag(f->path, &ds[k], "");
+		f->src = nd ? NULL : bt_parse(v, f->text, &d);
 		f->first_line = line;
 		f->first_node = node;
 		memcpy(full + used, f->text, len);
@@ -273,9 +277,14 @@ static int load(const bt_vocab *v, char **paths, int n)
 		forest = bt_compile_diag(v, full, &d);
 	}
 	if (!forest) {
-		int local, i = where_line(d.line, &local);
-		d.line = local;
-		add_diag(i >= 0 ? files[i].path : "(bttree)", &d, n > 1 ? "with the other files: " : "");
+		bt_diag ds[DIAGS_A_FILE];
+		int nd = whole ? bt_diagnose(v, full, 1, ds, DIAGS_A_FILE) : 0;
+		if (!nd) { ds[0] = d; nd = 1; }
+		for (int k = 0; k < nd; k++) {
+			int local, i = where_line(ds[k].line, &local);
+			ds[k].line = local;
+			add_diag(i >= 0 ? files[i].path : "(bttree)", &ds[k], n > 1 ? "with the other files: " : "");
+		}
 		return 0;
 	}
 	return 1;
@@ -424,181 +433,18 @@ static const char *jtext(const jv *o, const char *key)
 }
 
 /* ---- the vocabulary, as data --------------------------------------------
- * A word's arguments are only written, today, in the usage that follows
- * its name in bc_vocab_dump ("go_to <place> [radius]"): <x> must be
- * given, [x] may be, a|b|c is one of those, ... is any number more. What
- * a number means is read off its name, and its default off the sentence
- * ("(default 60)") where that can be done without guessing. */
+ * Nothing of it is kept here: the words and their arguments are vocab.c's
+ * table (bc_vocab_word), the places skill_misc.c's (bc_place_at), the
+ * traits and archetypes persona.c's. */
 
-enum { ARGS = 6, ENUMS = 8 };
 
-typedef struct argspec {
-	char name[32];
-	const char *type;          /* number, place, string, enum */
-	int required, repeat;
-	int n_values;
-	char values[ENUMS][24];
-	int or_place;              /* enum: or any place */
-	int has_range, has_default;
-	double min, max, def;
-} argspec;
-
-typedef struct wordspec {
-	const char *kind;          /* cond, score, action */
-	char name[BT_NAME_MAX];
-	char usage[96];
-	const char *doc;
-	int n_args;
-	argspec arg[ARGS];
-} wordspec;
-
-static wordspec *words;
-static int n_wordspecs;
-
-static const char *arg_type(const char *name)
+/* an argument's type as the schema says it */
+static const char *arg_type(const bt_arg_spec *a)
 {
-	static const char *const numbers[] = { "voxels", "radius", "secs", "hp", "fraction", "count", NULL };
-	size_t n = strlen(name);
-	if (!strcmp(name, "place")) return "place";
-	for (int i = 0; numbers[i]; i++) {
-		size_t m = strlen(numbers[i]);
-		if (n >= m && !strcmp(name + n - m, numbers[i])) return "number";
-	}
-	return "string";
+	if (a->type == BT_ARG_NUMBER) return "number";
+	if (a->type == BT_ARG_TEXT) return "text";
+	return a->set && !a->values ? a->set : "enum";
 }
-
-static void parse_usage(wordspec *w)
-{
-	const char *s = w->usage;
-	while (*s && w->n_args < ARGS) {
-		while (*s == ' ') s++;
-		if (*s != '<' && *s != '[') break;
-		argspec *a = &w->arg[w->n_args++];
-		int depth = 0;
-		const char *e = s;
-		do {                                   /* to the bracket that closes this one */
-			if (*e == '<' || *e == '[') depth++;
-			else if (*e == '>' || *e == ']') depth--;
-			e++;
-		} while (*e && depth > 0);
-		char in[96];
-		snprintf(in, sizeof in, "%.*s", (int)(e - s - 2), s + 1);
-		a->required = *s == '<';
-		size_t n = strlen(in);
-		if (n > 3 && !strcmp(in + n - 3, "...")) { a->repeat = 1; in[n - 3] = 0; }
-		if (!strncmp(e, "...", 3)) { a->repeat = 1; e += 3; }
-		const char *dots = strstr(in, "..");
-		if (strchr(in, '|')) {                  /* one of these */
-			a->type = "enum";
-			snprintf(a->name, sizeof a->name, "choice");
-			for (char *tok = strtok(in, "|"); tok; tok = strtok(NULL, "|")) {
-				if (!strcmp(tok, "<place>")) a->or_place = 1;
-				else if (a->n_values < ENUMS) snprintf(a->values[a->n_values++], sizeof a->values[0], "%.23s", tok);
-			}
-		} else if (dots && isdigit((unsigned char)in[0])) {       /* <0..1>: a number within */
-			a->type = "number";
-			snprintf(a->name, sizeof a->name, "value");
-			a->has_range = 1; a->min = atof(in); a->max = atof(dots + 2);
-		} else {
-			snprintf(a->name, sizeof a->name, "%.31s", in);
-			for (char *q = a->name; *q; q++) if (*q == ' ') *q = '_';
-			a->type = arg_type(a->name);
-		}
-		s = e;
-	}
-	/* "(default 8)": to the optional numbers, when there is one for each */
-	double def[ARGS];
-	int n_def = 0, n_opt = 0;
-	for (const char *q = w->doc; (q = strstr(q, "default ")) != NULL && n_def < ARGS; q += 8) {
-		char *end;
-		double d = strtod(q + 8, &end);
-		if (end != q + 8) def[n_def++] = d;
-	}
-	for (int i = 0; i < w->n_args; i++) n_opt += !w->arg[i].required && !strcmp(w->arg[i].type, "number");
-	if (n_def != n_opt) return;
-	for (int i = 0, k = 0; i < w->n_args; i++)
-		if (!w->arg[i].required && !strcmp(w->arg[i].type, "number")) {
-			w->arg[i].has_default = 1;
-			w->arg[i].def = def[k++];
-		}
-}
-
-/* bc_vocab_dump's lines, "kind name [usage] -- what it is", into `words` */
-static int read_words(void)
-{
-	char *buf = vocab_text();
-	if (!buf) return 0;
-	words = calloc((size_t)bc_vocab_count() + 1, sizeof *words);
-	if (!words) return 0;
-	for (char *line = buf; line && *line;) {
-		char *nl = strchr(line, '\n'), *sep = strstr(line, " -- ");
-		if (nl) *nl = 0;
-		wordspec *w = &words[n_wordspecs];
-		char kind[16];
-		int used = 0;
-		if (sep && sep < (nl ? nl : sep + 1) && sscanf(line, "%15s %31s%n", kind, w->name, &used) == 2 &&
-		    n_wordspecs < bc_vocab_count()) {
-			*sep = 0;
-			w->kind = !strcmp(kind, "cond") ? "cond" : !strcmp(kind, "score") ? "score" : "action";
-			while (line[used] == ' ') used++;
-			snprintf(w->usage, sizeof w->usage, "%s", line + used);
-			w->doc = sep + 4;
-			parse_usage(w);
-			n_wordspecs++;
-		}
-		line = nl ? nl + 1 : NULL;
-	}
-	return 1;                                  /* buf is kept: the docs point into it */
-}
-
-static const struct { const char *name, *doc; } TRAIT_DOC[BC_T_COUNT] = {
-	{ "none", "always 1: an option nobody's character moves" },
-	{ "aggression", "take the fight, close the distance" },
-	{ "caution", "cover, retreat when hurt, keep range" },
-	{ "objective", "the intel, the point, the tower -- the game" },
-	{ "teamwork", "answer pings, escort, stay with the others" },
-	{ "builder", "dig and build rather than walk round" },
-	{ "marksman", "fight from far, hold an angle" },
-	{ "flank", "go round rather than through" },
-	{ "stealth", "sneak, lamp out, do not be heard" },
-	{ "curiosity", "go and look: noises, last-seen places" },
-	{ "greed", "use what it holds: items, grenades" },
-};
-
-static const char *trait_doc(int t)
-{
-	for (int i = 0; i < BC_T_COUNT; i++)
-		if (!strcmp(TRAIT_DOC[i].name, bc_trait_name(t))) return TRAIT_DOC[i].doc;
-	return "";
-}
-
-static const struct { const char *name, *doc; } PLACES[] = {
-	{ "self", "where it stands" },
-	{ "enemy", "the man it fights, else the nearest in sight, else the nearest it knows of" },
-	{ "group", "the middle of two or more enemies within 6 of one another (also: enemy_group)" },
-	{ "last_seen", "where somebody left its sight" },
-	{ "noise", "what it heard" },
-	{ "threat", "where a hit seemed to come from" },
-	{ "search", "the freshest of the last three, or a told sighting" },
-	{ "ping", "the ping it answers (the caller himself for a call for help)" },
-	{ "caller", "the one who pinged" },
-	{ "order", "where the server's order points" },
-	{ "mate", "the nearest team-mate" },
-	{ "leader", "the leader it follows" },
-	{ "cover", "the nearest place the enemy cannot see" },
-	{ "hot", "where its team last met the other" },
-	{ "enemy_area", "where the enemy is expected: `hot` if under a minute old, else his base" },
-	{ "rumour", "the freshest rumour of the enemy (the score `rumour`)" },
-	{ "vantage", "the best free perch for its gun" },
-	{ "own_base", "its team's base" },
-	{ "enemy_base", "the other team's base (also: their_base)" },
-	{ "own_intel", "its team's intel, where it is now (also: our_intel)" },
-	{ "enemy_intel", "the other team's intel, where it is now (also: their_intel)" },
-	{ "thief", "the enemy who carries this team's intel" },
-	{ "carrier", "the team-mate who carries the other team's intel" },
-	{ "intercept", "where to cut the thief off on his way home" },
-};
-enum { N_PLACES = sizeof PLACES / sizeof PLACES[0] };
 
 /* the mean trait weights of 400 bots of one archetype */
 static void archetype_means(int a, float *mean)
@@ -655,44 +501,57 @@ static const kindspec KINDS[BT_K_COUNT] = {
 	  { { "ref", "tree", "<name>", 1, 0, 0, 0, "the tree's name" } } },
 };
 
-static void schema_args(FILE *o, const wordspec *w, int pad)
+static void json_list(FILE *o, const char *list)
+{
+	fputc('[', o);
+	for (int n = 0; list && *list; n++) {
+		size_t len = strcspn(list, "|");
+		if (n) fputs(", ", o);
+		jstrn(o, list, len);
+		list += len + (list[len] == '|');
+	}
+	fputc(']', o);
+}
+
+static void schema_args(FILE *o, const bc_word *w, int pad)
 {
 	fputs("[", o);
 	for (int i = 0; i < w->n_args; i++) {
-		const argspec *a = &w->arg[i];
+		const bt_arg_spec *a = &w->args[i];
 		if (i) fputc(',', o);
 		jpad(o, pad);
 		fputs("{", o);
 		jkv(o, "name", a->name);
 		fprintf(o, ", \"required\": %s, ", a->required ? "true" : "false");
-		jkv(o, "type", a->type);
-		if (a->n_values) {
-			fputs(", \"values\": [", o);
-			for (int k = 0; k < a->n_values; k++) { if (k) fputs(", ", o); jstr(o, a->values[k]); }
-			fputc(']', o);
-		}
-		if (a->or_place) fputs(", \"or\": \"place\"", o);
+		jkv(o, "type", arg_type(a));
+		if (a->values) { fputs(", \"values\": ", o); json_list(o, a->values); }
+		if (a->values && a->set) { fputs(", \"or\": ", o); jstr(o, a->set); }
 		if (a->repeat) fputs(", \"repeat\": true", o);
-		if (a->has_range) fprintf(o, ", \"min\": %s, \"max\": %s", num(a->min), num(a->max));
+		if (a->has_min) fprintf(o, ", \"min\": %s", num(a->min));
+		if (a->has_max) fprintf(o, ", \"max\": %s", num(a->max));
 		if (a->has_default) fprintf(o, ", \"default\": %s", num(a->def));
+		if (a->def_text) { fputs(", \"default\": ", o); jstr(o, a->def_text); }
+		if (a->def_note) { fputs(", ", o); jkv(o, "default_note", a->def_note); }
 		fputs("}", o);
 	}
 	if (w->n_args) jpad(o, pad - 1);
 	fputs("]", o);
 }
 
-static void schema_words(FILE *o, const char *key, const char *kind)
+static void schema_words(FILE *o, const char *key, int kind)
 {
+	bc_word w;
 	jpad(o, 1); jkey(o, key); fputs("[", o);
-	for (int i = 0, n = 0; i < n_wordspecs; i++) {
-		const wordspec *w = &words[i];
-		if (strcmp(w->kind, kind)) continue;
+	for (int i = 0, n = 0; bc_vocab_word(i, &w); i++) {
+		char usage[128];
+		if (w.kind != kind) continue;
+		bc_vocab_usage(i, usage, sizeof usage);
 		if (n++) fputc(',', o);
 		jpad(o, 2); fputs("{", o);
-		jkv(o, "name", w->name); fputs(", ", o);
-		jkv(o, "usage", w->usage); fputs(",", o);
-		jpad(o, 3); jkey(o, "args"); schema_args(o, w, 5); fputs(",", o);
-		jpad(o, 3); jkv(o, "doc", w->doc);
+		jkv(o, "name", w.name); fputs(", ", o);
+		jkv(o, "usage", usage); fputs(",", o);
+		jpad(o, 3); jkey(o, "args"); schema_args(o, &w, 5); fputs(",", o);
+		jpad(o, 3); jkv(o, "doc", w.doc);
 		jpad(o, 2); fputs("}", o);
 	}
 	jpad(o, 1); fputs("]", o);
@@ -700,9 +559,10 @@ static void schema_words(FILE *o, const char *key, const char *kind)
 
 static int schema(FILE *o)
 {
-	if (!read_words()) return 1;
+	float lo, hi;
+	bc_trait_range(&lo, &hi);
 	fputs("{", o);
-	jpad(o, 1); fputs("\"format\": \"lsd-bt-schema\", \"version\": 1,", o);
+	jpad(o, 1); fputs("\"format\": \"lsd-bt-schema\", \"version\": 2,", o);
 	jpad(o, 1); fprintf(o, "\"limits\": {\"args\": %d, \"name\": %d, \"depth\": %d, \"words_a_line\": 16},", BT_ARGS_MAX, BT_NAME_MAX - 1, BT_DEPTH_MAX);
 	jpad(o, 1); fputs("\"answers\": [\"SUCCESS\", \"FAILURE\", \"RUNNING\"],", o);
 	jpad(o, 1); fputs("\"kinds\": [", o);
@@ -738,33 +598,42 @@ static int schema(FILE *o)
 		jpad(o, 2); fputs("}", o);
 	}
 	jpad(o, 1); fputs("],", o);
-	schema_words(o, "conditions", "cond"); fputs(",", o);
-	schema_words(o, "scores", "score"); fputs(",", o);
-	schema_words(o, "actions", "action"); fputs(",", o);
+	schema_words(o, "conditions", BT_WORD_COND); fputs(",", o);
+	schema_words(o, "scores", BT_WORD_SCORE); fputs(",", o);
+	schema_words(o, "actions", BT_WORD_ACTION); fputs(",", o);
 	jpad(o, 1); fputs("\"traits\": [", o);
 	for (int t = 0; t < BC_T_COUNT; t++) {
 		if (t) fputc(',', o);
-		jpad(o, 2); fputs("{", o); jkv(o, "name", bc_trait_name(t)); fputs(", ", o); jkv(o, "doc", trait_doc(t)); fputs("}", o);
+		jpad(o, 2); fputs("{", o); jkv(o, "name", bc_trait_name(t)); fputs(", ", o); jkv(o, "doc", bc_trait_doc(t)); fputs("}", o);
 	}
 	jpad(o, 1); fputs("],", o);
-	jpad(o, 1); fputs("\"trait_range\": [0.2, 3],", o);
+	jpad(o, 1); fprintf(o, "\"trait_range\": [%s, %s],", num(lo), num(hi));
 	jpad(o, 1); fputs("\"archetypes\": [", o);
 	for (int a = 0; a < BC_A_COUNT; a++) {
-		float mean[BC_T_COUNT];
-		archetype_means(a, mean);
 		if (a) fputc(',', o);
-		jpad(o, 2); fputs("{", o); jkv(o, "name", bc_archetype_name(a)); fputs(", \"weights\": {", o);
-		for (int t = 0; t < BC_T_COUNT; t++) {
-			if (t) fputs(", ", o);
-			jkey(o, bc_trait_name(t)); fprintf(o, "%.2f", (double)mean[t]);
+		jpad(o, 2); fputs("{", o); jkv(o, "name", bc_archetype_name(a)); fputs(", ", o);
+		jkv(o, "doc", bc_archetype_doc(a));
+		for (int pass = 0; pass < 2; pass++) {
+			jpad(o, 3); fputs(pass ? "\"spread\": {" : "\"weights\": {", o);
+			for (int t = 0; t < BC_T_COUNT; t++) {
+				float c, sp;
+				bc_archetype_trait(a, t, &c, &sp);
+				if (t) fputs(", ", o);
+				jkey(o, bc_trait_name(t)); fputs(num(pass ? sp : c), o);
+			}
+			fputs(pass ? "}" : "},", o);
 		}
-		fputs("}}", o);
+		fputs("}", o);
 	}
 	jpad(o, 1); fputs("],", o);
 	jpad(o, 1); fputs("\"places\": [", o);
-	for (int i = 0; i < N_PLACES; i++) {
+	for (int i = 0; i < bc_place_count(); i++) {
+		const char *name, *alias, *doc;
+		bc_place_at(i, &name, &alias, &doc);
 		if (i) fputc(',', o);
-		jpad(o, 2); fputs("{", o); jkv(o, "name", PLACES[i].name); fputs(", ", o); jkv(o, "doc", PLACES[i].doc); fputs("}", o);
+		jpad(o, 2); fputs("{", o); jkv(o, "name", name);
+		if (alias) { fputs(", ", o); jkv(o, "alias", alias); }
+		fputs(", ", o); jkv(o, "doc", doc); fputs("}", o);
 	}
 	jpad(o, 1); fputs("]", o);
 	fputs("\n}\n", o);
@@ -774,45 +643,79 @@ static int schema(FILE *o)
 /* --words --md: the vocabulary as a page (bot/VOCAB.md) */
 static int words_md(FILE *o)
 {
-	static const char *const title[3][3] = {
-		{ "cond", "Conditions", "For `if` and `unless`: true or false." },
-		{ "score", "Scores", "For `option <trait> <score>`: 0 to 1, how much the situation calls for the option. At 0 the option cannot be chosen." },
-		{ "action", "Actions", "For `do`. Each says what it answers: RUNNING while it goes on, SUCCESS or FAILURE when it ends." },
+	static const char *const title[3][2] = {
+		{ "Conditions", "For `if` and `unless`: true or false." },
+		{ "Scores", "For `option <trait> <score>`: 0 to 1, how much the situation calls for the option. At 0 the option cannot be chosen." },
+		{ "Actions", "For `do`. Each says what it answers: RUNNING while it goes on, SUCCESS or FAILURE when it ends." },
 	};
-	if (!read_words()) return 1;
+	bc_word w;
+	float lo, hi;
+	bc_trait_range(&lo, &hi);
 	fputs("# The words a behaviour tree may use\n\n"
-	      "<!-- GENERATED by `make -C bot doc` (bttree --words --md) from bot/core/vocab.c and\n"
-	      "     bot/core/persona.c. Do not edit: `make -C bot test` fails when it is stale. -->\n\n"
-	      "How a tree is written, and what it does with these words: [TREES.md](TREES.md).\n"
+	      "<!-- GENERATED by `make -C bot doc` (bttree --words --md) from the tables of bot/core/vocab.c,\n"
+	      "     skill_misc.c (places) and persona.c. Do not edit: `make -C bot test` fails when it is stale. -->\n\n"
+	      "How a tree is written, and what it does with these words: [TREES.md](TREES.md).\n\n"
 	      "An argument in `<angle brackets>` must be given, one in `[square brackets]` may be;\n"
-	      "`a|b|c` is one of those words; `...` is any number more. A tree may give a leaf at most\n"
-	      "four arguments.\n", o);
+	      "`a|b|c` is one of those words; `...` is any number more. Under a word that takes\n"
+	      "arguments, each is said: what it is, and what leaving it out means. The compiler checks\n"
+	      "them: a word where a number goes, a number out of its range, a place or a word that is\n"
+	      "not one of those allowed, one argument too many or too few is a mistake, said with its\n"
+	      "line and column.\n", o);
 	for (int k = 0; k < 3; k++) {
-		fprintf(o, "\n## %s\n\n%s\n\n", title[k][1], title[k][2]);
-		for (int i = 0; i < n_wordspecs; i++) {
-			const wordspec *w = &words[i];
-			if (strcmp(w->kind, title[k][0])) continue;
-			fprintf(o, "- **`%s%s%s`** -- %s\n", w->name, w->usage[0] ? " " : "", w->usage, w->doc);
+		fprintf(o, "\n## %s\n\n%s\n\n", title[k][0], title[k][1]);
+		for (int i = 0; bc_vocab_word(i, &w); i++) {
+			char usage[128];
+			if (w.kind != k) continue;
+			bc_vocab_usage(i, usage, sizeof usage);
+			fprintf(o, "- **`%s%s%s`** -- %s\n", w.name, usage[0] ? " " : "", usage, w.doc);
+			for (int j = 0; j < w.n_args; j++) {
+				const bt_arg_spec *a = &w.args[j];
+				fprintf(o, "  - `%s`: ", a->name);
+				if (a->type == BT_ARG_NUMBER) fputs("a number", o);
+				else if (a->type == BT_ARG_TEXT) fputs("a word", o);
+				else if (a->values && a->set) fprintf(o, "`%s`, or a [%s](#%ss)", a->values, a->set, a->set);
+				else if (a->set) fprintf(o, "a [%s](#%ss)", a->set, a->set);
+				else fprintf(o, "one of `%s`", a->values);
+				if (a->has_min && a->has_max) fprintf(o, ", %s to %s", num(a->min), num(a->max));
+				if (a->repeat) fputs("; may be given several times", o);
+				if (a->required) fputs("; must be given", o);
+				else if (a->has_default && a->def_note) fprintf(o, "; left out: %s (%s)", num(a->def), a->def_note);
+				else if (a->has_default) fprintf(o, "; left out: %s", num(a->def));
+				else if (a->def_text) fprintf(o, "; left out: `%s`", a->def_text);
+				else if (a->def_note) fprintf(o, "; left out: %s", a->def_note);
+				fputs("\n", o);
+			}
 		}
 	}
-	fputs("\n## Traits\n\nFor `option <trait> ...`: the bot's own weight for the trait multiplies the option's score.\n"
-	      "A weight is rolled once a bot, between 0.2 and 3, around its archetype's centre.\n\n", o);
-	for (int t = 0; t < BC_T_COUNT; t++) fprintf(o, "- **`%s`** -- %s\n", bc_trait_name(t), trait_doc(t));
-	fputs("\n## Archetypes\n\nThe kinds of bot a character is drawn from, and the mean weight each gives a trait\n"
-	      "(400 bots rolled; `none` is always 1).\n\n| |", o);
+	fprintf(o, "\n## Traits\n\nFor `option <trait> ...`: the bot's own weight for the trait multiplies the option's score.\n"
+	      "A weight is rolled once a bot, around its archetype's centre, and kept between %s and %s.\n\n", num(lo), num(hi));
+	for (int t = 0; t < BC_T_COUNT; t++) fprintf(o, "- **`%s`** -- %s\n", bc_trait_name(t), bc_trait_doc(t));
+	fputs("\n## Archetypes\n\nThe kinds of bot a character is drawn from.\n\n", o);
+	for (int a = 0; a < BC_A_COUNT; a++) fprintf(o, "- **`%s`** -- %s\n", bc_archetype_name(a), bc_archetype_doc(a));
+	fputs("\nThe centre each draws a trait around (`none` is always 1); the draw is a normal one about it,\n"
+	      "with the spread in brackets:\n\n| |", o);
 	for (int t = 1; t < BC_T_COUNT; t++) fprintf(o, " %s |", bc_trait_name(t));
 	fputs("\n|---|", o);
 	for (int t = 1; t < BC_T_COUNT; t++) fputs("---|", o);
 	fputs("\n", o);
 	for (int a = 0; a < BC_A_COUNT; a++) {
-		float mean[BC_T_COUNT];
-		archetype_means(a, mean);
 		fprintf(o, "| **%s** |", bc_archetype_name(a));
-		for (int t = 1; t < BC_T_COUNT; t++) fprintf(o, " %.2f |", (double)mean[t]);
+		for (int t = 1; t < BC_T_COUNT; t++) {
+			float c, sp;
+			bc_archetype_trait(a, t, &c, &sp);
+			fprintf(o, " %s (%s) |", num(c), num(sp));
+		}
 		fputs("\n", o);
 	}
-	fputs("\n## Places\n\nFor an argument written `<place>` or `[place]`.\n\n", o);
-	for (int i = 0; i < N_PLACES; i++) fprintf(o, "- **`%s`** -- %s\n", PLACES[i].name, PLACES[i].doc);
+	fputs("\n## Places\n\nFor an argument that is a place. A place may not exist just now (no noise heard, no intel\n"
+	      "on this map): the word that was given it then says so by its answer.\n\n", o);
+	for (int i = 0; i < bc_place_count(); i++) {
+		const char *name, *alias, *doc;
+		bc_place_at(i, &name, &alias, &doc);
+		fprintf(o, "- **`%s`**", name);
+		if (alias) fprintf(o, " (or `%s`)", alias);
+		fprintf(o, " -- %s\n", doc);
+	}
 	return 0;
 }
 
@@ -1309,24 +1212,21 @@ static const struct { bt_cond_fn c; bt_score_fn s; bt_action_fn a; } leaf[MAX_WO
 static float split_random(void *bot) { return bc_rng_float((bc_rng *)bot); }
 
 /* The engine's words, each bound to a leaf that answers from what was
- * given. The names come from the engine's own list (bc_vocab_dump). */
+ * given. The names come from the engine's own table (bc_vocab_word). */
 static bt_vocab *split_vocab(void)
 {
-	char *buf = vocab_text();
 	bt_vocab *v = bt_vocab_new();
-	if (!buf || !v) return NULL;
-	for (char *line = strtok(buf, "\n"); line; line = strtok(NULL, "\n")) {
-		char kind[16], name[BT_NAME_MAX];
-		if (sscanf(line, "%15s %31s", kind, name) != 2) continue;
-		int k = !strcmp(kind, "cond") ? 0 : !strcmp(kind, "score") ? 1 : !strcmp(kind, "action") ? 2 : -1;
-		if (k < 0 || n_words[k] == MAX_WORDS) continue;
+	bc_word w;
+	if (!v) return NULL;
+	for (int n = 0; bc_vocab_word(n, &w); n++) {
+		int k = w.kind;
+		if (n_words[k] == MAX_WORDS) continue;
 		int i = n_words[k]++;
-		snprintf(words_[k * MAX_WORDS + i].name, BT_NAME_MAX, "%s", name);
-		if (k == 0) bt_vocab_cond(v, name, leaf[i].c);
-		else if (k == 1) bt_vocab_score(v, name, leaf[i].s);
-		else bt_vocab_action(v, name, leaf[i].a, NULL);
+		snprintf(words_[k * MAX_WORDS + i].name, BT_NAME_MAX, "%s", w.name);
+		if (k == BT_WORD_COND) bt_vocab_cond(v, w.name, leaf[i].c);
+		else if (k == BT_WORD_SCORE) bt_vocab_score(v, w.name, leaf[i].s);
+		else bt_vocab_action(v, w.name, leaf[i].a, NULL);
 	}
-	free(buf);
 	for (int t = 0; t < BC_T_COUNT; t++) bt_vocab_trait(v, bc_trait_name(t), t);
 	return v;
 }

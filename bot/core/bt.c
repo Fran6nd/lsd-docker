@@ -75,12 +75,25 @@ typedef struct ventry {
 	bt_action_fn action;
 	bt_stop_fn stop;
 	int trait;
+	const bt_arg_spec *specs;   /* its arguments, if the host said (bt_vocab_args) */
+	int nspecs;                 /* -1: it did not, and nothing is checked */
 } ventry;
 
-struct bt_vocab { int n; ventry e[VOCAB_MAX]; };
+enum { SETS_MAX = 8 };
+
+struct bt_vocab {
+	int n, nsets;
+	struct { char name[BT_NAME_MAX]; char *values; } set[SETS_MAX];
+	ventry e[VOCAB_MAX];
+};
 
 bt_vocab *bt_vocab_new(void) { return calloc(1, sizeof(bt_vocab)); }
-void bt_vocab_free(bt_vocab *v) { free(v); }
+void bt_vocab_free(bt_vocab *v)
+{
+	int i;
+	for (i = 0; v && i < v->nsets; i++) free(v->set[i].values);
+	free(v);
+}
 
 static const ventry *vfind(const bt_vocab *v, int kind, const char *name)
 {
@@ -98,6 +111,7 @@ static ventry *vadd(bt_vocab *v, int kind, const char *name)
 	e = &v->e[v->n++];
 	memset(e, 0, sizeof *e);
 	e->kind = kind;
+	e->nspecs = -1;
 	strcpy(e->name, name);
 	return e;
 }
@@ -133,6 +147,45 @@ int bt_vocab_trait(bt_vocab *v, const char *name, int index)
 	if (index < 0 || !(e = vadd(v, VK_TRAIT, name))) return 0;
 	e->trait = index;
 	return 1;
+}
+
+int bt_vocab_args(bt_vocab *v, int kind, const char *name, const bt_arg_spec *specs, int n)
+{
+	int i;
+	if (!v || !name || n < 0 || n > BT_ARGS_MAX || (n && !specs)) return 0;
+	if (kind != BT_WORD_COND && kind != BT_WORD_SCORE && kind != BT_WORD_ACTION) return 0;
+	for (i = 0; i < v->n; i++)
+		if (v->e[i].kind == kind && strcmp(v->e[i].name, name) == 0) {
+			v->e[i].specs = specs;
+			v->e[i].nspecs = n;
+			return 1;
+		}
+	return 0;
+}
+
+int bt_vocab_set(bt_vocab *v, const char *name, const char *values)
+{
+	int i;
+	char *copy;
+	if (!v || !name || !values || !*name || strlen(name) >= BT_NAME_MAX) return 0;
+	for (i = 0; i < v->nsets; i++)
+		if (strcmp(v->set[i].name, name) == 0) break;
+	if (i == SETS_MAX) return 0;
+	copy = malloc(strlen(values) + 1);
+	if (!copy) return 0;
+	strcpy(copy, values);
+	if (i < v->nsets) free(v->set[i].values);
+	else strcpy(v->set[v->nsets++].name, name);
+	v->set[i].values = copy;
+	return 1;
+}
+
+const char *bt_vocab_set_values(const bt_vocab *v, const char *name)
+{
+	int i;
+	for (i = 0; v && name && i < v->nsets; i++)
+		if (strcmp(v->set[i].name, name) == 0) return v->set[i].values;
+	return NULL;
 }
 
 /* ---- the compiled forest -------------------------------------------- */
@@ -209,6 +262,7 @@ typedef struct pnode {
 	int parent, nchild, ref;
 	char *refname;
 	int col, depth, written;
+	int bad;                /* its words were wrong: kept for its place, checked no further */
 	char *text, *note, *above;
 } pnode;
 
@@ -223,8 +277,11 @@ typedef struct tok { const char *s; size_t n; } tok;
 
 typedef struct P {
 	const bt_vocab *v;
-	bt_diag d;
-	int failed;
+	bt_diag *out;           /* the mistakes found, at most maxd of them */
+	int nd, maxd;
+	int failed;             /* stop reading: maxd mistakes, or no memory */
+	int lost;               /* a line was dropped for a mistake: what follows
+	                           from it (a child with no parent) is not said */
 	const char *lstart;     /* the line being read, and the column of the */
 	int col;                /* word a mistake found now would be about */
 	char *ab;               /* comments and empty lines met since the last node */
@@ -242,14 +299,23 @@ typedef struct P {
 static void fail(P *p, int line, const char *fmt, ...)
 {
 	va_list ap;
+	bt_diag *d;
+	int i;
 	if (p->failed) return;
-	p->failed = 1;
-	p->d.line = line;
-	p->d.column = line > 0 ? p->col : 0;
+	d = &p->out[p->nd];
+	d->line = line;
+	d->column = line > 0 ? p->col : 0;
 	va_start(ap, fmt);
-	vsnprintf(p->d.message, sizeof p->d.message, fmt, ap);
+	vsnprintf(d->message, sizeof d->message, fmt, ap);
 	va_end(ap);
+	for (i = 0; i < p->nd; i++)             /* said already (a circle, met from each end) */
+		if (p->out[i].line == line && !strcmp(p->out[i].message, d->message)) return;
+	p->nd++;
+	if (p->nd >= p->maxd || line <= 0) p->failed = 1;
 }
+
+/* a mistake of shape: not said when it follows from a line dropped above */
+#define SHAPE(p, line, ...) do { if (!(p)->lost) fail(p, line, __VA_ARGS__); } while (0)
 
 static void *grow(P *p, void *arr, size_t *cap, size_t need, size_t esz)
 {
@@ -296,9 +362,73 @@ static int tonum(const char *s, float *out)
 static int is_leaf(int k) { return k == K_IF || k == K_UNLESS || k == K_DO || k == K_WAIT || k == K_REF; }
 static int is_decor(int k) { return k == K_INVERT || k == K_ALWAYS || k == K_NEVER || k == K_COOLDOWN || k == K_LIMIT; }
 
-static int set_args(P *p, bnode *b, const tok *t, int from, int to, int line)
+static int in_list(const char *list, tok w)
+{
+	while (list && *list) {
+		size_t n = strcspn(list, "|");
+		if (n == w.n && !memcmp(list, w.s, n)) return 1;
+		list += n + (list[n] == '|');
+	}
+	return 0;
+}
+
+/* a leaf's arguments against what the host said the word takes */
+static int check_args(P *p, const ventry *e, const tok *t, int from, int to, int line)
+{
+	int n = to - from, i, need = 0;
+	if (!e || e->nspecs < 0) return 1;
+	for (i = 0; i < e->nspecs; i++) if (e->specs[i].required) need = i + 1;
+	if (n < need) {
+		fail(p, line, "%s: <%s> is missing", e->name, e->specs[n].name);
+		return 0;
+	}
+	for (i = 0; i < n; i++) {
+		const bt_arg_spec *s;
+		const tok w = t[from + i];
+		char word[48];
+		float v;
+		at(p, w);
+		if (i >= e->nspecs && !(e->nspecs && e->specs[e->nspecs - 1].repeat)) {
+			if (e->nspecs == 0) fail(p, line, "%s takes no argument", e->name);
+			else fail(p, line, "%s takes %d argument%s at most", e->name, e->nspecs, e->nspecs > 1 ? "s" : "");
+			return 0;
+		}
+		s = &e->specs[i < e->nspecs ? i : e->nspecs - 1];
+		snprintf(word, sizeof word, "%.*s", (int)(w.n < sizeof word ? w.n : sizeof word - 1), w.s);
+		if (s->type == BT_ARG_NUMBER) {
+			if (w.n >= sizeof word || !tonum(word, &v)) {
+				fail(p, line, "%s: <%s> is a number, not '%s'", e->name, s->name, word);
+				return 0;
+			}
+			if ((s->has_min && v < s->min) || (s->has_max && v > s->max)) {
+				if (s->has_min && s->has_max)
+					fail(p, line, "%s: <%s> must be between %g and %g", e->name, s->name, (double)s->min, (double)s->max);
+				else if (s->has_min)
+					fail(p, line, "%s: <%s> must be %g or more", e->name, s->name, (double)s->min);
+				else
+					fail(p, line, "%s: <%s> must be %g or less", e->name, s->name, (double)s->max);
+				return 0;
+			}
+		} else if (s->type == BT_ARG_ONE_OF) {
+			const char *set = s->set ? bt_vocab_set_values(p->v, s->set) : NULL;
+			if (in_list(s->values, w) || in_list(set, w)) continue;
+			if (s->set && !set) continue;           /* a list the host never gave: not checked */
+			if (s->set && s->values)
+				fail(p, line, "%s: '%s' is neither %s nor a %s", e->name, word, s->values, s->set);
+			else if (s->set)
+				fail(p, line, "%s: no %s called %s", e->name, s->set, word);
+			else
+				fail(p, line, "%s: '%s' is not one of %s", e->name, word, s->values ? s->values : "");
+			return 0;
+		}
+	}
+	return 1;
+}
+
+static int set_args(P *p, bnode *b, const ventry *e, const tok *t, int from, int to, int line)
 {
 	int i;
+	if (!check_args(p, e, t, from, to, line)) return 0;
 	if (to - from > BT_ARGS_MAX) {
 		fail(p, line, "'%s' takes at most %d arguments", kw[b->kind], BT_ARGS_MAX);
 		return 0;
@@ -398,7 +528,7 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 			if (fs && tonum(fs, &fv) && fv >= 0) { b->factor = fv; pn->written |= BT_W_FACTOR; last--; }
 		}
 		if (last > 3) at(p, t[3]);
-		return b->trait_name && b->name && set_args(p, b, t, 3, last, line);
+		return b->trait_name && b->name && set_args(p, b, e, t, 3, last, line);
 	}
 	case K_IF: case K_UNLESS: case K_DO:
 		if (nt < 2) {
@@ -416,7 +546,7 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 		b->action = e->action;
 		b->stop = e->stop;
 		b->name = dups(p, t[1].s, t[1].n);
-		return b->name && set_args(p, b, t, 2, nt, line);
+		return b->name && set_args(p, b, e, t, 2, nt, line);
 	case K_WAIT: case K_COOLDOWN: case K_LIMIT: {
 		char *s;
 		if (nt != 2) { fail(p, line, "'%s' takes one number of seconds", kw[b->kind]); return 0; }
@@ -449,19 +579,16 @@ static void finish_tree(P *p)
 	for (k = 0; k < p->sp; k++) p->pn[p->stack[k]].n.end = (int32_t)p->npn;
 	p->sp = 0;
 	p->col = 1;
-	if ((size_t)tr->first == p->npn) { fail(p, tr->hline, "tree '%s' is empty", tr->name); return; }
-	for (j = (size_t)tr->first; j < p->npn; j++) {
+	if ((size_t)tr->first == p->npn) { SHAPE(p, tr->hline, "tree '%s' is empty", tr->name); return; }
+	for (j = (size_t)tr->first; j < p->npn && !p->failed; j++) {
 		pnode *pn = &p->pn[j];
 		int kind = pn->n.kind;
 		p->col = pn->col;
-		if (pn->nchild == 0 && (kind == K_SEQ || kind == K_SELECT || kind == K_PICK)) {
-			fail(p, pn->n.line, "'%s' needs at least one child", kw[kind]);
-			return;
-		}
-		if (pn->nchild == 0 && (is_decor(kind) || kind == K_OPTION)) {
-			fail(p, pn->n.line, "'%s' needs a child", kw[kind]);
-			return;
-		}
+		if (pn->bad || pn->nchild) continue;
+		if (kind == K_SEQ || kind == K_SELECT || kind == K_PICK)
+			SHAPE(p, pn->n.line, "'%s' needs at least one child", kw[kind]);
+		else if (is_decor(kind) || kind == K_OPTION)
+			SHAPE(p, pn->n.line, "'%s' needs a child", kw[kind]);
 	}
 }
 
@@ -591,7 +718,12 @@ static void parse_line(P *p, const char *q, size_t len, int line)
 	tr = &p->pt[p->npt - 1];
 
 	memset(&pn, 0, sizeof pn);
-	if (!fill_node(p, &pn, t, nt, line)) return;
+	if (!fill_node(p, &pn, t, nt, line)) {
+		if (p->failed) return;
+		pn.bad = 1;             /* more mistakes are wanted: it keeps its place */
+		pn.n.line = line;
+		pn.ref = pn.parent = -1;
+	}
 	at(p, t[0]);
 	pn.col = p->col;
 	pn.note = note;
@@ -610,25 +742,27 @@ static void parse_line(P *p, const char *q, size_t len, int line)
 		rel = 0;
 		p->sp = 0;
 	} else {
-		if (level < tr->base) { fail(p, line, "indented less than the tree's first node"); return; }
+		if (level < tr->base) { SHAPE(p, line, "indented less than the tree's first node"); return; }
 		rel = level - tr->base;
-		if (rel == 0) { fail(p, line, "a tree has one root node; this is a second (indent it under the first?)"); return; }
+		if (rel == 0) { SHAPE(p, line, "a tree has one root node; this is a second (indent it under the first?)"); return; }
 	}
-	if (rel > p->sp) { fail(p, line, "indented too deep: one level at a time"); return; }
+	if (rel > p->sp) { SHAPE(p, line, "indented too deep: one level at a time"); return; }
 	if (rel >= BT_DEPTH_MAX) { fail(p, line, "nested deeper than %d levels", BT_DEPTH_MAX); return; }
 	parent = rel ? p->stack[rel - 1] : -1;
-	if (parent >= 0) {
+	if (pn.bad || (parent >= 0 && p->pn[parent].bad)) {
+		;                       /* what it is is not known: its shape is not judged */
+	} else if (parent >= 0) {
 		const pnode *pp = &p->pn[parent];
 		int pk = pp->n.kind;
-		if (is_leaf(pk)) { fail(p, line, "'%s' takes no children", kw[pk]); return; }
-		if (pk == K_PICK && pn.n.kind != K_OPTION) { fail(p, line, "a pick has only options"); return; }
-		if (pn.n.kind == K_OPTION && pk != K_PICK) { fail(p, line, "an option belongs directly under a pick"); return; }
+		if (is_leaf(pk)) { SHAPE(p, line, "'%s' takes no children", kw[pk]); return; }
+		if (pk == K_PICK && pn.n.kind != K_OPTION) { SHAPE(p, line, "a pick has only options"); return; }
+		if (pn.n.kind == K_OPTION && pk != K_PICK) { SHAPE(p, line, "an option belongs directly under a pick"); return; }
 		if ((is_decor(pk) || pk == K_OPTION) && pp->nchild >= 1) {
-			fail(p, line, "'%s' takes exactly one child", kw[pk]);
+			SHAPE(p, line, "'%s' takes exactly one child", kw[pk]);
 			return;
 		}
 	} else if (pn.n.kind == K_OPTION) {
-		fail(p, line, "an option belongs directly under a pick");
+		SHAPE(p, line, "an option belongs directly under a pick");
 		return;
 	}
 	p->pn = grow(p, p->pn, &p->cappn, p->npn + 1, sizeof *p->pn);
@@ -797,30 +931,61 @@ static bt_source *build_source(P *p)
 
 /* the text into p->pn and p->pt: all that bt_parse does, and the first
  * half of bt_compile */
-static void parse_text(P *p, const bt_vocab *v, const char *text)
+/* the text into p->pn and p->pt: all that bt_parse does, and the first
+ * half of bt_compile. Mistakes go to `out`, at most `max` of them. */
+static void parse_text(P *p, const bt_vocab *v, const char *text, bt_diag *out, int max)
 {
 	const char *q;
 	int line = 0;
 
 	memset(p, 0, sizeof *p);
 	p->v = v;
-	if (!v || !text) { fail(p, 1, "no vocabulary or no text"); return; }
+	p->out = out;
+	p->maxd = max;
+	if (!v || !text) { fail(p, 1, "no vocabulary or no text"); p->failed = 1; return; }
 	for (q = text; *q && !p->failed;) {
 		const char *e = strchr(q, '\n');
-		size_t len = e ? (size_t)(e - q) : strlen(q);
+		size_t len = e ? (size_t)(e - q) : strlen(q), n0 = p->npn, t0 = p->npt;
+		int d0 = p->nd;
 		parse_line(p, q, len, ++line);
+		if (p->npn > n0 || p->npt > t0) p->lost = 0;
+		else if (p->nd > d0) p->lost = 1;
 		q = e ? e + 1 : q + len;
 	}
 	if (!p->failed) finish_tree(p);
 	p->col = 0;
-	if (!p->failed && p->npt == 0) fail(p, 1, "no tree in this text");
+	if (!p->failed && p->npt == 0 && p->nd == 0) fail(p, 1, "no tree in this text");
+}
+
+/* the second half: every reference found its tree, and each tree opened
+ * into p->em (only when nothing was wrong so far) */
+static void link_text(P *p)
+{
+	size_t i;
+	for (i = 0; i < p->npn && !p->failed; i++) {    /* resolve references, all trees being read */
+		size_t t;
+		if (p->pn[i].n.kind != K_REF || p->pn[i].bad) continue;
+		for (t = 0; t < p->npt; t++)
+			if (strcmp(p->pt[t].name, p->pn[i].refname) == 0) { p->pn[i].ref = (int)t; break; }
+		p->col = p->pn[i].col;
+		if (p->pn[i].ref < 0) fail(p, p->pn[i].n.line, "no tree called %s", p->pn[i].refname);
+	}
+	if (p->nd) return;
+	p->tstack = malloc((p->npt + 1) * sizeof *p->tstack);
+	if (!p->tstack) { fail(p, 0, "out of memory"); return; }
+	for (i = 0; i < p->npt && !p->failed; i++) {    /* expand each tree, references inlined */
+		p->tsp = 0;
+		p->tstack[p->tsp++] = (int)i;
+		p->pt[i].base = (int)p->nem;               /* base reused: the root's index in the forest */
+		emit_node(p, p->pt[i].first, 0, -1, -1);
+	}
 }
 
 static void parse_done(P *p, bt_diag *diag)
 {
 	size_t i;
 	if (diag) {
-		if (p->failed) *diag = p->d;
+		if (p->nd) *diag = p->out[0];
 		else memset(diag, 0, sizeof *diag);
 	}
 	for (i = 0; i < p->npool; i++) free(p->pool[i]);
@@ -830,9 +995,10 @@ static void parse_done(P *p, bt_diag *diag)
 bt_source *bt_parse(const bt_vocab *v, const char *text, bt_diag *diag)
 {
 	P p;
+	bt_diag one;
 	bt_source *src = NULL;
-	parse_text(&p, v, text);
-	if (!p.failed) src = build_source(&p);
+	parse_text(&p, v, text, &one, 1);
+	if (!p.nd) src = build_source(&p);
 	parse_done(&p, diag);
 	return src;
 }
@@ -840,31 +1006,13 @@ bt_source *bt_parse(const bt_vocab *v, const char *text, bt_diag *diag)
 bt_forest *bt_compile_diag(const bt_vocab *v, const char *text, bt_diag *diag)
 {
 	P p;
+	bt_diag one;
 	bt_forest *f = NULL;
 	size_t i;
 
-	parse_text(&p, v, text);
-
-	for (i = 0; i < p.npn && !p.failed; i++) {      /* resolve references, all trees being read */
-		size_t t;
-		if (p.pn[i].n.kind != K_REF) continue;
-		for (t = 0; t < p.npt; t++)
-			if (strcmp(p.pt[t].name, p.pn[i].refname) == 0) { p.pn[i].ref = (int)t; break; }
-		p.col = p.pn[i].col;
-		if (p.pn[i].ref < 0) fail(&p, p.pn[i].n.line, "no tree called %s", p.pn[i].refname);
-	}
-
-	if (!p.failed) {
-		p.tstack = malloc((p.npt + 1) * sizeof *p.tstack);
-		if (!p.tstack) fail(&p, 0, "out of memory");
-	}
-	for (i = 0; i < p.npt && !p.failed; i++) {      /* expand each tree, references inlined */
-		p.tsp = 0;
-		p.tstack[p.tsp++] = (int)i;
-		p.pt[i].base = (int)p.nem;                 /* base reused: the root's index in the forest */
-		emit_node(&p, p.pt[i].first, 0, -1, -1);
-	}
-	if (!p.failed) {
+	parse_text(&p, v, text, &one, 1);
+	if (!p.nd) link_text(&p);
+	if (!p.nd) {
 		f = build(&p);
 		if (f)
 			for (i = 0; i < p.npt; i++) {
@@ -875,6 +1023,19 @@ bt_forest *bt_compile_diag(const bt_vocab *v, const char *text, bt_diag *diag)
 	}
 	parse_done(&p, diag);
 	return f;
+}
+
+int bt_diagnose(const bt_vocab *v, const char *text, int link, bt_diag *out, int max)
+{
+	P p;
+	bt_diag one;
+	int n;
+	if (!out || max < 1) { out = &one; max = 1; }
+	parse_text(&p, v, text, out, max);
+	if (link && !p.failed) link_text(&p);
+	n = p.nd;
+	parse_done(&p, NULL);
+	return n;
 }
 
 bt_forest *bt_compile(const bt_vocab *v, const char *text, char *err, size_t err_size)

@@ -35,6 +35,7 @@
 #include <string.h>
 
 #include "brain.h"
+#include "vocab.h"
 
 static float flat_dist(bl_vec3 a, bl_vec3 b)
 {
@@ -113,48 +114,100 @@ int bc_enemy_group(bc_bot *b, int n, float radius, bl_vec3 *out)
 	return best;
 }
 
+/* THE PLACES a tree may name, in one table: the name, another name it
+ * answers to, and its line for whoever writes a tree (VOCAB.md and the
+ * editor's schema are written from it; the compiler refuses a place that
+ * is not here). The enum is the table's order. */
+enum { PL_SELF, PL_ENEMY, PL_GROUP, PL_LAST_SEEN, PL_NOISE, PL_THREAT, PL_SEARCH, PL_PING, PL_CALLER,
+       PL_ORDER, PL_MATE, PL_LEADER, PL_COVER, PL_HOT, PL_ENEMY_AREA, PL_RUMOUR, PL_VANTAGE,
+       PL_OWN_BASE, PL_ENEMY_BASE, PL_OWN_INTEL, PL_ENEMY_INTEL, PL_THIEF, PL_CARRIER, PL_INTERCEPT,
+       PL_COUNT };
+
+static const struct { const char *name, *alias, *doc; } PLACES[PL_COUNT] = {
+	{ "self", NULL, "where it stands" },
+	{ "enemy", NULL, "the man it fights, else the nearest in sight, else the nearest it knows of" },
+	{ "group", "enemy_group", "the middle of two or more known enemies within 6 of one another" },
+	{ "last_seen", NULL, "where somebody left its sight, while that is fresh" },
+	{ "noise", NULL, "what it heard, while that is fresh" },
+	{ "threat", NULL, "where a hit seemed to come from, in the last 8 s" },
+	{ "search", NULL, "the place most worth searching: the freshest of the last three, or a sighting it was told of" },
+	{ "ping", NULL, "the ping it answers (the caller himself for a call for help)" },
+	{ "caller", NULL, "the one whose ping it answers, where he is now" },
+	{ "order", NULL, "where the server's order points (the man, for an order to hunt or follow)" },
+	{ "mate", NULL, "the nearest team-mate" },
+	{ "leader", NULL, "the leader it follows" },
+	{ "cover", NULL, "the nearest place the enemy, or what last hit it, cannot see" },
+	{ "hot", NULL, "where its team last met the other, in the last minute" },
+	{ "enemy_area", NULL, "where the enemy is expected: `hot`, else his base" },
+	{ "rumour", NULL, "the freshest rumour of the enemy (the score `rumour`)" },
+	{ "vantage", NULL, "the best free perch for its gun" },
+	{ "own_base", NULL, "its team's base" },
+	{ "enemy_base", "their_base", "the other team's base" },
+	{ "own_intel", "our_intel", "its team's intel, where it is now" },
+	{ "enemy_intel", "their_intel", "the other team's intel, where it is now" },
+	{ "thief", NULL, "the enemy who carries this team's intel (the world shows a carrier to everybody)" },
+	{ "carrier", NULL, "the team-mate who carries the other team's intel" },
+	{ "intercept", NULL, "where to cut the thief off on his way home" },
+};
+
+int bc_place_count(void) { return PL_COUNT; }
+
+int bc_place_at(int i, const char **name, const char **alias, const char **doc)
+{
+	if (i < 0 || i >= PL_COUNT)
+		return 0;
+	if (name) *name = PLACES[i].name;
+	if (alias) *alias = PLACES[i].alias;
+	if (doc) *doc = PLACES[i].doc;
+	return 1;
+}
+
 int bc_place_of(bc_bot *b, const char *name, bl_vec3 *out)
 {
 	bc_engine *e = b->e;
 	const bl_player *me = bc_me(b);
 	const bc_senses *s = &b->senses;
-	int team = me->team, other = team == 1 ? 2 : 1, i;
+	int team = me->team, other = team == 1 ? 2 : 1, i, pl = PL_SELF;
+	const bl_object *o = NULL;
 
-	if (!name || !strcmp(name, "self")) { *out = me->pos; return 1; }
-	if (!strcmp(name, "enemy")) {
+	if (name) {
+		for (pl = 0; pl < PL_COUNT; pl++)
+			if (!strcmp(name, PLACES[pl].name) || (PLACES[pl].alias && !strcmp(name, PLACES[pl].alias)))
+				break;
+	}
+	switch (pl) {
+	case PL_SELF:
+		*out = me->pos;
+		return 1;
+	case PL_ENEMY:
 		i = b->fight.target >= 0 ? b->fight.target : s->nearest >= 0 ? s->nearest : s->nearest_known;
 		if (i < 0) return 0;
 		*out = s->k[i].pos;
 		return 1;
-	}
-	if (!strcmp(name, "last_seen")) {
+	case PL_LAST_SEEN:
 		if (!s->lost.valid || e->now - s->lost.at > (double)e->sense.memory) return 0;
 		*out = s->lost.pos;
 		return 1;
-	}
-	if (!strcmp(name, "noise")) {
+	case PL_NOISE:
 		if (!s->noise.valid || e->now - s->noise.at > (double)e->sense.noise_secs) return 0;
 		*out = s->noise.pos;
 		return 1;
-	}
-	if (!strcmp(name, "threat")) {
+	case PL_THREAT:
 		if (!s->threat.valid || e->now - s->threat.at > 8.0) return 0;
 		*out = s->threat.pos;
 		return 1;
-	}
-	if (!strcmp(name, "search"))
+	case PL_SEARCH:
 		return bc_senses_search(s, &e->sense, e->now, out, NULL);
-	if (!strcmp(name, "ping") || !strcmp(name, "caller")) {
+	case PL_PING: case PL_CALLER:
 		if (!b->ping.taken || e->now >= b->ping.until) return 0;
 		*out = b->ping.pos;
-		if (name[0] == 'c' || b->ping.kind == BC_PING_HELP) {
+		if (pl == PL_CALLER || b->ping.kind == BC_PING_HELP) {
 			const bl_player *p = &e->w.players[b->ping.by];
 
 			if (p->state == BL_ALIVE) *out = p->pos;
 		}
 		return 1;
-	}
-	if (!strcmp(name, "order")) {
+	case PL_ORDER:
 		if (b->order.order == BL_O_NONE) return 0;
 		if (b->order.order == BL_O_HUNT || b->order.order == BL_O_FOLLOW) {
 			if (e->w.players[b->order.target].state != BL_ALIVE) return 0;
@@ -163,60 +216,56 @@ int bc_place_of(bc_bot *b, const char *name, bl_vec3 *out)
 			*out = b->order.pos;
 		}
 		return 1;
-	}
-	if (!strcmp(name, "mate")) {
+	case PL_MATE:
 		i = bc_nearest_mate(b, NULL);
 		if (i < 0) return 0;
 		*out = e->w.players[i].pos;
 		return 1;
-	}
-	if (!strcmp(name, "enemy_group") || !strcmp(name, "group"))
+	case PL_GROUP:
 		return bc_enemy_group(b, 2, 6.0f, out) > 0;
-	if (!strcmp(name, "cover")) {
+	case PL_COVER: {
 		bl_vec3 th;
 
 		if (!bc_place_of(b, "enemy", &th) && !bc_place_of(b, "threat", &th)) return 0;
 		return bc_find_cover(b, th, out);
 	}
-	if (!strcmp(name, "thief") || !strcmp(name, "carrier") || !strcmp(name, "intercept"))
-		return bc_objective_place(b, name, out);
-	if (!strcmp(name, "leader")) {
+	case PL_THIEF: case PL_CARRIER: case PL_INTERCEPT:
+		return bc_objective_place(b, PLACES[pl].name, out);
+	case PL_LEADER:
 		i = bc_leader_of(b);
 		if (i < 0) return 0;
 		*out = e->w.players[i].pos;
 		return 1;
-	}
-	if (!strcmp(name, "enemy_area"))
+	case PL_ENEMY_AREA:
 		return bc_enemy_area(b, out);
-	if (!strcmp(name, "rumour"))
+	case PL_RUMOUR:
 		return bc_rumour(b, out) > 0.0f;
-	if (!strcmp(name, "vantage")) {
-		int i = bc_perch_pick(b, 0);
-
+	case PL_VANTAGE:
+		i = bc_perch_pick(b, 0);
 		if (i < 0 || team < 1 || team > 2) return 0;
 		out->x = (float)e->vantage[team - 1].p[i].n.x + 0.5f;
 		out->y = (float)e->vantage[team - 1].p[i].n.y + 0.5f;
 		out->z = (float)e->vantage[team - 1].p[i].n.z - 2.25f;
 		return 1;
+	default:
+		break;
 	}
 	if (team < 1 || team > 2)
 		return 0;
-	if (!strcmp(name, "hot")) {
+	switch (pl) {
+	case PL_HOT:
 		if (e->now - e->hot_at[team - 1] > 60.0) return 0;
 		*out = e->hot[team - 1];
 		return 1;
+	case PL_ENEMY_BASE: o = &e->w.tent[other - 1]; break;
+	case PL_OWN_BASE: o = &e->w.tent[team - 1]; break;
+	case PL_ENEMY_INTEL: o = &e->w.intel[other - 1]; break;
+	case PL_OWN_INTEL: o = &e->w.intel[team - 1]; break;
+	default: break;
 	}
-	{
-		const bl_object *o = NULL;
-
-		if (!strcmp(name, "enemy_base") || !strcmp(name, "their_base")) o = &e->w.tent[other - 1];
-		else if (!strcmp(name, "own_base")) o = &e->w.tent[team - 1];
-		else if (!strcmp(name, "enemy_intel") || !strcmp(name, "their_intel")) o = &e->w.intel[other - 1];
-		else if (!strcmp(name, "own_intel") || !strcmp(name, "our_intel")) o = &e->w.intel[team - 1];
-		if (!o || !o->present) return 0;
-		*out = o->pos;
-		return 1;
-	}
+	if (!o || !o->present) return 0;
+	*out = o->pos;
+	return 1;
 }
 
 bc_item *bc_item_find(bc_bot *b, const char *name, int make)

@@ -122,6 +122,45 @@ int bt_vocab_action(bt_vocab *v, const char *name, bt_action_fn fn, bt_stop_fn s
  * to bt_tick; registered by the host from persona.h's names */
 int bt_vocab_trait(bt_vocab *v, const char *name, int index);
 
+/* WHAT A WORD TAKES. A host may say, for a word it registered, what
+ * arguments it takes: the compiler then checks every use of it -- how
+ * many, a number where a number goes (and within its range), a word
+ * that is one of those allowed -- and says which line and column is
+ * wrong. A word nobody described is not checked: its arguments are its
+ * function's business, as they always were. The specs are also what an
+ * editor shows (vocab.h hands them out for the engine's words).
+ *
+ * `specs` is kept by pointer, as long as the vocabulary: n of them, at
+ * most BT_ARGS_MAX, the required ones first. Only the last may repeat. */
+enum { BT_ARG_NUMBER, BT_ARG_ONE_OF, BT_ARG_TEXT };
+enum { BT_WORD_COND, BT_WORD_SCORE, BT_WORD_ACTION };
+
+typedef struct bt_arg_spec {
+	const char *name;           /* "voxels": what it is called in the usage */
+	unsigned char type;         /* BT_ARG_NUMBER: a number; BT_ARG_ONE_OF: a
+	                               word of `values`, or of the list `set`;
+	                               BT_ARG_TEXT: any word */
+	unsigned char required;     /* else it may be left out */
+	unsigned char repeat;       /* it may be given several times (the last) */
+	unsigned char has_default;  /* `def` is what leaving it out means */
+	unsigned char has_min, has_max;
+	const char *values;         /* ONE_OF: "calm|suspicious|engaged", or NULL */
+	const char *set;            /* ONE_OF: the name of a list given with
+	                               bt_vocab_set ("place"), or NULL */
+	float def, min, max;
+	const char *def_text;       /* ONE_OF: the word leaving it out means
+	                               ("mate"), or NULL */
+	const char *def_note;       /* when what leaving it out means is not one
+	                               value: what it depends on, in words */
+} bt_arg_spec;
+
+/* 0 if there is no such word, or n is over BT_ARGS_MAX. n may be 0: the
+ * word takes no argument, and giving one is a mistake. */
+int bt_vocab_args(bt_vocab *v, int kind, const char *name, const bt_arg_spec *specs, int n);
+/* a named list of words ("a|b|c", copied) for BT_ARG_ONE_OF's `set` */
+int bt_vocab_set(bt_vocab *v, const char *name, const char *values);
+const char *bt_vocab_set_values(const bt_vocab *v, const char *name);
+
 /* Compiled trees: every `tree <name>:` of one text. Immutable, shared. */
 typedef struct bt_forest bt_forest;
 
@@ -248,8 +287,8 @@ typedef struct bt_tree {
 
 /* A mistake, as data. `column` is that of the word at fault, 0 when the
  * mistake is not in one word (an empty tree, no memory). `message` is
- * the string form's text after its "line N: ". The compiler stops at
- * the first mistake: there is never more than one. */
+ * the string form's text after its "line N: ". bt_compile, bt_parse and
+ * bt_compile_diag stop at the first mistake; bt_diagnose goes on. */
 typedef struct bt_diag { int line, column; char message[240]; } bt_diag;
 
 /* The text read, not linked: words and shapes are checked exactly as
@@ -278,6 +317,14 @@ size_t bt_source_text(const bt_source *src, char *out, size_t out_size);
 
 /* bt_compile, with the mistake as data. */
 bt_forest *bt_compile_diag(const bt_vocab *v, const char *text, bt_diag *diag);
+
+/* EVERY mistake of a text, up to `max`, into out[]; returns how many (0:
+ * it compiles). The first is the one bt_compile would say. After a line
+ * that is wrong the reading goes on: the line keeps its place if only
+ * its words were wrong, and what merely follows from a line that had to
+ * be dropped (a child left with no parent) is not said. `link` 0: as
+ * bt_parse, references are not looked up; else as bt_compile. */
+int bt_diagnose(const bt_vocab *v, const char *text, int link, bt_diag *out, int max);
 
 /* The source a forest was compiled from; it lives as long as the forest. */
 const bt_source *bt_forest_source(const bt_forest *f);

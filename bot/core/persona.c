@@ -50,6 +50,31 @@ static const char *const archetype_names[BC_A_COUNT] = {
 	"soldier", "camper", "pusher", "flanker", "support", "sapper", "scout",
 };
 
+/* One line each, for whoever writes a tree or reads a bot's character:
+ * VOCAB.md and the editor's schema are written from these. */
+static const char *const trait_docs[BC_T_COUNT] = {
+	"always 1: an option nobody's character moves",
+	"take the fight, close the distance",
+	"cover, retreat when hurt, keep range",
+	"the intel, the point, the tower -- the game",
+	"answer pings, escort, stay with the others",
+	"dig and build rather than walk round",
+	"fight from far, hold an angle",
+	"go round rather than through",
+	"sneak, lamp out, do not be heard",
+	"go and look: noises, last-seen places",
+	"use what it holds: items, grenades",
+};
+static const char *const archetype_docs[BC_A_COUNT] = {
+	"the middle of everything",
+	"careful and a marksman: holds an angle, keeps its distance, seldom goes in",
+	"bold and keen on the game: straight at the enemy and at the objective",
+	"goes round, and quietly: comes at the enemy from where he is not looking",
+	"with the others: answers their calls, escorts, digs and builds for them",
+	"digs and builds rather than walk round",
+	"curious and quiet: goes to look at what it heard, alone if need be",
+};
+
 static int pick_archetype(bc_rng *rng, const float *weights)
 {
 	double sum = 0, x;
@@ -91,7 +116,23 @@ static int by_name(const char *const *names, int n, const char *name)
 
 int bc_trait_by_name(const char *name) { return by_name(trait_names, BC_T_COUNT, name); }
 const char *bc_trait_name(int t) { return t >= 0 && t < BC_T_COUNT ? trait_names[t] : NULL; }
+const char *bc_trait_doc(int t) { return t >= 0 && t < BC_T_COUNT ? trait_docs[t] : NULL; }
 int bc_archetype_by_name(const char *name) { return by_name(archetype_names, BC_A_COUNT, name); }
+const char *bc_archetype_doc(int a) { return a >= 0 && a < BC_A_COUNT ? archetype_docs[a] : NULL; }
+
+int bc_archetype_trait(int a, int t, float *centre_out, float *spread_out)
+{
+	if (a < 0 || a >= BC_A_COUNT || t < 0 || t >= BC_T_COUNT) return 0;
+	if (centre_out) *centre_out = t ? centre[a][t - 1] : 1.0f;
+	if (spread_out) *spread_out = t ? spread[a][t - 1] : 0.0f;
+	return 1;
+}
+
+void bc_trait_range(float *min_out, float *max_out)
+{
+	if (min_out) *min_out = TRAIT_MIN;
+	if (max_out) *max_out = TRAIT_MAX;
+}
 const char *bc_archetype_name(int a) { return a >= 0 && a < BC_A_COUNT ? archetype_names[a] : NULL; }
 
 int bc_archetype_weights(const char *text, float *weights)

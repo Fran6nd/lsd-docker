@@ -1296,6 +1296,165 @@ static void test_shipped(void)
 	bt_vocab_free(v);
 }
 
+/* ---- a word's arguments, said by the host and checked by the compiler;
+ * every mistake of a text at once ------------------------------------- */
+
+static const bt_arg_spec SPEC_GO[2] = {
+	{ "where", BT_ARG_ONE_OF, 1, 0, 0, 0, 0, NULL, "spot", 0, 0, 0, NULL, NULL },
+	{ "radius", BT_ARG_NUMBER, 0, 0, 1, 1, 1, NULL, NULL, 2, 0, 50, NULL, NULL },
+};
+static const bt_arg_spec SPEC_MODE[1] = {
+	{ "mode", BT_ARG_ONE_OF, 1, 0, 0, 0, 0, "on|off", NULL, 0, 0, 0, NULL, NULL },
+};
+static const bt_arg_spec SPEC_SAY[2] = {
+	{ "whom", BT_ARG_ONE_OF, 0, 0, 0, 0, 0, "all", "spot", 0, 0, 0, "all", NULL },
+	{ "word", BT_ARG_TEXT, 0, 1, 0, 0, 0, NULL, NULL, 0, 0, 0, NULL, NULL },
+};
+static const bt_arg_spec SPEC_OVER[1] = {
+	{ "level", BT_ARG_NUMBER, 1, 0, 0, 1, 0, NULL, NULL, 0, 0, 0, NULL, NULL },
+};
+
+static bt_vocab *spec_vocab(void)
+{
+	bt_vocab *v = bt_vocab_new();
+	bt_vocab_cond(v, "flag", c_flag);
+	bt_vocab_cond(v, "over", c_flag);
+	bt_vocab_cond(v, "plain", c_flag);
+	bt_vocab_score(v, "sc", s_sc);
+	bt_vocab_score(v, "over", s_sc);
+	bt_vocab_action(v, "go", a_act, a_stop);
+	bt_vocab_action(v, "lamp", a_act, NULL);
+	bt_vocab_action(v, "say", a_act, NULL);
+	bt_vocab_action(v, "stop", a_act, NULL);
+	bt_vocab_action(v, "act", a_act, a_stop);
+	bt_vocab_trait(v, "none", 0);
+	CHECK(bt_vocab_set(v, "spot", "home|away"));
+	CHECK(bt_vocab_args(v, BT_WORD_ACTION, "go", SPEC_GO, 2));
+	CHECK(bt_vocab_args(v, BT_WORD_ACTION, "lamp", SPEC_MODE, 1));
+	CHECK(bt_vocab_args(v, BT_WORD_ACTION, "say", SPEC_SAY, 2));
+	CHECK(bt_vocab_args(v, BT_WORD_ACTION, "stop", NULL, 0));
+	CHECK(bt_vocab_args(v, BT_WORD_COND, "over", SPEC_OVER, 1));
+	CHECK(bt_vocab_args(v, BT_WORD_SCORE, "over", SPEC_OVER, 1));
+	return v;
+}
+
+static void spec_is(const bt_vocab *v, const char *text, int line, int column, const char *what)
+{
+	bt_diag d;
+	bt_forest *f = bt_compile_diag(v, text, &d);
+	if (!what) {
+		CHECK(f != NULL);
+		if (!f) printf("  {%s}: %d:%d %s\n", text, d.line, d.column, d.message);
+		bt_forest_free(f);
+		return;
+	}
+	CHECK(f == NULL);
+	if (f) { printf("  {%s} compiled\n", text); bt_forest_free(f); return; }
+	if (d.line != line || d.column != column || !strstr(d.message, what)) {
+		checks++; failed++;
+		printf("FAIL spec for {%s}: got %d:%d \"%s\", wanted %d:%d ... %s\n", text, d.line, d.column, d.message, line, column, what);
+	}
+}
+
+static void test_arg_specs(void)
+{
+	bt_vocab *v = spec_vocab();
+	bt_forest *f;
+	char err[200];
+	/* what is right */
+	spec_is(v, "do go home\n", 0, 0, NULL);
+	spec_is(v, "do go away 12.5\n", 0, 0, NULL);
+	spec_is(v, "do lamp off\n", 0, 0, NULL);
+	spec_is(v, "do stop\n", 0, 0, NULL);
+	spec_is(v, "do say\n", 0, 0, NULL);
+	spec_is(v, "do say all\n", 0, 0, NULL);
+	spec_is(v, "do say home a b\n", 0, 0, NULL);               /* the last may repeat */
+	spec_is(v, "if over 3\n", 0, 0, NULL);
+	spec_is(v, "pick\n\toption none over 0.5 x2\n\t\tdo stop\n", 0, 0, NULL);   /* a score's argument, then the factor */
+	/* a word nobody described takes anything, as before */
+	spec_is(v, "seq\n\tif plain whatever 3 x\n\tdo act 1 far 2.5\n", 0, 0, NULL);
+	/* what is wrong: how many */
+	spec_is(v, "do go\n", 1, 4, "go: <where> is missing");
+	spec_is(v, "seq\n\tdo go home 3 4\n", 2, 15, "go takes 2 arguments at most");
+	spec_is(v, "do stop now\n", 1, 9, "stop takes no argument");
+	spec_is(v, "do lamp on off\n", 1, 12, "lamp takes 1 argument at most");
+	spec_is(v, "unless over\n", 1, 8, "over: <level> is missing");
+	spec_is(v, "pick\n\toption none over\n\t\tdo stop\n", 2, 14, "over: <level> is missing");
+	/* a number where a number goes, and within its range */
+	spec_is(v, "do go home far\n", 1, 12, "go: <radius> is a number, not 'far'");
+	spec_is(v, "do go home 51\n", 1, 12, "go: <radius> must be between 0 and 50");
+	spec_is(v, "do go home -1\n", 1, 12, "between 0 and 50");
+	spec_is(v, "if over -2\n", 1, 9, "over: <level> must be 0 or more");
+	spec_is(v, "pick\n\toption none over much\n\t\tdo stop\n", 2, 19, "<level> is a number, not 'much'");
+	/* a word of the list, or of the named list, or of either */
+	spec_is(v, "do lamp dim\n", 1, 9, "lamp: 'dim' is not one of on|off");
+	spec_is(v, "do go nowhere\n", 1, 7, "go: no spot called nowhere");
+	spec_is(v, "do say nobody\n", 1, 8, "say: 'nobody' is neither all nor a spot");
+	/* the string form says the same */
+	f = bt_compile(v, "seq\n\tdo lamp dim\n", err, sizeof err);
+	CHECK(f == NULL && !strcmp(err, "line 2: lamp: 'dim' is not one of on|off"));
+	/* the lists and what cannot be said */
+	CHECK(!strcmp(bt_vocab_set_values(v, "spot"), "home|away") && !bt_vocab_set_values(v, "none"));
+	CHECK(bt_vocab_set(v, "spot", "home|away|far"));            /* said again: replaced */
+	spec_is(v, "do go far\n", 0, 0, NULL);
+	CHECK(!bt_vocab_args(v, BT_WORD_ACTION, "nothing", SPEC_GO, 2));
+	CHECK(!bt_vocab_args(v, BT_WORD_COND, "go", SPEC_GO, 2));    /* go is an action */
+	CHECK(!bt_vocab_args(v, BT_WORD_ACTION, "go", SPEC_GO, BT_ARGS_MAX + 1));
+	CHECK(!bt_vocab_args(v, 7, "go", SPEC_GO, 2) && !bt_vocab_set(v, "", "a") && !bt_vocab_set(v, "x", NULL));
+	bt_vocab_free(v);
+}
+
+static void test_diagnose(void)
+{
+	static const char MANY[] =
+		"tree a:\n"                          /* 1 */
+		"select\n"                           /* 2 */
+		"\tseq\n"                            /* 3 */
+		"\t\tif over much\n"                 /* 4: a word for a number */
+		"\t\tdo go nowhere 3\n"              /* 5: no such spot */
+		"\t\tdo figth\n"                     /* 6: no such action -- it keeps its place... */
+		"\t\t\tdo stop\n"                    /* 7: ...so this child is not a second mistake */
+		"\tpick colour=2\n"                  /* 8 */
+		"\t\toption zz sc 0\n"               /* 9: no such trait */
+		"\t\t\tdo lamp\n"                    /* 10: missing */
+		"\twait\n"                           /* 11 */
+		"  do stop\n"                        /* 12: spaces in a text of tabs: the line is dropped... */
+		"\t\t\t\tdo stop\n"                  /* 13: ...and what hangs from nothing is not said */
+		"\ttree nowhere\n"                   /* 14: no such tree (when linked) */
+		"\tinvert\n"                         /* 15: needs a child */
+		"tree a:\n"                          /* 16: twice */
+		"do stop\n";
+	static const int lines[10] = { 4, 5, 6, 8, 9, 10, 11, 12, 15, 16 };
+	bt_vocab *v = spec_vocab();
+	bt_diag d[20], one;
+	int n, i;
+	n = bt_diagnose(v, MANY, 0, d, 20);
+	CHECK(n == 10);
+	for (i = 0; i < n && i < 10; i++) {
+		CHECK(d[i].line == lines[i]);
+		if (d[i].line != lines[i]) printf("  %d: line %d:%d %s\n", i, d[i].line, d[i].column, d[i].message);
+	}
+	CHECK(n > 5 && strstr(d[0].message, "is a number") && d[0].column == 11 && strstr(d[2].message, "no action called figth"));
+	CHECK(n > 5 && strstr(d[5].message, "<mode> is missing") && strstr(d[4].message, "no trait"));
+	/* the first is the one the compiler stops at */
+	CHECK(bt_compile_diag(v, MANY, &one) == NULL && one.line == d[0].line && !strcmp(one.message, d[0].message));
+	CHECK(bt_parse(v, MANY, &one) == NULL && one.line == 4);
+	/* no more than asked for; none asked: only the count of the first */
+	CHECK(bt_diagnose(v, MANY, 0, d, 3) == 3 && d[2].line == 6);
+	CHECK(bt_diagnose(v, MANY, 0, NULL, 0) == 1);
+	/* linked: the references too, each once */
+	n = bt_diagnose(v, "tree a:\nseq\n\ttree zzz\n\ttree b\n\ttree yyy\ntree b:\ntree a\n", 1, d, 20);
+	CHECK(n == 2 && d[0].line == 3 && strstr(d[0].message, "zzz") && d[1].line == 5 && strstr(d[1].message, "yyy"));
+	CHECK(bt_diagnose(v, "tree a:\nseq\n\ttree zzz\n", 0, d, 20) == 0);
+	n = bt_diagnose(v, "tree a:\nseq\n\ttree b\ntree b:\ntree a\n", 1, d, 20);
+	CHECK(n >= 1 && strstr(d[0].message, "itself"));
+	/* a text that is right has none, linked or not */
+	CHECK(bt_diagnose(v, "tree a:\nseq\n\tdo go home\n\ttree b\ntree b:\ndo stop\n", 1, d, 20) == 0);
+	CHECK(bt_diagnose(v, "", 0, d, 20) == 1 && strstr(d[0].message, "no tree"));
+	CHECK(bt_diagnose(NULL, "do stop\n", 0, d, 20) == 1);
+	bt_vocab_free(v);
+}
+
 int main(void)
 {
 	int i;
@@ -1323,6 +1482,8 @@ int main(void)
 	test_diag();
 	test_watch();
 	test_shipped();
+	test_arg_specs();
+	test_diagnose();
 	bt_vocab_free(vocab);
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;
