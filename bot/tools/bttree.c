@@ -44,6 +44,11 @@
  *   --split --why     and, for every pick a bot came to, what its options
  *                     were worth to the crowd: the mean score, trait weight
  *                     and worth, and how many chose each
+ *   --split --json    all of that as one JSON document ("lsd-bt-split"):
+ *                     the outcomes with their shares in all and by kind,
+ *                     every pick a bot came to (its file and source id, as
+ *                     --json gives them) with its options, and the words
+ *                     asked and not given
  *   --trace [WORD=VALUE]...
  *                     ONE bot (--as ARCHETYPE, --seed N, --level 5) in that
  *                     situation, ticked for --secs S (default: one tick),
@@ -1290,7 +1295,10 @@ typedef struct why { int bots, chosen; double score, weight, worth; } why;
 
 static int by_count(const void *a, const void *b) { return ((const outcome *)b)->all - ((const outcome *)a)->all; }
 
-static int split(const char *only, int n, const char *mix, int level, int with_why)
+static void split_json(const char *only, int n, int level, const bt_forest *f, const outcome *out, int n_out,
+                       const int *crowd, const why *ws);
+
+static int split(const char *only, int n, const char *mix, int level, int with_why, int as_json)
 {
 	int tree;
 	bt_vocab *v;
@@ -1335,6 +1343,11 @@ static int split(const char *only, int n, const char *mix, int level, int with_w
 		bt_reset(f, st, &ctx);
 	}
 	qsort(out, (size_t)n_out, sizeof out[0], by_count);       /* most chosen first */
+	if (as_json) {
+		split_json(only, n, level, f, out, n_out, crowd, ws);
+		free(st); free(ws); bt_forest_free(f); bt_vocab_free(v);
+		return 0;
+	}
 
 	printf("%s%d bots, level %d, tree %s%s\n", BOLD, n, level, only ? only : "(the first)", OFF);
 	printf("%6s", "all");
@@ -1364,6 +1377,66 @@ static int split(const char *only, int n, const char *mix, int level, int with_w
 	say_unasked();
 	free(st); free(ws); bt_forest_free(f); bt_vocab_free(v);
 	return 0;
+}
+
+/* --split --json: the same numbers, for a tool (an editor's preview) */
+static void split_json(const char *only, int n, int level, const bt_forest *f, const outcome *out, int n_out,
+                       const int *crowd, const why *ws)
+{
+	int nodes = (int)bt_forest_nodes(f), first = 1;
+	printf("{\"format\": \"lsd-bt-split\", \"version\": 1, ");
+	jkey(stdout, "tree");
+	if (only) jstr(stdout, only); else fputs("null", stdout);
+	printf(", \"n\": %d, \"level\": %d,\n \"crowd\": {", n, level);
+	for (int a = 0; a < BC_A_COUNT; a++)
+		if (crowd[a]) { printf("%s", first ? "" : ", "); jkey(stdout, bc_archetype_name(a)); printf("%d", crowd[a]); first = 0; }
+	printf("},\n \"outcomes\": [");
+	for (int o = 0; o < n_out; o++) {
+		printf("%s\n  {", o ? "," : "");
+		jkv(stdout, "what", out[o].what);
+		printf(", \"all\": %s, \"by\": {", num((double)out[o].all / n));
+		first = 1;
+		for (int a = 0; a < BC_A_COUNT; a++)
+			if (crowd[a]) { printf("%s", first ? "" : ", "); jkey(stdout, bc_archetype_name(a)); printf("%s", num((double)out[o].by[a] / crowd[a])); first = 0; }
+		printf("}}");
+	}
+	printf("],\n \"picks\": [");
+	first = 1;
+	for (int i = 0; i < nodes; i++) {
+		bt_node pk, on;
+		int local, fi;
+		bt_forest_node(f, i, &pk);
+		if (pk.kind != BT_K_PICK || !ws[pk.first_child].bots) continue;
+		fi = where_node(pk.source, &local);
+		printf("%s\n  {\"id\": %d, \"file\": %d, \"source\": %d, \"bots\": %d, ", first ? "" : ",", i, fi, local, ws[pk.first_child].bots);
+		jkv(stdout, "text", pk.text);
+		printf(", \"options\": [");
+		for (int o = pk.first_child, k = 0; o >= 0; o = on.next_sibling, k++) {
+			const why *y = &ws[o];
+			bt_forest_node(f, o, &on);
+			fi = where_node(on.source, &local);
+			printf("%s\n    {\"file\": %d, \"source\": %d, ", k ? "," : "", fi, local);
+			jkv(stdout, "text", on.text);
+			printf(", \"bots\": %d, \"chosen\": %s", y->bots, num(y->bots ? (double)y->chosen / y->bots : 0));
+			printf(", \"score\": %s", num(y->bots ? y->score / y->bots : 0));
+			printf(", \"weight\": %s", num(y->bots ? y->weight / y->bots : 0));
+			printf(", \"factor\": %s", num(on.factor));
+			printf(", \"worth\": %s}", num(y->bots ? y->worth / y->bots : 0));
+		}
+		printf("]}");
+		first = 0;
+	}
+	printf("],\n \"asked\": [");
+	first = 1;
+	for (int i = 0; i < n_asked; i++) {
+		if (!strcmp(asked[i], "always")) continue;
+		printf("%s", first ? "" : ", "); jstr(stdout, asked[i]); first = 0;
+	}
+	printf("],\n \"unused\": [");
+	first = 1;
+	for (int i = 0; i < n_set; i++)
+		if (!set_[i].used) { printf("%s", first ? "" : ", "); jstr(stdout, set_[i].key); first = 0; }
+	printf("]}\n");
 }
 
 /* one bot, and its tree as the engine holds it */
@@ -2073,6 +2146,7 @@ int main(int argc, char **argv)
 	if (do_round) return roundtrip(v);
 	if (do_trace) return trace(only, seed, level, secs, json);
 	if (do_list) return list_trees(json);
+	if (do_split) return split(only, crowd, mix, level, with_why || json, json);
 	if (json) {
 		if (only && has_tree(whole, only) < 0) { fprintf(stderr, "bttree: no tree called %s\n", only); return 1; }
 		json_only = only;
@@ -2088,7 +2162,6 @@ int main(int argc, char **argv)
 		}
 		return 0;
 	}
-	if (do_split) return split(only, crowd, mix, level, with_why);
 
 	if (as_name) {
 		int a = bc_archetype_by_name(as_name);

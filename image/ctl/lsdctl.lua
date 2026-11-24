@@ -1941,6 +1941,24 @@ bots_sub.trees = function(words, flags)
 	if (world ~= nil) then say("the world runs: %s", world); end
 end
 
+-- The games, as data for a front end: which have a tree for the bots,
+-- one team or two, a generated map or one from the web (GAMES, above).
+bots_sub.games = function(words, flags)
+	local rows = list();
+	for _, g in ipairs(GAMES) do
+		rows[#rows + 1] = {__order = {"name", "bots", "teams", "maps", "about"}, name = g.value,
+			bots = g.bots == true, teams = g.teams or 2, maps = g.maps, about = g.hint};
+	end
+	if (flags.json) then
+		io.write(json({__order = {"format", "version", "games"}, format = "lsd-bt-games", version = 1, games = rows}), "\n");
+		return;
+	end
+	for _, g in ipairs(rows) do
+		say("%-14s %-9s %d team%s  %-9s %s", g.name, g.bots and "bots" or "no bots", g.teams, g.teams == 1 and " " or "s",
+			g.maps, g.about);
+	end
+end
+
 bots_sub.tree = function(words, flags)
 	local name = words[2] or bots_fail(flags, "bots tree <name>");
 	local _, by_name = all_trees(flags);
@@ -2094,9 +2112,9 @@ bots_sub.save = function(words, flags)
 	end
 end
 
-command("bots", "bots <n> [--no-restart] | bots list | watch [name|id] | trees | tree <name> | check | format | apply | revert | save | schema   [--json]",
+command("bots", "bots <n> [--no-restart] | bots list | watch [name|id] | games | trees | tree <name> | check | format | apply | revert | save | schema   [--json]",
 	"the bot engine's bots: n a team (n in all in a game of one team; 0 for none). And their behaviour trees (bot/TREES.md): "
-	.. "list the bots; watch one think; trees, tree <name>; check or format a text (a file, or - for the standard input; a JSON tree too); "
+	.. "list the bots; watch one think; games: which have a tree, one team or two; trees, tree <name>; check or format a text (a file, or - for the standard input; a JSON tree too); "
 	.. "apply <tree> | apply --file <f> | apply - to --bot <id or name>[,...], --team <n>, --archetype <kind> or --all, live; "
 	.. "revert the same; save <name> as an operator's tree; schema: all a tree may be made of. --json: answers, and errors, as JSON",
 	function(args)
@@ -2107,7 +2125,7 @@ command("bots", "bots <n> [--no-restart] | bots list | watch [name|id] | trees |
 			return sub(words, flags);
 		end
 		local n = tonumber(words[1]);
-		if (n == nil) then die("bots <n>, or bots list | watch | trees | tree | check | format | apply | revert | save | schema"); end
+		if (n == nil) then die("bots <n>, or bots list | watch | games | trees | tree | check | format | apply | revert | save | schema"); end
 		local doc = open_doc(true);
 		set_bots(doc, math.max(0, math.min(100, math.floor(n))), doc:get("gamemode") or "ctf");
 		doc:save();

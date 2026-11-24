@@ -67,7 +67,6 @@ if [ "$BOTS" -gt 0 ]; then
   [ -z "$TEAM2" ] || lsdctl set engine_bots_team2 "$TEAM2" --no-restart >/dev/null
   lsdctl set engine_bots_level "$LEVEL" --no-restart >/dev/null
 fi
-lsdctl set player_limit_max $((BOTS * 2 + 24)) --no-restart >/dev/null
 if [ "$MAP" = random ] && out=$(lsdctl map web-random "$GAME" 2>&1); then
   echo "$out"
   map=$(echo "$out" | sed -n "s/^added \\([^ ]*\\)\\.vxl.*/\\1/p" | head -1)
