@@ -48,6 +48,16 @@ class TreeHighlighter(QSyntaxHighlighter):
     def __init__(self, document, dark: bool):
         super().__init__(document)
         self._formats: dict[str, QTextCharFormat] = {}
+        self._make_formats(dark)
+        self._kinds: set[str] = set()
+        self._params: set[str] = set()
+        self._words: dict[str, str] = {}
+
+    def set_dark(self, dark: bool) -> None:
+        self._make_formats(dark)
+        self.rehighlight()
+
+    def _make_formats(self, dark: bool) -> None:
         for key, colour in _colours(dark).items():
             f = QTextCharFormat()
             f.setForeground(QColor(colour))
@@ -56,9 +66,6 @@ class TreeHighlighter(QSyntaxHighlighter):
             if key == "comment":
                 f.setFontItalic(True)
             self._formats[key] = f
-        self._kinds: set[str] = set()
-        self._params: set[str] = set()
-        self._words: dict[str, str] = {}
 
     def set_schema(self, schema: dict | None) -> None:
         self._kinds, self._params, self._words = set(), set(), {}

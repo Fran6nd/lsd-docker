@@ -1,0 +1,175 @@
+# tdm.bt -- team deathmatch: find the other team and fight it.
+#
+# Words: core/vocab.h. Grammar: core/bt.h. How to read it:
+#   - The top `pick` is a PRIORITY LIST (trait `none`, factors far apart):
+#     it looks again every second, and at once when something happens (an
+#     enemy comes into sight, the first round of a burst lands).
+#   - Each `tree tdm_...` under it is a WEIGHED choice: an option is worth
+#     its score (the situation, 0..1) x the bot's own weight for the trait
+#     named x the factor x a little luck. So twelve bots with one tree do
+#     twelve things. An option's score must be 0 when it cannot be done.
+#   - With nothing else to do a bot goes to the ENEMY'S BASE (`seek`).
+#   - A bot HAS A ROLE (`tree tdm_duty`): a camper, or not. It is drawn by
+#     lot, once for each bot (`pick roll=once`), and kept in every life:
+#     a camper goes up to a perch and waits there, again and again; it
+#     fights, takes cover and looks into noises as anybody (all that is
+#     above its role in the list), and then goes back up. Rifles and smgs
+#     only: a shotgun is never one.
+
+tree tdm:
+select
+	pick every=1 sticky=0.2 noise=0
+		option none grenade_near x100         # a grenade at its feet: run
+			cooldown 3
+				do evade
+		option none harmful_water x60         # wading in water that hurts: out, first
+			do leave_water
+		option none has_order x30             # the server said so
+			do obey
+		option none under_fire x10            # being shot at
+			tree tdm_under_fire
+		option none enemy_visible x5          # somebody in sight
+			tree tdm_contact
+		option curiosity search x2.5          # a noise, a man just lost, a hit: go and look
+			do investigate
+		option none always                    # nobody in sight, nothing heard
+			tree tdm_duty
+	limit 1
+		do seek                               # the net: the enemy's base
+
+# Shot at (hurt, a round close by, a mate dropped beside it): down at
+# once, then one of these -- by caution, health, and the odds.
+tree tdm_under_fire:
+seq
+	do crouch                                 # the flinch, facing the shot
+	pick every=2.5 sticky=0.5 noise=0.2
+		option aggression enemy_visible       # fight back from where it stands
+			do fight
+		option caution under_fire x1.1        # to cover, and fight from it
+			do take_cover
+		option caution pressed x1.4           # hurt or outnumbered: back, from cover to cover
+			do fall_back_by_cover
+		option greed grenade_worth x0.6       # he is behind something: a grenade
+			do throw_grenade
+		option curiosity search x0.5          # did not see who: go and look, by cover
+			do advance_by_cover search
+		option none always x0.1               # nothing known of the shot: on with the game
+			do seek
+
+# An enemy in sight, and not (or no longer) under fire.
+tree tdm_contact:
+pick every=1.5 sticky=0.3 noise=0.15
+	option caution pressed x1.8               # hurt or outnumbered: break off
+		do fall_back_by_cover
+	option aggression enemy_visible           # fight him: close to its own range, strafe
+		do fight
+	option marksman standoff x1.1             # in reach and far enough: stand and shoot
+		do hold self 4
+	option caution enemy_far 70 x0.9          # far: close on him from cover to cover
+		do advance_by_cover enemy
+	option flank enemy_far 80 x0.6            # far: round him, the long way
+		do flank enemy
+	option greed grenade_worth x0.8           # a group, a far man, one behind a wall
+		do throw_grenade
+
+# Nobody in sight: what it does is its ROLE first. The role is drawn by
+# lot, once for each bot, and it keeps it for good -- the scores here are
+# facts about the bot (its gun), not the moment. About one bot in six is
+# a camper: a third of the rifles, a sixth of the smgs, more among those
+# of a marksman's character, no shotgun. And about one rifle in five is a
+# sniper, who listens rather than waits.
+tree tdm_duty:
+pick roll=once
+	option marksman gun_is rifle x0.5         # a camper: a rifle goes high and waits
+		tree tdm_camper
+	option marksman gun_is rifle x0.35        # a sniper: a rifle that goes up when it hears them
+		tree tdm_sniper
+	option marksman gun_is smg x0.2           # an smg sometimes; a shotgun never
+		tree tdm_camper
+	option none always                        # anybody else: the search below
+		tree tdm_search
+
+# A camper: up to a perch, wait there, and when that ends (two kills,
+# shot off it, patience out) up to another. While none is free -- it has
+# just left one, the team holds them all, the map has none -- it searches
+# as anybody does, and looks again every few seconds.
+tree tdm_camper:
+pick every=3 sticky=0.5 noise=0
+	option none vantage x10                   # a perch it can have: up, and wait
+		seq
+			do take_high_ground               # claim it (two never take the same) and go up
+			do camp                           # until two kills, shot at, or out of patience
+	option none always                        # none just now: the search, until there is one
+		tree tdm_search
+
+# A sniper: it listens. Gunfire somewhere, a sighting told by the team:
+# up to a perch, and it waits there a while. Nothing heard: nearer the
+# enemy's base, from cover to cover, and it listens again. It looks at
+# what to do every 20 s, so a wait is not cut short and a noise is not
+# long ignored. Near his base with nothing heard, it watches from there.
+tree tdm_sniper:
+pick every=20 sticky=0.5 noise=0
+	option none rumour x10                    # it hears them: go up and wait
+		select
+			seq
+				if knows vantage              # a perch it can have
+				do take_high_ground
+				do camp 40
+			do hold self 20                   # none: down, and watch from where it stands
+	option none near_their_base 60 x3         # near his base, nothing heard: watch it from cover
+		seq
+			do advance_by_cover enemy_base 45
+			do hold self 25
+	option none always                        # nothing heard: nearer his base, by cover
+		do advance_by_cover enemy_base 45
+
+# Not a camper: every one of these heads for the enemy -- which, is the
+# bot's character and its luck. Chosen for a good while.
+tree tdm_search:
+pick every=25 sticky=1.5 noise=0.35
+	option teamwork ping_called x3            # a team-mate called
+		tree tdm_answer
+	option curiosity rumour x1.2              # gunfire somewhere, the team saw them there
+		do hunt_noise
+	option flank flank_open x0.9              # round to the enemy's base, from behind
+		do flank
+	option teamwork has_leader x0.85          # fall in with its leader (a bot or a person: nobody is told)
+		do follow leader
+	option aggression is_leader x1.2          # a leader goes somewhere: the squad is behind it
+		do seek
+	option teamwork mate_near 40 x0.3         # no leader: go with a team-mate a while
+		limit 20
+			do follow mate
+	option aggression always x0.9             # straight at the enemy's base
+		do seek
+
+tree tdm_answer:
+select
+	seq
+		if ping_called help                   # he wants company: stay by him
+		do follow caller
+	do go_to ping 4                           # anything else is a place: go there
+
+# Beside the above, at every decision.
+tree tdm_also:
+seq
+	always
+		tree extras                           # what the server's scripts add (night and lamps, if it has them)
+	always
+		tree items                            # a medkit when hurt, a rocket at a group: each item's own rule
+	always
+		tree tdm_callouts
+
+# Tell the team -- once: `ping` fails when the team has such a ping there,
+# and a bot low on teamwork lets the occasion pass.
+tree tdm_callouts:
+select
+	seq
+		if spotted_new                        # enemies the team did not know of
+		do ping enemy Enemy
+	seq
+		if sniped                             # hit from far away
+		do ping threat Sniper
+	seq
+		if losing
+		do ping self Need help

@@ -35,8 +35,55 @@ def fail(text, code=1):
     sys.exit(code)
 
 
+BTTREE = os.environ.get("FAKE_DOCKER_BTTREE")       # the real engine, built for this computer, when a test wants it
+MARK = "@@lsd-tree-editor@@"
+
+
+def real(argv, text):
+    import subprocess
+    p = subprocess.run([BTTREE, *argv], input=text, capture_output=True, text=True)
+    return p.stdout, p.stderr, p.returncode
+
+
+def remake(text):
+    """What the editor's one-call remake gives (server.REMAKE), from the real engine."""
+    import tempfile
+    if not BTTREE:
+        sys.stderr.write("fake docker: no engine to make the text\n")
+        sys.exit(3)
+    made, err, code = real(["--from-json", "-"], text)
+    if code != 0:
+        sys.stderr.write(err)
+        sys.exit(3)
+    with tempfile.NamedTemporaryFile("w", suffix=".bt", delete=False) as f:
+        f.write(made)
+    chk, _, _ = real(["--check", "--json", f.name], None)
+    names, _, _ = real(["--list", "--json", f.name], None)
+    doc = json.loads(chk)
+    for d in doc["diagnostics"]:
+        d.pop("file", None)
+    checked = {"format": "lsd-bt-check", "version": 1, "ok": doc["ok"],
+               "trees": [t["name"] for t in json.loads(names or '{"trees": []}').get("trees", [])] if doc["ok"] else [],
+               "diagnostics": doc["diagnostics"]}
+    tree, _, _ = real(["--json", f.name], None)
+    os.unlink(f.name)
+    return made + MARK + "\n" + json.dumps(checked) + "\n" + MARK + "\n" + tree, 0
+
+
 def tool(args, text):
     """What the image's tools answer: (output, exit status)."""
+    if args[:2] == ["sh", "-c"] and MARK in args[2]:
+        return remake(text)
+    if args[:1] == ["bttree"] and "--split" in args:
+        if BTTREE:
+            o, e, c = real(args[1:], text)
+            return o, c
+        return fixture("split.json"), 0
+    if args[:1] == ["bttree"] and BTTREE:
+        o, e, c = real(args[1:], text)
+        if c:
+            sys.stderr.write(e)
+        return o, c
     if args[:1] == ["bttree"]:
         if "--json" in args:
             return (fixture("ast.json"), 0) if "figth" not in text else ("", 1)
@@ -197,6 +244,8 @@ def main():
             out('lsdctl: no command "bots" (lsdctl help)')
         entry = opts.get("--entrypoint", ["entrypoint"])[0]
         if entry == "sh":
+            if MARK in args[-1]:
+                out(*tool(["sh", "-c", args[-1]], stdin))
             if "lsdctl gamemode;" in args[-1]:
                 out("  ctf        Grab the enemy intel.\n  parkour    One team.\n* tdm        Two teams.\n  babel      A tower.\n==\n"
                     + fixture("trees.json"))

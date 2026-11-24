@@ -1,0 +1,14 @@
+{"format": "lsd-bt-split", "version": 1, "tree": "tdm_contact", "n": 700, "level": 5,
+ "crowd": {"soldier": 94, "camper": 110, "pusher": 99, "flanker": 110, "support": 90, "sapper": 94, "scout": 103},
+ "outcomes": [
+  {"what": "pick:aggression > fight", "all": 1, "by": {"soldier": 1, "camper": 1, "pusher": 1, "flanker": 1, "support": 1, "sapper": 1, "scout": 1}}],
+ "picks": [
+  {"id": 149, "file": 0, "source": 33, "bots": 700, "text": "pick every=1.5 sticky=0.3 noise=0.15", "options": [
+    {"file": 0, "source": 34, "text": "option caution pressed x1.8", "bots": 700, "chosen": 0, "score": 0, "weight": 1.03578415, "factor": 1.8, "worth": 0},
+    {"file": 0, "source": 36, "text": "option aggression enemy_visible", "bots": 700, "chosen": 1, "score": 1, "weight": 0.99774148, "factor": 1, "worth": 0.99713311},
+    {"file": 0, "source": 38, "text": "option marksman standoff x1.1", "bots": 700, "chosen": 0, "score": 0, "weight": 1.0578878, "factor": 1.1, "worth": 0},
+    {"file": 0, "source": 40, "text": "option caution enemy_far 70 x0.9", "bots": 700, "chosen": 0, "score": 0, "weight": 1.03578415, "factor": 0.9, "worth": 0},
+    {"file": 0, "source": 42, "text": "option flank enemy_far 80 x0.6", "bots": 700, "chosen": 0, "score": 0, "weight": 1.018991, "factor": 0.6, "worth": 0},
+    {"file": 0, "source": 44, "text": "option greed grenade_worth x0.8", "bots": 700, "chosen": 0, "score": 0, "weight": 1.0521076, "factor": 0.8, "worth": 0}]}],
+ "asked": ["pressed", "standoff", "enemy_far 70", "enemy_far 80", "grenade_worth"],
+ "unused": []}

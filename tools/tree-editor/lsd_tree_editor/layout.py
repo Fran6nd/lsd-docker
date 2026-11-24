@@ -4,6 +4,9 @@
 
 - **A, top-down** (the main one): a parent above its children, the
   children left to right in their order, every card the same width.
+  A parent of many children none of which shows children of its own
+  (a pick's options, folded or leaves) stacks them in a numbered column
+  under it instead: a pick of 13 options is not 3,800 px wide.
 - **B, left to right**: a parent left of its children, the children top
   to bottom in their order; the cards of one parent share a width, so
   their bars can be compared.
@@ -30,6 +33,7 @@ class Box:
     h: float = 0.0
     fr: tuple[float, float, float, float] | None = None   # the frame: x, y, w, h
     sw: float = 0.0                        # A: the width of its whole subtree
+    column: bool = False                   # A: its kids are stacked in a column under it, not side by side
     _kw: float = 0.0
 
     def walk(self):
@@ -45,19 +49,30 @@ FRAME_HEAD = 22.0         # the frame's title line
 A_WIDTH = 268.0
 A_HGAP = 22.0
 A_VGAP = 48.0
+A_COLUMN = 4              # more children than this, all without children shown: a column
+A_INDENT = 26.0
+A_COL_GAP = 10.0
 # B
 B_MIN, B_MAX = 210.0, 350.0
 B_HGAP = 46.0
 B_VGAP = 10.0
 
 
-def layout_a(root: Box, height, width: float = A_WIDTH, hgap: float = A_HGAP, vgap: float = A_VGAP) -> None:
+def layout_a(root: Box, height, width: float = A_WIDTH, hgap: float = A_HGAP, vgap: float = A_VGAP,
+             column: int = A_COLUMN) -> None:
     """Top-down. `height(box, w)` gives a box's height at width w."""
     for b in root.walk():
         b.w = width
         b.h = height(b, width)
+        b.column = len(b.kids) > column and all(not k.kids for k in b.kids)
 
     def span(b: Box) -> float:
+        if b.column:
+            for k in b.kids:
+                span(k)
+            b._kw = A_INDENT + width
+            b.sw = b._kw
+            return b.sw
         kw = sum(span(k) for k in b.kids) + hgap * max(0, len(b.kids) - 1)
         b._kw = kw
         b.sw = max(width, kw) + (2 * FRAME_PAD if b.frame else 0)
@@ -67,6 +82,13 @@ def layout_a(root: Box, height, width: float = A_WIDTH, hgap: float = A_HGAP, vg
 
     def place(b: Box, left: float, y: float) -> float:
         f = FRAME_PAD if b.frame else 0.0
+        if b.column:
+            b.x, b.y, b.fr = left, y, None
+            cy = y + b.h + vgap / 2
+            for k in b.kids:
+                place(k, left + A_INDENT, cy)
+                cy += k.h + A_COL_GAP
+            return cy - A_COL_GAP
         b.x, b.y = left + b.sw / 2 - width / 2, y
         ky = y + b.h + vgap + (FRAME_HEAD if b.frame else 0.0)
         cx = left + (b.sw - b._kw) / 2

@@ -100,6 +100,33 @@ def fake(tmp_path, monkeypatch):
     return Fake(home)
 
 
+REPO = HERE.parent.parent.parent
+
+
+@pytest.fixture(scope="session")
+def native_bttree(tmp_path_factory):
+    """The engine's own bttree, built from this repository's bot/ for this
+    computer (no Docker): the edits' round trips use the real engine.
+    None when it cannot be built here (no C compiler, or bot/ mid-change)."""
+    if os.environ.get("LSD_BTTREE"):
+        return os.environ["LSD_BTTREE"]
+    out = tmp_path_factory.mktemp("bttree")
+    try:
+        r = subprocess.run(["make", "-C", str(REPO / "bot"), "tools", f"B={out}"], capture_output=True, text=True,
+                           timeout=300)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    exe = out / "bin" / "bttree"
+    return str(exe) if r.returncode == 0 and exe.exists() else None
+
+
+@pytest.fixture
+def engine(native_bttree):
+    if native_bttree is None:
+        pytest.skip("the engine's bttree could not be built here (a C compiler and bot/ are needed)")
+    return native_bttree
+
+
 @pytest.fixture
 def session(fake, monkeypatch):
     from lsd_tree_editor import server

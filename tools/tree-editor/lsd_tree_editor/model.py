@@ -540,7 +540,7 @@ def ref_size(doc: dict, name: str, seen: tuple[str, ...] = ()) -> int:
     def n(node):
         c = 1
         if node.get("kind") == "tree":
-            c += ref_size(doc, node.get("ref", ""), seen + (name,))
+            c = ref_size(doc, node.get("ref", ""), seen + (name,)) or 1
         return c + sum(n(k) for k in node.get("children", []))
 
     return n(t["root"])

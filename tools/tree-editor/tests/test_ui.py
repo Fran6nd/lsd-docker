@@ -73,7 +73,7 @@ def launch(window):
 def test_the_window_builds_and_the_template_is_checked(window):
     assert "untitled" in window.windowTitle() and "*" not in window.windowTitle()
     assert window.gamemode.count() == 3 and window.gamemode.currentText() == "tdm"
-    assert not window.apply_selected_button.isEnabled() and not window.watch_button.isEnabled()
+    assert not window.apply_selected_button.isEnabled() and not hasattr(window, "watch_button")   # no live view (the owner)
     assert not window.apply_button.isEnabled() and not window.stop_button.isEnabled()
     assert window.launch_button.isEnabled()
     assert until(lambda: window.outline_fresh)          # checked with the image, no server running

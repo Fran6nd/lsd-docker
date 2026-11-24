@@ -42,11 +42,11 @@ DONE (commit), BLOCKED (on what).
 | 8 | A babel tree, sent by babel_plus only when bots are added; no bots, no engine | TODO (brain agent) |
 | 9 | Remove battle_bots and the gamemodes bots, bots_rewards (setup, scripts, docs, migration of servers that run them) | TODO (after 0) |
 | 10 | Shooting range gamemode on a generated map: a static range (bots as targets from 5 to 50 m, standing or crouched, never dying, never moving, damage shown to the shooter; a target on a rail or one that blinks from place to place) and an IPSC course, one player at a time; all targets as fast as possible | TODO (after 9) |
-| 11 | Graphical node editor in tools/tree-editor (replaces its text-first phase 2) | BLOCKED (on the owner's choice after 2) |
+| 11 | Graphical node editor in tools/tree-editor (replaces its text-first phase 2) | DOING (editor agent): diagram A/B, edits through the engine, apply to some bots, who-chooses-what done; real run and final shots next. No live view (owner) |
 | 12 | Docs pass left unfinished by the tooling agent (bot/trees/README.md, TREES.md trimmed, docs/*, skills) | TODO |
 | 13 | A scenario test for the sniper role (tdm, ctf) | TODO |
 | 14 | Proposal to the owner: a behaviour's HOW written in Lua (a script skill a tree can `do`) | REPORTED, waiting for a yes |
-| 15 | Editor backend gaps: a game list as data, a quiet roster poll, an outline for text that does not compile | TODO (with 11) |
+| 15 | Editor backend gaps: a game list as data, a quiet roster poll, an outline for text that does not compile | DOING (editor agent): `lsdctl bots games --json`, `bttree --split --json` done; roster poll and an outline of a wrong text open |
 | 16 | A release (the published image predates `lsdctl bots`; the editor refuses it) | when the owner asks |
 | 17 | Hostage gamemode: the hostages as engine bots with a tree of their own (botlink_add with a tree), falling back to today's lib_bot hostages with no engine; guards kept | TODO (brain agent, after 8) |
 
@@ -116,3 +116,18 @@ DONE (commit), BLOCKED (on what).
   bot give way). lib_player_limit's send hooks pass a fake pid (the
   console's 255, new_fakepid handles) down the chain untouched instead
   of iterating it to nobody. Tests for both; smoke green twice.
+- 2026-11-25 (editor agent, items 11 and 15): the graphical editor in
+  tools/tree-editor. The owner chose A (top-down) as the main view, B
+  (left to right) second, the text always beside it; then "no live mode
+  for now. You can upload to a bot. this is enough": no watching, the
+  upload to chosen bots, a team or a kind stays. Done: model.py (edits
+  on the engine's JSON), layout.py (automatic; in A a parent of many
+  leaves stacks them in a column, so ctf_duty is 300 px wide, not
+  3,800), diagram.py (cards in the proof of concept's palette, light and
+  dark, sub-trees read-only in place and opened by a click, priority
+  lists as numbered rows, drag to move, palette from the schema),
+  panel.py (properties from the schema), tuning.py (bttree --split
+  --json). Every edit: --from-json, check, read back, in one docker
+  call; refused whole. Backend: `bttree --split --json`, `lsdctl bots
+  games --json` (the app reads which games have one team from it).
+  Tests: 82 green (34 of phase 1, one changed: the Watch button is gone).

@@ -1,0 +1,55 @@
+{"format": "lsd-bt", "version": 1,
+  "files": [
+    {"file": "-", "trees": [
+      {"name": "default", "line": 18, "header": true, "above": ["# default.bt -- what a bot does in a mode that brought no tree of its own:", "# go and find the other team, fight what it meets, take cover when shot", "# at, look into what it hears.", "#", "# The words are core/vocab.h's, the grammar core/bt.h's. To know before", "# copying this:", "#   - `pick` chooses again every `every` seconds, by score x the bot's own", "#     trait x a little luck. It is how a bot changes its mind: seq and select", "#     remember where they were. Give an option a score that is 0 when its", "#     action cannot be done, or the pick fails on it.", "#   - \"<name>_also\" is ticked beside \"<name>\" at every decision: items,", "#     pings, the server's extras -- actions that end at once.", "#   - Nothing here knows of night or flashlights: a server that has them", "#     sends that part itself (`tree extras`).", "#   - `seek` is the last resort: to the enemy's base where the world has", "#     bases, roaming where it has none.", ""], "root":
+        {"id": 0, "kind": "select", "line": 19, "column": 1, "text": "select", "children": [
+          {"id": 1, "kind": "pick", "line": 20, "column": 2, "text": "pick every=1.5 sticky=0.3 noise=0.15", "roll": "weighed", "every": 1.5, "sticky": 0.3, "noise": 0.15, "defaults": ["roll"], "children": [
+            {"id": 2, "kind": "option", "line": 21, "column": 3, "text": "option none grenade_near x100", "trait": "none", "score": "grenade_near", "args": [], "factor": 100, "defaults": [], "comment": "a grenade at its feet: run", "children": [
+              {"id": 3, "kind": "do", "line": 22, "column": 4, "text": "do evade", "action": "evade", "args": []}
+            ]},
+            {"id": 4, "kind": "option", "line": 23, "column": 3, "text": "option none harmful_water x60", "trait": "none", "score": "harmful_water", "args": [], "factor": 60, "defaults": [], "comment": "wading in water that hurts: out, first", "children": [
+              {"id": 5, "kind": "do", "line": 24, "column": 4, "text": "do leave_water", "action": "leave_water", "args": []}
+            ]},
+            {"id": 6, "kind": "option", "line": 25, "column": 3, "text": "option none has_order x30", "trait": "none", "score": "has_order", "args": [], "factor": 30, "defaults": [], "comment": "the server said so", "children": [
+              {"id": 7, "kind": "do", "line": 26, "column": 4, "text": "do obey", "action": "obey", "args": []}
+            ]},
+            {"id": 8, "kind": "option", "line": 27, "column": 3, "text": "option caution under_fire x1.5", "trait": "caution", "score": "under_fire", "args": [], "factor": 1.5, "defaults": [], "comment": "shot at: to cover, and fight from it", "children": [
+              {"id": 9, "kind": "tree", "line": 28, "column": 4, "text": "tree default_cover", "ref": "default_cover"}
+            ]},
+            {"id": 10, "kind": "option", "line": 29, "column": 3, "text": "option aggression enemy_visible x1.2", "trait": "aggression", "score": "enemy_visible", "args": [], "factor": 1.2, "defaults": [], "comment": "fight him", "children": [
+              {"id": 11, "kind": "do", "line": 30, "column": 4, "text": "do fight", "action": "fight", "args": []}
+            ]},
+            {"id": 12, "kind": "option", "line": 31, "column": 3, "text": "option curiosity search x0.6", "trait": "curiosity", "score": "search", "args": [], "factor": 0.6, "defaults": [], "comment": "a noise, a man lost, a hit from somewhere", "children": [
+              {"id": 13, "kind": "do", "line": 32, "column": 4, "text": "do investigate", "action": "investigate", "args": []}
+            ]},
+            {"id": 14, "kind": "option", "line": 33, "column": 3, "text": "option flank flank_open x0.2", "trait": "flank", "score": "flank_open", "args": [], "factor": 0.2, "defaults": [], "comment": "round to the enemy's base, now and then", "children": [
+              {"id": 15, "kind": "do", "line": 34, "column": 4, "text": "do flank", "action": "flank", "args": []}
+            ]},
+            {"id": 16, "kind": "option", "line": 35, "column": 3, "text": "option none always x0.3", "trait": "none", "score": "always", "args": [], "factor": 0.3, "defaults": [], "comment": "never stand without a reason", "children": [
+              {"id": 17, "kind": "do", "line": 36, "column": 4, "text": "do seek", "action": "seek", "args": []}
+            ]}
+          ]},
+          {"id": 18, "kind": "limit", "line": 37, "column": 2, "text": "limit 1", "seconds": 1, "children": [
+            {"id": 19, "kind": "do", "line": 38, "column": 3, "text": "do seek", "action": "seek", "args": []}
+          ]}
+        ]}
+      },
+      {"name": "default_cover", "line": 40, "header": true, "above": [""], "root":
+        {"id": 20, "kind": "seq", "line": 41, "column": 1, "text": "seq", "children": [
+          {"id": 21, "kind": "do", "line": 42, "column": 2, "text": "do crouch", "action": "crouch", "args": [], "comment": "the flinch, facing the shot"},
+          {"id": 22, "kind": "do", "line": 43, "column": 2, "text": "do take_cover", "action": "take_cover", "args": []}
+        ]}
+      },
+      {"name": "default_also", "line": 45, "header": true, "above": [""], "root":
+        {"id": 23, "kind": "seq", "line": 46, "column": 1, "text": "seq", "children": [
+          {"id": 24, "kind": "always", "line": 47, "column": 2, "text": "always", "children": [
+            {"id": 25, "kind": "tree", "line": 48, "column": 3, "text": "tree extras", "ref": "extras", "comment": "what the server's scripts add (night and lamps, if it has them)"}
+          ]},
+          {"id": 26, "kind": "always", "line": 49, "column": 2, "text": "always", "children": [
+            {"id": 27, "kind": "tree", "line": 50, "column": 3, "text": "tree items", "ref": "items", "comment": "whatever it holds, used as each item says"}
+          ]}
+        ]}
+      }
+    ]}
+  ]
+}

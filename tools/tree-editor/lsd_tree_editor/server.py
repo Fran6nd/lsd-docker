@@ -30,7 +30,7 @@ DEFAULT_IMAGE = "ghcr.io/fran6nd/lsd-docker:latest"
 LOCAL_IMAGE = "lsd-docker:demo"            # offered when it is on this computer; never built or changed here
 FIRST_PORT = 32888                         # 32887 is the port of a server one runs by hand
 FALLBACK_GAMEMODES = ["tdm", "ctf", "parkour"]
-ONE_TEAM = {"parkour"}                     # the image does not say which games have one team
+ONE_TEAM = {"parkour"}                     # until the image says (lsdctl bots games), which games have one team
 
 HEARTBEAT = "/tmp/lsd-tree-editor.heartbeat"
 HEARTBEAT_EVERY = 3                        # seconds, from the app
@@ -77,6 +77,18 @@ if [ "$MAP" = random ] && out=$(lsdctl map web-random "$GAME" 2>&1); then
 else
   echo "no map from the web: a generated one"
 fi
+"""
+
+
+# An edited structure made text, checked and read again, in one call
+# (Session.remake): the text, a mark, the check, a mark, the structure.
+MARK = "@@lsd-tree-editor@@"
+REMAKE = f"""
+t=$(mktemp); e=$(mktemp)
+if ! bttree --from-json - > "$t" 2> "$e"; then cat "$e" >&2; rm -f "$t" "$e"; exit 3; fi
+cat "$t"; echo "{MARK}"
+lsdctl bots check - --json < "$t"; echo "{MARK}"
+bttree --json "$t"; rm -f "$t" "$e"
 """
 
 
@@ -244,8 +256,17 @@ class Session:
         """The gamemodes the image lists that the bot engine has a tree for."""
         try:
             r = self.docker.run_helper(image, ["-c", "lsdctl setup --defaults >/dev/null 2>&1; lsdctl gamemode; "
-                                               "echo ==; lsdctl bots trees --json"], entrypoint="sh", timeout=60)
+                                               "echo ==; lsdctl bots trees --json; "
+                                               "echo ==; lsdctl bots games --json 2>/dev/null"],
+                                       entrypoint="sh", timeout=60)
             modes, _, trees = r.stdout.partition("==")
+            trees, _, games = trees.partition("==")
+            try:                           # an image that says which games have one team (lsdctl bots games)
+                rows = json.loads(games)["games"]
+                ONE_TEAM.clear()
+                ONE_TEAM.update(g["name"] for g in rows if g.get("teams") == 1)
+            except (ValueError, KeyError, TypeError):
+                pass
             names = {t["name"] for t in json.loads(trees)["trees"]}
             ids = [line.lstrip("* ").split()[0] for line in modes.splitlines() if line.strip()]
             found = [m for m in ids if m in names]
@@ -478,6 +499,63 @@ class Session:
             raise ServerError((r.stderr.strip() or r.stdout.strip() or "no structure")[:2000]) from None
         return doc
 
+    def from_json(self, doc: dict) -> str:
+        """A structure made text by the engine (`bttree --from-json`): refused
+        with the engine's own words if it is not a tree."""
+        try:
+            r = self._tool(["bttree", "--from-json", "-"], json.dumps(doc), 30, False)
+        except DockerError as e:
+            raise ServerError(str(e)) from e
+        if r.returncode != 0 or not r.stdout.strip():
+            said = (r.stderr.strip() or r.stdout.strip() or "the engine did not make it text")
+            raise ServerError(said.replace("bttree: --from-json: ", "")[:2000])
+        return r.stdout
+
+    def remake(self, doc: dict) -> tuple[str, dict, dict]:
+        """An edited structure, through the engine, in one call: its text
+        (`bttree --from-json`), the check of that text (every mistake,
+        references too: `lsdctl bots check`) and its structure again
+        (`bttree --json`). Raises ServerError -- with the diagnostics when
+        there are some -- if it is not a tree; then nothing is changed."""
+        try:
+            r = self._tool(["sh", "-c", REMAKE], json.dumps(doc), 30, False)
+        except DockerError as e:
+            raise ServerError(str(e)) from e
+        if r.returncode == 3 or MARK not in r.stdout:
+            said = (r.stderr.strip() or r.stdout.strip() or "the engine did not make it text")
+            raise ServerError("The engine refused it: " + said.replace("bttree: --from-json: ", "")[:2000])
+        text, checked, tree = r.stdout.split(MARK + "\n", 2)
+        try:
+            checked, tree = json.loads(checked), json.loads(tree)
+        except ValueError:
+            raise ServerError("The engine's answer could not be read: " + r.stdout[-500:]) from None
+        if not checked.get("ok"):
+            raise ServerError("The engine refused it: " + "; ".join(
+                d.get("message", "") for d in checked.get("diagnostics", [])), checked.get("diagnostics"))
+        if tree.get("format") != "lsd-bt":
+            raise ServerError("The engine gave no structure back.")
+        return text, checked, tree
+
+    def split(self, text: str, tree: str | None, words: dict[str, float], n: int = 700, level: int = 5) -> dict:
+        """Who would do what (`bttree --split --json`): a crowd rolled, the
+        tree ticked once for each in the situation given."""
+        argv = ["bttree", "--split", "--json", "--n", str(n), "--level", str(level)]
+        if tree:
+            argv += ["--tree", tree]
+        argv += ["-"] + [f"{k}={v:g}" for k, v in words.items()]
+        try:
+            r = self._tool(argv, text, 30, False)
+        except DockerError as e:
+            raise ServerError(str(e)) from e
+        try:
+            doc = json.loads(r.stdout)
+            if doc.get("format") != "lsd-bt-split":
+                raise ValueError
+        except (ValueError, AttributeError):
+            raise ServerError("This image cannot say who chooses what (its bttree has no --split --json): "
+                              "use an image built from this repository.") from None
+        return doc
+
     def bots(self) -> dict:
         self._need()
         return self._json(["list"], timeout=15)
@@ -490,6 +568,32 @@ class Session:
     def revert_all(self) -> dict:
         self._need()
         return self._json(["revert", "--all"], timeout=60)
+
+    @staticmethod
+    def _whom(bots: list[int] | None = None, team: int | None = None, kind: str | None = None) -> list[str]:
+        whom = []
+        if bots:
+            whom += ["--bot", ",".join(str(int(b)) for b in bots)]
+        if team is not None:
+            whom += ["--team", str(int(team))]
+        if kind:
+            if not kind.replace("_", "").isalnum():
+                raise ServerError("No kind of bot is called " + kind)
+            whom += ["--archetype", kind]
+        if not whom:
+            raise ServerError("Say which bots: choose some in the table, a team or a kind.")
+        return whom
+
+    def apply_to(self, text: str, bots: list[int] | None = None, team: int | None = None,
+                 kind: str | None = None) -> dict:
+        """The text to those bots only, each as its own tree. Refused whole if it does not compile."""
+        self._need()
+        return self._json(["apply", "-", *self._whom(bots, team, kind)], text, timeout=60)
+
+    def revert_to(self, bots: list[int] | None = None, team: int | None = None, kind: str | None = None) -> dict:
+        """Those bots back to the world's tree."""
+        self._need()
+        return self._json(["revert", *self._whom(bots, team, kind)], timeout=60)
 
     def save(self, name: str, text: str) -> dict:
         """Keep the text as the operator's tree file; the server validates the name."""

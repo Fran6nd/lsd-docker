@@ -1,0 +1,263 @@
+{"format": "lsd-bt", "version": 1,
+  "files": [
+    {"file": "-", "trees": [
+      {"name": "ctf", "line": 16, "header": true, "above": ["# ctf.bt -- capture the flag: bring their intel to our base, keep ours.", "#", "# Words: core/vocab.h. Grammar: core/bt.h. The server's rules, as", "# core/skill_objective.c has them: walking onto their intel picks it up,", "# carrying it into our base captures, a dead carrier drops it where he", "# stood, and nobody can touch his own team's intel (ours, dropped, can", "# only be guarded where it lies).", "#", "# The top `pick` is a PRIORITY LIST looked at every second; `ctf_duty`", "# under it is the WEIGHED choice that splits a team by character:", "# objective and aggression go for their intel, flank goes for it the long", "# way, caution and marksman guard ours, teamwork escorts the carrier --", "# and when ours is taken the weight shifts to cutting the thief off.", "# Whenever an intel changes hands every bot chooses again.", ""], "root":
+        {"id": 0, "kind": "select", "line": 17, "column": 1, "text": "select", "children": [
+          {"id": 1, "kind": "pick", "line": 18, "column": 2, "text": "pick every=1 sticky=0.2 noise=0", "roll": "weighed", "every": 1, "sticky": 0.2, "noise": 0, "defaults": ["roll"], "children": [
+            {"id": 2, "kind": "option", "line": 19, "column": 3, "text": "option none grenade_near x100", "trait": "none", "score": "grenade_near", "args": [], "factor": 100, "defaults": [], "comment": "a grenade at its feet: run", "children": [
+              {"id": 3, "kind": "do", "line": 20, "column": 4, "text": "do evade", "action": "evade", "args": []}
+            ]},
+            {"id": 4, "kind": "option", "line": 21, "column": 3, "text": "option none harmful_water x60", "trait": "none", "score": "harmful_water", "args": [], "factor": 60, "defaults": [], "comment": "wading in water that hurts: out, first", "children": [
+              {"id": 5, "kind": "do", "line": 22, "column": 4, "text": "do leave_water", "action": "leave_water", "args": []}
+            ]},
+            {"id": 6, "kind": "option", "line": 23, "column": 3, "text": "option none carrying_intel x40", "trait": "none", "score": "carrying_intel", "args": [], "factor": 40, "defaults": [], "comment": "it has their intel: home, and nothing else", "children": [
+              {"id": 7, "kind": "do", "line": 24, "column": 4, "text": "do carry_home", "action": "carry_home", "args": []}
+            ]},
+            {"id": 8, "kind": "option", "line": 25, "column": 3, "text": "option none has_order x30", "trait": "none", "score": "has_order", "args": [], "factor": 30, "defaults": [], "comment": "the server said so", "children": [
+              {"id": 9, "kind": "do", "line": 26, "column": 4, "text": "do obey", "action": "obey", "args": []}
+            ]},
+            {"id": 10, "kind": "option", "line": 27, "column": 3, "text": "option none under_fire x10", "trait": "none", "score": "under_fire", "args": [], "factor": 10, "defaults": [], "comment": "being shot at", "children": [
+              {"id": 11, "kind": "tree", "line": 28, "column": 4, "text": "tree ctf_under_fire", "ref": "ctf_under_fire"}
+            ]},
+            {"id": 12, "kind": "option", "line": 29, "column": 3, "text": "option none enemy_visible x5", "trait": "none", "score": "enemy_visible", "args": [], "factor": 5, "defaults": [], "comment": "somebody in sight", "children": [
+              {"id": 13, "kind": "tree", "line": 30, "column": 4, "text": "tree ctf_contact", "ref": "ctf_contact"}
+            ]},
+            {"id": 14, "kind": "option", "line": 31, "column": 3, "text": "option curiosity search x0.6", "trait": "curiosity", "score": "search", "args": [], "factor": 0.6, "defaults": [], "comment": "a noise, a man just lost: a look, if it is very curious", "children": [
+              {"id": 15, "kind": "do", "line": 32, "column": 4, "text": "do investigate", "action": "investigate", "args": []}
+            ]},
+            {"id": 16, "kind": "option", "line": 33, "column": 3, "text": "option none always", "trait": "none", "score": "always", "args": [], "factor": 1, "defaults": ["factor"], "comment": "the game", "children": [
+              {"id": 17, "kind": "tree", "line": 34, "column": 4, "text": "tree ctf_role", "ref": "ctf_role"}
+            ]}
+          ]},
+          {"id": 18, "kind": "limit", "line": 35, "column": 2, "text": "limit 1", "seconds": 1, "children": [
+            {"id": 19, "kind": "tree", "line": 36, "column": 3, "text": "tree ctf_net", "ref": "ctf_net"}
+          ]}
+        ]}
+      },
+      {"name": "ctf_role", "line": 41, "header": true, "above": ["", "# Its ROLE first, drawn by lot once for each bot and kept for good (the", "# scores are facts about the bot, its gun): about one rifle in four is a", "# sniper; everybody else plays the game by character, below."], "root":
+        {"id": 20, "kind": "pick", "line": 42, "column": 1, "text": "pick roll=once", "roll": "once", "every": 2, "sticky": 0.25, "noise": 0.1, "defaults": ["every", "sticky", "noise"], "children": [
+          {"id": 21, "kind": "option", "line": 43, "column": 2, "text": "option marksman gun_is rifle x0.35", "trait": "marksman", "score": "gun_is", "args": ["rifle"], "factor": 0.35, "defaults": [], "comment": "a sniper: a rifle that goes up when it hears them", "children": [
+            {"id": 22, "kind": "tree", "line": 44, "column": 3, "text": "tree ctf_sniper", "ref": "ctf_sniper"}
+          ]},
+          {"id": 23, "kind": "option", "line": 45, "column": 2, "text": "option none always", "trait": "none", "score": "always", "args": [], "factor": 1, "defaults": ["factor"], "comment": "anybody else", "children": [
+            {"id": 24, "kind": "tree", "line": 46, "column": 3, "text": "tree ctf_duty", "ref": "ctf_duty"}
+          ]}
+        ]}
+      },
+      {"name": "ctf_sniper", "line": 53, "header": true, "above": ["", "# A sniper: it listens. It hears them: up to a perch, and it waits a", "# while. Nothing heard: nearer their base, from cover to cover. And when", "# the chance is there -- their intel lying in the open, or itself come", "# close to their base with the intel at home -- one keen on the game", "# changes its mind and goes for it (carrying it home is the top list's)."], "root":
+        {"id": 25, "kind": "pick", "line": 54, "column": 1, "text": "pick every=20 sticky=0.5 noise=0.2", "roll": "weighed", "every": 20, "sticky": 0.5, "noise": 0.2, "defaults": ["roll"], "children": [
+          {"id": 26, "kind": "option", "line": 55, "column": 2, "text": "option objective their_intel_dropped x4", "trait": "objective", "score": "their_intel_dropped", "args": [], "factor": 4, "defaults": [], "comment": "theirs lies where a carrier fell: take it", "children": [
+            {"id": 27, "kind": "do", "line": 56, "column": 3, "text": "do fetch", "action": "fetch", "args": []}
+          ]},
+          {"id": 28, "kind": "option", "line": 57, "column": 2, "text": "option objective near_their_base 70 x3", "trait": "objective", "score": "near_their_base", "args": ["70"], "factor": 3, "defaults": [], "comment": "close to their base: the intel, if it is there", "children": [
+            {"id": 29, "kind": "select", "line": 58, "column": 3, "text": "select", "children": [
+              {"id": 30, "kind": "seq", "line": 59, "column": 4, "text": "seq", "children": [
+                {"id": 31, "kind": "if", "line": 60, "column": 5, "text": "if their_intel_home", "cond": "their_intel_home", "args": []},
+                {"id": 32, "kind": "do", "line": 61, "column": 5, "text": "do fetch", "action": "fetch", "args": []}
+              ]},
+              {"id": 33, "kind": "do", "line": 62, "column": 4, "text": "do hold self 25", "action": "hold", "args": ["self", "25"], "comment": "it is not: watch their base from here"}
+            ]}
+          ]},
+          {"id": 34, "kind": "option", "line": 63, "column": 2, "text": "option none rumour x2.5", "trait": "none", "score": "rumour", "args": [], "factor": 2.5, "defaults": [], "comment": "it hears them: go up and wait", "children": [
+            {"id": 35, "kind": "select", "line": 64, "column": 3, "text": "select", "children": [
+              {"id": 36, "kind": "seq", "line": 65, "column": 4, "text": "seq", "children": [
+                {"id": 37, "kind": "if", "line": 66, "column": 5, "text": "if knows vantage", "cond": "knows", "args": ["vantage"], "comment": "a perch it can have"},
+                {"id": 38, "kind": "do", "line": 67, "column": 5, "text": "do take_high_ground", "action": "take_high_ground", "args": []},
+                {"id": 39, "kind": "do", "line": 68, "column": 5, "text": "do camp 40", "action": "camp", "args": ["40"]}
+              ]},
+              {"id": 40, "kind": "do", "line": 69, "column": 4, "text": "do hold self 20", "action": "hold", "args": ["self", "20"], "comment": "none: down, and watch from where it stands"}
+            ]}
+          ]},
+          {"id": 41, "kind": "option", "line": 70, "column": 2, "text": "option none always", "trait": "none", "score": "always", "args": [], "factor": 1, "defaults": ["factor"], "comment": "nothing heard: nearer their base, by cover", "children": [
+            {"id": 42, "kind": "do", "line": 71, "column": 3, "text": "do advance_by_cover enemy_base 45", "action": "advance_by_cover", "args": ["enemy_base", "45"]}
+          ]}
+        ]}
+      },
+      {"name": "ctf_duty", "line": 75, "header": true, "above": ["", "# The game. Chosen for a good while; chosen again when an intel is taken,", "# dropped or captured."], "root":
+        {"id": 43, "kind": "pick", "line": 76, "column": 1, "text": "pick every=20 sticky=1.5 noise=0.3", "roll": "weighed", "every": 20, "sticky": 1.5, "noise": 0.3, "defaults": ["roll"], "children": [
+          {"id": 44, "kind": "option", "line": 77, "column": 2, "text": "option aggression our_intel_taken x2.2", "trait": "aggression", "score": "our_intel_taken", "args": [], "factor": 2.2, "defaults": [], "comment": "ours is being carried off: cut the thief off", "children": [
+            {"id": 45, "kind": "do", "line": 78, "column": 3, "text": "do intercept", "action": "intercept", "args": []}
+          ]},
+          {"id": 46, "kind": "option", "line": 79, "column": 2, "text": "option objective our_intel_taken x1.2", "trait": "objective", "score": "our_intel_taken", "args": [], "factor": 1.2, "defaults": [], "comment": "(the keen on the game too)", "children": [
+            {"id": 47, "kind": "do", "line": 80, "column": 3, "text": "do intercept", "action": "intercept", "args": []}
+          ]},
+          {"id": 48, "kind": "option", "line": 81, "column": 2, "text": "option teamwork their_intel_carried x1.8", "trait": "teamwork", "score": "their_intel_carried", "args": [], "factor": 1.8, "defaults": [], "comment": "a mate has theirs: go with him", "children": [
+            {"id": 49, "kind": "do", "line": 82, "column": 3, "text": "do escort", "action": "escort", "args": []}
+          ]},
+          {"id": 50, "kind": "option", "line": 83, "column": 2, "text": "option objective their_intel_dropped x2", "trait": "objective", "score": "their_intel_dropped", "args": [], "factor": 2, "defaults": [], "comment": "theirs lies where our carrier fell: pick it up", "children": [
+            {"id": 51, "kind": "do", "line": 84, "column": 3, "text": "do fetch", "action": "fetch", "args": []}
+          ]},
+          {"id": 52, "kind": "option", "line": 85, "column": 2, "text": "option objective their_intel_home", "trait": "objective", "score": "their_intel_home", "args": [], "factor": 1, "defaults": ["factor"], "comment": "go and take theirs", "children": [
+            {"id": 53, "kind": "do", "line": 86, "column": 3, "text": "do fetch", "action": "fetch", "args": []}
+          ]},
+          {"id": 54, "kind": "option", "line": 87, "column": 2, "text": "option flank their_intel_home x1.1", "trait": "flank", "score": "their_intel_home", "args": [], "factor": 1.1, "defaults": [], "comment": "take theirs, coming at it the long way round", "children": [
+            {"id": 55, "kind": "tree", "line": 88, "column": 3, "text": "tree ctf_round", "ref": "ctf_round"}
+          ]},
+          {"id": 56, "kind": "option", "line": 89, "column": 2, "text": "option none unguarded our_intel 15 2 dropped x3", "trait": "none", "score": "unguarded", "args": ["our_intel", "15", "2", "dropped"], "factor": 3, "defaults": [], "comment": "ours lies where its thief fell: two stand over it, whoever they are", "children": [
+            {"id": 57, "kind": "do", "line": 90, "column": 3, "text": "do guard our_intel 30", "action": "guard", "args": ["our_intel", "30"]}
+          ]},
+          {"id": 58, "kind": "option", "line": 91, "column": 2, "text": "option caution unguarded our_intel 20 2", "trait": "caution", "score": "unguarded", "args": ["our_intel", "20", "2"], "factor": 1, "defaults": ["factor"], "comment": "keep ours -- two at most: the rest have a game to win", "children": [
+            {"id": 59, "kind": "do", "line": 92, "column": 3, "text": "do guard our_intel 40", "action": "guard", "args": ["our_intel", "40"]}
+          ]},
+          {"id": 60, "kind": "option", "line": 93, "column": 2, "text": "option marksman vantage rifle smg x0.7", "trait": "marksman", "score": "vantage", "args": ["rifle", "smg"], "factor": 0.7, "defaults": [], "comment": "watch from a height", "children": [
+            {"id": 61, "kind": "tree", "line": 94, "column": 3, "text": "tree ctf_camp", "ref": "ctf_camp"}
+          ]},
+          {"id": 62, "kind": "option", "line": 95, "column": 2, "text": "option teamwork ping_called x3", "trait": "teamwork", "score": "ping_called", "args": [], "factor": 3, "defaults": [], "comment": "a team-mate called", "children": [
+            {"id": 63, "kind": "tree", "line": 96, "column": 3, "text": "tree ctf_answer", "ref": "ctf_answer"}
+          ]},
+          {"id": 64, "kind": "option", "line": 97, "column": 2, "text": "option teamwork has_leader x1.6", "trait": "teamwork", "score": "has_leader", "args": [], "factor": 1.6, "defaults": [], "comment": "fall in with its leader: where he goes, the squad goes", "children": [
+            {"id": 65, "kind": "do", "line": 98, "column": 3, "text": "do follow leader", "action": "follow", "args": ["leader"]}
+          ]},
+          {"id": 66, "kind": "option", "line": 99, "column": 2, "text": "option none is_leader x2.5", "trait": "none", "score": "is_leader", "args": [], "factor": 2.5, "defaults": [], "comment": "a leader goes for their intel: the squad is behind it", "children": [
+            {"id": 67, "kind": "tree", "line": 100, "column": 3, "text": "tree ctf_net", "ref": "ctf_net"}
+          ]},
+          {"id": 68, "kind": "option", "line": 101, "column": 2, "text": "option none always x0.25", "trait": "none", "score": "always", "args": [], "factor": 0.25, "defaults": [], "comment": "nothing else: toward their intel", "children": [
+            {"id": 69, "kind": "tree", "line": 102, "column": 3, "text": "tree ctf_net", "ref": "ctf_net"}
+          ]}
+        ]}
+      },
+      {"name": "ctf_round", "line": 104, "header": true, "above": [""], "root":
+        {"id": 70, "kind": "seq", "line": 105, "column": 1, "text": "seq", "children": [
+          {"id": 71, "kind": "always", "line": 106, "column": 2, "text": "always", "children": [
+            {"id": 72, "kind": "do", "line": 107, "column": 3, "text": "do flank their_intel", "action": "flank", "args": ["their_intel"], "comment": "wide of the middle, to come at it from behind"}
+          ]},
+          {"id": 73, "kind": "do", "line": 108, "column": 2, "text": "do fetch", "action": "fetch", "args": []}
+        ]}
+      },
+      {"name": "ctf_net", "line": 110, "header": true, "above": [""], "root":
+        {"id": 74, "kind": "select", "line": 111, "column": 1, "text": "select", "children": [
+          {"id": 75, "kind": "do", "line": 112, "column": 2, "text": "do fetch", "action": "fetch", "args": [], "comment": "their intel, where it lies"},
+          {"id": 76, "kind": "do", "line": 113, "column": 2, "text": "do escort", "action": "escort", "args": [], "comment": "a mate has it: with him"},
+          {"id": 77, "kind": "do", "line": 114, "column": 2, "text": "do intercept", "action": "intercept", "args": [], "comment": "ours is taken: at the thief"},
+          {"id": 78, "kind": "do", "line": 115, "column": 2, "text": "do seek", "action": "seek", "args": [], "comment": "no intel in this world: their base"}
+        ]}
+      },
+      {"name": "ctf_under_fire", "line": 118, "header": true, "above": ["", "# Shot at: down, then by character -- as in any game."], "root":
+        {"id": 79, "kind": "seq", "line": 119, "column": 1, "text": "seq", "children": [
+          {"id": 80, "kind": "do", "line": 120, "column": 2, "text": "do crouch", "action": "crouch", "args": [], "comment": "the flinch, facing the shot"},
+          {"id": 81, "kind": "pick", "line": 121, "column": 2, "text": "pick every=2.5 sticky=0.5 noise=0.2", "roll": "weighed", "every": 2.5, "sticky": 0.5, "noise": 0.2, "defaults": ["roll"], "children": [
+            {"id": 82, "kind": "option", "line": 122, "column": 3, "text": "option aggression enemy_visible", "trait": "aggression", "score": "enemy_visible", "args": [], "factor": 1, "defaults": ["factor"], "comment": "fight back from where it stands", "children": [
+              {"id": 83, "kind": "do", "line": 123, "column": 4, "text": "do fight", "action": "fight", "args": []}
+            ]},
+            {"id": 84, "kind": "option", "line": 124, "column": 3, "text": "option caution under_fire x0.9", "trait": "caution", "score": "under_fire", "args": [], "factor": 0.9, "defaults": [], "comment": "to cover, and fight from it", "children": [
+              {"id": 85, "kind": "do", "line": 125, "column": 4, "text": "do take_cover", "action": "take_cover", "args": []}
+            ]},
+            {"id": 86, "kind": "option", "line": 126, "column": 3, "text": "option caution pressed", "trait": "caution", "score": "pressed", "args": [], "factor": 1, "defaults": ["factor"], "comment": "hurt or outnumbered: back, from cover to cover", "children": [
+              {"id": 87, "kind": "do", "line": 127, "column": 4, "text": "do fall_back_by_cover", "action": "fall_back_by_cover", "args": []}
+            ]},
+            {"id": 88, "kind": "option", "line": 128, "column": 3, "text": "option objective their_intel_home x1.2", "trait": "objective", "score": "their_intel_home", "args": [], "factor": 1.2, "defaults": [], "comment": "the keen on the game run on for their intel, shooting", "children": [
+              {"id": 89, "kind": "do", "line": 129, "column": 4, "text": "do fetch", "action": "fetch", "args": []}
+            ]},
+            {"id": 90, "kind": "option", "line": 130, "column": 3, "text": "option flank their_intel_home x0.6", "trait": "flank", "score": "their_intel_home", "args": [], "factor": 0.6, "defaults": [], "comment": "or break away round the side", "children": [
+              {"id": 91, "kind": "tree", "line": 131, "column": 4, "text": "tree ctf_round", "ref": "ctf_round"}
+            ]},
+            {"id": 92, "kind": "option", "line": 132, "column": 3, "text": "option curiosity search x0.5", "trait": "curiosity", "score": "search", "args": [], "factor": 0.5, "defaults": [], "comment": "did not see who: go and look, by cover", "children": [
+              {"id": 93, "kind": "do", "line": 133, "column": 4, "text": "do advance_by_cover search", "action": "advance_by_cover", "args": ["search"]}
+            ]},
+            {"id": 94, "kind": "option", "line": 134, "column": 3, "text": "option none always x0.1", "trait": "none", "score": "always", "args": [], "factor": 0.1, "defaults": [], "comment": "nothing known of the shot: on with the game", "children": [
+              {"id": 95, "kind": "tree", "line": 135, "column": 4, "text": "tree ctf_net", "ref": "ctf_net"}
+            ]}
+          ]}
+        ]}
+      },
+      {"name": "ctf_contact", "line": 138, "header": true, "above": ["", "# An enemy in sight."], "root":
+        {"id": 96, "kind": "pick", "line": 139, "column": 1, "text": "pick every=1.5 sticky=0.3 noise=0.15", "roll": "weighed", "every": 1.5, "sticky": 0.3, "noise": 0.15, "defaults": ["roll"], "children": [
+          {"id": 97, "kind": "option", "line": 140, "column": 2, "text": "option aggression our_intel_taken x3", "trait": "aggression", "score": "our_intel_taken", "args": [], "factor": 3, "defaults": [], "comment": "the thief first, whoever else is about", "children": [
+            {"id": 98, "kind": "do", "line": 141, "column": 3, "text": "do intercept", "action": "intercept", "args": []}
+          ]},
+          {"id": 99, "kind": "option", "line": 142, "column": 2, "text": "option objective their_intel_home x1.1", "trait": "objective", "score": "their_intel_home", "args": [], "factor": 1.1, "defaults": [], "comment": "the keen on the game do not stop for a fight: on, shooting", "children": [
+            {"id": 100, "kind": "do", "line": 143, "column": 3, "text": "do fetch", "action": "fetch", "args": []}
+          ]},
+          {"id": 101, "kind": "option", "line": 144, "column": 2, "text": "option teamwork their_intel_carried x1.4", "trait": "teamwork", "score": "their_intel_carried", "args": [], "factor": 1.4, "defaults": [], "comment": "a mate carries theirs: stay by him, shooting", "children": [
+            {"id": 102, "kind": "do", "line": 145, "column": 3, "text": "do escort", "action": "escort", "args": []}
+          ]},
+          {"id": 103, "kind": "option", "line": 146, "column": 2, "text": "option flank their_intel_home x0.9", "trait": "flank", "score": "their_intel_home", "args": [], "factor": 0.9, "defaults": [], "comment": "leave the fight to the others: round the side for their intel", "children": [
+            {"id": 104, "kind": "tree", "line": 147, "column": 3, "text": "tree ctf_round", "ref": "ctf_round"}
+          ]},
+          {"id": 105, "kind": "option", "line": 148, "column": 2, "text": "option objective their_intel_dropped x1.5", "trait": "objective", "score": "their_intel_dropped", "args": [], "factor": 1.5, "defaults": [], "children": [
+            {"id": 106, "kind": "do", "line": 149, "column": 3, "text": "do fetch", "action": "fetch", "args": []}
+          ]},
+          {"id": 107, "kind": "option", "line": 150, "column": 2, "text": "option caution pressed x1.3", "trait": "caution", "score": "pressed", "args": [], "factor": 1.3, "defaults": [], "comment": "hurt or outnumbered: break off", "children": [
+            {"id": 108, "kind": "do", "line": 151, "column": 3, "text": "do fall_back_by_cover", "action": "fall_back_by_cover", "args": []}
+          ]},
+          {"id": 109, "kind": "option", "line": 152, "column": 2, "text": "option aggression enemy_near 45 x1.8", "trait": "aggression", "score": "enemy_near", "args": ["45"], "factor": 1.8, "defaults": [], "comment": "a man near: fight him (one far off is not worth the stop)", "children": [
+            {"id": 110, "kind": "do", "line": 153, "column": 3, "text": "do fight", "action": "fight", "args": []}
+          ]},
+          {"id": 111, "kind": "option", "line": 154, "column": 2, "text": "option caution enemy_near 25 x1.2", "trait": "caution", "score": "enemy_near", "args": ["25"], "factor": 1.2, "defaults": [], "comment": "(the careful too, when he is on top of them)", "children": [
+            {"id": 112, "kind": "do", "line": 155, "column": 3, "text": "do fight", "action": "fight", "args": []}
+          ]},
+          {"id": 113, "kind": "option", "line": 156, "column": 2, "text": "option marksman standoff x0.8", "trait": "marksman", "score": "standoff", "args": [], "factor": 0.8, "defaults": [], "comment": "in reach and far enough: stand and shoot", "children": [
+            {"id": 114, "kind": "do", "line": 157, "column": 3, "text": "do hold self 4", "action": "hold", "args": ["self", "4"]}
+          ]},
+          {"id": 115, "kind": "option", "line": 158, "column": 2, "text": "option greed grenade_worth x0.8", "trait": "greed", "score": "grenade_worth", "args": [], "factor": 0.8, "defaults": [], "comment": "a group, a far man, one behind a wall", "children": [
+            {"id": 116, "kind": "do", "line": 159, "column": 3, "text": "do throw_grenade", "action": "throw_grenade", "args": []}
+          ]},
+          {"id": 117, "kind": "option", "line": 160, "column": 2, "text": "option teamwork has_leader x1.2", "trait": "teamwork", "score": "has_leader", "args": [], "factor": 1.2, "defaults": [], "comment": "with its squad: it shoots what its leader shoots", "children": [
+            {"id": 118, "kind": "do", "line": 161, "column": 3, "text": "do follow leader", "action": "follow", "args": ["leader"]}
+          ]},
+          {"id": 119, "kind": "option", "line": 162, "column": 2, "text": "option none is_leader x1.4", "trait": "none", "score": "is_leader", "args": [], "factor": 1.4, "defaults": [], "comment": "a leader keeps on for their intel", "children": [
+            {"id": 120, "kind": "tree", "line": 163, "column": 3, "text": "tree ctf_net", "ref": "ctf_net"}
+          ]},
+          {"id": 121, "kind": "option", "line": 164, "column": 2, "text": "option none always x0.3", "trait": "none", "score": "always", "args": [], "factor": 0.3, "defaults": [], "comment": "nobody near, nothing to do about him: the game", "children": [
+            {"id": 122, "kind": "tree", "line": 165, "column": 3, "text": "tree ctf_net", "ref": "ctf_net"}
+          ]}
+        ]}
+      },
+      {"name": "ctf_camp", "line": 167, "header": true, "above": [""], "root":
+        {"id": 123, "kind": "seq", "line": 168, "column": 1, "text": "seq", "children": [
+          {"id": 124, "kind": "do", "line": 169, "column": 2, "text": "do take_high_ground", "action": "take_high_ground", "args": [], "comment": "claim a perch and go up"},
+          {"id": 125, "kind": "do", "line": 170, "column": 2, "text": "do camp 40", "action": "camp", "args": ["40"], "comment": "watch from it a while"}
+        ]}
+      },
+      {"name": "ctf_answer", "line": 172, "header": true, "above": [""], "root":
+        {"id": 126, "kind": "select", "line": 173, "column": 1, "text": "select", "children": [
+          {"id": 127, "kind": "seq", "line": 174, "column": 2, "text": "seq", "children": [
+            {"id": 128, "kind": "if", "line": 175, "column": 3, "text": "if ping_called help", "cond": "ping_called", "args": ["help"], "comment": "he wants company: stay by him"},
+            {"id": 129, "kind": "do", "line": 176, "column": 3, "text": "do follow caller", "action": "follow", "args": ["caller"]}
+          ]},
+          {"id": 130, "kind": "do", "line": 177, "column": 2, "text": "do go_to ping 4", "action": "go_to", "args": ["ping", "4"], "comment": "anything else is a place: go there"}
+        ]}
+      },
+      {"name": "ctf_also", "line": 180, "header": true, "above": ["", "# Beside the above, at every decision."], "root":
+        {"id": 131, "kind": "seq", "line": 181, "column": 1, "text": "seq", "children": [
+          {"id": 132, "kind": "always", "line": 182, "column": 2, "text": "always", "children": [
+            {"id": 133, "kind": "tree", "line": 183, "column": 3, "text": "tree extras", "ref": "extras", "comment": "what the server's scripts add (night and lamps, if it has them)"}
+          ]},
+          {"id": 134, "kind": "always", "line": 184, "column": 2, "text": "always", "children": [
+            {"id": 135, "kind": "tree", "line": 185, "column": 3, "text": "tree items", "ref": "items", "comment": "whatever it holds, used as each item says"}
+          ]},
+          {"id": 136, "kind": "always", "line": 186, "column": 2, "text": "always", "children": [
+            {"id": 137, "kind": "tree", "line": 187, "column": 3, "text": "tree ctf_callouts", "ref": "ctf_callouts"}
+          ]}
+        ]}
+      },
+      {"name": "ctf_callouts", "line": 190, "header": true, "above": ["", "# Tell the team, once (the labels are the server's ctf ping list)."], "root":
+        {"id": 138, "kind": "select", "line": 191, "column": 1, "text": "select", "children": [
+          {"id": 139, "kind": "seq", "line": 192, "column": 2, "text": "seq", "children": [
+            {"id": 140, "kind": "if", "line": 193, "column": 3, "text": "if our_intel_taken", "cond": "our_intel_taken", "args": [], "comment": "the thief is near: say where"},
+            {"id": 141, "kind": "if", "line": 194, "column": 3, "text": "if at thief 40", "cond": "at", "args": ["thief", "40"]},
+            {"id": 142, "kind": "do", "line": 195, "column": 3, "text": "do ping thief Enemy", "action": "ping", "args": ["thief", "Enemy"]}
+          ]},
+          {"id": 143, "kind": "seq", "line": 196, "column": 2, "text": "seq", "children": [
+            {"id": 144, "kind": "if", "line": 197, "column": 3, "text": "if their_intel_dropped", "cond": "their_intel_dropped", "args": [], "comment": "theirs lies here for the taking"},
+            {"id": 145, "kind": "if", "line": 198, "column": 3, "text": "if at their_intel 30", "cond": "at", "args": ["their_intel", "30"]},
+            {"id": 146, "kind": "do", "line": 199, "column": 3, "text": "do ping their_intel Intel here", "action": "ping", "args": ["their_intel", "Intel", "here"]}
+          ]},
+          {"id": 147, "kind": "seq", "line": 200, "column": 2, "text": "seq", "children": [
+            {"id": 148, "kind": "if", "line": 201, "column": 3, "text": "if our_intel_dropped", "cond": "our_intel_dropped", "args": [], "comment": "ours lies here: come and stand over it"},
+            {"id": 149, "kind": "if", "line": 202, "column": 3, "text": "if at our_intel 30", "cond": "at", "args": ["our_intel", "30"]},
+            {"id": 150, "kind": "do", "line": 203, "column": 3, "text": "do ping our_intel Defend", "action": "ping", "args": ["our_intel", "Defend"]}
+          ]},
+          {"id": 151, "kind": "seq", "line": 204, "column": 2, "text": "seq", "children": [
+            {"id": 152, "kind": "if", "line": 205, "column": 3, "text": "if spotted_new", "cond": "spotted_new", "args": [], "comment": "enemies the team did not know of"},
+            {"id": 153, "kind": "do", "line": 206, "column": 3, "text": "do ping enemy Enemy", "action": "ping", "args": ["enemy", "Enemy"]}
+          ]},
+          {"id": 154, "kind": "seq", "line": 207, "column": 2, "text": "seq", "children": [
+            {"id": 155, "kind": "if", "line": 208, "column": 3, "text": "if sniped", "cond": "sniped", "args": [], "comment": "hit from far away"},
+            {"id": 156, "kind": "do", "line": 209, "column": 3, "text": "do ping threat Sniper", "action": "ping", "args": ["threat", "Sniper"]}
+          ]}
+        ]}
+      }
+    ]}
+  ]
+}
