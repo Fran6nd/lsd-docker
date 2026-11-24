@@ -159,6 +159,7 @@ typedef struct bc_cover_q {
 	bl_vec3 threat, toward, me;
 	float me_td, me_dd;     /* the bot's distance to the threat, to `toward` */
 	float cone;             /* BC_COVER_VIEW: the cosine of the cone's half-angle */
+	float wide;             /* and of that plus 30 degrees: the flood's own bound */
 	bc_nav_node origin;
 	uint16_t head, tail;
 	float best_score;

@@ -204,6 +204,7 @@ static void cq_begin(bc_bot *b, bl_vec3 threat, int mode, const bl_vec3 *toward,
 	q->me_td = flat(me->pos, threat);
 	q->me_dd = toward ? flat(me->pos, *toward) : 0.0f;
 	q->cone = cone;
+	q->wide = cone <= -1.0f ? -2.0f : cosf(fminf(3.14159265f, acosf(cone) + 0.52f));
 	q->best_score = 1e30f;
 	q->head = q->tail = 0;
 	q->cells = 0;
@@ -306,6 +307,16 @@ static int cover_query(bc_bot *b, bl_vec3 threat, int mode, const bl_vec3 *towar
 		if ((q->mode == BC_COVER_HIDE || q->mode == BC_COVER_VIEW) && 0.6f * (float)d > q->best_score) {
 			q->head = q->tail;
 			break;
+		}
+		if (q->mode == BC_COVER_VIEW && d >= 2) {
+			/* well outside the cone (by 30 degrees more): neither looked
+			 * at nor flooded on -- a way to cover in view does not go
+			 * round behind the bot. Two thirds of the flood saved */
+			float tx = q->threat.x - q->me.x, ty = q->threat.y - q->me.y, tl0 = sqrtf(tx * tx + ty * ty);
+			float bl = sqrtf((float)(dx * dx + dy * dy));
+
+			if (tl0 > 1e-3f && ((float)dx * tx + (float)dy * ty) / (bl * tl0) < q->wide)
+				continue;
 		}
 		q->cells++;
 		e->stats.cover_cells++;

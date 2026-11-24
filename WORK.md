@@ -37,7 +37,7 @@ DONE (commit), BLOCKED (on what).
 | 3 | Report: how botd is built, CPU with 30 bots, where the bottlenecks are | DOING (agent) |
 | 4 | Audit: every decision about WHAT that still lives in C; plan to move each | REVIEW (brain agent): bot/DECISIONS.md; 8 numbers made word arguments |
 | 5 | Archetypes as a data file beside the trees | TODO (after 4) |
-| 6 | Bots look where they are heading; shot at: cover within the field of view, else face the threat, never turn the back to search | DOING (brain agent): checkpoint 2026-11-25, both parts in, numbers in the log |
+| 6 | Bots look where they are heading; shot at: cover within the field of view, else face the threat, never turn the back to search | REVIEW (brain agent): heading-first head, cover in view; bench re-baselined in BRAIN-STATUS.md |
 | 7 | Bots stuck on a roof bridge or dig their way down (engine_bots_edit=all) | TODO (brain agent) |
 | 8 | A babel tree, sent by babel_plus only when bots are added; no bots, no engine | TODO (brain agent) |
 | 9 | Remove battle_bots and the gamemodes bots, bots_rewards (setup, scripts, docs, migration of servers that run them) | TODO (after 0) |
@@ -96,3 +96,12 @@ DONE (commit), BLOCKED (on what).
   under-fire branches of tdm/ctf/default say "cover in view: take it;
   else crouch facing him". Scenarios in behaviour_test. Item 17 added
   (hostages as engine bots, owner's request).
+- 2026-11-25 (brain agent, item 6 done): the in-view cover flood skips
+  cells 30 degrees beyond the cone (cover cells looked at: +40% over the
+  old any-direction search in arena12; most of the think rise is the
+  planner's, routes to where bots now stand and fight, not the cover
+  search). Walked up on from behind (10 voxels, 20 s): a sneaker is found
+  by 8 of 12 bots in 9 s on average (glances only); a sprinter by 12 of 12
+  at once -- a sprinter's footsteps are now heard at 12 (a walker's 8).
+  BRAIN-STATUS.md's bench table re-run in full (every scene and four real
+  maps). DECISIONS.md row 7 (retreat's second cover finder) left open.

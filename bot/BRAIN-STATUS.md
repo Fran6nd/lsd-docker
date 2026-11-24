@@ -41,19 +41,35 @@ in, the split, 20 v 20), `squad_test` 15 (leaders), `ctf_test` 25 (a lone captur
 
 ## (b) What a bot does now, with its numbers
 
-**The head while travelling is its own** (skill_look.c). Ahead along the
-route, glances at openings, at where a noise came from, over a shoulder.
+**The head while travelling: on the heading first** (skill_look.c,
+2026-11-25, the owner's "look where they are headed"). The follower's
+facing, turned to as a head turns (no reaction delay at each corner);
+glances every 4.5 to 9 s (0.6 of that when alert), short (reaction, the
+turn there, 0.25 to 0.55 s), at a place worth a look, an opening beside,
+rarely over a shoulder. Travelling time with the head within 30 degrees
+of the way it goes: 48 to 90% across the bench's scenes (was 22 to 72%).
 24 bots walking past a still man in a corner behind their route: 0 see
-him with the head locked to the steering (`gaze=0`), 19 with their own, 24
-of 24 once he fires. The facing is off the heading 33% of the time. On a
-jump or a drop with a man in sight the head stays on him (22 of 30 ticks
-in the air).
+him with the head locked to the steering (`gaze=0`), 8 with their own
+(was 19 before heading-first), 20 of 24 once he makes a noise. WALKED UP
+ON: a man kept 10 voxels behind a travelling bot for 20 s -- sneaking, 8
+of 12 bots know of him, after 9 s on average (14.9 the longest; only the
+glances over a shoulder find him); sprinting, 12 of 12 at once (a
+sprinter's feet are heard at 12, half as far again as a walker's 8 --
+added for this). On a jump or a drop with a man in sight the head stays on
+him (22 of 30 ticks in the air).
 
 **Shot at**: down in 0.07 s (`crouch`), then by character: fight back,
-`take_cover` (at rest behind a wall 6 voxels off 3.4 s after the hit;
-with none: crouched, turned to the shot), `fall_back_by_cover` (out of
-his sight in 3.5 s). `advance_by_cover` crosses 84 voxels a man watches
-in his sight 4.9 s against 11.1 s straight.
+cover IN VIEW or face him, `fall_back_by_cover` (out of his sight in 3.5
+s). The shipped trees: `if cover_in_view` / `do take_cover in_view`, else
+`do crouch 3` -- nobody turns his back to look for cover. Cover only behind
+it: head on the shooter 210 of 210 ticks, does not move back; cover ahead
+to the side: in it at rest 2.1 s after the hit, the head within 45 degrees
+of the shooter on 61 of 61 moving ticks; hit from behind by a man unseen:
+turned to him in 1.0 s having moved 0.0, then into cover in view.
+`take_cover` (any direction) is still a word: at rest behind a wall 6
+voxels behind 3.4 s after the hit, backing to it with the head on him.
+`advance_by_cover` crosses 84 voxels a man watches in his sight 4.9 s
+against 11.1 s straight.
 
 **With nobody in sight** (tdm): 200 characters with a perch free, a
 rumour and a leader about: flank 43, hunt_noise 31, take_high_ground 16,
@@ -147,32 +163,45 @@ bot/build/tests/bench > before.txt ; ...change... ; bot/build/tests/bench > afte
 
 One line a metric, `<scene> <metric> <value> <unit>`; everything but the
 `think_*` lines is the same on every machine and run. bench.c's header
-lists the scenes and metrics. THE BASELINE (2026-11-25, M-series laptop,
--O2; think is per call of `bc_engine_think`, the host calls twice a
-world):
+lists the scenes and metrics. **Run it from `bot/`** (it reads `trees/`;
+elsewhere it says "trees: not found" and runs the built-in fallback tree)
+and **rebuild it after any change to the words** (a tree naming a word the
+binary lacks does not compile, and the fallback runs). THE BASELINE,
+re-run 2026-11-25 after step B (heading-first head, cover in view,
+sprinters heard at 12), M-series laptop, -O2; think is per call of
+`bc_engine_think`; "head on" is the share of travelling time (moving, no
+enemy in sight, not shot at for 3 s) with the head within 30 degrees of
+the way the body goes, "away" the spells over 1 s with it over 60 off:
 
-| scene | think mean us | worst us | no key % | waiting % | longest idle s | wading % | plans | capped | no way | exp / plan | kills | stuck | goals dropped | result s |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| arena12 | 29.0 | 1044 | 22.9 | 0.0 | 7.1 | 0 | 551 | 2 | 0 | 280 | 38 | 0 | 0 | |
-| arena32 | 79.4 | 1099 | 23.6 | 0.1 | 7.9 | 0 | 1167 | 0 | 0 | 155 | 77 | 0 | 0 | |
-| arena40 | 111.2 | 1246 | 22.5 | 0.1 | 6.7 | 0 | 1452 | 2 | 0 | 152 | 79 | 0 | 0 | |
-| fight6 | 15.7 | 1048 | 10.4 | 0.1 | 2.3 | 0 | 164 | 0 | 0 | 109 | 11 | 0 | 0 | 25.9 |
-| fight20 | 78.6 | 1163 | 24.1 | 0.0 | 9.1 | 0 | 777 | 1 | 0 | 210 | 29 | 0 | 0 | 36.2 |
-| sea40 | 233.6 | 1466 | 9.1 | 0.6 | 4.9 | 20.9 | 1111 | 192 | 0 | 1680 | 25 | 0 | 1 | |
-| map:prisonbreakv1 | 398.0 | 2638 | 11.6 | 4.4 | 4.9 | 50.8 | 1995 | 699 | 31 | 4661 | 46 | 0 | 0 | |
-| map:spud | 319.3 | 3872 | 16.8 | 1.4 | 9.8 | 0 | 2661 | 208 | 223 | 1860 | 73 | 0 | 0 | |
-| map:Temple | 280.6 | 2104 | 15.2 | 0.4 | 8.2 | 0 | 2548 | 173 | 0 | 1435 | 76 | 0 | 0 | |
-| map:CubeMaze | 403.2 | 1215 | 13.1 | 9.3 | 5.3 | 0 | 1298 | 569 | 490 | 7219 | 0 | 0 | 0 | |
+| scene | think mean us | worst us | no key % | waiting % | longest idle s | wading % | head on % | away | plans | capped | no way | exp / plan | kills | stuck | goals dropped | result s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| arena12 | 41.6 | 1068 | 16.9 | 0.0 | 3.9 | 0 | 71.1 | 1 | 610 | 4 | 0 | 441 | 36 | 0 | 0 | |
+| arena32 | 82.5 | 1247 | 22.1 | 0.1 | 7.5 | 0 | 56.3 | 0 | 1222 | 0 | 0 | 170 | 82 | 0 | 0 | |
+| arena40 | 118.9 | 1368 | 20.7 | 0.1 | 6.1 | 0 | 48.4 | 0 | 1489 | 4 | 0 | 194 | 91 | 0 | 0 | |
+| fight6 | 23.4 | 987 | 10.8 | 0 | 1.5 | 0 | 77.5 | 0 | 139 | 0 | 0 | 97 | 8 | 0 | 0 | 13.7 |
+| fight20 | 78.3 | 1220 | 22.8 | 0.0 | 6.0 | 0 | 69.5 | 0 | 720 | 1 | 0 | 152 | 33 | 0 | 0 | 30.0 |
+| sea40 | 283.5 | 1394 | 11.0 | 0.7 | 13.2 | 14.2 | 89.9 | 2 | 983 | 242 | 0 | 2375 | 20 | 0 | 0 | |
+| map:prisonbreakv1 | 367.4 | 2417 | 12.9 | 2.3 | 11.5 | 49.1 | 88.0 | 12 | 2185 | 610 | 26 | 3575 | 51 | 0 | 1 | |
+| map:spud | 289.3 | 2405 | 13.3 | 1.2 | 8.1 | 0 | 82.3 | 6 | 2488 | 161 | 320 | 1683 | 80 | 0 | 1 | |
+| map:Temple | 433.3 | 2309 | 19.9 | 0.8 | 10.4 | 0 | 82.1 | 6 | 2632 | 250 | 7 | 2109 | 77 | 0 | 0 | |
+| map:CubeMaze | 389.3 | 1298 | 12.1 | 7.6 | 5.9 | 0 | 73.2 | 104 | 1516 | 518 | 513 | 5637 | 6 | 0 | 0 | |
 
 ("no key" includes holding in cover, camping and standing by a leader.
-The real maps are not in the repo; `map:` takes a path. Before any of
-this work arena40 was 150 us a call, worst 1.5 ms; the mean has not
-doubled anywhere it was measured, and on the flat field it fell.)
+The real maps are not in the repo; `map:` takes a path. Before step B, the
+same HEAD gave head on 22 to 47% in the built-in scenes (arena12 35,
+arena32 22, arena40 33, fight6 44, fight20 43, sea40 72, ctf:10 47) and
+388 spells away in ctf:10; the older table that stood here (2026-11-25,
+"CHECKPOINT final") no longer matched HEAD before step B -- the sniper
+role and the bridge had moved it.)
 
-| scene | captures in 4 games | games with one | first, mean s | pickups | drops | kills | stuck | think mean us |
-|---|---|---|---|---|---|---|---|---|
-| ctf:10 | 9 | 4 of 4 | 122.5 | 37 | 28 | 692 | 0 | 69 |
-| ctfnear:10 (each intel beside its base) | 5 | 3 of 4 | 180.3 | 28 | 22 | 698 | 0 | 66 |
+| scene | captures in 4 games | games with one | first, mean s | pickups | drops | kills | stuck | think mean us | head on % | away |
+|---|---|---|---|---|---|---|---|---|---|---|
+| ctf:10 | 4 | 2 of 4 | 50 | 24 | 19 | 739 | 0 | 74 | 76.6 | 62 |
+| ctfnear:10 (each intel beside its base) | 8 | 3 of 4 | 51 | 28 | 20 | 696 | 0 | 68 | 76.7 | 73 |
+
+(ctf:10 was 9 captures in the "CHECKPOINT final" table and 4 in 3 games
+at HEAD before step B: the trees changed since (the sniper role). Item 13,
+the sniper scenario, is where the ctf game is looked at again.)
 
 ## (d) WHAT THE SERVER MAY SEND (BL_EV_SET, "key=value")
 

@@ -137,6 +137,55 @@ static void test_look(void)
 	CHECK(saw0 == 0);
 }
 
+/* Walked up on: a man keeps 10 voxels behind a travelling bot for 20 s,
+ * sneaking or sprinting. How long until the bot knows of him (heard,
+ * or seen over a shoulder)? Heading first must not make a bot easy to
+ * walk up on. */
+static void walked_up_on(int sprint, int n, double *mean, int *noticed, double *worst)
+{
+	int k;
+
+	*mean = 0.0; *noticed = 0; *worst = 0.0;
+	for (k = 0; k < n; k++) {
+		bs_sim *s = field(4, 150.5f, 450.5f);
+		const bc_bot *b;
+		int i, at = -1;
+
+		bs_start(s);
+		bs_set(s, BL_NO_PLAYER, "tree=tree t:\ndo go_to enemy_base\n");
+		bs_add(s, 0, 1, 1, 3 + k % 7, BL_GUN_RIFLE, 7100u + (uint32_t)k * 37u, 170.5f, 256.5f, 1, 0);
+		bs_add(s, 1, 0, 2, 5, BL_GUN_RIFLE, 1, 160.5f, 256.5f, 1, 0);
+		for (i = 0; i < 60 * 20; i++) {
+			s->p[1].script_keys = (uint8_t)(BL_K_FORWARD | (sprint ? BL_K_SPRINT : BL_K_SNEAK));
+			bs_step(s);
+			/* kept 10 behind, going as fast as the bot goes */
+			s->p[1].body.pos.x = s->p[0].body.pos.x - 10.0f;
+			s->p[1].body.pos.y = s->p[0].body.pos.y;
+			s->p[1].body.vel = s->p[0].body.vel;
+			if (!sprint && s->p[1].body.vel.x > 0.0f) s->p[1].body.vel.x *= 0.99f;
+			b = bc_engine_bot(s->e, 0);
+			if (i > 60 && b && (b->senses.k[1].visible || b->senses.nearest_known == 1)) { at = i - 60; break; }
+		}
+		if (at >= 0) { (*noticed)++; *mean += at / 60.0; if (at / 60.0 > *worst) *worst = at / 60.0; }
+		bs_free(s);
+	}
+	if (*noticed) *mean /= *noticed;
+}
+
+static void test_walked_up_on(void)
+{
+	double mean0, mean1, worst0, worst1;
+	int n0, n1;
+
+	printf("a man 10 voxels behind a travelling bot, 20 s\n");
+	walked_up_on(0, 12, &mean0, &n0, &worst0);
+	walked_up_on(1, 12, &mean1, &n1, &worst1);
+	printf("  sneaking: %d of 12 bots know of him, after %.1f s on average (the longest %.1f)\n", n0, mean0, worst0);
+	printf("  sprinting: %d of 12, after %.1f s on average (the longest %.1f)\n", n1, mean1, worst1);
+	CHECK(n1 == 12 && worst1 < 1.0);           /* his feet are heard at 12 */
+	CHECK(n0 >= 6);                             /* a sneaker is only seen: the glances over a shoulder */
+}
+
 /* in the air over a trench with a man in sight beyond: the head stays on him */
 static void test_aim_in_air(void)
 {
@@ -638,6 +687,7 @@ static void test_dig_out_of_water(void)
 int main(void)
 {
 	test_look();
+	test_walked_up_on();
 	test_aim_in_air();
 	test_cover();
 	test_cover_in_view();

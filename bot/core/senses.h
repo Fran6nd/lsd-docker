@@ -16,7 +16,8 @@
  *  - RANGE 128, the fog.
  *  - CLOSE THINGS ARE NOTICED whatever the facing: within 8 voxels a man
  *    is audible. New here: that is his footsteps, so one who is crouched,
- *    sneaking or standing still is only noticed at half of it.
+ *    sneaking or standing still is only noticed at half of it, and one
+ *    sprinting at half as far again (12).
  *  - Once seen, a man stays "noticed" for 6 seconds: stepping round the
  *    bot's back does not make him vanish.
  *  - LINE OF SIGHT is three rays from the eye, to his head, his chest and

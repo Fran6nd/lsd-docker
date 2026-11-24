@@ -272,7 +272,9 @@ void bc_senses_see(bc_senses *s, const bc_sense_cfg *c, const bc_map *m,
 		noticed = now - k->seen_at < (double)NOTICE_MEMORY_SECS;
 		speed = sqrtf(p->vel.x * p->vel.x + p->vel.y * p->vel.y) * 32.0f;
 		loud = speed > 2.0f && !(p->flags & BL_F_CROUCH) && !(p->keys & BL_K_SNEAK);
-		notice = loud ? c->notice : c->notice * 0.5f;
+		/* a sprinter's feet carry: half as far again (2026-11-25: a bot
+		 * whose head is on its heading is not walked up on at a run) */
+		notice = !loud ? c->notice * 0.5f : (p->flags & BL_F_SPRINT) ? c->notice * 1.5f : c->notice;
 
 		cand = 0;
 		if (!night || night_vision) {

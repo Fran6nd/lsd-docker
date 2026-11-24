@@ -44,7 +44,11 @@ and `take_cover [any|in_view] [steps] [degrees]`; take_cover moves with
 the head on the threat whatever the mode; the shipped trees say "cover in
 view: take it; else face him (`crouch 3`)". The travelling head is on the
 heading, glances short and fewer. Row 7 (the second, older cover finder
-of `retreat`) is still open.
+of `retreat` and the place `cover`: a ring of 64 points in any direction,
+"back turned") is still open: `retreat` is the trees' explicit "run
+away", so it may turn its back, but its search should be the cover query's
+(one cover finder, not two). Not done in step B: it changes what an
+explicit retreat picks, and no shipped tree uses `retreat`.
 
 ## The table
 
