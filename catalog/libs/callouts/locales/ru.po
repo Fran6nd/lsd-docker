@@ -8,8 +8,8 @@ msgstr ""
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
 #: catalog/libs/callouts/callouts/arena.lua
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -19,8 +19,8 @@ msgstr "Приказы"
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -30,8 +30,8 @@ msgstr "Враг здесь"
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -64,8 +64,8 @@ msgid "Watch behind you!"
 msgstr "Смотри сзади!"
 
 #: catalog/libs/callouts/callouts/arena.lua
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
 #: catalog/libs/callouts/callouts/tdm.lua
@@ -90,8 +90,8 @@ msgstr "Прикройте меня!"
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/hostage.lua
@@ -105,8 +105,8 @@ msgid "Flank here"
 msgstr "Обходим здесь"
 
 #: catalog/libs/callouts/callouts/arena.lua
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Hold here"
 msgstr "Держим здесь"
@@ -170,8 +170,8 @@ msgid "Build here"
 msgstr "Строим здесь"
 
 #: catalog/libs/callouts/callouts/babel.lua
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -183,63 +183,63 @@ msgstr "Атаковать"
 msgid "Defend the tower"
 msgstr "Защитить башню"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Push"
 msgstr "Давим"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Push, all together!"
 msgstr "Давим все вместе!"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Hold this spot!"
 msgstr "Держите эту позицию!"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Flank"
 msgstr "Фланг"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Flank them this way!"
 msgstr "Заходите им во фланг отсюда!"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Need backup"
 msgstr "Нужна поддержка"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "I need backup!"
 msgstr "Нужна поддержка!"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Fall back"
 msgstr "Отступаем"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Fall back!"
 msgstr "Отступайте!"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/hostage.lua
@@ -248,8 +248,8 @@ msgstr "Отступайте!"
 msgid "Defend"
 msgstr "Защитить"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/parkour.lua
 #: catalog/libs/callouts/callouts/tdm.lua

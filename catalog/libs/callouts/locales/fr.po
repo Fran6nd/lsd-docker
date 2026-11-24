@@ -8,8 +8,8 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
 #: catalog/libs/callouts/callouts/arena.lua
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -19,8 +19,8 @@ msgstr "Ordres"
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -30,8 +30,8 @@ msgstr "Ennemi ici"
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/hostage.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -64,8 +64,8 @@ msgid "Watch behind you!"
 msgstr "Surveille tes arrières !"
 
 #: catalog/libs/callouts/callouts/arena.lua
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/onectf.lua
 #: catalog/libs/callouts/callouts/tdm.lua
@@ -90,8 +90,8 @@ msgstr "Couvrez-moi !"
 
 #: catalog/libs/callouts/callouts/arena.lua
 #: catalog/libs/callouts/callouts/babel.lua
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/hostage.lua
@@ -105,8 +105,8 @@ msgid "Flank here"
 msgstr "Contourner ici"
 
 #: catalog/libs/callouts/callouts/arena.lua
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Hold here"
 msgstr "Tenez ici"
@@ -170,8 +170,8 @@ msgid "Build here"
 msgstr "Construire ici"
 
 #: catalog/libs/callouts/callouts/babel.lua
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/onectf.lua
@@ -183,63 +183,63 @@ msgstr "Attaquer"
 msgid "Defend the tower"
 msgstr "Défendre la tour"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Push"
 msgstr "Poussez"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Push, all together!"
 msgstr "Poussez, tous ensemble !"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Hold this spot!"
 msgstr "Tenez cette position !"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Flank"
 msgstr "Contourner"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Flank them this way!"
 msgstr "Contournez-les par ici !"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Need backup"
 msgstr "Besoin de renfort"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "I need backup!"
 msgstr "J'ai besoin de renfort !"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Fall back"
 msgstr "Repli"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/tdm.lua
 msgid "Fall back!"
 msgstr "Repliez-vous !"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/hostage.lua
@@ -248,8 +248,8 @@ msgstr "Repliez-vous !"
 msgid "Defend"
 msgstr "Défendre"
 
-#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/bots.lua
+#: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/default.lua
 #: catalog/libs/callouts/callouts/parkour.lua
 #: catalog/libs/callouts/callouts/tdm.lua

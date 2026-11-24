@@ -429,6 +429,28 @@ msgctxt "command"
 msgid "Print your account name and groups."
 msgstr "显示你的账户名和用户组。"
 
+#: lsd/scripts/babel.lua
+msgid ">:("
+msgstr ">:("
+
+#: lsd/scripts/babel.lua
+#: lsd/scripts/babel_protect.lua
+msgid "Can't do that there!"
+msgstr "这里不能那样做！"
+
+#: lsd/scripts/babel.lua
+#: lsd/scripts/ctf.lua
+#: lsd/scripts/onectf.lua
+msgid "You're not holding the intel!"
+msgstr "你没有拿着情报！"
+
+#: lsd/scripts/babel.lua
+#: lsd/scripts/ctf.lua
+#: lsd/scripts/onectf.lua
+msgctxt "command"
+msgid "Drop the intel if you're holding it."
+msgstr "如果你拿着情报，则丢下它。"
+
 #: lsd/scripts/babel_heaven.lua
 msgid "Cannot find image; try /heavenlist."
 msgstr "找不到图像；试试 /heavenlist。"
@@ -456,11 +478,6 @@ msgctxt "command"
 msgid "List images available to paint on the babel platform."
 msgstr "列出可在巴别平台上绘制的图像。"
 
-#: lsd/scripts/babel_protect.lua
-#: lsd/scripts/babel.lua
-msgid "Can't do that there!"
-msgstr "这里不能那样做！"
-
 #: lsd/scripts/babel_unlocks.lua
 msgid "%(name) has placed %(blocks) blocks, /heaven unlocked!"
 msgstr "%(name) 已放置 %(blocks) 个方块，/heaven 已解锁！"
@@ -485,83 +502,6 @@ msgstr "你已达成 %(streak) 连杀！夺取一次情报即可使用 /apoc。"
 msgctxt "command"
 msgid "Print the number of blocks placed by another player or yourself."
 msgstr "显示其他玩家或你自己放置的方块数。"
-
-#: lsd/scripts/babel.lua
-msgid ">:("
-msgstr ">:("
-
-#: lsd/scripts/babel.lua
-#: lsd/scripts/ctf.lua
-#: lsd/scripts/onectf.lua
-msgid "You're not holding the intel!"
-msgstr "你没有拿着情报！"
-
-#: lsd/scripts/babel.lua
-#: lsd/scripts/ctf.lua
-#: lsd/scripts/onectf.lua
-msgctxt "command"
-msgid "Drop the intel if you're holding it."
-msgstr "如果你拿着情报，则丢下它。"
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for an hour."
-msgstr "封禁一名捣乱的玩家 1 小时。"
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for a day."
-msgstr "封禁一名捣乱的玩家 1 天。"
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for 7 days."
-msgstr "封禁一名捣乱的玩家 7 天。"
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for 30 days."
-msgstr "封禁一名捣乱的玩家 30 天。"
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for 365 days."
-msgstr "封禁一名捣乱的玩家 365 天。"
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for a really long time."
-msgstr "封禁一名捣乱的玩家很长很长时间。"
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for an hour."
-msgstr "封禁一个捣乱的 IPv4 地址或 CIDR 范围 1 小时。"
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for a day."
-msgstr "封禁一个捣乱的 IPv4 地址或 CIDR 范围 1 天。"
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for 7 days."
-msgstr "封禁一个捣乱的 IPv4 地址或 CIDR 范围 7 天。"
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for 30 days."
-msgstr "封禁一个捣乱的 IPv4 地址或 CIDR 范围 30 天。"
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for 365 days."
-msgstr "封禁一个捣乱的 IPv4 地址或 CIDR 范围 365 天。"
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for a really long time."
-msgstr "封禁一个捣乱的 IPv4 地址或 CIDR 范围很长很长时间。"
 
 #: lsd/scripts/bans.lua
 msgid "%(name) was banned"
@@ -656,6 +596,66 @@ msgstr "查询与指定玩家名匹配的所有封禁（通配符，不区分大
 msgctxt "command"
 msgid "Query all bans matching a given comment (case-insensitive glob)."
 msgstr "查询与指定备注匹配的所有封禁（通配符，不区分大小写）。"
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for an hour."
+msgstr "封禁一名捣乱的玩家 1 小时。"
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for a day."
+msgstr "封禁一名捣乱的玩家 1 天。"
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for 7 days."
+msgstr "封禁一名捣乱的玩家 7 天。"
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for 30 days."
+msgstr "封禁一名捣乱的玩家 30 天。"
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for 365 days."
+msgstr "封禁一名捣乱的玩家 365 天。"
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for a really long time."
+msgstr "封禁一名捣乱的玩家很长很长时间。"
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for an hour."
+msgstr "封禁一个捣乱的 IPv4 地址或 CIDR 范围 1 小时。"
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for a day."
+msgstr "封禁一个捣乱的 IPv4 地址或 CIDR 范围 1 天。"
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for 7 days."
+msgstr "封禁一个捣乱的 IPv4 地址或 CIDR 范围 7 天。"
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for 30 days."
+msgstr "封禁一个捣乱的 IPv4 地址或 CIDR 范围 30 天。"
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for 365 days."
+msgstr "封禁一个捣乱的 IPv4 地址或 CIDR 范围 365 天。"
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for a really long time."
+msgstr "封禁一个捣乱的 IPv4 地址或 CIDR 范围很长很长时间。"
 
 #: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) attempted to connect but server was full"

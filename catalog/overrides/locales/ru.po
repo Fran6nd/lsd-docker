@@ -429,6 +429,28 @@ msgctxt "command"
 msgid "Print your account name and groups."
 msgstr "Вывести имя своего аккаунта и группы."
 
+#: lsd/scripts/babel.lua
+msgid ">:("
+msgstr ">:("
+
+#: lsd/scripts/babel.lua
+#: lsd/scripts/babel_protect.lua
+msgid "Can't do that there!"
+msgstr "Тут так нельзя!"
+
+#: lsd/scripts/babel.lua
+#: lsd/scripts/ctf.lua
+#: lsd/scripts/onectf.lua
+msgid "You're not holding the intel!"
+msgstr "У тебя нет разведданных!"
+
+#: lsd/scripts/babel.lua
+#: lsd/scripts/ctf.lua
+#: lsd/scripts/onectf.lua
+msgctxt "command"
+msgid "Drop the intel if you're holding it."
+msgstr "Сбросить разведданные, если они у тебя."
+
 #: lsd/scripts/babel_heaven.lua
 msgid "Cannot find image; try /heavenlist."
 msgstr "Изображение не найдено; попробуй /heavenlist."
@@ -456,11 +478,6 @@ msgctxt "command"
 msgid "List images available to paint on the babel platform."
 msgstr "Показать изображения, которые можно нарисовать на платформе Вавилона."
 
-#: lsd/scripts/babel_protect.lua
-#: lsd/scripts/babel.lua
-msgid "Can't do that there!"
-msgstr "Тут так нельзя!"
-
 #: lsd/scripts/babel_unlocks.lua
 msgid "%(name) has placed %(blocks) blocks, /heaven unlocked!"
 msgstr "%(name) поставил блоков: %(blocks), /heaven открыт!"
@@ -485,83 +502,6 @@ msgstr "У тебя серия %(streak)! Захвати разведданны�
 msgctxt "command"
 msgid "Print the number of blocks placed by another player or yourself."
 msgstr "Вывести число блоков, поставленных другим игроком или тобой."
-
-#: lsd/scripts/babel.lua
-msgid ">:("
-msgstr ">:("
-
-#: lsd/scripts/babel.lua
-#: lsd/scripts/ctf.lua
-#: lsd/scripts/onectf.lua
-msgid "You're not holding the intel!"
-msgstr "У тебя нет разведданных!"
-
-#: lsd/scripts/babel.lua
-#: lsd/scripts/ctf.lua
-#: lsd/scripts/onectf.lua
-msgctxt "command"
-msgid "Drop the intel if you're holding it."
-msgstr "Сбросить разведданные, если они у тебя."
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for an hour."
-msgstr "Забанить нехорошего игрока на час."
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for a day."
-msgstr "Забанить нехорошего игрока на день."
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for 7 days."
-msgstr "Забанить нехорошего игрока на 7 дней."
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for 30 days."
-msgstr "Забанить нехорошего игрока на 30 дней."
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for 365 days."
-msgstr "Забанить нехорошего игрока на 365 дней."
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty player for a really long time."
-msgstr "Забанить нехорошего игрока очень надолго."
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for an hour."
-msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на час."
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for a day."
-msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на день."
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for 7 days."
-msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на 7 дней."
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for 30 days."
-msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на 30 дней."
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for 365 days."
-msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на 365 дней."
-
-#: lsd/scripts/bans_aliases.lua
-msgctxt "command"
-msgid "Ban a naughty IPv4 address or CIDR range for a really long time."
-msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR очень надолго."
 
 #: lsd/scripts/bans.lua
 msgid "%(name) was banned"
@@ -656,6 +596,66 @@ msgstr "Найти все баны по имени игрока (glob, без у
 msgctxt "command"
 msgid "Query all bans matching a given comment (case-insensitive glob)."
 msgstr "Найти все баны по комментарию (glob, без учёта регистра)."
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for an hour."
+msgstr "Забанить нехорошего игрока на час."
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for a day."
+msgstr "Забанить нехорошего игрока на день."
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for 7 days."
+msgstr "Забанить нехорошего игрока на 7 дней."
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for 30 days."
+msgstr "Забанить нехорошего игрока на 30 дней."
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for 365 days."
+msgstr "Забанить нехорошего игрока на 365 дней."
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty player for a really long time."
+msgstr "Забанить нехорошего игрока очень надолго."
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for an hour."
+msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на час."
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for a day."
+msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на день."
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for 7 days."
+msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на 7 дней."
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for 30 days."
+msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на 30 дней."
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for 365 days."
+msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR на 365 дней."
+
+#: lsd/scripts/bans_aliases.lua
+msgctxt "command"
+msgid "Ban a naughty IPv4 address or CIDR range for a really long time."
+msgstr "Забанить нехороший адрес IPv4 или диапазон CIDR очень надолго."
 
 #: lsd/scripts/base_logging.lua
 msgid "%(addr):%(port) attempted to connect but server was full"
