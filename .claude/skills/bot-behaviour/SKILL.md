@@ -52,3 +52,13 @@ budget and resumed; the header is the documentation and carries the why.
 5. Try it live: the `demo-server` skill, then `bot-live-debug` to see
    that the bots really do it. Simulation passing is not the same thing:
    say which of the two you actually checked.
+
+## Looking at a tree
+
+`make -C bot tools`, then `bot/build/bin/bttree bot/trees/tdm.bt` draws the
+tree with every `tree <name>` opened in place (`--as camper`
+shows that kind of bot's weight beside each weighed choice, `--tree NAME` one tree,
+`--plain` for a pipe). `bttree --check bot/trees/*.bt` compiles them with
+the real vocabulary and names the faulty line; `make -C bot test` runs it.
+`bttree --words` lists every condition, score, action and trait.
+

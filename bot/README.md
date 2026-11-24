@@ -39,6 +39,12 @@ from one mode to the next is data, and comes over the link:
   `trees/` (`tdm.bt` first), one per mode, and a gamemode's Lua can send
   its own (`botlink_set("tree", text)`); a mode that sends none gets
   `default.bt`. A tree is made only of the neutral vocabulary below.
+  To look at one, `make tools` then `build/bin/bttree trees/tdm.bt`:
+  the tree drawn with its sub-trees opened in place, compiled first by
+  the engine's own compiler. `--as camper` shows beside each weighed
+  choice what that kind of bot's weight is, `--tree NAME` draws one,
+  `--check` only says what is wrong, `--words` lists the vocabulary. It
+  is in the image too: `docker exec <server> bttree /opt/botd/trees/tdm.bt`.
 - **Settings**, `key=value` (`BL_EV_SET`): what the mode's objects mean
   (`intel=fetch`, `tents=defend`...), zones where editing is refused,
   the archetype mix, how many blocks a bot may spend.
