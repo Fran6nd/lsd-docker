@@ -78,7 +78,8 @@ Up: 1 voxel is a free climb at a walk (not sprinting, not crouched, not
 looking steeply down); 2 voxels with a jump from standing; 3 never.
 Down: drops of 2 to 9 voxels do not hurt (10: 1 hp, 11: 5, 12: 12, 13: 21, 14: 32).
 Water: wading; out onto a bank 1 voxel above the sea bed's top by a jump
-only (walking does not climb it); a bank 2 up cannot be reached.
+only (walking does not climb it); a bank 2 up cannot be reached. The whole
+of it, measured, is in (h).
 Diagonals: standing jumps over 1 and 2 diagonal columns, sprint over 3 and 4.
 
 **Strides in context** (new; `nav_test --table` prints them). A stride's
@@ -92,7 +93,7 @@ down. A turn at full pace adds 0.15 s (45 degrees), 0.38 (90), 0.41 (135).
 
 ## (c) Scenarios
 
-All pass (315 checks); none is skipped. Each is plan + follower in the
+All pass (315 checks at the time; 441 with the water scenarios of (h)); none is skipped. Each is plan + follower in the
 simulated body until ARRIVED, with a tick cap. The ones from before this
 session are unchanged and none was weakened:
 
@@ -153,6 +154,9 @@ further below the real cost on hilly ground. Still no coarse stage needed.
 
 Memory: search 5.5 MiB, table 35 KiB, route 10 KiB, follower under 200
 bytes (it grew by the report memory), map 2 MiB, cull 7.1 MiB.
+
+**After the water work, (h):** the same eight maps, same pairs, 500 a map,
+no edits: 2520 of 2520 at delay 0 (2 step failures) and at delay 1 (6, was 8); 2519 of 2520 at delay 2 (the same 2FortCTF pair, (f)2; 34 step failures, was 39). Nothing regressed. spud (the ninth map, tents in the sea) is in (h).
 
 ## (e) The later requirements
 
@@ -232,9 +236,10 @@ Each: what is wrong / what it costs in play / what to do / how to see it.
    link is slow, or the run-up is aligned more tightly (0.12 voxel and
    0.8 voxel/s are allowed now) so the measured window is the one met.
    `BC_TEST_MAPS=$M BC_SOAK_LATENCY=2 BC_SOAK_MAP=2FortCTF.vxl BC_SOAK_PAIR=297,239,44,284,253,49 $T`
-4. **Not done at all: swimming and banks beyond wade-and-jump-out, ladders
-   of blocks, one-wide bridges under traffic, and crowds.** Nav is per bot
-   and knows nothing of other bodies.
+4. **Not done at all: ladders of blocks, one-wide bridges under traffic,
+   and crowds.** (Water and banks are done: (h). There is no swimming to
+   do -- every sea is one voxel deep.) Nav is per bot and knows nothing of
+   other bodies.
    In play: two bots wanting the same one-wide door or bridge from opposite
    ends will push against each other until both report STUCK, plan again,
    and may meet again (GIVE_UP bounds it at three times in the same spot).
@@ -266,7 +271,8 @@ Each: what is wrong / what it costs in play / what to do / how to see it.
    room the body stands in). A staircase built into the open pays for a
    support block it may not need. In play: slightly dearer builds.
 9. No knight's-move jumps, no jumps under low ceilings, no diagonal drops
-   in the planner, nothing but wade and climb-out from water. In play:
+   in the planner. From water: wade, jump out, dig a bank down ((h)); a
+   bank is cut along an axis only, never on a diagonal. In play:
    routes a human would take are not found; the bot goes round or fails.
 10. `tests/nav_test.c` `floor_removed_midway` has a leftover unused block
     (`w2`) and cuts the causeway before the second run, not during. Tidy.
@@ -365,11 +371,229 @@ hold the ground.
   otherwise it rests a voxel up. Never wait for "feet on the node's floor".
 - **In water the feet are a voxel below the node** (z = 63, feet at 64): a
   drop into water is one deeper than the nodes say.
+- **The lowest land (62) is two voxels above the wading feet, not one.**
+  "A bank one up" in the table's words is a two-voxel climb in the body's:
+  that is why walking never does it and why 61 is a wall. And SPRINT held
+  through the jump out makes it fail, always.
+- **Do not widen `over` (nav_exec.c).** It is the margin jumps are
+  committed on; 0.94 for 0.9 moved the table and dropped bodies. `touches`
+  is for a body already down.
+- **A bot standing still with a key held is not necessarily nav.** Check
+  who is driving first (`wish.move`, `mv.has_route`): the live water bug
+  was the brain's free walk, and nav was never asked.
 - **Costs are timed from the follower**, so changing how the follower
   walks changes the plan's prices by itself; nav_test pins the table's
   shape, not its times.
 - To see that a scenario fails without a fix: there is no switch; take the
   fix out by hand, run `nav_test -v NAME`, put it back.
+
+## (h) Water: the live bug, what a wading body can do, what was changed
+
+### The bug, as found
+
+Seen on a real server, 40 bots, map spud: both tents stand in the sea
+(72,256 and 440,256), every bot spawns wading, all of them walked to the
+shore and stood there for minutes with FORWARD held, facing (1,0,0), at
+109.5,251.8 / 110.5,273.2 / 113.5,240.3.
+
+Reproduced first in the bench, on that map, body wading at (100,252), goal
+on the far side's land, delays 0, 1, 2
+(`BC_TEST_MAPS=$M BC_SOAK_MAP=spud.vxl BC_SOAK_PAIR=100,252,63,390,256,52 $T`):
+**nav did not fail.** One plan (293 steps, 51 000 expansions, 18 ms): wade
+to (108,253), JUMP onto the bank at (109,253,62), walk on; arrived in 44 s
+at every delay. So the standing bots were not being driven by the follower
+at all. Three things say so:
+
+- The three places are each the first bank DUE EAST of where a bot spawned,
+  and each of those banks is 61 (`y251: x110 = 61`, `y273: x111 = 61`,
+  `y240: x114 = 61`). A route never ends against a bank at 61; a body that
+  simply walks east does.
+- Facing exactly (1,0,0) with forward and nothing else is not something the
+  follower emits against a bank for more than 130 ticks (and never did in
+  12 000 soaked routes: the longest is in the table below).
+- `core/skill_misc.c bc_do_roam` has exactly that behaviour as its fallback:
+  when `bc_roam_goal` finds nothing it sets `BC_MOVE_FREE` along the bot's
+  own facing while `bc_walk_safe` says yes. And `bc_roam_goal` finds nothing
+  on this map: it looks within 18 voxels of the ENEMY TENT, which is in the
+  sea 38 voxels from the shore, and throws away every water node. Eight
+  tries, all water, fallback: walk the way you face, for ever.
+  `bc_walk_safe` has no objection to a bank.
+
+That is the brain's code, not nav's, and is not changed here; what the
+brain must do is at the end of this section. What the reproduction and the
+soak with starts in the water DID find in nav is in "found and fixed" below.
+
+### What a wading body can do (measured: `body_test` test_water pins it)
+
+A water column has its only solid voxel at 63; the body stands with its
+feet at 64, eye 61.74, `wade` set, at 5.33 voxels/s. A jump from the water
+is taken like any other and rises the same 1.61 (feet to 62.39). There is
+no deep water.
+
+| bank top | above the feet | walking in (walk, sneak, sprint, crouch) | jump, walking or sneaking | jump, sprint held | crouch |
+|---|---|---|---|---|---|
+| 62 | 2 | no | **yes**: standing against it or after any run-up through the water; window = every tick spent against the bank (200 of 200 tried), i.e. as wide as you like | **never** (the haul over the lip refuses a sprinter) | no |
+| 61 | 3 | no | never, from any run-up (0.46 to 8.5 voxels back, every tick) | never | no |
+| 60 | 4 | no | never | never | no |
+
+Run-up does not matter (height is what is missing, and a jump's rise does
+not depend on speed). Crouch and sprint only hurt. The one thing that does
+get a body onto 61 and 60 is changing crouch in the air (the server fault
+in (g): 0.9 a time); nothing here uses it and nothing should.
+
+Building, checked in the server (`lsd/src/main.c:466, 491, 566`): a block
+may be placed or dug at z < 62 only. The lowest block that can exist in a
+water column is therefore at 61 -- three above the wading feet, the same
+wall as a bank at 61. **A step cannot be built in water.** What CAN be
+done is the other edit: dig the bank's own column down to 62 (62 cannot be
+dug) and jump onto it.
+
+### What was changed
+
+- **Plan** (`nav_plan.c`): one function, `water_exit`, is every way out of
+  the sea: the measured jump onto a bank at 62, or -- `may_dig`, along an
+  axis -- a DIG step that removes what that jump would sweep in the bank's
+  column (61 and up) and whose motion is that jump. A bank at 59 is three
+  digs and leaves the body in a notch it climbs out of by ordinary moves.
+- **Follower** (`nav_follow.c edit_tick`): a DIG step that starts in water
+  ends with the jump controller, not a walk (wading into the notch would
+  have stood there until STUCK).
+- **A sea with no way out is known at once.** `bc_nav_plan_begin`, for a
+  start in water and a goal on land (z <= 61), floods the start's sea as
+  bit rows and asks each shore column for a way out with `water_exit`
+  itself. None: the plan is FAILED with no steps and 0 expansions.
+  Measured: 134 us on a synthetic sea of 250 000 columns, against 40 ms and
+  the whole node pool for the search that used to say the same thing.
+  The search block grew by 64 KiB for it (`bc_nav_search_size` says so by
+  itself).
+- **Water that hurts** (`bc_nav_policy.water_damage`, health a second; new
+  field, 0 by default). Every second a route spends in water costs that
+  many seconds more (one hit point = one second, `BC_NAV_HP_SECS`). At 5 a
+  second a three-column ford costs about 8 s and is taken when the way
+  round is longer; at 30 about 50 s and is not. `water_lethal` now means
+  "never ENTER water": a body already in it used to have no moves at all
+  (wading was refused too, so a bot that spawned or fell in lethal water
+  got an empty route); now it wades, priced as 30 a second, and so leaves
+  by the nearest bank.
+- `bc_nav_snap_dry` (new): `bc_nav_snap` that passes over water columns.
+
+### Found and fixed in nav by the water soak
+
+| what was wrong | the fix | scenario |
+|---|---|---|
+| A jump out of the water that WORKED was reported NO_JUMP: at a wading crawl the body is hauled over the lip and rests 0.93 from the bank column's middle, standing on it; "over the column" asked for 0.9, so it was "down somewhere else". 15 of the 20 step failures on spud at delay 2 | `nav_jump_tick`: a body at rest at the target's height and touching its column (0.95) walks in. (Loosening `over` itself to 0.94 changed the table and dropped two bodies in `runjump_refused_late`: that test commits jumps, and keeps its margin) | spud soak, delay 2: no-jump reports 15 before, 9 after, and the 9 left are jumps on land later in the route ((f)3), none out of the water; `BC_SOAK_PAIR=100,252,63,390,256,52` at delay 2 is one plan now |
+| In lethal water a body had no route | above | `water_harmful_leave` (lethal) |
+| A sea with no exit cost a full search each time | above | `water_out_too_high` |
+
+### The guarantee: never a key held against nothing, unreported
+
+The follower's stuck logic was read for water and holds as it is: "moved"
+is a quarter voxel in 45 ticks (0.33 voxels/s), wading is 5.33, so the
+threshold neither fires on a wading body nor misses one against a bank;
+the jump controller gives up after 4 tries; the step timeout (3 x planned
++ 5 s) bounds everything else; GIVE_UP counts reports from a water node as
+from any other.
+
+What is new is that it is MEASURED from outside the follower, on every
+run: `sim_result.max_still` (nav_sim.h) is the longest stretch of ticks
+with FOLLOWING, a movement key down, no edit asked, and the body within a
+quarter voxel of where the stretch began. Every water scenario and every
+soaked map now CHECKs it under 268 ticks (twice the follower's 130, since
+the bench's anchor is not the follower's, plus the delay). The largest
+seen anywhere: 152 ticks (once, ClockTownarena at delay 0); everywhere else 57 or under, spud's water starts included.
+
+### Scenarios added (nav_test: 441 checks, was 315; body_test: 139, was 77)
+
+- `water_out_bank`: bank at 62, straight on and on a diagonal shore, and a
+  beach with land rising behind; delays 0, 1, 2; one plan, no failure.
+- `water_out_too_high`: bank at 61, at 60: FAILED with 0 expansions and the
+  body never moves; the same with building allowed (cannot help); a goal in
+  that sea is still reached.
+- `water_out_along_shore`: 61 everywhere but one place at 62 ten columns
+  along; delays 0, 1, 2.
+- `water_out_dig`: 61 everywhere and 59 everywhere, digging allowed: cut
+  and jumped; refused at once when the shore is a no-dig zone.
+- `water_spawn`: spud's shore (x 96..120, y 246..258) copied into the test,
+  tent to the top of the beach; delays 0, 1, 2. Always runs.
+- `spud_tent_to_tent`: the real map when `BC_TEST_MAPS` has `spud.vxl`:
+  tent 1 to tent 2, sea to sea across the island; delays 0, 1, 2.
+- `water_wall_unknown`: a rock in the sea the engine does not know: STUCK
+  within the bound, then round it.
+- `water_bank_lie`: the engine believes 62, the server has 61 along three
+  columns: NO_JUMP after the controller's tries, then out elsewhere.
+- `water_bank_lie_everywhere`: the same along the whole shore: GIVE_UP at
+  the 32nd report (95 s; each report from a different column, so it is the
+  total that ends it), never silent.
+- `water_channel_closed`: a gap in a sea wall that is not there: STUCK
+  twice from the same place, GIVE_UP the third time, 5.8 s.
+- `water_harmful_leave`: in the strait, goal across it: safe water is
+  waded; at 20 a second, and when lethal, the body leaves by the near bank
+  behind it and goes round by the causeway.
+- `water_harmful_ford`: a three-column channel, the dry way 100 columns
+  off: waded at 0 and at 5 a second, gone round at 30.
+
+### Soak, with starts in the water
+
+What the soak sampled before: start AND goal each a standable floor found
+by `bc_nav_snap` in a random column, **water rejected** (`pick_node`:
+`out->z < BC_MAP_WATER_Z`), on eight maps none of which spawns anybody in
+the sea. A wading start was never soaked. Now `BC_SOAK_WATER=1` makes every
+other pair start in a random water column (goals stay on land) and reports
+those apart. spud, 500 pairs (250 in the water), no edits:
+
+| delay | reachable | arrived | lost | step failures (first run -> after the fix) | of the 250 water starts: reachable / arrived / lost | their stuck+timeout reports | their other reports (first -> after) |
+|---|---|---|---|---|---|---|---|
+| 0 | 443 | 443 | 0 | 3 -> 3 | 222 / 222 / 0 | 1 | 0 -> 0 |
+| 1 | 443 | 443 | 0 | 8 -> 7 | 222 / 222 / 0 | 1 | 4 -> 4 |
+| 2 | 443 | 443 | 0 | 20 -> 14 | 222 / 222 / 0 | 2 | 14 -> 9 |
+
+No follower gave up; no run hit the bench's cap. With land starts only
+(the old sampling) spud is 420 of 420 at each delay. "First run" is with
+everything in this section but the lip fix: there is no number from before
+the session, because a start in the water could not be sampled.
+
+"Not reachable" on spud is 57 of 500: with a pool of a million nodes all 57
+are "no way" (goals on roofs and tree tops), none is a route the default
+pool misses.
+
+### What the brain must do (not nav's files; nothing here was changed)
+
+1. **The cause of the live bug.** `skill_misc.c bc_do_roam`: do not fall
+   back to `BC_MOVE_FREE` along the facing when `bc_roam_goal` fails; and
+   in `skill_move.c bc_roam_goal` do not reject a water snap and give up --
+   ask for dry land: `bc_nav_snap_dry(e->map, (int)x, (int)y, footz, 48, &n)`
+   in place of `bc_nav_snap(..., 4, &n)` + `bc_map_is_water`. With the
+   enemy tent in the sea that returns the nearest shore to the point drawn.
+   A bot that is wading and has nothing to do should go to
+   `bc_nav_snap_dry(e->map, me.x, me.y, footz, 64, &n)` with `bc_move_to`.
+2. **Water damage.** From the settings: `pol->water_damage = <water.damage>`
+   (health a second; 0 when safe) in `fill_policy`, and stop setting
+   `water_lethal` from `water=lethal` unless the damage is 30 a second or
+   more or unknown -- `water_lethal` forbids entering water at any price,
+   `water_damage` prices it. For a hurt bot: `water_damage * 100 / health`.
+3. Nothing else changes: `bc_nav_plan_begin` may now leave a plan FAILED
+   with an empty route at once (a sea with no exit); `plan_done` already
+   treats `n == 0` as FAILED with a 5 s retry, which is right.
+4. A DIG step may now come with the body in water (`cmd.edit` =
+   `BC_NAV_EDIT_DIG`, voxel at z 59..61 in the bank beside it): the same
+   call as any dig; it is within reach (under 2 voxels from the eye).
+
+### What remains
+
+- A goal that cannot be reached from LAND still floods to the pool (todo 7),
+  and on a map that is mostly sea that is always the whole pool: 40 ms, 57
+  times in 500 random pairs on spud. Only the start-in-a-closed-sea case is
+  short-circuited.
+- Plans on spud average 40 000 expansions (12 ms): the heuristic knows
+  nothing of water's price, so a search wades out to sea before it believes
+  the land route. A shore-distance term would cut it; not done.
+- The bank is cut along an axis only; a diagonal-only notch is not found.
+- The damage price is per second of planned time in water; the server
+  applies damage once a second, so a crossing under a second may cost
+  nothing. The plan errs on the careful side.
+- `water_bank_lie_everywhere` takes 95 s to GIVE_UP (32 reports, each from
+  a new column). If a server's physics ever differed from the measured
+  jump, every bot in the sea would spend that long finding out.
 
 ### Suggested changes to bot/README.md
 

@@ -45,6 +45,14 @@ typedef struct sim_result {
 	int step_fails, stale, off_route, why[8];
 	unsigned kinds;             /* bit per bc_nav_kind actually executed */
 	int waded;                  /* ticks with the body wading */
+	/* THE GUARANTEE AGAINST GRINDING, measured from outside the follower:
+	 * the longest run of ticks on which it answered FOLLOWING with a
+	 * movement key held and no edit asked for, while the body stayed
+	 * within a quarter of a voxel of where that run began. nav.h bounds
+	 * it (2 * BC_NAV_STUCK_TICKS + BC_NAV_RECENTRE_TICKS, and the link's
+	 * delay); the bench's own anchor is not the follower's, so a run seen
+	 * here can straddle two of its, and the checks allow for that. */
+	int max_still;
 	int damage;                 /* hit points lost to falls */
 	int edits;
 	float max_feet;             /* the lowest the feet ever were (z grows down) */
@@ -95,7 +103,8 @@ static sim_result sim_run(sim_world *w, bc_nav_policy pol, bc_nav_node start, bc
 	bc_body b;
 	bc_nav_cmd q[8];
 	int tick = 0, need_plan = 1, edit_cool = 0, blocks = pol.blocks, refusals = 0;
-	int partial_ends = 0, qn = 0, last_step = -1;
+	int partial_ends = 0, qn = 0, last_step = -1, still = 0;
+	bc_v3 still_at;
 
 	memset(&R, 0, sizeof R);
 	memset(&f, 0, sizeof f);
@@ -105,6 +114,7 @@ static sim_result sim_run(sim_world *w, bc_nav_policy pol, bc_nav_node start, bc
 	pol.protect = &w->prot;
 	bc_body_place(&b, w->truth, (float)start.x + 0.5f, (float)start.y + 0.5f, start.z, 0);
 	R.max_feet = bc_body_feet(&b);
+	still_at = b.pos;
 
 	while (tick < cap) {
 		bc_nav_cmd cmd, act;
@@ -301,6 +311,18 @@ static sim_result sim_run(sim_world *w, bc_nav_policy pol, bc_nav_node start, bc
 			R.damage += dmg;
 		if (b.wade && !b.airborne)
 			R.waded++;
+		{
+			float sx = b.pos.x - still_at.x, sy = b.pos.y - still_at.y, sz = b.pos.z - still_at.z;
+
+			if (status != BC_NAV_FOLLOWING || cmd.edit != BC_NAV_EDIT_NONE ||
+			    !(cmd.keys & (BC_K_FORWARD | BC_K_BACK | BC_K_LEFT | BC_K_RIGHT)) ||
+			    sx * sx + sy * sy + sz * sz > 0.25f * 0.25f) {
+				still_at = b.pos;
+				still = 0;
+			} else if (++still > R.max_still) {
+				R.max_still = still;
+			}
+		}
 		if (bc_body_feet(&b) > R.max_feet)
 			R.max_feet = bc_body_feet(&b);
 		tick++;

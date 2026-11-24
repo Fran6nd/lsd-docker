@@ -183,6 +183,86 @@ static void test_falls(void)
 	CHECK(fall(1) == -1);                           /* a step down is not a landing */
 }
 
+/* OUT OF THE WATER. A map with its tents in the sea put forty bots at a
+ * shore for good; what a wading body can and cannot climb is therefore
+ * pinned here, from the physics alone (nav.h, WATER, is built on it).
+ *
+ * The sea to the west, land from x = 100 with its top at `top`. The body
+ * starts wading `back` voxels from the bank and holds forward with `mode`;
+ * jump is pressed on tick `jump_at` (never, if negative). Is it standing
+ * on the bank within five seconds? */
+static int out_of_water(int top, float back, uint8_t mode, int jump_at)
+{
+	bc_body b;
+	int x, y, i;
+
+	for (y = 96; y <= 104; y++)
+		for (x = 80; x <= 110; x++)
+			m->col[y * BC_MAP_X + x] = x >= 100 ? ~(uint64_t)0 << top : (uint64_t)1 << 63;
+	m->rev++;
+	bc_body_place(&b, m, 100.0f - back, 100.5f, 63, 0);
+	for (i = 0; i < 300; i++) {
+		bc_body_step(&b, m, (uint8_t)(BC_K_FORWARD | mode | (i == jump_at ? BC_K_JUMP : 0)), east,
+		             BC_BODY_DT);
+		if (b.pos.x > 100.5f && !b.airborne && bc_body_feet(&b) < (float)top + 0.3f)
+			return 1;
+	}
+	return 0;
+}
+
+static void test_water(void)
+{
+	static const uint8_t modes[4] = {0, BC_K_SNEAK, BC_K_SPRINT, BC_K_CROUCH};
+	static const float backs[5] = {0.5f, 1.0f, 2.5f, 4.5f, 8.5f};
+	bc_body b;
+	float top = 99.0f;
+	int up, mo, k, jt, n, air = 0;
+
+	bc_map_fill_flat(m, 63);
+	bc_body_place(&b, m, 90.5f, 100.5f, 63, 0);
+	/* wading: the feet a voxel under the sea bed's top, the eye under 61 */
+	CHECK(b.wade && !b.airborne);
+	CHECK(NEAR(bc_body_feet(&b), 64.0, 0.03) && NEAR(b.pos.z, 61.75, 0.03));
+	/* a jump is taken from the water as from land, and rises the same 1.6:
+	 * the feet get to 62.4, not to 62 */
+	bc_body_step(&b, m, BC_K_JUMP, east, BC_BODY_DT);
+	CHECK(b.vel.z < 0.0f && b.airborne);
+	while (b.airborne && air < 200) {
+		if (bc_body_feet(&b) < top)
+			top = bc_body_feet(&b);
+		bc_body_step(&b, m, 0, east, BC_BODY_DT);
+		air++;
+	}
+	CHECK(NEAR(64.0 - top, 1.60, 0.03));
+	CHECK(b.wade);
+
+	for (up = 1; up <= 3; up++) {
+		int bank = 63 - up;     /* its top: 62, 61, 60 */
+
+		/* WALKING into a bank climbs none of them, at any pace: even the
+		 * lowest land there is stands two voxels over the wading feet */
+		for (mo = 0; mo < 4; mo++)
+			CHECK(!out_of_water(bank, 3.5f, modes[mo], -1));
+		for (mo = 0; mo < 3; mo++)
+			for (k = 0; k < 5; k++) {
+				for (jt = 0, n = 0; jt < 200; jt++)
+					n += out_of_water(bank, backs[k], modes[mo], jt);
+				if (up == 1 && modes[mo] != BC_K_SPRINT)
+					/* A JUMP gets onto the bank at 62, walking or
+					 * sneaking, standing against it or after any run
+					 * through the water: the rise of 1.6 and the server's
+					 * one-voxel haul over the lip. The window is as wide as
+					 * the time spent against the bank. */
+					CHECK(n >= 20);
+				else
+					/* ...but never with SPRINT held (the haul refuses a
+					 * sprinter), and onto a bank at 61 or 60 by no jump
+					 * at all, from any run-up. */
+					CHECK(n == 0);
+			}
+	}
+}
+
 static void test_quirks(void)
 {
 	bc_body b;
@@ -347,6 +427,7 @@ int main(void)
 	test_paces();
 	test_jump_and_climb();
 	test_falls();
+	test_water();
 	test_quirks();
 	test_drift();
 	printf("%d checks, %d failed\n", checks, failed);

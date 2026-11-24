@@ -203,6 +203,26 @@ int bc_nav_snap(const bc_map *m, int x, int y, int z, int radius, bc_nav_node *o
 	return 0;
 }
 
+static int snap_col_dry(const bc_map *m, int x, int y, int z, bc_nav_node *out)
+{
+	return !bc_map_is_water(m, x, y) && snap_col(m, x, y, z, out) && out->z < BC_MAP_WATER_Z;
+}
+
+int bc_nav_snap_dry(const bc_map *m, int x, int y, int z, int radius, bc_nav_node *out)
+{
+	int r, i;
+
+	if (snap_col_dry(m, x, y, z, out))
+		return 1;
+	for (r = 1; r <= radius; r++)
+		for (i = -r; i <= r; i++) {
+			if (snap_col_dry(m, x + i, y - r, z, out) || snap_col_dry(m, x + i, y + r, z, out) ||
+			    snap_col_dry(m, x - r, y + i, z, out) || snap_col_dry(m, x + r, y + i, z, out))
+				return 1;
+		}
+	return 0;
+}
+
 /* ---------------------------------------------------------------- */
 /* Does a measured move fit here                                     */
 
@@ -381,6 +401,11 @@ int nav_edits(const bc_nav_moves *t, const bc_map *m, const bc_nav_policy *pol,
 		int turns = to.x > from.x ? 0 : to.y > from.y ? 1 : to.x < from.x ? 2 : 3;
 		int c, bit;
 
+		/* Out of the sea the motion is not a stride (wading climbs no
+		 * bank) but the measured jump onto a bank at 62, and that is the
+		 * only place it goes: what is dug is what that jump sweeps. */
+		if (from.z >= BC_MAP_WATER_Z)
+			mvi = tz == BC_MAP_WATER_Z - 1 ? t->water_out[BC_NAV_CLS_AXIS][1] : -1;
 		if (mvi < 0)
 			return -1;
 		for (c = t->mv[mvi].mask_n - 1; c >= 0; c--) {
@@ -469,7 +494,11 @@ struct bc_nav_search {
 	rec *recs;
 	uint32_t *hash;             /* pool index + 1; 0: empty */
 	uint32_t *heap;
+	uint64_t *sea;              /* two bit maps of the columns, for
+	                               sea_has_exit: water, and reached */
 };
+
+enum { ROW_W = BC_MAP_X / 64, SEA_WORDS = 2 * BC_MAP_Y * ROW_W };
 
 static uint32_t hash_size(uint32_t max_nodes)
 {
@@ -489,7 +518,8 @@ size_t bc_nav_search_size(uint32_t max_nodes)
 {
 	return align8(sizeof(bc_nav_search)) + align8((size_t)max_nodes * sizeof(rec)) +
 	       (size_t)hash_size(max_nodes) * sizeof(uint32_t) +
-	       (size_t)max_nodes * sizeof(uint32_t);
+	       align8((size_t)max_nodes * sizeof(uint32_t)) +
+	       (size_t)SEA_WORDS * sizeof(uint64_t);
 }
 
 bc_nav_search *bc_nav_search_init(void *mem, uint32_t max_nodes)
@@ -506,6 +536,8 @@ bc_nav_search *bc_nav_search_init(void *mem, uint32_t max_nodes)
 	s->hash = (uint32_t *)(void *)p;
 	p += (size_t)(s->hash_mask + 1) * sizeof(uint32_t);
 	s->heap = (uint32_t *)(void *)p;
+	p += align8((size_t)max_nodes * sizeof(uint32_t));
+	s->sea = (uint64_t *)(void *)p;
 	s->status = BC_NAV_FAILED;
 	return s;
 }
@@ -647,9 +679,20 @@ static float policy_cost(const bc_nav_search *s, bc_nav_node from, const edge *e
 	int i, fails;
 
 	if (e->to.z >= BC_MAP_WATER_Z) {
-		if (pol->water_lethal)
+		/* lethal water is never entered; a body already in it wades */
+		if (pol->water_lethal && from.z < BC_MAP_WATER_Z)
 			return -1.0f;
 		c += pol->water_secs;
+	}
+	if (from.z >= BC_MAP_WATER_Z) {
+		/* what the time in the water costs in health (nav.h, WATER THAT
+		 * HURTS): the step is done wading, whatever it ends on */
+		float dmg = pol->water_damage;
+
+		if (pol->water_lethal && dmg < BC_NAV_LETHAL_DAMAGE)
+			dmg = BC_NAV_LETHAL_DAMAGE;
+		if (dmg > 0.0f)
+			c += e->secs * dmg * BC_NAV_HP_SECS;
 	}
 	for (i = 0; i < pol->ndanger; i++) {
 		const bc_nav_danger *d = &pol->danger[i];
@@ -811,6 +854,69 @@ static void try_edit(bc_nav_search *s, uint32_t ci, bc_nav_node a, bc_nav_node t
 	relax(s, ci, a, &e);
 }
 
+/* THE WAYS OUT OF THE SEA from water node `a` in direction `dir`, whose
+ * neighbour column is not water: the measured move onto the bank where the
+ * bank is low enough (a jump onto 62; nav.h, WATER), else -- digging
+ * allowed, along an axis -- the bank cut down to 62 and the same jump.
+ * Returns whether there is one, and with a node (ci) relaxes it. The
+ * search's expansion and the flood that asks "is there any way out of this
+ * sea" (sea_has_exit) are this one function, so they cannot disagree. */
+static int water_exit(bc_nav_search *s, uint32_t ci, bc_nav_node a, int dir)
+{
+	const bc_nav_moves *t = s->t;
+	const bc_map *m = s->m;
+	const bc_nav_policy *pol = s->pol;
+	int cls = dir & 1, bx = a.x + bc_nav_dx[dir], by = a.y + bc_nav_dy[dir], up, out;
+	uint64_t col, sb;
+	edge e;
+
+	if (bx < 0 || bx >= BC_MAP_X || by < 0 || by >= BC_MAP_Y)
+		return 0;
+	col = m->col[by * BC_MAP_X + bx];
+	sb = bc_map_stand_bits(col);
+	for (up = 1; up <= 3; up++)
+		if ((sb >> (BC_MAP_WATER_Z - up)) & 1) {
+			int mvi = t->water_out[cls][up];
+
+			if (mvi >= 0 &&
+			    (t->mv[mvi].kind == BC_NAV_WALK ||
+			     (pol->may_jump && t->mv[mvi].margin >= pol->min_margin)) &&
+			    nav_move_fits(t, m, mvi, a, dir)) {
+				if (ci != NOWHERE) {
+					edge_from_move(s, ci, &e, a, mvi, dir);
+					relax(s, ci, a, &e);
+				}
+				return 1;
+			}
+			break;
+		}
+	out = t->water_out[BC_NAV_CLS_AXIS][1];
+	if (pol->may_dig && pol->may_jump && cls == BC_NAV_CLS_AXIS && out >= 0 &&
+	    t->mv[out].margin >= pol->min_margin && ((col >> (BC_MAP_WATER_Z - 1)) & 1)) {
+		bc_nav_node vox[8], to;
+		uint8_t op[8];
+		int digs = 0, builds = 0, n;
+
+		to.x = (int16_t)bx; to.y = (int16_t)by; to.z = BC_MAP_WATER_Z - 1;
+		n = nav_edits(t, m, pol, a, to, vox, op, &digs, &builds);
+		if (n <= 0 || builds)
+			return 0;
+		if (ci != NOWHERE) {
+			memset(&e, 0, sizeof e);
+			e.to = to;
+			e.dir = (uint8_t)dir;
+			e.digs = (uint8_t)digs;
+			e.kind = BC_NAV_DIG;
+			e.move = (int16_t)out;
+			/* the digging, the jump, squaring up for it, stopping to work */
+			e.secs = (float)digs * pol->dig_secs + t->mv[out].secs + 0.25f + 0.3f;
+			relax(s, ci, a, &e);
+		}
+		return 1;
+	}
+	return 0;
+}
+
 static void expand(bc_nav_search *s, uint32_t ci)
 {
 	const bc_nav_moves *t = s->t;
@@ -837,21 +943,11 @@ static void expand(bc_nav_search *s, uint32_t ci)
 		both = sb | bc_map_crouch_bits(col);
 
 		if (a.z >= BC_MAP_WATER_Z) {
-			/* in the sea: wade, or climb out where the bank allows */
-			int up;
-
-			if ((sb >> BC_MAP_WATER_Z) & 1) {
+			/* in the sea: wade, or get out where the bank allows */
+			if ((sb >> BC_MAP_WATER_Z) & 1)
 				try_move(s, ci, a, t->wade[cls], dir);
-				continue;
-			}
-			for (up = 1; up <= 3; up++)
-				if ((sb >> (BC_MAP_WATER_Z - up)) & 1) {
-					int mvi = t->water_out[cls][up];
-
-					if (mvi >= 0 && (pol->may_jump || t->mv[mvi].kind == BC_NAV_WALK))
-						try_move(s, ci, a, mvi, dir);
-					break;
-				}
+			else
+				water_exit(s, ci, a, dir);
 			continue;
 		}
 
@@ -951,6 +1047,135 @@ static void expand(bc_nav_search *s, uint32_t ci)
 	}
 }
 
+/* ---------------------------------------------------------------- */
+/* Is there a way out of this sea                                    */
+
+/* A row of the map is 512 bits in eight words, bit x of the row. */
+static void row_shl(uint64_t *d, const uint64_t *src, int k)
+{
+	int w = k >> 6, b = k & 63, i;
+
+	for (i = ROW_W - 1; i >= 0; i--) {
+		uint64_t v = i - w >= 0 ? src[i - w] << b : 0;
+
+		if (b && i - w - 1 >= 0)
+			v |= src[i - w - 1] >> (64 - b);
+		d[i] = v;
+	}
+}
+
+static void row_shr(uint64_t *d, const uint64_t *src, int k)
+{
+	int w = k >> 6, b = k & 63, i;
+
+	for (i = 0; i < ROW_W; i++) {
+		uint64_t v = i + w < ROW_W ? src[i + w] >> b : 0;
+
+		if (b && i + w + 1 < ROW_W)
+			v |= src[i + w + 1] << (64 - b);
+		d[i] = v;
+	}
+}
+
+/* Spread the bits of `r` along the row through the runs of `w` they are
+ * in, both ways: doubling shifts, nine each way, whatever the run's length. */
+static void row_fill(uint64_t *r, const uint64_t *w)
+{
+	uint64_t p[ROW_W], tmp[ROW_W];
+	int dirn, k, i;
+
+	for (dirn = 0; dirn < 2; dirn++) {
+		memcpy(p, w, sizeof p);
+		for (k = 1; k < BC_MAP_X; k <<= 1) {
+			if (dirn) row_shr(tmp, r, k); else row_shl(tmp, r, k);
+			for (i = 0; i < ROW_W; i++)
+				r[i] |= tmp[i] & p[i];
+			if (dirn) row_shr(tmp, p, k); else row_shl(tmp, p, k);
+			for (i = 0; i < ROW_W; i++)
+				p[i] &= tmp[i];
+		}
+	}
+}
+
+/* nav.h, WATER: from water node `start`, can the body leave the sea it is
+ * in at all, under this search's policy? The sea is flooded as bit rows --
+ * every water column joined to the start's by sides or corners, which is
+ * all a body could wade to and a little more (a diagonal between two rocks
+ * that the search would refuse) -- and each of its columns with a
+ * neighbour that is not water is asked for a way out, by the function the
+ * search itself expands with. "No" is therefore never said of a sea the
+ * search could leave. */
+static int sea_has_exit(bc_nav_search *s, bc_nav_node start)
+{
+	const bc_map *m = s->m;
+	uint64_t *water = s->sea, *reach = s->sea + BC_MAP_Y * ROW_W;
+	uint64_t n[ROW_W], l[ROW_W], r[ROW_W];
+	int x, y, i, changed, pass;
+
+	for (y = 0; y < BC_MAP_Y; y++)
+		for (i = 0; i < ROW_W; i++) {
+			const uint64_t *c = &m->col[y * BC_MAP_X + i * 64];
+			uint64_t bits = 0;
+
+			for (x = 0; x < 64; x++)
+				bits |= (uint64_t)(c[x] == (uint64_t)1 << BC_MAP_WATER_Z) << x;
+			water[y * ROW_W + i] = bits;
+		}
+	memset(reach, 0, (size_t)BC_MAP_Y * ROW_W * sizeof(uint64_t));
+	reach[start.y * ROW_W + (start.x >> 6)] = (uint64_t)1 << (start.x & 63);
+	row_fill(&reach[start.y * ROW_W], &water[start.y * ROW_W]);
+
+	/* down the map and up it again until nothing is added */
+	for (pass = 0, changed = 1; changed; pass++) {
+		changed = 0;
+		for (y = (pass & 1) ? BC_MAP_Y - 1 : 0; y >= 0 && y < BC_MAP_Y; y += (pass & 1) ? -1 : 1) {
+			uint64_t *row = &reach[y * ROW_W], add = 0;
+
+			for (i = 0; i < ROW_W; i++)
+				n[i] = (y > 0 ? row[i - ROW_W] : 0) | (y < BC_MAP_Y - 1 ? row[i + ROW_W] : 0);
+			row_shl(l, n, 1);
+			row_shr(r, n, 1);
+			for (i = 0; i < ROW_W; i++) {
+				n[i] = (n[i] | l[i] | r[i]) & water[y * ROW_W + i];
+				add |= n[i] & ~row[i];
+			}
+			if (!add)
+				continue;
+			for (i = 0; i < ROW_W; i++)
+				row[i] |= n[i];
+			row_fill(row, &water[y * ROW_W]);
+			changed = 1;
+		}
+	}
+
+	/* the shore: reached columns with a neighbour that is not water */
+	for (y = 0; y < BC_MAP_Y; y++) {
+		for (i = 0; i < ROW_W; i++) {
+			n[i] = water[y * ROW_W + i];
+			if (y > 0) n[i] &= water[(y - 1) * ROW_W + i];
+			if (y < BC_MAP_Y - 1) n[i] &= water[(y + 1) * ROW_W + i];
+		}
+		row_shl(l, n, 1);
+		row_shr(r, n, 1);
+		for (i = 0; i < ROW_W; i++) {
+			uint64_t shore = reach[y * ROW_W + i] & ~(n[i] & l[i] & r[i]);
+
+			for (; shore; shore &= shore - 1) {
+				bc_nav_node a;
+				int dir;
+
+				a.x = (int16_t)(i * 64 + bc_ctz64(shore));
+				a.y = (int16_t)y;
+				a.z = BC_MAP_WATER_Z;
+				for (dir = 0; dir < 8; dir++)
+					if (water_exit(s, NOWHERE, a, dir))
+						return 1;
+			}
+		}
+	}
+	return 0;
+}
+
 int bc_nav_plan_begin(bc_nav_search *s, const bc_nav_moves *t, const bc_map *m,
                       const bc_nav_policy *pol, bc_nav_node start, bc_nav_node goal,
                       int goal_radius)
@@ -969,6 +1194,10 @@ int bc_nav_plan_begin(bc_nav_search *s, const bc_nav_moves *t, const bc_map *m,
 	s->status = BC_NAV_FAILED;
 	if (!nav_node_kind(m, start.x, start.y, start.z))
 		return 0;
+	/* in a sea with no way out, for a goal that is not in the water: no
+	 * (nav.h, WATER). A goal at 62 may be met by a water node beside it. */
+	if (start.z >= BC_MAP_WATER_Z && goal.z < BC_MAP_WATER_Z - 1 && !sea_has_exit(s, start))
+		return 1;
 	si = node_get(s, nav_pack(start), &is_new);
 	if (si == NOWHERE)
 		return 0;

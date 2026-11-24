@@ -43,9 +43,11 @@
  *   - Protected voxels and no-dig/no-build zones are WALLS, not prices:
  *     any finite price gets paid, and a refused edit costs a block and
  *     three seconds each time.
- *   - Lethal water is refused outright for the same reason; other water
+ *   - Lethal water is never ENTERED, for the same reason; other water
  *     costs time (wading is two thirds of walking pace, measured) plus
- *     water_secs a voxel, because a body in water is a target.
+ *     water_secs a voxel, because a body in water is a target, plus what
+ *     its damage is worth (water_damage). A body already IN water, lethal
+ *     or not, is always given the way out: see WATER below.
  *   - A diagonal step needs both its corner columns walkable: the server
  *     resolves x and y one after the other and a knife-edge diagonal put
  *     bots in the sea.
@@ -80,8 +82,9 @@
  * WHAT IS NOT DONE (bot/NAV-STATUS.md has the list and the numbers):
  *   - Jumps go along an axis or a diagonal only, up to 7 columns; there
  *     are no knight's-move jumps and none measured under a low ceiling.
- *   - From water the only moves are wading and the jump onto a bank one
- *     voxel up; nothing is dug, built or jumped from in the sea.
+ *   - From water the moves are wading, the jump onto a bank one voxel
+ *     up, and (with digging allowed) cutting a higher bank down to that.
+ *     Nothing is built in the sea: see WATER below for why.
  *   - Drops are planned along an axis only (the table has diagonal ones).
  *   - A plan prices each edit against the map as it is: it does not know
  *     that an earlier step on the same route will have changed it, beyond
@@ -90,6 +93,33 @@
  *     needed for a goal that can be reached (worst 73 000 nodes, 25 ms);
  *     a goal that cannot floods everything it can reach first, up to the
  *     pool. Give a search a budget and a deadline.
+ *
+ * WATER, as measured (body_test and nav_test pin it; NAV-STATUS.md has the
+ * table). A water column is one whose only solid voxel is 63; a body in it
+ * stands with its feet at 64 and WADES at two thirds of walking pace. There
+ * is no deep water and no swimming: every sea is one voxel deep.
+ *   - A bank whose top is z = 62 (the lowest land there is: one voxel above
+ *     the sea bed's top, two above the wading feet) is NOT climbed by
+ *     walking into it, at any pace. It is climbed by a JUMP pressed while
+ *     walking or sneaking into it -- at any tick, from any distance that
+ *     still reaches it in the air -- and by no jump with SPRINT held (the
+ *     server's one-voxel haul, which finishes the climb, refuses a
+ *     sprinter). The jump controller never sprints there.
+ *   - A bank whose top is z = 61 or higher cannot be got onto from the
+ *     water by any keys (short of the crouch-in-the-air fault of body.h,
+ *     which nothing here uses). The plan goes ALONG the shore to a place
+ *     where the bank is 62 -- or, when it may dig, cuts the bank column
+ *     down to 62 from the water (voxels 61 and up; 62 cannot be dug) and
+ *     jumps onto what is left: a DIG step whose motion is that jump.
+ *   - Nothing can be BUILT to get out. The server builds at z <= 61 only,
+ *     and a block at 61 is three above the wading feet: a higher bank, not
+ *     a step.
+ *   - A sea with no way out at all (every bank too high, no digging) is
+ *     known at once: before a search from a water node to a goal on land,
+ *     bc_nav_plan_begin floods the sea the start is in (bit rows, well
+ *     under a millisecond) and looks for one place the body could leave
+ *     it. With none the plan is FAILED straight away, with a route of no
+ *     steps -- not after a search of the whole sea each time it is asked.
  */
 #ifndef BC_NAV_H
 #define BC_NAV_H
@@ -276,7 +306,10 @@ typedef struct bc_nav_policy {
 	uint8_t may_dig;            /* edit moves that remove voxels */
 	uint8_t may_build;          /* edit moves that place voxels */
 	uint8_t may_jump;           /* JUMP and RUNJUMP */
-	uint8_t water_lethal;       /* never enter water (water_damage maps) */
+	uint8_t water_lethal;       /* never ENTER water. A body already in it
+	                               may wade (how else would it get out),
+	                               priced as water_damage 30 at least, so
+	                               it leaves by the nearest bank */
 	uint8_t blocks;             /* in the pouch now: builds on a route
 	                               never exceed it */
 	uint8_t max_fall_damage;    /* hit points a single landing may cost
@@ -297,10 +330,25 @@ typedef struct bc_nav_policy {
 	const bc_nav_protect *protect;      /* or NULL */
 	const bc_nav_fail *fail;            /* or NULL */
 	double now;                         /* for `fail`'s expiries */
+	/* WATER THAT HURTS: health a second a wading body loses (the server's
+	 * "water.damage" setting; 0: none). Every second a route spends in
+	 * the water costs this many seconds more -- one hit point is priced as
+	 * one second of walking, BC_NAV_HP_SECS. So at 5 a second a ford three
+	 * columns wide costs about eight seconds: taken when the way round is
+	 * longer than that, and at 30 a second about fifty: nearly never. A
+	 * body that starts in such water leaves it by the cheapest bank, which
+	 * with any real damage is the nearest. A caller that wants a hurt bot
+	 * more careful still gives a larger number (damage * 100 / health). */
+	float water_damage;
 } bc_nav_policy;
 
+/* What a hit point is worth, in seconds of route. */
+#define BC_NAV_HP_SECS 1.0f
+/* The damage rate water_lethal stands for when a body is already in it. */
+#define BC_NAV_LETHAL_DAMAGE 30.0f
+
 /* Walk, sprint, jump, drop where it does not hurt; no edits; water at
- * 0.5 s a column. dig 0.5 s, build 0.7 s a voxel when switched on
+ * 0.5 s a column and harmless. dig 0.5 s, build 0.7 s a voxel when switched on
  * (aosbot's mid-skill cadences). */
 void bc_nav_policy_default(bc_nav_policy *p);
 
@@ -377,6 +425,9 @@ bc_nav_search *bc_nav_search_init(void *mem, uint32_t max_nodes);
 int bc_nav_plan_begin(bc_nav_search *s, const bc_nav_moves *t, const bc_map *m,
                       const bc_nav_policy *pol, bc_nav_node start, bc_nav_node goal,
                       int goal_radius);
+/* (From a water node with no way out of its sea, to a goal on land, it
+ * returns 1 and the plan is already BC_NAV_FAILED with no route: WATER,
+ * in the header comment.) */
 
 /* Advance by at most `budget` expansions. About 0.3 microseconds each on
  * flat ground, a few when jumps and edits are weighed. */
@@ -397,6 +448,11 @@ int bc_nav_node_of_body(const bc_map *m, const bc_body *b, bc_nav_node *out);
 /* The nearest place to stand to a point: in its column first (nearest in
  * z), then in rings out to `radius`. 0 if none. */
 int bc_nav_snap(const bc_map *m, int x, int y, int z, int radius, bc_nav_node *out);
+
+/* The same, but DRY: water columns are passed over. For a caller that
+ * wants somewhere to go near a point that may be in the sea (a tent in the
+ * water, a body wading): bc_nav_snap there answers the sea bed. */
+int bc_nav_snap_dry(const bc_map *m, int x, int y, int z, int radius, bc_nav_node *out);
 
 /* ================================================================== */
 /* 5. THE FOLLOWER                                                     */

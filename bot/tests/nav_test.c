@@ -7,6 +7,11 @@
  *     BC_SOAK_PAIRS=n          pairs a map (default 200)
  *     BC_SOAK_LATENCY=n        ticks of command delay (default 1)
  *     BC_SOAK_EDITS=1          let the bots dig and build
+ *     BC_SOAK_WATER=1          every other pair STARTS in the water (a random
+ *                              water column), and those are reported apart.
+ *                              Without it starts and goals are both dry land
+ *                              -- which is all the soak sampled before a map
+ *                              with its tents in the sea showed what that hid
  *     BC_SOAK_NODES=n          the search's node pool (default 131072)
  *     BC_SOAK_SHOW=1           print each pair that did not arrive, or took
  *                              far from its estimate
@@ -654,6 +659,337 @@ static void test_water(void)
 	}
 }
 
+
+/* OUT OF THE WATER (nav.h, WATER). Found on a real server: a map whose
+ * tents stand in the sea, so every bot spawns wading. What a wading body
+ * can do is measured (body_test pins it): onto a bank at 62 by a jump and
+ * by nothing else; onto a higher bank not at all. */
+
+/* The longest a follower may be seen holding a movement key with the body
+ * still (nav_sim.h, max_still): its own bound, twice over because the
+ * bench's anchor is not its anchor, and the link's delay. */
+#define STILL_MAX (2 * (2 * BC_NAV_STUCK_TICKS + BC_NAV_RECENTRE_TICKS) + 8)
+
+/* The sea everywhere, and land from x = 120 east with its top at `top`. */
+static void shore_scene(int top)
+{
+	fresh(63);
+	area_top(W.m, 120, 0, BC_MAP_X - 1, BC_MAP_Y - 1, top);
+}
+
+/* spud's west shore as it is on the map, x 96..120 by y 246..258: where
+ * the bots of the live server stood. Tops of the columns. */
+static const uint8_t spud_shore[13][25] = {
+	{63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,61,60,59,57,56,34,34,33,32},
+	{63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,61,59,58,57,35,34,34,34,33},
+	{63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,62,60,59,58,57,56,35,34,33,33},
+	{63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,61,59,58,57,56,56,55,54,32,33},
+	{63,63,63,63,63,63,63,63,63,63,63,63,63,63,62,60,59,58,57,56,55,55,35,33,33},
+	{63,63,63,63,63,63,63,63,63,63,63,63,63,63,61,60,58,57,57,56,55,55,54,34,33},
+	{63,63,63,63,63,63,63,63,63,63,63,63,63,63,61,59,58,57,56,56,55,55,54,53,33},
+	{63,63,63,63,63,63,63,63,63,63,63,63,63,62,60,59,58,57,56,56,55,54,54,53,53},
+	{63,63,63,63,63,63,63,63,63,63,63,63,63,61,60,58,57,57,56,56,55,54,54,53,53},
+	{63,63,63,63,63,63,63,63,63,63,63,63,63,61,60,58,57,57,56,56,55,54,54,53,53},
+	{63,63,63,63,63,63,63,63,63,63,63,63,63,61,60,58,57,57,56,56,55,55,54,53,53},
+	{63,63,63,63,63,63,63,63,63,63,63,63,63,61,60,59,58,57,56,56,55,55,54,53,53},
+	{63,63,63,63,63,63,63,63,63,63,63,63,63,62,60,59,58,57,57,56,55,55,54,54,53}
+};
+
+static void test_water_out(void)
+{
+	static bc_map truth;
+	bc_nav_policy pol;
+	sim_result r;
+	int lat, x, y;
+
+	bc_nav_policy_default(&pol);
+	if (begin("water_out_bank")) {
+		/* the bank at 62: the one height there is to climb. Straight at
+		 * it, and at a shore that runs on the diagonal. */
+		for (lat = 0; lat <= 2; lat++) {
+			shore_scene(62);
+			W.latency = lat;
+			r = sim_run(&W, pol, node(110, 100, 63), node(126, 100, 62), 0, 2000);
+			if (lat == 1)
+				report("water_out_bank", &r);
+			CHECK(r.arrived);
+			CHECK(r.kinds & K(BC_NAV_JUMP));
+			CHECK(r.plans == 1 && r.step_fails == 0);
+			CHECK(r.waded > 0 && r.max_still < STILL_MAX);
+			CHECK(r.ticks < 60 * 6);
+
+			fresh(63);
+			for (y = 0; y < BC_MAP_Y; y++)
+				for (x = 0; x < BC_MAP_X; x++)
+					if (x + y >= 230)
+						col_top(W.m, x, y, 62);
+			W.latency = lat;
+			r = sim_run(&W, pol, node(110, 100, 63), node(122, 114, 62), 0, 2000);
+			CHECK(r.arrived && r.plans == 1 && r.step_fails == 0);
+			CHECK(r.max_still < STILL_MAX);
+		}
+		/* and onto a beach with the land rising behind it */
+		shore_scene(62);
+		area_top(W.m, 121, 0, BC_MAP_X - 1, BC_MAP_Y - 1, 60);
+		area_top(W.m, 122, 0, BC_MAP_X - 1, BC_MAP_Y - 1, 59);
+		r = sim_run(&W, pol, node(110, 100, 63), node(126, 100, 59), 0, 2000);
+		CHECK(r.arrived && r.step_fails == 0);
+	}
+	if (begin("water_out_too_high")) {
+		/* A bank at 61, and one at 60, the width of the map: no keys get a
+		 * wading body onto either. The plan must say so AT ONCE: not one
+		 * node expanded, not a search of 250 000 columns of sea every time
+		 * somebody asks (five times a minute, by every bot in it). */
+		int top;
+
+		for (top = 61; top >= 60; top--) {
+			shore_scene(top);
+			r = sim_run(&W, pol, node(110, 100, 63), node(126, 100, top), 0, 2000);
+			if (top == 61)
+				report("water_out_too_high", &r);
+			CHECK(!r.arrived && r.no_route);
+			CHECK(r.first_plan_status == BC_NAV_FAILED);
+			CHECK(r.plans == 1 && r.max_exp == 0);
+			CHECK(r.ticks == 0);            /* and it did not set off */
+		}
+		if (only)
+			printf("  the sea searched for a way out in %.0f us\n", r.plan_us);
+		/* nor does BUILDING get it out: the lowest voxel the server lets
+		 * anybody place is 61, three above the wading feet */
+		shore_scene(61);
+		pol.may_build = 1;
+		pol.blocks = 30;
+		r = sim_run(&W, pol, node(110, 100, 63), node(126, 100, 61), 0, 2000);
+		CHECK(!r.arrived && r.max_exp == 0 && r.edits == 0);
+		pol.may_build = 0;
+		pol.blocks = 0;
+		/* a goal IN that sea is still a goal */
+		r = sim_run(&W, pol, node(110, 100, 63), node(100, 120, 63), 0, 2000);
+		CHECK(r.arrived);
+	}
+	if (begin("water_out_along_shore")) {
+		/* the same bank, with one place ten columns along where it is 62 */
+		for (lat = 0; lat <= 2; lat++) {
+			shore_scene(61);
+			area_top(W.m, 120, 110, 121, 111, 62);
+			W.latency = lat;
+			r = sim_run(&W, pol, node(117, 100, 63), node(126, 100, 61), 0, 3000);
+			if (lat == 1)
+				report("water_out_along_shore", &r);
+			CHECK(r.arrived);
+			CHECK(r.plans == 1 && r.step_fails == 0 && r.edits == 0);
+			CHECK(r.max_still < STILL_MAX);
+		}
+	}
+	if (begin("water_out_dig")) {
+		/* too high everywhere, and digging allowed: the bank is cut down
+		 * to 62 from the water (61 is the lowest voxel that can be dug)
+		 * and jumped onto. At 61 that is one voxel; at 59 it is three, and
+		 * the notch it leaves is climbed out of like any other. */
+		int top;
+
+		pol.may_dig = 1;
+		for (top = 61; top >= 59; top -= 2)
+			for (lat = 0; lat <= 2; lat++) {
+				shore_scene(top);
+				W.latency = lat;
+				r = sim_run(&W, pol, node(116, 100, 63), node(126, 100, top), 0, 4000);
+				if (lat == 1)
+					report(top == 61 ? "water_out_dig" : "water_out_dig (bank at 59)", &r);
+				CHECK(r.arrived);
+				CHECK((r.kinds & K(BC_NAV_DIG)) && r.edits >= 62 - top);
+				CHECK(r.step_fails == 0 && r.max_still < STILL_MAX);
+			}
+		/* ...unless the bank may not be dug */
+		{
+			bc_nav_zone z = {118, 0, 124, BC_MAP_Y - 1, 1, 1, {0, 0}};
+
+			shore_scene(61);
+			pol.zones = &z;
+			pol.nzones = 1;
+			r = sim_run(&W, pol, node(116, 100, 63), node(126, 100, 61), 0, 2000);
+			CHECK(!r.arrived && r.max_exp == 0 && r.edits == 0);
+			pol.zones = NULL;
+			pol.nzones = 0;
+		}
+		pol.may_dig = 0;
+	}
+	if (begin("water_spawn")) {
+		/* The live server's situation, cut out of its map: the tent in the
+		 * sea, the shore as it is there -- 61 along most of it, 62 at four
+		 * places -- and everywhere else a wall. From the tent to the top
+		 * of the beach. */
+		for (lat = 0; lat <= 2; lat++) {
+			fresh(63);
+			area_top(W.m, 110, 0, 140, BC_MAP_Y - 1, 61);
+			for (y = 0; y < 13; y++) {
+				for (x = 0; x < 25; x++)
+					col_top(W.m, 96 + x, 246 + y, spud_shore[y][x]);
+				area_top(W.m, 121, 246 + y, 140, 246 + y, spud_shore[y][24]);
+			}
+			W.latency = lat;
+			r = sim_run(&W, pol, node(72, 256, 63), node(119, 256, 53), 0, 60 * 40);
+			if (lat == 1)
+				report("water_spawn", &r);
+			CHECK(r.arrived);
+			CHECK(r.kinds & K(BC_NAV_JUMP));
+			CHECK(r.waded > 60 * 5 && r.max_still < STILL_MAX);
+			CHECK(!r.gave_up && r.plans <= 2);
+		}
+	}
+
+	/* THE GUARANTEE (nav.h): whatever is wrong, a follower does not hold a
+	 * key against no progress without saying so. In the water the paces
+	 * are others (wading is 5.3 voxels a second, not 8 or 10.4) and the
+	 * body's feet are a voxel under its node: the same bound must hold. */
+	if (begin("water_wall_unknown")) {
+		/* a rock in the sea that the engine does not know of, on the way
+		 * to an island: waded into, reported, gone round */
+		for (lat = 0; lat <= 2; lat++) {
+			fresh(63);
+			area_top(W.m, 130, 90, 140, 110, 62);
+			memcpy(&truth, W.m, sizeof truth);
+			col_top(&truth, 120, 100, 50);
+			W.truth = &truth;
+			W.latency = lat;
+			r = sim_run(&W, pol, node(110, 100, 63), node(135, 100, 62), 0, 60 * 60);
+			if (lat == 1)
+				report("water_wall_unknown", &r);
+			CHECK(r.arrived);
+			CHECK(r.why[BC_NAV_WHY_STUCK] >= 1);
+			CHECK(r.max_still < STILL_MAX);
+			CHECK(r.ticks < 60 * 20);
+			W.truth = W.m;
+		}
+	}
+	if (begin("water_bank_lie")) {
+		/* The engine believes the bank is 62 here; it is 61 (a kerb along
+		 * three columns of shore that nobody announced). The jump is
+		 * simulated on the engine's map and lands; on the server's it does
+		 * not. That must be a report within the bound -- NO_JUMP after the
+		 * controller's tries, not a body pressed to the bank for ever --
+		 * and the next plan must leave by somewhere else. */
+		for (lat = 0; lat <= 2; lat++) {
+			shore_scene(62);
+			memcpy(&truth, W.m, sizeof truth);
+			area_top(&truth, 120, 99, 120, 101, 61);
+			W.truth = &truth;
+			W.latency = lat;
+			r = sim_run(&W, pol, node(114, 100, 63), node(126, 100, 62), 0, 60 * 60);
+			if (lat == 1)
+				report("water_bank_lie", &r);
+			CHECK(r.arrived);
+			CHECK(r.step_fails >= 1);
+			CHECK(r.max_still < STILL_MAX);
+			CHECK(!r.plan_cap && r.ticks < 60 * 40);
+			W.truth = W.m;
+		}
+	}
+	if (begin("water_bank_lie_everywhere")) {
+		/* ...and when the whole shore is such a lie there is nowhere else:
+		 * every plan is a jump the server will not have. The follower must
+		 * END it (GIVE_UP), from the water as from anywhere, well inside
+		 * the bench's cap, and never stand silent on the way. */
+		for (lat = 0; lat <= 2; lat++) {
+			shore_scene(62);
+			memcpy(&truth, W.m, sizeof truth);
+			area_top(&truth, 120, 0, BC_MAP_X - 1, BC_MAP_Y - 1, 61);
+			W.truth = &truth;
+			W.latency = lat;
+			r = sim_run(&W, pol, node(114, 100, 63), node(126, 100, 62), 0, 60 * 600);
+			if (lat == 1) {
+				report("water_bank_lie_everywhere", &r);
+				printf("  %-28s %d reports, the longest still with a key held %d ticks\n", "",
+				       r.step_fails, r.max_still);
+			}
+			CHECK(!r.arrived);
+			CHECK(r.gave_up && !r.plan_cap);
+			CHECK(r.plans <= BC_NAV_REPORTS_MAX);
+			CHECK(r.max_still < STILL_MAX);
+			W.truth = W.m;
+		}
+	}
+	if (begin("water_channel_closed")) {
+		/* a wall in the sea with one gap the engine believes in and the
+		 * server does not have: waded into three times, then GIVE_UP */
+		fresh(63);
+		area_top(W.m, 120, 0, 122, BC_MAP_Y - 1, 50);
+		area_top(W.m, 120, 100, 122, 100, 63);
+		area_top(W.m, 130, 90, 140, 110, 62);
+		memcpy(&truth, W.m, sizeof truth);
+		area_top(&truth, 120, 100, 122, 100, 50);
+		W.truth = &truth;
+		r = sim_run(&W, pol, node(114, 100, 63), node(135, 100, 62), 0, 60 * 120);
+		report("water_channel_closed", &r);
+		CHECK(!r.arrived);
+		CHECK(r.gave_up && !r.plan_cap);
+		CHECK(r.plans == BC_NAV_REPEAT_MAX);
+		CHECK(r.why[BC_NAV_WHY_STUCK] == BC_NAV_REPEAT_MAX - 1);
+		CHECK(r.max_still < STILL_MAX);
+		CHECK(r.ticks < 60 * 20);
+		W.truth = W.m;
+	}
+}
+
+/* WATER THAT HURTS (nav.h). The server says what a map's water does
+ * ("water.damage", health a second); the policy prices it. */
+static void test_water_harmful(void)
+{
+	bc_nav_policy pol;
+	sim_result r;
+	int k;
+
+	if (begin("water_harmful_leave")) {
+		/* A strait thirteen wide between two shores, a causeway across it
+		 * sixty columns south, and a body IN the water three columns from
+		 * the west shore with its goal on the east one. In harmless water
+		 * it wades across. In water that hurts it turns its back on the
+		 * goal, leaves by the west bank and goes round -- and the same
+		 * when the water is declared lethal, which no longer means "a
+		 * body in it has no route at all". */
+		for (k = 0; k < 3; k++) {
+			bc_nav_policy_default(&pol);
+			if (k == 1) pol.water_damage = 20.0f;
+			if (k == 2) pol.water_lethal = 1;
+			fresh(63);
+			area_top(W.m, 0, 0, 106, BC_MAP_Y - 1, 62);
+			area_top(W.m, 120, 0, BC_MAP_X - 1, BC_MAP_Y - 1, 62);
+			area_top(W.m, 107, 160, 119, 161, 62);
+			r = sim_run(&W, pol, node(109, 100, 63), node(125, 100, 62), 0, 60 * 60);
+			report(k == 0 ? "water_harmful_leave (safe)" : k == 1 ? "water_harmful_leave" :
+			       "water_harmful_leave (lethal)", &r);
+			CHECK(r.arrived && r.plans == 1 && r.step_fails == 0);
+			if (k == 0)
+				CHECK(r.waded > 100);           /* ten columns of it */
+			else
+				CHECK(r.waded < 80);            /* three, and the jump out */
+		}
+	}
+	if (begin("water_harmful_ford")) {
+		/* A channel three wide the width of the map, and dry land across
+		 * it a hundred columns off: twenty seconds' walk round. At 5 a
+		 * second the crossing costs about eight seconds of health and is
+		 * taken; at 30 a second about fifty, and it is not. */
+		static const float dmg[3] = {0.0f, 5.0f, 30.0f};
+
+		for (k = 0; k < 3; k++) {
+			bc_nav_policy_default(&pol);
+			pol.water_damage = dmg[k];
+			fresh(62);
+			area_top(W.m, 120, 0, 122, BC_MAP_Y - 1, 63);
+			area_top(W.m, 120, 200, 122, 201, 62);
+			r = sim_run(&W, pol, node(110, 100, 62), node(130, 100, 62), 0, 60 * 60);
+			if (k)
+				report(k == 1 ? "water_harmful_ford (5/s)" : "water_harmful_ford (30/s)", &r);
+			CHECK(r.arrived && r.step_fails == 0);
+			if (k < 2)
+				CHECK(r.waded > 0);
+			else
+				CHECK(r.waded == 0 && r.max_feet < 62.5f);
+		}
+	}
+}
+
 static void test_drops(void)
 {
 	bc_nav_policy pol;
@@ -1178,6 +1514,61 @@ static int pick_node(bc_rng *rng, const bc_map *m, bc_nav_node *out)
 	return 0;
 }
 
+/* A random water column: where a bot spawns on a map with its tent in the
+ * sea, or falls in. */
+static int pick_water(bc_rng *rng, const bc_map *m, bc_nav_node *out)
+{
+	int tries;
+
+	for (tries = 0; tries < 20000; tries++) {
+		int x = 8 + (int)bc_rng_below(rng, BC_MAP_X - 16);
+		int y = 8 + (int)bc_rng_below(rng, BC_MAP_Y - 16);
+
+		if (bc_map_is_water(m, x, y)) {
+			*out = node(x, y, BC_MAP_WATER_Z);
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/* THE REAL MAP of the live bug, when it is there (BC_TEST_MAPS/spud.vxl):
+ * both tents stand in the sea. From one to the other -- out of the water,
+ * across the island, into the water again -- at each delay. */
+static void test_spud(void)
+{
+	const char *dir = getenv("BC_TEST_MAPS");
+	char path[1024];
+	unsigned char *bytes;
+	size_t len = 0;
+	bc_nav_policy pol;
+	sim_result r;
+	int lat;
+
+	if (!begin("spud_tent_to_tent"))
+		return;
+	snprintf(path, sizeof path, "%s/spud.vxl", dir ? dir : ".");
+	bytes = dir ? slurp(path, &len) : NULL;
+	if (!bytes) {
+		printf("  %-28s skipped (no spud.vxl in BC_TEST_MAPS)\n", "spud_tent_to_tent");
+		return;
+	}
+	bc_nav_policy_default(&pol);
+	for (lat = 0; lat <= 2; lat++) {
+		fresh(63);
+		CHECK(bc_map_load_vxl(W.m, bytes, len));
+		W.latency = lat;
+		r = sim_run(&W, pol, node(72, 256, 63), node(440, 256, 63), 0, 60 * 240);
+		if (lat == 1)
+			report("spud_tent_to_tent", &r);
+		CHECK(r.first_plan_status == BC_NAV_DONE);
+		CHECK(r.arrived && !r.gave_up);
+		CHECK(r.kinds & K(BC_NAV_JUMP));
+		CHECK(r.max_still < STILL_MAX);
+	}
+	free(bytes);
+}
+
 static void soak_map(const char *dir, const char *file, int pairs, int latency, int edits)
 {
 	char path[1024];
@@ -1187,7 +1578,11 @@ static void soak_map(const char *dir, const char *file, int pairs, int latency, 
 	bc_nav_policy pol;
 	int tried = 0, reachable = 0, arrived = 0, unreach = 0, exhausted = 0;
 	int step_fails = 0, stale = 0, off = 0, why[8] = {0}, hurt = 0, plans = 0, i;
-	int gave_up = 0, capped = 0;
+	int gave_up = 0, capped = 0, max_still = 0;
+	int wet_starts = getenv("BC_SOAK_WATER") != NULL && atoi(getenv("BC_SOAK_WATER")) > 0;
+	/* the starts in the water, apart: [0] tried, [1] reachable, [2] arrived,
+	 * [3] stuck reports, [4] every other report, [5] the follower gave up */
+	int wet[6] = {0};
 	static int cat_ticks[BC_NAV_KINDS][3][3], cat_n[BC_NAV_KINDS][3][3];
 	static float cat_secs[BC_NAV_KINDS][3][3];
 	double sum_time = 0, sum_ratio = 0, worst_ratio = 0;
@@ -1218,8 +1613,16 @@ static void soak_map(const char *dir, const char *file, int pairs, int latency, 
 		static bc_map backup;
 		int dx, dy, one[6];
 
-		if (!pick_node(&rng, W.m, &a) || !pick_node(&rng, W.m, &b))
+		int in_water = wet_starts && (tried & 1);
+
+		if (!(in_water ? pick_water(&rng, W.m, &a) : pick_node(&rng, W.m, &a)) ||
+		    !pick_node(&rng, W.m, &b)) {
+			if (in_water) {         /* a map with no sea */
+				wet_starts = 0;
+				continue;
+			}
 			break;
+		}
 		dx = a.x - b.x; dy = a.y - b.y;
 		if (dx * dx + dy * dy < 12 * 12)
 			continue;
@@ -1252,6 +1655,19 @@ static void soak_map(const char *dir, const char *file, int pairs, int latency, 
 			max_exp = r.max_exp;
 		if (r.max_nodes > max_nodes)
 			max_nodes = r.max_nodes;
+		if (r.max_still > max_still)
+			max_still = r.max_still;
+		if (in_water) {
+			wet[0]++;
+			if (r.first_plan_status == BC_NAV_DONE) {
+				wet[1]++;
+				wet[2] += r.arrived;
+				wet[3] += r.why[BC_NAV_WHY_STUCK] + r.why[BC_NAV_WHY_TIMEOUT];
+				wet[4] += r.step_fails - r.why[BC_NAV_WHY_STUCK] - r.why[BC_NAV_WHY_TIMEOUT] +
+				          r.off_route + r.stale;
+				wet[5] += r.gave_up;
+			}
+		}
 		if (r.first_plan_status != BC_NAV_DONE) {
 			/* not a reachable pair: no way, or the search ran out */
 			if (r.max_nodes >= pool_nodes)
@@ -1294,6 +1710,10 @@ static void soak_map(const char *dir, const char *file, int pairs, int latency, 
 						cat_secs[k][z][t] += r.cat_secs[k][z][t];
 					}
 		}
+		if (r.arrived && r.step_fails && getenv("BC_SOAK_SHOW"))
+			printf("    reported on the way: (%d,%d,%d) -> (%d,%d,%d): stuck %d timeout %d "
+			       "jump %d drop %d\n", a.x, a.y, a.z, b.x, b.y, b.z, r.why[BC_NAV_WHY_STUCK],
+			       r.why[BC_NAV_WHY_TIMEOUT], r.why[BC_NAV_WHY_NO_JUMP], r.why[BC_NAV_WHY_NO_DROP]);
 		if (r.arrived) {
 			arrived++;
 			sum_secs += r.route_secs;
@@ -1329,6 +1749,12 @@ static void soak_map(const char *dir, const char *file, int pairs, int latency, 
 	       "routes walked as first planned, mean %.3f, worst %.2f, %d outside 0.8-1.25\n", "",
 	       sum_time > 0 ? sum_ticks / 60.0 / sum_time : 0.0, n_clean,
 	       n_clean ? sum_ratio / n_clean : 0.0, worst_ratio, n_over);
+	if (wet[0])
+		printf("  %-20s STARTS IN THE WATER: %d of the pairs, %d reachable; arrived %d, lost %d "
+		       "(gave up %d); stuck or timed out %d times, other reports %d\n", "", wet[0], wet[1],
+		       wet[2], wet[1] - wet[2], wet[5], wet[3], wet[4]);
+	printf("  %-20s the longest a movement key was held with the body still: %d ticks "
+	       "(must be under %d)\n", "", max_still, STILL_MAX);
 	if (getenv("BC_SOAK_COSTS")) {
 		static const char *const zn[3] = {"up", "level", "down"};
 		static const char *const tn[3] = {"straight", "turn 45", "turn 90+"};
@@ -1350,6 +1776,8 @@ static void soak_map(const char *dir, const char *file, int pairs, int latency, 
 	}
 	/* no run may go on until the bench stops it: the follower ends loops */
 	CHECK(capped == 0);
+	/* and nobody stands pressing a key against nothing without saying so */
+	CHECK(max_still < STILL_MAX);
 	/* a soak is a measurement, but a collapse is a failure */
 	CHECK(reachable == 0 || arrived * 100 >= reachable * 90);
 }
@@ -1436,12 +1864,15 @@ int main(int argc, char **argv)
 	test_building();
 	test_crouch();
 	test_water();
+	test_water_out();
+	test_water_harmful();
 	test_drops();
 	test_turns();
 	test_surprises();
 	test_collapse();
 	test_fail_memory();
 	test_resumable();
+	test_spud();
 	if (!only)
 		soak();
 

@@ -477,6 +477,24 @@ static int edit_tick(bc_nav_follow *f, const bc_nav_route *r, const bc_nav_moves
 	}
 
 	/* nothing left to edit: go */
+	if (from.z >= BC_MAP_WATER_Z && st->to.z < BC_MAP_WATER_Z && st->dir != 8) {
+		/* ...out of the sea, onto the bank just cut down to 62. Wading
+		 * into it climbs nothing (nav.h, WATER): this is the jump the
+		 * table measured, by the controller that measured it, simulated
+		 * from here before it is pressed like any other. */
+		nav_shot s;
+		nav_xs xs;
+		int res;
+
+		memset(&s, 0, sizeof s);
+		s.from = from; s.to = st->to;
+		xs.phase = f->phase; xs.attempts = f->attempts;
+		xs.air_keys = f->air_keys; xs.damage = 0; xs.ticks = f->xs_ticks;
+		res = nav_jump_tick(&s, &xs, b, m, keys, ori);
+		f->phase = xs.phase; f->attempts = xs.attempts;
+		f->air_keys = xs.air_keys; f->xs_ticks = xs.ticks;
+		return res;
+	}
 	if (nav_at(b, st->to) && (st->dir != 8 || nav_on_floor(b, st->to.z)))
 		return 1;
 	nav_law_steer(b, (float)st->to.x + 0.5f, (float)st->to.y + 0.5f, 0,

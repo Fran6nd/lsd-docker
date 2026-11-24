@@ -198,6 +198,16 @@ static int over(const bc_body *b, bc_nav_node n)
 	       fabsf(b->pos.y - ((float)n.y + 0.5f)) < 0.9f;
 }
 
+/* Does it overlap the column at all? The box reaches 0.45 from the body's
+ * middle and the column 0.5 from its own. Not a test to commit a jump on
+ * (`over` is, and keeps a margin); a test of where a body that is already
+ * down has come down. */
+static int touches(const bc_body *b, bc_nav_node n)
+{
+	return fabsf(b->pos.x - ((float)n.x + 0.5f)) < 0.95f &&
+	       fabsf(b->pos.y - ((float)n.y + 0.5f)) < 0.95f;
+}
+
 static void land_law(const nav_shot *s, const bc_body *b, uint8_t *keys, bc_v3 *ori)
 {
 	nav_law_steer(b, (float)s->to.x + 0.5f, (float)s->to.y + 0.5f, 0, 1, keys, ori);
@@ -464,6 +474,18 @@ int nav_jump_tick(const nav_shot *s, nav_xs *xs, const bc_body *b, const bc_map 
 		return 0;
 	}
 	if (xs->ticks >= 3 && !b->airborne && b->vel.z == 0.0f) {
+		if (s->to.z != s->from.z && touches(b, s->to) && nav_on_floor(b, s->to.z)) {
+			/* Down, at the target's height, on the very lip of it: that
+			 * IS the target (nothing else at that height is within a
+			 * twentieth of a voxel of it and under this body). Out of the
+			 * water a body moves at a crawl, is hauled onto the bank by
+			 * the lip and comes to rest 0.93 from the column's middle:
+			 * that was "down somewhere else", and a jump that had worked
+			 * was reported failed -- 15 times in 443 routes on a map with
+			 * a sea, at two ticks of delay. Walk in. */
+			land_law(s, b, keys, ori);
+			return 0;
+		}
 		if (s->to.z == s->from.z && fabsf(along) < 1.2f &&
 		    nav_on_floor(b, s->from.z)) {
 			if (++xs->attempts >= 4)
