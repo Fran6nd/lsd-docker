@@ -16,7 +16,7 @@ DATA=${LSD_DATA:-/data}
 
 # The data volume is the lsd user's, whoever created it.
 prepare_data() {
-	mkdir -p "$DATA/maps" "$DATA/rw" "$DATA/scripts" "$DATA/catalog"
+	mkdir -p "$DATA/maps" "$DATA/rw" "$DATA/scripts" "$DATA/catalog" "$DATA/trees"
 	if [ "$(id -u)" = 0 ]; then
 		chown -R lsd:lsd "$DATA"
 	fi
