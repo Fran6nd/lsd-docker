@@ -1459,26 +1459,26 @@ getcfg("night_far", 192,
 	"How far, in blocks, a bot with night vision sees a lit lamp: one "
 		.."and a half times the day's sight range of 128.");
 
--- THE LAMP BEHAVIOUR, in one place so it can be adjusted. A fragment of
--- the engine's behaviour tree in its text format (bot/core/bt.h; the
--- words are bot/core/vocab.h's), indented with TABS. Read it as: with
--- night vision stay dark; shot at while blind, light up; nobody seen or
--- heard for 25 s, light up (or the stealthy stay blind for good); the stealthy
--- stay dark and listen; otherwise light up at night. By day `night`
--- scores 0, so none of it does anything.
-local BOT_TREE = table.concat({
-	"pick noise=0",
-	"\toption none night_vision x10",
-	"\t\tdo lamp off",
-	"\toption none hit_in_dark x10",
-	"\t\tdo lamp on",
-	"\toption none quiet 25 x5",
-	"\t\tdo lamp on",
-	"\toption stealth night",
-	"\t\tdo lamp off",
-	"\toption none night x1.2",
-	"\t\tdo lamp on",
-}, "\n") .. "\n";
+-- THE LAMP BEHAVIOUR, in one place so it can be adjusted: a fragment of
+-- the engine's behaviour tree, as its own text (bot/core/bt.h; the words
+-- are bot/core/vocab.h's; children indented by one TAB). A weighed
+-- choice: the option worth most to the bot is done. By day every score
+-- here is 0, so none of it does anything.
+local BOT_TREE = [[
+pick noise=0
+	option none night_vision x10    # it sees in the dark: stay dark
+		do lamp off
+	option none hit_in_dark x10     # shot at while blind: light up
+		do lamp on
+	option none quiet 25 x5         # nobody seen for 25 s: light up, or the stealthy stay blind for good
+		do lamp on
+	option stealth night            # the stealthy stay dark and listen
+		do lamp off
+	option none night x1.2          # anybody else, at night: light up
+		do lamp on
+]];
+-- the comments are for whoever reads this file, not for the link
+BOT_TREE = string.gsub(BOT_TREE, "[ \t]*#[^\n]*", "");
 
 local function bot_keys()
 	return {

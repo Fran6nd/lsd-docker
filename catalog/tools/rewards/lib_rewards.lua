@@ -33,12 +33,16 @@
 --                                     -- night: usable only at night
 --
 -- BOTS earn and hold rewards like anybody. When one should USE what it
--- holds is the reward's own to say: `bot` is a fragment of behaviour
--- tree in the bot engine's words (bot/core/vocab.h), handed to the
--- inventory with the item (lib_inventory, BOTS), and `guide` the seconds
--- a bot keeps aiming at its target afterwards (the missile's flight):
+-- holds is the reward's own to say: `bot` is the conditions, then the
+-- use, in the bot engine's words (bot/core/vocab.h) -- every `if` must
+-- hold for the `do` to happen -- handed to the inventory with the item
+-- (lib_inventory, BOTS); `guide` is the seconds a bot keeps aiming at its
+-- target afterwards (the missile's flight):
 --
---   {effect = "medkit", ..., bot = "seq\n\tif health_below 50\n\tdo use medkit self"}
+--   {effect = "medkit", ..., bot = {"if health_below 50", "do use medkit self"}}
+--
+-- (A string is taken as a whole fragment of behaviour tree, for more
+-- than a list of conditions: bot/core/bt.h.)
 --
 -- `cost` is how rare it is: a reward of cost 2 comes up half as often as
 -- one of cost 1. An effect that is not loaded is not handed out: effects
@@ -59,6 +63,15 @@
 -- nothing to it, but a trigger -- medkit, airstrike -- still works).
 local mod = init_mod();
 
+-- An entry's `bot` as the engine's tree text: a list of lines is a
+-- sequence (all in order), a string is the text already.
+local function bot_tree(b)
+	if (type(b) == "table" and #b > 0) then
+		return "seq\n\t" .. table.concat(b, "\n\t");
+	end
+	return type(b) == "string" and b or nil;
+end
+
 getcfg("rewards_kills", 10, "Kills (across lives, per map) for one reward.");
 getcfg("rewards_capture", 1, "Rewards for an intel capture.");
 getcfg("rewards_max", 3, "Most rewards a player can hold.");
@@ -68,33 +81,33 @@ getcfg("rewards_exclusive", true,
 getcfg("rewards_menu", {
 	{effect = "railgun", cost = 1, secs = 30, death = true,
 		label = {en = "Railgun"},
-		bot = "seq\n\tif enemy_visible\n\tif enemy_beyond 20\n\tdo use railgun self"},
+		bot = {"if enemy_visible", "if enemy_beyond 20", "do use railgun self"}},
 	-- fired at once, like the airstrike, at the point aimed at
 	{effect = "rocket", cost = 1, trigger = true, aim = true,
 		label = {en = "Rocket"},
-		bot = "seq\n\tif enemy_visible\n\tif enemy_beyond 8\n\tif enemy_within 60\n\tdo use rocket enemy"},
+		bot = {"if enemy_visible", "if enemy_beyond 8", "if enemy_within 60", "do use rocket enemy"}},
 	-- steered by the buyer's aim for as long as it flies
 	{effect = "missile", cost = 2, trigger = true, aim = true,
 		label = {en = "Missile"}, guide = 6,
-		bot = "seq\n\tif enemy_visible\n\tif sky_clear\n\tif enemy_beyond 15\n\tdo use missile enemy"},
+		bot = {"if enemy_visible", "if sky_clear", "if enemy_beyond 15", "do use missile enemy"}},
 	{effect = "grenade_launcher", cost = 1, trigger = true,
 		label = {en = "Grenade launcher"},
-		bot = "seq\n\tif enemy_visible\n\tif enemy_beyond 8\n\tif enemy_within 40\n\tdo use grenade_launcher enemy"},
+		bot = {"if enemy_visible", "if enemy_beyond 8", "if enemy_within 40", "do use grenade_launcher enemy"}},
 	{effect = "airstrike", cost = 2, trigger = true, aim = true,
 		label = {en = "Airstrike"},
-		bot = "seq\n\tif enemies_grouped 2 8\n\tif enemy_beyond 20\n\tdo use airstrike group"},
+		bot = {"if enemies_grouped 2 8", "if enemy_beyond 20", "do use airstrike group"}},
 	{effect = "medkit", cost = 1, trigger = true, opts = {free = true},
 		label = {en = "Medkit"},
-		bot = "seq\n\tif health_below 50\n\tdo use medkit self"},
+		bot = {"if health_below 50", "do use medkit self"}},
 	{effect = "ammo_box", cost = 1, trigger = true,
 		label = {en = "Ammo box"},
-		bot = "seq\n\tif ammo_below 0.25\n\tdo use ammo_box self"},
+		bot = {"if ammo_below 0.25", "do use ammo_box self"}},
 	{effect = "area_heal", cost = 1, secs = 20,
 		label = {en = "Area heal"},
-		bot = "seq\n\tif allies_hurt_near 8\n\tdo use area_heal self"},
+		bot = {"if allies_hurt_near 8", "do use area_heal self"}},
 	{effect = "nightvision", cost = 1, secs = 60, night = true, death = true,
 		label = {en = "Night vision"},
-		bot = "seq\n\tif is_night\n\tdo use nightvision self"},
+		bot = {"if is_night", "do use nightvision self"}},
 }, "What a reward may be: a list of {effect, cost (how rare), label, secs | charges | trigger, death, night}.");
 
 getcfg("rewards_enabled", true,
@@ -166,7 +179,7 @@ local function define_items()
 			defined[e.key] = true;
 			inventory_define(e.key, {label = e.label, command = "reward " .. e.key,
 				aim = e.aim == true, order = i,
-				bot = type(e.bot) == "string" and {tree = e.bot, guide = tonumber(e.guide) or 0} or nil});
+				bot = bot_tree(e.bot) and {tree = bot_tree(e.bot), guide = tonumber(e.guide) or 0} or nil});
 		elseif (not on and defined[e.key]) then
 			defined[e.key] = nil;
 			inventory_undefine(e.key);
