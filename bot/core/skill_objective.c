@@ -426,6 +426,8 @@ void bc_do_objective_stop(void *bot, const bt_args *a)
 {
 	bc_bot *b = bot;
 
+	b->e->stats.action_stops++;
+
 	(void)a;
 	b->guard.started = 0;
 	b->fetch.stand_since = 0.0;

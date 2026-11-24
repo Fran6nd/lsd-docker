@@ -879,6 +879,8 @@ void bc_do_tactics_stop(void *bot, const bt_args *a)
 {
 	bc_bot *b = bot;
 
+	b->e->stats.action_stops++;
+
 	(void)a;
 	b->flank.avoid_on = 0;
 	b->hunt.phase = 0;

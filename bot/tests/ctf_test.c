@@ -320,7 +320,7 @@ static void test_thief(void)
 	}
 	printf("  12 s later the intel lies at %.0f %.0f: %d of 5 guard, %d within 12 of it\n", (double)s->intel[0].x,
 	       (double)s->intel[0].y, guards, near_intel);
-	CHECK(guards >= 1 && near_intel >= 1);
+	CHECK(guards == 2 && near_intel >= 2);      /* two, whoever they are; the rest have a game to play */
 	bs_free(s);
 }
 

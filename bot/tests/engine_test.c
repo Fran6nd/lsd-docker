@@ -865,8 +865,25 @@ static void test_own_tree(void)
 	s->p[1].hp = 30;
 	bs_run(s, 2.0);
 	CHECK(s->p[1].cmds == 1 && !strcmp(s->p[1].last_cmd, "inv medkit"));
-	/* replaced while `hold` is RUNNING: text -> a name */
-	bs_set(s, 1, "tree=tdm");
+	/* replaced while `hold` is RUNNING: text -> a name. The action is told
+	 * to stop, once: counted over the two thinks the change takes, with
+	 * the other two bots on trees whose only RUNNING action is not left */
+	{
+		uint32_t before;
+
+		bs_set(s, 0, "tree=tree w0:\ndo hold self 99\n");
+		bs_set(s, 2, "tree=tree w2:\ndo hold self 99\n");
+		bs_run(s, 0.5);
+		before = bc_engine_stats_get(s->e)->action_stops;
+		bs_set(s, 1, "tree=tdm");
+		bs_step(s);
+		bs_step(s);
+		printf("  its tree replaced with `hold` RUNNING: the action was told to stop %u time(s)\n",
+		       (unsigned)(bc_engine_stats_get(s->e)->action_stops - before));
+		CHECK(bc_engine_stats_get(s->e)->action_stops - before == 1);
+		bs_set(s, 0, "tree=default");
+		bs_set(s, 2, "tree=");
+	}
 	bs_run(s, 1.0);
 	CHECK(b->own == NULL && b->own_text == NULL);
 	bc_engine_describe(s->e, 1, d, sizeof d);

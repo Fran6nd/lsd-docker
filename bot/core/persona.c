@@ -24,14 +24,19 @@ static const float centre[BC_A_COUNT][BC_T_COUNT - 1] = {
 	/* sapper  */ { 0.8f, 1.0f, 1.0f, 1.0f, 2.5f, 0.8f, 0.9f, 1.0f, 1.0f, 1.2f },
 	/* scout   */ { 0.8f, 0.9f, 0.9f, 0.8f, 0.7f, 0.9f, 1.2f, 1.7f, 1.9f, 0.9f },
 };
+/* (The spreads were 0.15 for a soldier, 0.20, and 0.25 for an archetype's
+ * own traits. With those, the one high trait decided: 98% of campers with
+ * a rifle took a free perch, 95% of pushers went straight in, 96% of
+ * supports followed. Now 0.25, 0.30 and 0.40: an archetype is still what
+ * it is on the whole, and one in five or so of each does something else.) */
 static const float spread[BC_A_COUNT][BC_T_COUNT - 1] = {
-	/* soldier */ { 0.15f, 0.15f, 0.15f, 0.15f, 0.15f, 0.15f, 0.15f, 0.15f, 0.15f, 0.15f },
-	/* camper  */ { 0.20f, 0.25f, 0.20f, 0.20f, 0.20f, 0.25f, 0.20f, 0.20f, 0.20f, 0.20f },
-	/* pusher  */ { 0.25f, 0.20f, 0.25f, 0.20f, 0.20f, 0.20f, 0.20f, 0.20f, 0.20f, 0.25f },
-	/* flanker */ { 0.20f, 0.20f, 0.20f, 0.20f, 0.20f, 0.20f, 0.25f, 0.25f, 0.20f, 0.20f },
-	/* support */ { 0.20f, 0.20f, 0.20f, 0.25f, 0.25f, 0.20f, 0.20f, 0.20f, 0.20f, 0.20f },
-	/* sapper  */ { 0.20f, 0.20f, 0.20f, 0.20f, 0.25f, 0.20f, 0.20f, 0.20f, 0.20f, 0.20f },
-	/* scout   */ { 0.20f, 0.20f, 0.20f, 0.20f, 0.20f, 0.20f, 0.20f, 0.25f, 0.25f, 0.20f },
+	/* soldier */ { 0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f },
+	/* camper  */ { 0.30f, 0.40f, 0.30f, 0.30f, 0.30f, 0.40f, 0.30f, 0.30f, 0.30f, 0.30f },
+	/* pusher  */ { 0.40f, 0.30f, 0.40f, 0.30f, 0.30f, 0.30f, 0.30f, 0.30f, 0.30f, 0.40f },
+	/* flanker */ { 0.30f, 0.30f, 0.30f, 0.30f, 0.30f, 0.30f, 0.40f, 0.40f, 0.30f, 0.30f },
+	/* support */ { 0.30f, 0.30f, 0.30f, 0.40f, 0.40f, 0.30f, 0.30f, 0.30f, 0.30f, 0.30f },
+	/* sapper  */ { 0.30f, 0.30f, 0.30f, 0.30f, 0.40f, 0.30f, 0.30f, 0.30f, 0.30f, 0.30f },
+	/* scout   */ { 0.30f, 0.30f, 0.30f, 0.30f, 0.30f, 0.30f, 0.30f, 0.40f, 0.40f, 0.30f },
 };
 
 #define TRAIT_MIN 0.2f

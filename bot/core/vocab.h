@@ -178,6 +178,10 @@
  *   leader_near [voxels]               its leader is within that (default 12)
  *   leader_fighting                    its leader has a man in his sights, is
  *                                      firing, or was hurt in the last 3 s
+ *   watched [place] [radius] [count]   that many team-mates (default 2), not
+ *                                      counting itself, are on guard (the
+ *                                      action `guard`) within radius (default
+ *                                      20) of the place (default own_intel)
  *
  * SCORES  (option <trait> <score>), each 0..1
  *   night_vision                       1 by night for a bot that has night
@@ -274,6 +278,14 @@
  *                                      (default own_intel, within 20): 1 with
  *                                      none there, 0.5 with one, 0 with two or
  *                                      more; 0 with no such place
+ *   unguarded [place] [radius] [count] [dropped]
+ *                                      1 while fewer than count team-mates
+ *                                      (default 2) are on guard within radius
+ *                                      (default 20) of the place (default
+ *                                      own_intel), else 0; 0 for an intel
+ *                                      somebody carries; with the word
+ *                                      `dropped`, only while that intel lies
+ *                                      where a carrier fell
  *
  * ACTIONS  (do)
  *   crouch [secs]                      down where it stands, turned to what

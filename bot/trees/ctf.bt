@@ -51,11 +51,9 @@ pick every=20 sticky=1.5 noise=0.3
 		do fetch
 	option flank their_intel_home x1.1        # take theirs, coming at it the long way round
 		tree ctf_round
-	option caution our_intel_dropped x1.6     # ours lies in the open: stand over it
+	option none unguarded our_intel 15 2 dropped x3   # ours lies where its thief fell: two stand over it, whoever they are
 		do guard our_intel 30
-	option teamwork our_intel_dropped x1.1    # (the team-minded too: it is where they will come)
-		do guard our_intel 30
-	option caution unwatched our_intel 20     # keep ours -- two at most: the rest have a game to win
+	option caution unguarded our_intel 20 2   # keep ours -- two at most: the rest have a game to win
 		do guard our_intel 40
 	option marksman vantage rifle smg x0.7    # watch from a height
 		tree ctf_camp

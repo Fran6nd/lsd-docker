@@ -778,6 +778,8 @@ void bc_do_cover_stop(void *bot, const bt_args *a)
 {
 	bc_bot *b = bot;
 
+	b->e->stats.action_stops++;
+
 	(void)a;
 	/* What it was at is kept: a tree entered afresh (a man came into sight,
 	 * a round landed) asks for the same thing again at once, and a bound

@@ -251,6 +251,8 @@ void bc_do_stop(void *bot, const bt_args *a)
 {
 	bc_bot *b = bot;
 
+	b->e->stats.action_stops++;
+
 	(void)a;
 	b->nade.phase = 0;
 	b->inv.phase = 0;

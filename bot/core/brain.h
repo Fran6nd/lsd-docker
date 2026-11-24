@@ -347,6 +347,7 @@ typedef struct bc_engine_stats {
 	uint32_t last_expansions;   /* in the last think */
 	uint32_t pings, grenades, edits, uses;
 	uint32_t glances, cover_cells, covers, perch_columns, unreach_hits;
+	uint32_t action_stops;      /* times a RUNNING action was told to stop (its branch was left) */
 	uint32_t shut_in;           /* times a bot was found to have no way to anywhere */
 	uint32_t plan_caps;         /* plans stopped at plan.cap and walked as far as they got */
 	uint32_t stuck_tries;       /* the watchdog tried a jump, a step back, a sidestep */

@@ -17,7 +17,8 @@
  *   arena12 arena32 arena40   a flat field with walls, tdm, respawning, 60 s
  *   fight6 fight20            6 / 20 a side to the last man, tdm
  *   sea40                     two islands in a sea, both bases in the water, 40 bots, 60 s
- *   ctf:<n>                   ctf, n a side, a town of walls, 300 s
+ *   ctf:<n>                   ctf, n a side, a town of walls, four games of 300 s
+ *   ctfnear:<n>               the same with each intel right beside its base
  *   map:<file.vxl> [secs]     40 bots, tdm, on a real map, bases at 1/4 and 3/4 of it (120 s)
  *
  * METRICS
@@ -29,7 +30,7 @@
  *   plans, plans_capped, plans_no_way, expansions_per_plan
  *   kills, stuck (one cell, keys down, over 3 s), goals_dropped (the net)
  *   result_s         seconds to the last man of a team (fight*), -1: none
- *   captures, first_capture_s, pickups, drops (ctf)
+ *   captures_in_4_games, games_with_a_capture, first_capture_mean_s, pickups, drops (ctf)
  */
 #include "brain_sim.h"
 
@@ -201,40 +202,68 @@ static void scene_sea(void)
 	bs_free(s);
 }
 
-static void scene_ctf(int per)
+/* four games (four sets of characters); `near`: each intel right beside
+ * its base (within 8), not 5 to 40 voxels out toward the middle as the
+ * server's random placing has it */
+static void scene_ctf(int per, int near)
 {
 	char name[32];
-	bs_sim *s = bs_new(G, per * 2);
 	tally t;
-	int i, k, first = -1;
+	int g, caps = 0, games = 0, first_sum = 0, pickups = 0, drops = 0, kills = 0, stuck = 0;
+	double think = 0.0, worst = 0.0;
+	long thinks = 0;
 
 	memset(&t, 0, sizeof t);
-	snprintf(name, sizeof name, "ctf%d", per);
-	s->have_tents = 1;
-	s->tent[0].x = 180.5f; s->tent[0].y = 256.5f; s->tent[0].z = EYE;
-	s->tent[1].x = 330.5f; s->tent[1].y = 256.5f; s->tent[1].z = EYE;
-	for (i = 0; i < 11 * 13; i++) {
-		int gx = i % 11, gy = i / 11, h = (gx * 7 + gy * 13 + gx * gy) % 5;
-		int x = 192 + gx * 13 + h, y = 176 + gy * 13 + (h * 3) % 5;
+	snprintf(name, sizeof name, near ? "ctf%dnear" : "ctf%d", per);
+	for (g = 0; g < 4; g++) {
+		bs_sim *s = bs_new(G, per * 2);
+		int i, k, first = -1;
 
-		if ((gx + gy) % 2) bs_box(s, x, y, G - 4, x, y + 7, G - 1, 1);
-		else bs_box(s, x, y, G - 4, x + 7, y, G - 1, 1);
+		s->have_tents = 1;
+		s->tent[0].x = 180.5f; s->tent[0].y = 256.5f; s->tent[0].z = EYE;
+		s->tent[1].x = 330.5f; s->tent[1].y = 256.5f; s->tent[1].z = EYE;
+		for (i = 0; i < 11 * 13; i++) {
+			int gx = i % 11, gy = i / 11, h = (gx * 7 + gy * 13 + gx * gy) % 5;
+			int x = 192 + gx * 13 + h, y = 176 + gy * 13 + (h * 3) % 5;
+
+			if ((gx + gy) % 2) bs_box(s, x, y, G - 4, x, y + 7, G - 1, 1);
+			else bs_box(s, x, y, G - 4, x + 7, y, G - 1, 1);
+		}
+		if (near) bs_ctf(s, 172, 262, 178, 268, 332, 244, 338, 250);
+		else bs_ctf(s, 185, 236, 215, 276, 295, 236, 325, 276);
+		bs_start(s);
+		s->respawn = 6.0;
+		teams(s, per, 182.5f, 328.5f, 3131u + (uint32_t)g * 977u, "ctf");
+		for (k = 0; k < 60 * 300; k++) {
+			bs_step(s);
+			watch(s, &t);
+			if (first < 0 && s->caps[1] + s->caps[2] > 0) first = k;
+		}
+		caps += s->caps[1] + s->caps[2];
+		if (first >= 0) { games++; first_sum += first / 60; }
+		pickups += s->pickups[1] + s->pickups[2];
+		drops += s->drops;
+		kills += s->kills[1] + s->kills[2];
+		for (i = 0; i < BL_MAX_PLAYERS; i++)
+			if (s->p[i].used) stuck += s->p[i].stuck_events;
+		think += s->think_us;
+		thinks += s->thinks;
+		if (s->think_max_us > worst) worst = s->think_max_us;
+		bs_free(s);
 	}
-	bs_ctf(s, 185, 236, 215, 276, 295, 236, 325, 276);
-	bs_start(s);
-	s->respawn = 6.0;
-	teams(s, per, 182.5f, 328.5f, 3131, "ctf");
-	for (k = 0; k < 60 * 300; k++) {
-		bs_step(s);
-		watch(s, &t);
-		if (first < 0 && s->caps[1] + s->caps[2] > 0) first = k;
+	out(name, "captures_in_4_games", caps, "");
+	out(name, "games_with_a_capture", games, "of 4");
+	out(name, "first_capture_mean_s", games ? (double)first_sum / (double)games : -1.0, "s");
+	out(name, "pickups", pickups, "");
+	out(name, "drops", drops, "");
+	out(name, "kills", kills, "");
+	out(name, "stuck", stuck, "");
+	out(name, "think_mean_us", think / (double)(thinks ? thinks : 1), "us");
+	out(name, "think_worst_us", worst, "us");
+	if (t.alive) {
+		out(name, "no_key_pct", 100.0 * (double)t.idle / (double)t.alive, "%");
+		out(name, "waiting_pct", 100.0 * (double)t.waiting / (double)t.alive, "%");
 	}
-	out(name, "captures", s->caps[1] + s->caps[2], "");
-	out(name, "first_capture_s", first < 0 ? -1.0 : first / 60.0, "s");
-	out(name, "pickups", s->pickups[1] + s->pickups[2], "");
-	out(name, "drops", s->drops, "");
-	report(name, s, &t);
-	bs_free(s);
 }
 
 static void scene_map(const char *path, double secs)
@@ -298,14 +327,15 @@ int main(int argc, char **argv)
 		if (!strncmp(sc, "arena", 5)) scene_arena(atoi(sc + 5) / 2 > 0 ? atoi(sc + 5) / 2 : 6);
 		else if (!strncmp(sc, "fight", 5)) scene_fight(atoi(sc + 5) > 0 ? atoi(sc + 5) : 6);
 		else if (!strcmp(sc, "sea40")) scene_sea();
-		else if (!strncmp(sc, "ctf:", 4)) scene_ctf(atoi(sc + 4) > 0 ? atoi(sc + 4) : 10);
+		else if (!strncmp(sc, "ctfnear:", 8)) scene_ctf(atoi(sc + 8) > 0 ? atoi(sc + 8) : 10, 1);
+		else if (!strncmp(sc, "ctf:", 4)) scene_ctf(atoi(sc + 4) > 0 ? atoi(sc + 4) : 10, 0);
 		else if (!strncmp(sc, "map:", 4)) {
 			double secs = 120.0;
 
 			if (i + 1 < n && argc > 1 && atof(argv[i + 2]) > 0.0) secs = atof(argv[++i + 1]);
 			scene_map(sc + 4, secs);
 		} else {
-			fprintf(stderr, "bench: no scene called %s (arena<N>, fight<N>, sea40, ctf:<N>, map:<file> [secs])\n", sc);
+			fprintf(stderr, "bench: no scene called %s (arena<N>, fight<N>, sea40, ctf:<N>, ctfnear:<N>, map:<file> [secs])\n", sc);
 			return 2;
 		}
 		fflush(stdout);
