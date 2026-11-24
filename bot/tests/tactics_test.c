@@ -529,6 +529,90 @@ static void test_twenty(void)
 	bs_free(s);
 }
 
+/* A ROLE THAT LASTS (tdm.bt, `pick roll=once`): forty bots, five minutes,
+ * everybody dying and coming back. A bot is a camper or it is not, in its
+ * first life and in its last; no shotgun is one; and a camper with
+ * nothing else on its hands is on a perch or on its way to one. */
+static void test_roles(void)
+{
+	enum { PER = 20, SECS = 300 };
+	bs_sim *s = field(2 * PER, 120.5f, 400.5f);     /* far apart: there is time between fights */
+	int pid[2 * PER], role[2 * PER], roles_seen[2 * PER], changed = 0, campers = 0, shot_campers = 0, by_gun[3] = {0, 0, 0};
+	int camper_gun[3] = {0, 0, 0}, i, k, t, idle = 0, idle_perch = 0, lives = 0, camped_first[2 * PER], camped_last[2 * PER];
+	uint32_t life[2 * PER];
+
+	printf("roles that last: 40 bots, 5 minutes, respawning\n");
+	for (k = 0; k < 8; k++) {                   /* hills all along the field, either side of the way */
+		hill(s, 150 + k * 32, 226 + (k % 2) * 10, 5);
+		hill(s, 156 + k * 32, 288 - (k % 2) * 10, 5);
+	}
+	bs_start(s);
+	s->respawn = 3.0;
+	for (i = 0; i < PER; i++) {
+		float y = 206.5f + 5.0f * (float)i;
+
+		pid[i] = i; pid[PER + i] = 100 + i;
+		bs_add(s, i, 1, 1, 3 + (i * 3) % 7, i % 3, 31000u + (uint32_t)i * 7919u, 122.5f + (float)(i % 3) * 2.0f, y, 1, 0);
+		bs_add(s, 100 + i, 1, 2, 3 + (i * 5) % 7, (i + 1) % 3, 47000u + (uint32_t)i * 104729u, 398.5f - (float)(i % 3) * 2.0f, y, -1, 0);
+	}
+	bs_set(s, BL_NO_PLAYER, "tree=tdm");
+	for (i = 0; i < 2 * PER; i++) { role[i] = -1; roles_seen[i] = 0; camped_first[i] = camped_last[i] = -1; life[i] = 0; }
+	for (t = 0; t < SECS * 2; t++) {
+		bs_run(s, 0.5);
+		for (i = 0; i < 2 * PER; i++) {
+			const bc_bot *b = bc_engine_bot(s->e, pid[i]);
+			bt_tree tr;
+			bt_node n, opt;
+			bt_node_state ns;
+			char leaf[64];
+			int j, top = -1, roll = -1, now, on_duty = 0, camping;
+
+			if (s->w.players[pid[i]].life != life[i]) { life[i] = s->w.players[pid[i]].life; lives++; }
+			if (!b || !b->alive || !b->forest || !bt_forest_tree(b->forest, b->tree, &tr)) continue;
+			/* the tree's first pick is the list of reactions; its first pick that rolls, the role */
+			for (j = tr.root; bt_forest_node(b->forest, j, &n) && n.tree == b->tree && roll < 0; j++) {
+				if (n.kind != BT_K_PICK) continue;
+				if (top < 0) top = j;
+				if (n.roll) roll = j;
+			}
+			if (roll < 0 || top < 0) continue;
+			bt_state_node(b->forest, b->bt, top, &ns);
+			if (ns.child >= 0 && bt_forest_node(b->forest, ns.child, &opt)) on_duty = !strcmp(opt.name, "always");
+			bt_state_node(b->forest, b->bt, roll, &ns);
+			if (ns.child < 0) continue;                 /* not drawn in this life yet */
+			bt_forest_node(b->forest, ns.child, &opt);
+			now = !strcmp(opt.name, "gun_is");          /* 1: a camper */
+			if (role[i] >= 0 && role[i] != now) changed++;
+			role[i] = now;
+			roles_seen[i]++;
+			if (camped_first[i] < 0) camped_first[i] = now;
+			camped_last[i] = now;
+			leaf_of(s, pid[i], leaf, sizeof leaf);
+			camping = !strcmp(leaf, "take_high_ground") || !strcmp(leaf, "camp");
+			if (camping && !now) changed += 1000;       /* nobody camps who is not a camper */
+			if (now && on_duty) { idle++; idle_perch += camping; }
+		}
+	}
+	for (i = 0; i < 2 * PER; i++) {
+		int gun = s->p[pid[i]].gun;
+
+		by_gun[gun]++;
+		CHECK(roles_seen[i] > 20);
+		CHECK(camped_first[i] == camped_last[i] && camped_first[i] >= 0);
+		if (role[i] == 1) { campers++; camper_gun[gun]++; shot_campers += gun == BL_GUN_SHOTGUN; }
+	}
+	printf("  %d lives lived (%d kills); campers: %d of 40 -- %d of %d rifles, %d of %d smgs, %d of %d shotguns; a role changed %d times;\n"
+	       "  a camper with nothing else on its hands was on a perch or going to one %d%% of the time (%d of %d half-seconds)\n",
+	       lives, s->kills[1] + s->kills[2], campers, camper_gun[0], by_gun[0], camper_gun[1], by_gun[1], camper_gun[2], by_gun[2],
+	       changed, idle ? 100 * idle_perch / idle : 0, idle_perch, idle);
+	CHECK(lives > 100);                         /* everybody died, more than once */
+	CHECK(changed == 0);
+	CHECK(shot_campers == 0 && camper_gun[2] == 0);
+	CHECK(campers >= 3 && campers <= 14);       /* about one in six of forty */
+	CHECK(idle > 60 && idle_perch * 2 > idle);  /* most of its idle time */
+	bs_free(s);
+}
+
 int main(void)
 {
 	test_flank();
@@ -539,6 +623,7 @@ int main(void)
 	test_shut_in();
 	test_split();
 	test_twenty();
+	test_roles();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;
 }

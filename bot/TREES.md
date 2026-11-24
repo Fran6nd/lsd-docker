@@ -162,7 +162,7 @@ exactly one, leaves none.
 |---|---|---|
 | [`seq`](#seq) | 1 or more | `seq` |
 | [`select`](#select) | 1 or more | `select` |
-| [`pick`](#pick-and-option) | 1 or more, all `option` | `pick [every=<secs>] [sticky=<x>] [noise=<x>]` |
+| [`pick`](#pick-and-option) | 1 or more, all `option` | `pick [every=<secs>] [sticky=<x>] [noise=<x>]`, or `pick roll=once`, `pick roll=life` |
 | [`option`](#pick-and-option) | 1 | `option <trait> <score> [score's arguments] [x<factor>]` |
 | [`if`](#if-and-unless) | none | `if <condition> [arguments]` |
 | [`unless`](#if-and-unless) | none | `unless <condition> [arguments]` |
@@ -437,6 +437,8 @@ If what you want is one bot that really varies:
   the bot's own dice each time it is asked: `if chance 0.2` at the top
   of a `seq` lets a fifth of the tries through.
 
+The one place where worth IS a chance is a pick that rolls, below.
+
 ### Why this and not a lottery
 
 Because a bot that decides by lot looks like it has no reasons. With the
@@ -497,6 +499,100 @@ why: pick every=3  (first.bt line 7; 700 bots came to it)
   67.1%    0.60    1.04     1.5    0.93  caution hurt  -> do retreat
    0.0%    0.00    1.09       1    0.00  curiosity search (0: cannot be chosen)  -> do investigate
 ```
+
+### A role, drawn and kept: `pick roll=once`, `pick roll=life`
+
+Sometimes a lottery is exactly what is wanted: one villager in twelve is
+a killer, one bot in six is a camper -- and stays one.
+
+```bt
+tree village:
+pick roll=once
+	option none always                        # 1 in 12: the boss -- it keeps its post
+		do hold self 99
+	option none always x10                    # 10 in 12: a villager
+		tree villager
+	option none always                        # 1 in 12: the killer
+		do seek
+
+tree villager:
+pick every=2
+	option caution under_fire x10
+		do take_cover
+	option none always
+		do look_around
+```
+
+A pick with `roll=` does not take the best option. It **draws** one,
+each with a chance in proportion to its worth -- `score x the bot's
+weight for the trait x factor`, no luck, no sticky -- and then **keeps
+it**: that option's child is ticked every time, whatever it answers, and
+the pick answers what the child does. Here the worths are 1, 10 and 1,
+so the chances are 1, 10 and 1 in 12:
+
+```
+$ bttree --split --n 12000 village.bt
+12000 bots, level 5, tree (the first)
+   all soldier  camper  pusher flanker support  sapper   scout
+ 83.5%     83%     84%     83%     83%     85%     83%     84%  pick:none > pick:none > look_around
+  8.4%      8%      8%     10%      8%      8%      9%      8%  pick:none > hold
+  8.2%      8%      9%      8%      8%      8%      8%      8%  pick:none > seek
+asked and not given (so 0): under_fire
+```
+
+- **`roll=once`**: the draw is the bot's **for good**. It is made from
+  the bot's identity (its seed, which the server gives it) and from
+  which pick this is (its tree's name, and its place among that tree's
+  picks) -- nothing is stored, so it is the same in every life, on every
+  map, after the trees are compiled again, in a replay.
+- **`roll=life`**: drawn anew, from the bot's dice, each time it comes to
+  life; kept until it dies.
+- A role is kept through everything that makes other picks choose again:
+  being startled, a pick above it going elsewhere and coming back.
+- **The role does not move when its child ends.** If the child answers
+  FAILURE, the pick answers FAILURE and ticks the same child again next
+  time: what the bot does *instead* is said by the node above (a
+  `select`), or inside the role's own tree.
+- An option whose score is 0 **at the draw** is not drawn; with none
+  above 0 the pick fails, and tries again at the next tick.
+- `every`, `sticky` and `noise` mean nothing here and may not be
+  written with `roll=`: the compiler refuses them.
+
+**Under `roll=`, a score should be a FACT ABOUT THE BOT, not the
+situation of the moment**: `always`, `gun_is rifle`, `has_item medkit`,
+`is_leader`. The draw is fixed, but which option it lands on is worked
+out from the worths at the first tick of each life -- so `option
+marksman gun_is rifle` makes campers of rifles only, and a bot whose gun
+changed is drawn again among what its new gun allows. A score like
+`enemy_near` would make the role depend on where an enemy stood when the
+bot was born, which is nobody's intent. The trait is a fact too: `option
+marksman ...` gives a bot with twice the marksman's weight twice the
+share.
+
+**The shipped example** is `tdm.bt`'s campers: `tree tdm_duty` draws,
+once for each bot, between a camper's tree (`option marksman gun_is
+rifle x0.5`, `option marksman gun_is smg x0.2`) and the ordinary search
+(`option none always`). About one bot in six is a camper -- 31 % of the
+rifles, 16 % of the smgs, no shotgun; 45 % and 27 % among bots of the
+camper's character -- and it is one in every life. A camper still
+fights, takes cover and looks into a noise as anybody (those are above
+its role in the tree); with nothing else on its hands it goes up to a
+perch and waits, and when it is shot off it, to another. While no perch
+is free it searches as the others do and looks again every few seconds.
+
+**When separate trees are the better tool.** `roll=` gives *shares* of a
+crowd: about one in twelve, never exactly two. When the game needs an
+exact number (one boss), a role with its own place to spawn, its own
+team, its own number of lives, or a role the script must be able to name
+and change, give those bots their own tree from the gamemode instead:
+`botlink_add{team=, tree=, at=, once=}`
+([section 12](#one-bot-with-a-role-a-boss-a-villager)). `roll=` is for
+characters within one team that plays one game.
+
+`ctf.bt` has no such role: what a bot should do there turns on where the
+two intels are, which is a situation and changes; its weighed
+`ctf_duty`, chosen again whenever an intel changes hands, is the right
+tool for that.
 
 ### Three ways a pick is used
 

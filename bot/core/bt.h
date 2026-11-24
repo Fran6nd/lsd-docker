@@ -56,6 +56,24 @@
  * two things about as good. An option whose score is 0 is never chosen;
  * with none above 0, pick fails.
  *
+ *   pick roll=once      pick roll=life
+ *
+ * A ROLE, DRAWN AND KEPT. Such a pick does not take the best: it DRAWS
+ * one option, each with a chance in proportion to its worth (score x
+ * trait weight x factor: no luck, no sticky) -- options x1, x10, x1 are
+ * drawn 1, 10 and 1 times in 12 -- and then keeps it: its child is
+ * ticked every time, whatever it answers, and the pick answers what the
+ * child does. `roll=once`: the draw is the bot's for good, made from
+ * its identity (bt_ctx) and from which pick this is (its tree's name
+ * and its place among that tree's picks), so the same bot has the same
+ * role in every life, on every map, each time the trees are compiled;
+ * nothing is stored. `roll=life`: drawn anew from the bot's randomness
+ * after each bt_reset. What the draw LANDS ON is worked out at the first
+ * tick after a reset, from the worths as they are then: so the scores
+ * of such options should be facts about the bot (its gun, what it
+ * holds), not the situation of the moment. `every`, `sticky` and `noise`
+ * mean nothing with `roll=` and may not be written with it.
+ *
  * THE TEXT. One node a line, children indented under their parent by
  * one step more: a tab, or two or four spaces -- whichever the text's
  * first indented line uses, and the same all through (a mix, or a line
@@ -157,7 +175,9 @@ typedef struct bt_arg_spec {
 /* 0 if there is no such word, or n is over BT_ARGS_MAX. n may be 0: the
  * word takes no argument, and giving one is a mistake. */
 int bt_vocab_args(bt_vocab *v, int kind, const char *name, const bt_arg_spec *specs, int n);
-/* a named list of words ("a|b|c", copied) for BT_ARG_ONE_OF's `set` */
+/* a named list of words ("a|b|c", copied) for BT_ARG_ONE_OF's `set`. An
+ * entry ending in `*` ("@*") allows any word that begins so and goes on
+ * as a name: for words the host cannot list when the tree is compiled */
 int bt_vocab_set(bt_vocab *v, const char *name, const char *values);
 const char *bt_vocab_set_values(const bt_vocab *v, const char *name);
 
@@ -187,6 +207,11 @@ typedef struct bt_ctx {
 	float dt;                  /* seconds since this bot's last tick */
 	/* a draw in [0, 1) from the bot's own randomness */
 	float (*random)(void *bot);
+	/* who this bot is, for good: a number that is its own and the same
+	 * every time (the host gives its seed). A `pick roll=once` draws
+	 * from it. 0: the host has none -- such a pick then draws from
+	 * `random`, once a reset. */
+	uint64_t identity;
 } bt_ctx;
 
 /* Tick tree `tree` of the forest for this bot. */
@@ -195,6 +220,11 @@ bt_status bt_tick(const bt_forest *f, int tree, bt_state *s, const bt_ctx *ctx);
 /* Forget where the bot was (it died, the map changed): every action
  * still RUNNING is stopped, every timer cleared. */
 void bt_reset(const bt_forest *f, bt_state *s, const bt_ctx *ctx);
+
+/* The same, but for the roles drawn by `pick roll=`: those are kept.
+ * For a bot that was startled, not born: every other pick chooses now,
+ * every action stops, and it is still what it was. */
+void bt_restart(const bt_forest *f, bt_state *s, const bt_ctx *ctx);
 
 /* For a log, a test or a debug overlay: the leaf actions RUNNING after
  * the last tick, outermost first, as "fight" or "fetch_intel", joined
@@ -239,7 +269,9 @@ typedef enum bt_kind {
 const char *bt_kind_name(int kind);
 
 /* which of a node's numbers the text gave (the others are the defaults) */
-enum { BT_W_EVERY = 1, BT_W_STICKY = 2, BT_W_NOISE = 4, BT_W_FACTOR = 8 };
+enum { BT_W_EVERY = 1, BT_W_STICKY = 2, BT_W_NOISE = 4, BT_W_FACTOR = 8, BT_W_ROLL = 16 };
+/* how a pick chooses (its `roll=`) */
+enum { BT_ROLL_WEIGHED = 0, BT_ROLL_ONCE = 1, BT_ROLL_LIFE = 2 };
 
 typedef struct bt_node {
 	int id;                     /* its index (see above) */
@@ -265,7 +297,8 @@ typedef struct bt_node {
 	float secs;                 /* wait, cooldown, limit */
 	float every, sticky, noise; /* pick */
 	float factor;               /* option */
-	unsigned written;           /* BT_W_*: which of the four were written */
+	unsigned written;           /* BT_W_*: which of those were written */
+	int roll;                   /* pick: BT_ROLL_* */
 	const char *comment;        /* the comment on its line, without the `#`
 	                               and the spaces round it; NULL for none */
 	const char *above;          /* the lines between the node before and
@@ -384,6 +417,11 @@ typedef struct bt_worth {
 	float sticky;       /* 1 + the pick's sticky if it was the one held
 	                       when the pick chose, else 1 */
 	float worth;        /* the five multiplied: the highest was chosen */
+	/* a pick that rolls (roll=once, roll=life): luck and sticky are 1,
+	 * `held` is the role it drew (RUNNING or not), and */
+	float share;        /* this option's part of the lottery, 0 to 1: its
+	                       worth over the sum of them all */
+	float draw;         /* the draw, in [0, 1): the same for every option */
 } bt_worth;
 /* The options of pick `pick` (a forest id) as last weighed. Returns how
  * many options it has, 0 if `pick` is not a pick; writes at most `max`. */

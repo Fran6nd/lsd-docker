@@ -9,6 +9,12 @@
 #     named x the factor x a little luck. So twelve bots with one tree do
 #     twelve things. An option's score must be 0 when it cannot be done.
 #   - With nothing else to do a bot goes to the ENEMY'S BASE (`seek`).
+#   - A bot HAS A ROLE (`tree tdm_duty`): a camper, or not. It is drawn by
+#     lot, once for each bot (`pick roll=once`), and kept in every life:
+#     a camper goes up to a perch and waits there, again and again; it
+#     fights, takes cover and looks into noises as anybody (all that is
+#     above its role in the list), and then goes back up. Rifles and smgs
+#     only: a shotgun is never one.
 
 tree tdm:
 select
@@ -26,7 +32,7 @@ select
 		option curiosity search x2.5          # a noise, a man just lost, a hit: go and look
 			do investigate
 		option none always                    # nobody in sight, nothing heard
-			tree tdm_search
+			tree tdm_duty
 	limit 1
 		do seek                               # the net: the enemy's base
 
@@ -65,8 +71,35 @@ pick every=1.5 sticky=0.3 noise=0.15
 	option greed grenade_worth x0.8           # a group, a far man, one behind a wall
 		do throw_grenade
 
-# Nobody in sight: every one of these heads for the enemy -- which, is
-# the bot's character, its gun and its luck. Chosen for a good while.
+# Nobody in sight: what it does is its ROLE first. The role is drawn by
+# lot, once for each bot, and it keeps it for good -- the scores here are
+# facts about the bot (its gun), not the moment. About one bot in six is
+# a camper: a third of the rifles, a sixth of the smgs, more among those
+# of a marksman's character, no shotgun.
+tree tdm_duty:
+pick roll=once
+	option marksman gun_is rifle x0.5         # a camper: a rifle goes high and waits
+		tree tdm_camper
+	option marksman gun_is smg x0.2           # an smg sometimes; a shotgun never
+		tree tdm_camper
+	option none always                        # anybody else: the search below
+		tree tdm_search
+
+# A camper: up to a perch, wait there, and when that ends (two kills,
+# shot off it, patience out) up to another. While none is free -- it has
+# just left one, the team holds them all, the map has none -- it searches
+# as anybody does, and looks again every few seconds.
+tree tdm_camper:
+pick every=3 sticky=0.5 noise=0
+	option none vantage x10                   # a perch it can have: up, and wait
+		seq
+			do take_high_ground               # claim it (two never take the same) and go up
+			do camp                           # until two kills, shot at, or out of patience
+	option none always                        # none just now: the search, until there is one
+		tree tdm_search
+
+# Not a camper: every one of these heads for the enemy -- which, is the
+# bot's character and its luck. Chosen for a good while.
 tree tdm_search:
 pick every=25 sticky=1.5 noise=0.35
 	option teamwork ping_called x3            # a team-mate called
@@ -75,10 +108,6 @@ pick every=25 sticky=1.5 noise=0.35
 		do hunt_noise
 	option flank flank_open x0.9              # round to the enemy's base, from behind
 		do flank
-	option marksman vantage rifle x0.95       # a rifle goes high and waits
-		tree tdm_camp
-	option marksman vantage smg x0.6          # an smg sometimes; a shotgun never
-		tree tdm_camp
 	option teamwork has_leader x0.85          # fall in with its leader (a bot or a person: nobody is told)
 		do follow leader
 	option aggression is_leader x1.2          # a leader goes somewhere: the squad is behind it
@@ -88,11 +117,6 @@ pick every=25 sticky=1.5 noise=0.35
 			do follow mate
 	option aggression always x0.9             # straight at the enemy's base
 		do seek
-
-tree tdm_camp:
-seq
-	do take_high_ground                       # claim a perch (two never take the same) and go up
-	do camp                                   # until two kills, shot at, or out of patience
 
 tree tdm_answer:
 select

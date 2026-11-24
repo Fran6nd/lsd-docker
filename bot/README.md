@@ -19,7 +19,7 @@ Each layer only knows the one below it.
 
 | layer | files | what it is | where it comes from |
 |---|---|---|---|
-| decision | `bt.*`, `persona.*`, `trees/` | a behaviour tree per gamemode; its choices are weighted, and the weights are each bot's own | new |
+| decision | `bt.*`, `persona.*`, `trees/` | a behaviour tree per gamemode; its choices are weighed, and the weights are each bot's own | new |
 | senses | `senses.*` | what this bot knows: seen, heard, remembered. Night and noise live here | new, on aosbot's ranges |
 | skills | `skill_*.c` | the things a tree's leaves do: go there, fight him, dig, build, climb, throw, use an item | aosbot's executor, ported |
 | mechanics | `map.*`, `nav.*`, `aim.*`, `cull.*`, `body.*` | the map as bit columns, the route planner (walk, jump, dig, bridge, stairs), human aim, physics | aosbot, ported; physics is LSd's own `demoncore.c` |

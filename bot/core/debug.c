@@ -126,6 +126,39 @@ static void bot_head(jb *j, const bc_engine *e, const bc_bot *b)
 	jput(j, ", \"watched\": %s", b->watched ? "true" : "false");
 }
 
+/* what the server's scripts told it (engine.c, THE BRIDGE): its facts,
+ * the bot's own over the world's, then (after "}, \"places\": {") the
+ * places, each where it is now or null */
+static void bridge_json(jb *j, const bc_engine *e, const bc_bot *b)
+{
+	int i, k, n = 0;
+
+	for (i = 0; i < BC_BOT_FACTS_MAX + BC_FACTS_MAX; i++) {
+		const bc_fact *f = i < BC_BOT_FACTS_MAX ? &b->facts[i] : &e->facts[i - BC_BOT_FACTS_MAX];
+
+		if (!f->name[0]) continue;
+		for (k = 0; i >= BC_BOT_FACTS_MAX && k < BC_BOT_FACTS_MAX && strcmp(b->facts[k].name, f->name); k++) ;
+		if (i >= BC_BOT_FACTS_MAX && k < BC_BOT_FACTS_MAX) continue;       /* the bot has its own */
+		jput(j, "%s\"%s\": ", n++ ? ", " : "", f->name);
+		jnum(j, f->value);
+	}
+	jput(j, "}, \"places\": {");
+	for (i = 0, n = 0; i < BC_BOT_SPLACES_MAX + BC_SPLACES_MAX; i++) {
+		const bc_splace *p = i < BC_BOT_SPLACES_MAX ? &b->places[i] : &e->places[i - BC_BOT_SPLACES_MAX];
+		bl_vec3 at;
+
+		if (!p->name[0]) continue;
+		for (k = 0; i >= BC_BOT_SPLACES_MAX && k < BC_BOT_SPLACES_MAX && strcmp(b->places[k].name, p->name); k++) ;
+		if (i >= BC_BOT_SPLACES_MAX && k < BC_BOT_SPLACES_MAX) continue;
+		jput(j, "%s\"%s\": ", n++ ? ", " : "", p->name);
+		if (bc_splace_get(b, p->name, &at)) {
+			jput(j, "["); jnum(j, at.x); jput(j, ", "); jnum(j, at.y); jput(j, ", "); jnum(j, at.z); jput(j, "]");
+		} else {
+			jput(j, "null");
+		}
+	}
+}
+
 void bc_engine_watch(bc_engine *e, int pid, int on)
 {
 	bc_bot *b = bc_engine_bot(e, pid);
@@ -170,6 +203,7 @@ static void tree_nodes(jb *j, const bc_bot *b, int tree, int *first)
 		jstr(j, n.text);
 		jput(j, ", \"line\": %d, \"running\": %s", n.line, running && b->alive ? "true" : "false");
 		if (n.comment) { jput(j, ", \"comment\": "); jstr(j, n.comment); }
+		if (n.kind == BT_K_PICK && n.roll) jput(j, ", \"roll\": \"%s\"", n.roll == BT_ROLL_ONCE ? "once" : "life");
 		if (ns.child >= 0) jput(j, ", \"child\": %d", ns.child);
 		if (ns.running && (n.kind == BT_K_PICK || n.kind == BT_K_WAIT || n.kind == BT_K_LIMIT)) {
 			jput(j, ", \"elapsed\": "); jnum(j, ns.elapsed);
@@ -189,6 +223,12 @@ static void tree_nodes(jb *j, const bc_bot *b, int tree, int *first)
 				jput(j, ", \"luck\": "); jnum(j, w[k].luck);
 				jput(j, ", \"sticky\": "); jnum(j, w[k].sticky);
 				jput(j, ", \"worth\": "); jnum(j, w[k].worth);
+				bt_node pk;
+
+				if (bt_forest_node(f, n.parent, &pk) && pk.roll) {     /* a lottery: its part of it, and the draw */
+					jput(j, ", \"share\": "); jnum(j, w[k].share);
+					jput(j, ", \"draw\": "); jnum(j, w[k].draw);
+				}
 				jput(j, ", \"held\": %s}", w[k].held ? "true" : "false");
 			}
 		}
@@ -244,6 +284,8 @@ size_t bc_engine_snapshot(const bc_engine *e, int pid, char *out, size_t out_siz
 		jput(&j, "%s\"%s\": ", t ? ", " : "", bc_trait_name(t));
 		jnum(&j, b->persona.trait[t]);
 	}
+	jput(&j, "},\n    \"facts\": {");
+	bridge_json(&j, e, b);
 	jput(&j, "}},\n  \"binding\": %u, \"traced\": %s,\n  \"trees\": [", (unsigned)b->binds, b->watched ? "true" : "false");
 	if (b->forest && b->bt) {
 		tree_head(&j, b, b->tree, "main");

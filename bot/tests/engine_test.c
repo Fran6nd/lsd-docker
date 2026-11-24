@@ -1305,6 +1305,59 @@ static void test_watch(void)
 	free(out);
 }
 
+/* --- a role drawn once (pick roll=once) ---------------------------------- */
+
+static void test_role(void)
+{
+	static const char ROLE[] =
+		"tree=tree village:\n"
+		"pick roll=once\n"
+		"\toption none always\n"                    /* 1 in 12: a boss */
+		"\t\tdo hold self 99\n"
+		"\toption none always x10\n"                /* 10 in 12: a villager */
+		"\t\tdo look_around\n"
+		"\toption none always\n"                    /* 1 in 12: a killer */
+		"\t\tdo seek\n";
+	char role[2][24][24], d[300];
+	int run, i, n[3] = {0, 0, 0}, same = 0, kept = 0;
+
+	printf("a role drawn once for each bot (pick roll=once)\n");
+	for (run = 0; run < 2; run++) {
+		bs_sim *s = arena(24);
+
+		bs_start(s);
+		s->respawn = 1.0;
+		for (i = 0; i < 24; i++)
+			bs_add(s, i, 1, 1, 5, i % 3, 60000u + (uint32_t)i * 977u, 207.5f + (float)(i % 6) * 2.0f, 240.5f + (float)(i / 6) * 4.0f, 1, 0);
+		bs_set(s, BL_NO_PLAYER, ROLE);
+		bs_run(s, 1.0 + 0.3 * run);                 /* (not the same moment in the two runs) */
+		for (i = 0; i < 24; i++) {
+			bc_engine_describe(s->e, i, d, sizeof d);
+			snprintf(role[run][i], sizeof role[0][0], "%s", strstr(d, "hold") ? "boss" : strstr(d, "look_around") ? "villager" : strstr(d, "seek") ? "killer" : "?");
+			if (run == 0) n[role[0][i][0] == 'b' ? 0 : role[0][i][0] == 'v' ? 1 : 2]++;
+		}
+		if (run == 1) {
+			/* each dies and comes back: what it was */
+			for (i = 0; i < 24; i++) {
+				bl_vec3 from = { 0.0f, 0.0f, 0.0f };
+
+				bs_hurt(s, i, 200, BL_NO_PLAYER, from, 0);
+			}
+			bs_run(s, 3.0);
+			for (i = 0; i < 24; i++) {
+				bc_engine_describe(s->e, i, d, sizeof d);
+				kept += strstr(d, !strcmp(role[1][i], "boss") ? "hold" : !strcmp(role[1][i], "villager") ? "look_around" : "seek") != NULL;
+			}
+		}
+		bs_free(s);
+	}
+	for (i = 0; i < 24; i++) same += !strcmp(role[0][i], role[1][i]);
+	printf("  24 bots, options x1 x10 x1: %d bosses, %d villagers, %d killers; the same in another engine: %d of 24; after dying: %d of 24\n",
+	       n[0], n[1], n[2], same, kept);
+	CHECK(same == 24 && kept == 24);
+	CHECK(n[1] >= 15 && n[0] + n[1] + n[2] == 24);
+}
+
 static void test_cost(int per_team)
 {
 	bs_sim *s = arena(per_team * 2);
@@ -1423,6 +1476,7 @@ int main(void)
 	test_traits();
 	test_long_setting();
 	test_watch();
+	test_role();
 	printf("cost (this machine, -O2; a flat field with walls, NOT a real map)\n");
 	test_cost(6);
 	test_cost(16);

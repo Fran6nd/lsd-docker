@@ -465,7 +465,7 @@ static void archetype_means(int a, float *mean)
 
 /* The node kinds. `children`: none, one, many, or options (a pick's). */
 typedef struct kparam { const char *name, *type, *form; int required; double def, min, max; const char *doc; } kparam;
-typedef struct kindspec { const char *name, *children, *answers, *doc; kparam p[3]; } kindspec;
+typedef struct kindspec { const char *name, *children, *answers, *doc; kparam p[4]; } kindspec;
 #define NOMAX 1e30
 static const kindspec KINDS[BT_K_COUNT] = {
 	{ "seq", "many", "FAILURE at the first child that fails, RUNNING while one is, SUCCESS when all have succeeded",
@@ -474,7 +474,8 @@ static const kindspec KINDS[BT_K_COUNT] = {
 	  "its children in order, the first that does not fail: a priority list; resumes at the child that was RUNNING", {{0}} },
 	{ "pick", "options", "the answer of the option chosen; FAILURE when no option has a score above 0",
 	  "a weighed choice among its options: the one worth most to this bot (score x trait weight x factor x luck) is ticked",
-	  { { "every", "number", "every=<secs>", 0, 2, 0, NOMAX, "seconds between two choices; it also chooses again whenever the option chosen ends" },
+	  { { "roll", "enum", "roll=<weighed|once|life>", 0, 0, 0, 0, "weighed (the default): the option worth most, chosen again and again. once: an option DRAWN, each with a chance in proportion to its worth, the same for this bot for good -- a role. life: drawn anew each life. With once or life, every, sticky and noise are not written" },
+	    { "every", "number", "every=<secs>", 0, 2, 0, NOMAX, "seconds between two choices; it also chooses again whenever the option chosen ends" },
 	    { "sticky", "number", "sticky=<x>", 0, 0.25, 0, NOMAX, "the option being done is worth this much more, as a fraction of its own worth" },
 	    { "noise", "number", "noise=<x>", 0, 0.1, 0, 1, "luck: each option's worth is multiplied by a draw within 1 +- this" } } },
 	{ "option", "one", "its child's",
@@ -578,7 +579,7 @@ static int schema(FILE *o)
 		if (k == BT_K_OPTION) fputs(", \"parent\": \"pick\"", o);
 		fputs(",", o);
 		jpad(o, 3); jkey(o, "params"); fputs("[", o);
-		for (int i = 0; i < 3 && s->p[i].name; i++) {
+		for (int i = 0; i < 4 && s->p[i].name; i++) {
 			const kparam *p = &s->p[i];
 			if (i) fputc(',', o);
 			jpad(o, 4); fputs("{", o);
@@ -586,6 +587,7 @@ static int schema(FILE *o)
 			jkv(o, "type", p->type); fputs(", ", o);
 			jkv(o, "written", p->form);
 			fprintf(o, ", \"required\": %s", p->required ? "true" : "false");
+			if (!strcmp(p->type, "enum")) fputs(", \"values\": [\"weighed\", \"once\", \"life\"], \"default\": \"weighed\"", o);
 			if (!strcmp(p->type, "number")) {
 				if (!p->required) fprintf(o, ", \"default\": %s", num(p->def));
 				fprintf(o, ", \"min\": %s", num(p->min));
@@ -739,7 +741,9 @@ static void json_node(FILE *o, const bt_source *src, int id, int pad)
 		static const struct { const char *name; unsigned bit; } S[3] = {
 			{ "every", BT_W_EVERY }, { "sticky", BT_W_STICKY }, { "noise", BT_W_NOISE } };
 		int some = 0;
-		fprintf(o, ", \"every\": %s, \"sticky\": %s, \"noise\": %s, \"defaults\": [", num(n.every), num(n.sticky), num(n.noise));
+		fprintf(o, ", \"roll\": \"%s\", \"every\": %s, \"sticky\": %s, \"noise\": %s, \"defaults\": [",
+			n.roll == BT_ROLL_ONCE ? "once" : n.roll == BT_ROLL_LIFE ? "life" : "weighed", num(n.every), num(n.sticky), num(n.noise));
+		if (!(n.written & BT_W_ROLL)) { some++; jstr(o, "roll"); }
 		for (int k = 0; k < 3; k++)
 			if (!(n.written & S[k].bit)) { if (some++) fputs(", ", o); jstr(o, S[k].name); }
 		fputc(']', o);
@@ -910,8 +914,13 @@ static void sput_node(sb *b, const jv *node, int depth)
 	sput(b, kind);
 	if (!strcmp(kind, "pick")) {
 		static const struct { const char *name; double def; } S[3] = { { "every", 2 }, { "sticky", 0.25 }, { "noise", 0.1 } };
+		const char *roll = jtext(node, "roll");
+		int rolls = roll && strcmp(roll, "weighed");
+		if (rolls) { sput(b, " roll="); sput(b, roll); }
+		/* a pick that rolls has no every, sticky or noise: the numbers an
+		 * editor still holds for it are not written */
 		for (int k = 0; k < 3; k++)
-			if (!is_default(node, S[k].name, S[k].def)) {
+			if (!rolls && !is_default(node, S[k].name, S[k].def)) {
 				sput(b, " "); sput(b, S[k].name); sput(b, "="); sput(b, num(jget(node, S[k].name)->number));
 			}
 	} else if (!strcmp(kind, "option")) {
@@ -1198,6 +1207,7 @@ static bt_status split_action(int i, const bt_args *a)
 	quiet_ask = 0;
 	if (v && !strcmp(v, "ok")) return BT_SUCCESS;
 	if (v && !strcmp(v, "fail")) return BT_FAILURE;
+	if (!v && !strcmp(word_name(2, i), "tell")) return BT_SUCCESS;   /* a word said: done at once, always */
 	return BT_RUNNING;
 }
 
@@ -1299,7 +1309,7 @@ static int split(const char *only, int n, const char *mix, int level, int with_w
 		bc_rng r; bc_persona p;
 		bc_rng_seed(&r, 4242 + (uint64_t)k, 11);
 		bc_persona_roll(&p, &r, mixw, level);
-		bt_ctx ctx = {&r, p.trait, BC_T_COUNT, 0.1f, split_random};
+		bt_ctx ctx = {&r, p.trait, BC_T_COUNT, 0.1f, split_random, 4242u + (uint64_t)k};   /* each its own, as a seed is */
 		bt_state_init(st, f);
 		bt_state_trace(st, with_why);
 		bt_status res = bt_tick(f, tree, st, &ctx);
@@ -1371,7 +1381,9 @@ static void trace_node(const bt_forest *f, const bt_state *st, int id, const cha
 	printf("%s", OFF);
 	if (on_path) printf("%s", BOLD);
 	node_words(&n);
-	if (n.kind == BT_K_PICK && ns.running)
+	if (n.kind == BT_K_PICK && n.roll)
+		printf("  %s[a role, drawn %s]%s", DIM, n.roll == BT_ROLL_ONCE ? "once for this bot" : "for this life", OFF);
+	else if (n.kind == BT_K_PICK && ns.running)
 		printf("  %s[chose %.1f s ago, again in %.1f s]%s", DIM, (double)ns.elapsed, (double)ns.remaining, OFF);
 	if ((n.kind == BT_K_WAIT || n.kind == BT_K_LIMIT) && ns.running)
 		printf("  %s[%.1f s in, %.1f s left]%s", DIM, (double)ns.elapsed, (double)ns.remaining, OFF);
@@ -1383,6 +1395,9 @@ static void trace_node(const bt_forest *f, const bt_state *st, int id, const cha
 		for (int k = 0; k < m && k < 64; k++)
 			if (w[k].option == id && w[k].weighed && !(w[k].score > 0))
 				printf("  %sscore 0: not to be chosen%s", DIM, OFF);
+			else if (w[k].option == id && w[k].weighed && w[k].share > 0)       /* a lottery */
+				printf("  %s%.2f x %.2f x %s = %.3f: %s%.0f%% of the draw%s%s", DIM, (double)w[k].score, (double)w[k].weight,
+					num(w[k].factor), (double)w[k].worth, OFF, 100.0 * (double)w[k].share, w[k].held ? "  <- its role" : "", OFF);
 			else if (w[k].option == id && w[k].weighed)
 				printf("  %s%.2f x %.2f x %s x %.2f x %.2f = %s%.3f%s%s", DIM, (double)w[k].score, (double)w[k].weight,
 					num(w[k].factor), (double)w[k].luck, (double)w[k].sticky, OFF, (double)w[k].worth,
@@ -1414,7 +1429,7 @@ static int trace(const char *only, int seed, int level, double secs, int as_json
 	bc_rng r; bc_persona p;
 	bc_rng_seed(&r, 4242 + (uint64_t)seed, 11);
 	bc_persona_roll(&p, &r, mixw, level);
-	bt_ctx ctx = {&r, p.trait, BC_T_COUNT, 0.1f, split_random};
+	bt_ctx ctx = {&r, p.trait, BC_T_COUNT, 0.1f, split_random, 4242u + (uint64_t)seed};
 	bt_state *st = malloc(bt_state_size(f));
 	if (!st) return 1;
 	bt_state_init(st, f);
@@ -1764,8 +1779,14 @@ static void view_node(vnode *v, int n, int i, const char *prefix, int last)
 		printf("  %s[cooling: %.1f s left]%s", DIM, jnumber(nd->j, "remaining", 0), OFF);
 	else if (jget(nd->j, "remaining"))
 		printf("  %s[%.1f s in, %.1f s left]%s", DIM, jnumber(nd->j, "elapsed", 0), jnumber(nd->j, "remaining", 0), OFF);
+	if (jtext(nd->j, "roll"))
+		printf("  %s[a role, drawn %s]%s", DIM, !strcmp(jtext(nd->j, "roll"), "once") ? "once for this bot" : "for this life", OFF);
 	if (w && !(jnumber(w, "score", 0) > 0))
 		printf("  %sscore 0%s", DIM, OFF);
+	else if (w && jget(w, "share"))
+		printf("  %s%.2f x %.2f x %s = %.3f: %s%.0f%% of the draw%s%s", DIM, jnumber(w, "score", 0), jnumber(w, "weight", 0),
+		       num(jnumber(w, "factor", 1)), jnumber(w, "worth", 0), OFF, 100.0 * jnumber(w, "share", 0),
+		       jtrue(w, "held") ? "  <- its role" : "", OFF);
 	else if (w)
 		printf("  %s%.2f x %.2f x %s x %.2f x %.2f = %s%.3f%s%s", DIM, jnumber(w, "score", 0), jnumber(w, "weight", 0),
 		       num(jnumber(w, "factor", 1)), jnumber(w, "luck", 0), jnumber(w, "sticky", 1), OFF, jnumber(w, "worth", 0),

@@ -1455,6 +1455,257 @@ static void test_diagnose(void)
 	bt_vocab_free(v);
 }
 
+/* ---- pick roll=: a role drawn by lot, and kept ------------------------- */
+
+/* which of act 0..3 the tree is in after one tick (-1: none) */
+static int role_of(Rig *r)
+{
+	int before[N], i, got = -1;
+	memcpy(before, r->bot->calls, sizeof before);
+	rig_tick(r, 0.1f);
+	for (i = 0; i < N; i++) if (r->bot->calls[i] > before[i]) got = i;
+	return got;
+}
+
+static const char ROLES[] =
+	"tree main:\n"
+	"pick roll=once\n"
+	"\toption a sc 0\n"
+	"\t\tdo act 0\n"
+	"\toption a sc 1 x10\n"
+	"\t\tdo act 1\n"
+	"\toption a sc 2\n"
+	"\t\tdo act 2\n";
+
+static void test_roll(void)
+{
+	Rig r;
+	Bot b;
+	bt_node n;
+	bt_worth w[4];
+	char err[200];
+	int count[4] = {0, 0, 0, 0}, i, k, role;
+	bot_init(&b, 3);
+	for (i = 0; i < N; i++) { b.ret[i] = BT_RUNNING; b.sc[i] = 1.0f; }
+
+	/* THE SHARES: x1, x10, x1 over 12,000 bots is 1000, 10000, 1000 */
+	if (!rig_open(&r, ROLES, &b)) return;
+	for (i = 1; i <= 12000; i++) {
+		r.ctx.identity = (uint64_t)i * 7919u;
+		bt_reset(r.f, r.s, &r.ctx);
+		role = role_of(&r);
+		CHECK(role >= 0 && role <= 2);
+		if (role >= 0) count[role]++;
+	}
+	printf("  roll=once, options x1 x10 x1, 12000 bots: %d, %d, %d\n", count[0], count[1], count[2]);
+	CHECK(count[0] > 880 && count[0] < 1120 && count[2] > 880 && count[2] < 1120 && count[1] > 9800 && count[1] < 10200);
+
+	/* THE SAME BOT, THE SAME ROLE: tick after tick, life after life, startled or not */
+	for (i = 1; i <= 300; i++) {
+		r.ctx.identity = 1000u + (uint64_t)i;
+		bt_reset(r.f, r.s, &r.ctx);
+		role = role_of(&r);
+		CHECK(role_of(&r) == role);
+		bt_restart(r.f, r.s, &r.ctx);
+		CHECK(role_of(&r) == role);
+		bt_reset(r.f, r.s, &r.ctx);
+		CHECK(role_of(&r) == role);
+		count[3] = role;                /* kept for below: bot 1300's */
+	}
+	/* a bot's weights are in it: with a weight of 3 for the trait of the
+	 * first option only... all three here are trait a, so nothing moves */
+	rig_close(&r);
+
+	/* the trees compiled again, with other trees round it, and through a
+	 * reference: the same role for the same bot -- its draw is made of its
+	 * identity, the tree's name and which pick of that tree it is */
+	{
+		static const char MORE[] =
+			"tree other:\npick every=1\n\toption a sc 3\n\t\tdo act 3\n"
+			"tree outer:\nselect\n\ttree main\n"
+			"tree main:\npick roll=once\n\toption a sc 0\n\t\tdo act 0\n\toption a sc 1 x10\n\t\tdo act 1\n\toption a sc 2\n\t\tdo act 2\n"
+			"tree last:\npick roll=once\n\toption a sc 0\n\t\tdo act 0\n\toption a sc 1\n\t\tdo act 1\n";
+		Rig a, m;
+		int same = 0, same_ref = 0, other_pick_same = 0;
+		if (!rig_open(&a, ROLES, &b)) return;
+		if (!rig_open(&m, MORE, &b)) { rig_close(&a); return; }
+		for (i = 1; i <= 400; i++) {
+			int r0, r1, r2, before[N];
+			a.ctx.identity = m.ctx.identity = 50000u + (uint64_t)i * 13u;
+			bt_reset(a.f, a.s, &a.ctx); bt_reset(m.f, m.s, &m.ctx);
+			r0 = role_of(&a);
+			memcpy(before, b.calls, sizeof before);
+			m.ctx.dt = 0.1f;
+			bt_tick(m.f, bt_forest_find(m.f, "main"), m.s, &m.ctx);
+			for (k = 0, r1 = -1; k < 3; k++) if (b.calls[k] > before[k]) r1 = k;
+			memcpy(before, b.calls, sizeof before);
+			bt_tick(m.f, bt_forest_find(m.f, "outer"), m.s, &m.ctx);
+			for (k = 0, r2 = -1; k < 3; k++) if (b.calls[k] > before[k]) r2 = k;
+			memcpy(before, b.calls, sizeof before);
+			bt_tick(m.f, bt_forest_find(m.f, "last"), m.s, &m.ctx);
+			same += r0 == r1;
+			same_ref += r0 == r2;
+			other_pick_same += (r0 == 1) == (b.calls[1] > before[1]);
+		}
+		CHECK(same == 400 && same_ref == 400);
+		/* another tree's pick is another draw: it agrees no more than chance has it */
+		printf("  the same role in another text and through a reference: %d and %d of 400; another tree's pick agrees %d times\n",
+		       same, same_ref, other_pick_same);
+		CHECK(other_pick_same > 150 && other_pick_same < 290);
+		rig_close(&a); rig_close(&m);
+	}
+
+	/* TWO PICKS OF ONE TREE draw each for itself: four combinations, a quarter each */
+	bot_init(&b, 4);
+	for (i = 0; i < N; i++) { b.ret[i] = BT_SUCCESS; b.sc[i] = 1.0f; }
+	if (rig_open(&r, "seq\n\tpick roll=once\n\t\toption a sc 0\n\t\t\tdo act 0\n\t\toption a sc 1\n\t\t\tdo act 1\n"
+	                 "\tpick roll=once\n\t\toption a sc 2\n\t\t\tdo act 2\n\t\toption a sc 3\n\t\t\tdo act 3\n", &b)) {
+		int joint[4] = {0, 0, 0, 0};
+		for (i = 1; i <= 4000; i++) {
+			int before[N];
+			r.ctx.identity = 99u + (uint64_t)i * 31u;
+			bt_reset(r.f, r.s, &r.ctx);
+			memcpy(before, b.calls, sizeof before);
+			CHECK(rig_tick(&r, 0.1f) == BT_SUCCESS);            /* each child ended: the pick answers as it did */
+			joint[(b.calls[1] > before[1]) * 2 + (b.calls[3] > before[3])]++;
+		}
+		printf("  two picks of one tree, 4000 bots: %d %d %d %d\n", joint[0], joint[1], joint[2], joint[3]);
+		for (k = 0; k < 4; k++) CHECK(joint[k] > 880 && joint[k] < 1120);
+		/* THE ROLE DOES NOT MOVE when its child ends: the same child, ticked again */
+		r.ctx.identity = 5;
+		bt_reset(r.f, r.s, &r.ctx);
+		{
+			int c0[N], c1[N];
+			memcpy(c0, b.calls, sizeof c0);
+			for (k = 0; k < 10; k++) rig_tick(&r, 0.1f);
+			memcpy(c1, b.calls, sizeof c1);
+			CHECK((c1[0] - c0[0] == 10 && c1[1] == c0[1]) || (c1[1] - c0[1] == 10 && c1[0] == c0[0]));
+			b.ret[0] = b.ret[1] = BT_FAILURE;                    /* and its failure is the pick's */
+			CHECK(rig_tick(&r, 0.1f) == BT_FAILURE);
+			CHECK(b.calls[0] + b.calls[1] == c1[0] + c1[1] + 1);
+		}
+		rig_close(&r);
+	}
+
+	/* the trait weights are in the lottery: a weight of 3 against 1 is 3 in 4 */
+	bot_init(&b, 5);
+	for (i = 0; i < N; i++) { b.ret[i] = BT_RUNNING; b.sc[i] = 1.0f; }
+	if (rig_open(&r, "pick roll=once\n\toption a sc 0\n\t\tdo act 0\n\toption b sc 1\n\t\tdo act 1\n", &b)) {
+		int first = 0;
+		r.w[1] = 3.0f; r.w[2] = 1.0f;
+		for (i = 1; i <= 4000; i++) {
+			r.ctx.identity = 77u + (uint64_t)i * 101u;
+			bt_reset(r.f, r.s, &r.ctx);
+			first += role_of(&r) == 0;
+		}
+		printf("  a trait weight of 3 against 1: %d of 4000 took the first\n", first);
+		CHECK(first > 2880 && first < 3120);
+		/* a score of 0 is never drawn; with none above 0 the pick fails and
+		 * asks again; and the draw falls where the worths then put it */
+		b.sc[0] = 0.0f;
+		for (i = 1; i <= 500; i++) {
+			r.ctx.identity = 9000u + (uint64_t)i;
+			bt_reset(r.f, r.s, &r.ctx);
+			CHECK(role_of(&r) == 1);
+		}
+		b.sc[1] = 0.0f;
+		bt_reset(r.f, r.s, &r.ctx);
+		CHECK(rig_tick(&r, 0.1f) == BT_FAILURE && rig_tick(&r, 0.1f) == BT_FAILURE);
+		b.sc[0] = 1.0f;
+		CHECK(role_of(&r) == 0);
+		b.sc[1] = 1.0f;                                 /* drawn: it is not asked again in this life */
+		CHECK(role_of(&r) == 0 && role_of(&r) == 0);
+
+		/* what the lottery was, for whoever watches: each share, the draw, the role */
+		r.ctx.identity = 4242;
+		bt_reset(r.f, r.s, &r.ctx);
+		bt_state_trace(r.s, 1);
+		role = role_of(&r);
+		CHECK(bt_state_worths(r.f, r.s, 0, w, 4) == 2 && w[0].weighed && w[1].weighed);
+		CHECK(near(w[0].share, 0.75f) && near(w[1].share, 0.25f) && w[0].draw == w[1].draw && w[0].draw >= 0.0f && w[0].draw < 1.0f);
+		CHECK(w[0].luck == 1.0f && w[0].sticky == 1.0f && near(w[0].worth, 3.0f) && near(w[1].worth, 1.0f));
+		CHECK(w[role].held && !w[1 - role].held && (w[0].draw < 0.75f) == (role == 0));
+		{
+			bt_node_state ns;
+			CHECK(bt_state_node(r.f, r.s, 0, &ns) && ns.running && ns.child == (role ? 3 : 1));
+			b.ret[0] = b.ret[1] = BT_SUCCESS;
+			rig_tick(&r, 0.1f);                                  /* not RUNNING now: its role is known all the same */
+			CHECK(bt_state_node(r.f, r.s, 0, &ns) && !ns.running && ns.child == (role ? 3 : 1));
+			CHECK(bt_state_worths(r.f, r.s, 0, w, 4) == 2 && w[role].held);
+			b.ret[0] = b.ret[1] = BT_RUNNING;
+		}
+		rig_close(&r);
+	}
+
+	/* ROLL=LIFE: kept within a life -- startled (bt_restart), or the branch
+	 * above it left and come back to -- and drawn anew at each bt_reset */
+	bot_init(&b, 6);
+	for (i = 0; i < N; i++) { b.ret[i] = BT_RUNNING; b.sc[i] = 1.0f; }
+	if (rig_open(&r, "pick every=0 noise=0\n\toption a sc 3 x5\n\t\tdo act 3\n\toption a sc 2\n"
+	                 "\t\tpick roll=life\n\t\t\toption a sc 0\n\t\t\t\tdo act 0\n\t\t\toption a sc 1\n\t\t\t\tdo act 1\n", &b)) {
+		int seen[2] = {0, 0}, changed = 0, last = -1;
+		r.ctx.identity = 77;                            /* an identity changes nothing for roll=life */
+		b.sc[3] = 0.0f;
+		for (i = 0; i < 300; i++) {
+			bt_reset(r.f, r.s, &r.ctx);
+			role = role_of(&r);
+			CHECK(role == 0 || role == 1);
+			if (role < 0) break;
+			seen[role]++;
+			changed += last >= 0 && role != last;
+			last = role;
+			CHECK(role_of(&r) == role);
+			bt_restart(r.f, r.s, &r.ctx);
+			CHECK(role_of(&r) == role);
+			b.sc[3] = 1.0f;                             /* the pick above takes its other option... */
+			CHECK(role_of(&r) == 3 && b.stops[role] > 0);
+			b.sc[3] = 0.0f;                             /* ...and comes back: the same role */
+			CHECK(role_of(&r) == role);
+		}
+		printf("  roll=life over 300 lives: %d and %d, changed %d times\n", seen[0], seen[1], changed);
+		CHECK(seen[0] > 110 && seen[1] > 110 && changed > 100);
+		rig_close(&r);
+	}
+	/* with no identity (0), roll=once is drawn as roll=life is: once a reset, from the bot's dice */
+	if (rig_open(&r, "pick roll=once\n\toption a sc 0\n\t\tdo act 0\n\toption a sc 1\n\t\tdo act 1\n", &b)) {
+		int seen[2] = {0, 0};
+		r.ctx.identity = 0;
+		for (i = 0; i < 300; i++) {
+			bt_reset(r.f, r.s, &r.ctx);
+			role = role_of(&r);
+			if (role == 0 || role == 1) seen[role]++;
+			CHECK(role_of(&r) == role);
+			bt_restart(r.f, r.s, &r.ctx);
+			CHECK(role_of(&r) == role);
+		}
+		CHECK(seen[0] > 110 && seen[1] > 110 && seen[0] + seen[1] == 300);
+		rig_close(&r);
+	}
+
+	/* as data, and in the text written back */
+	{
+		bt_source *src = bt_parse(vocab, "select\n  pick   roll=once   # roles\n    option a sc 0\n      do act 0\n  pick roll=weighed every=3\n    option a sc 0\n      do act 0\n  pick\n    option a sc 0\n      do act 0\n", NULL);
+		char *text;
+		CHECK(src != NULL);
+		if (src) {
+			CHECK(bt_source_node(src, 1, &n) && n.kind == BT_K_PICK && n.roll == BT_ROLL_ONCE && n.written == BT_W_ROLL);
+			CHECK(bt_source_node(src, 4, &n) && n.roll == BT_ROLL_WEIGHED && n.written == (BT_W_ROLL | BT_W_EVERY));
+			CHECK(bt_source_node(src, 7, &n) && n.roll == BT_ROLL_WEIGHED && n.written == 0);
+			bt_source_free(src);
+		}
+		text = canonical(vocab, "pick roll=life\n  option a sc 0\n    do act 0\n", NULL);
+		CHECK(text && !strncmp(text, "pick roll=life\n", 15));
+		free(text);
+	}
+	/* what may not be written */
+	bad("pick roll=once every=2\n\toption a sc 0\n\t\tdo act 0\n", 1, "every, sticky and noise have no meaning");
+	bad("pick sticky=1 roll=life\n\toption a sc 0\n\t\tdo act 0\n", 1, "roll=life");
+	bad("pick noise=0 roll=once\n\toption a sc 0\n\t\tdo act 0\n", 1, "no meaning");
+	bad("pick roll=twice\n\toption a sc 0\n\t\tdo act 0\n", 1, "weighed, once or life");
+	bad("pick roll=\n\toption a sc 0\n\t\tdo act 0\n", 1, "weighed, once or life");
+	(void)err; (void)count;
+}
+
 int main(void)
 {
 	int i;
@@ -1484,6 +1735,7 @@ int main(void)
 	test_shipped();
 	test_arg_specs();
 	test_diagnose();
+	test_roll();
 	bt_vocab_free(vocab);
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;

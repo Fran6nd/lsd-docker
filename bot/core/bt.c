@@ -192,8 +192,11 @@ const char *bt_vocab_set_values(const bt_vocab *v, const char *name)
 
 typedef struct bnode {
 	uint8_t kind;
+	uint8_t roll;           /* pick: BT_ROLL_* */
 	int32_t end;            /* index one past this node's subtree */
-	int32_t trait;          /* option: index into the weights */
+	int32_t trait;          /* option: index into the weights; a pick that
+	                           rolls: its key (the same wherever and however
+	                           often its tree is compiled) */
 	int32_t line;
 	const char *name;       /* leaf name; option: its score's name */
 	const char *trait_name; /* option */
@@ -212,7 +215,7 @@ typedef struct fmeta { int32_t src, via, parent; } fmeta;
 
 /* the text as written: bt.h, "the source" */
 typedef struct snode {
-	uint8_t kind, written;
+	uint8_t kind, written, roll;
 	int32_t end;            /* index one past its subtree, in the source */
 	int32_t parent, tree, line, col, depth, nchild;
 	const char *text, *name, *trait, *note, *above;
@@ -270,6 +273,7 @@ typedef struct ptree {
 	char name[BT_NAME_MAX];
 	int first, hline, base;
 	int header;
+	int npick;              /* picks read so far: a rolling pick's ordinal */
 	char *note, *above;
 } ptree;
 
@@ -362,11 +366,20 @@ static int tonum(const char *s, float *out)
 static int is_leaf(int k) { return k == K_IF || k == K_UNLESS || k == K_DO || k == K_WAIT || k == K_REF; }
 static int is_decor(int k) { return k == K_INVERT || k == K_ALWAYS || k == K_NEVER || k == K_COOLDOWN || k == K_LIMIT; }
 
+/* is the word one of "a|b|c"? An entry that ends in `*` ("@*") is any
+ * word that begins so and goes on as a name does (letters, digits, _). */
 static int in_list(const char *list, tok w)
 {
 	while (list && *list) {
-		size_t n = strcspn(list, "|");
+		size_t n = strcspn(list, "|"), i;
 		if (n == w.n && !memcmp(list, w.s, n)) return 1;
+		if (n > 1 && list[n - 1] == '*' && w.n >= n && w.n < BT_NAME_MAX && !memcmp(list, w.s, n - 1)) {
+			for (i = n - 1; i < w.n; i++) {
+				char c = w.s[i];
+				if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')) break;
+			}
+			if (i == w.n) return 1;
+		}
 		list += n + (list[n] == '|');
 	}
 	return 0;
@@ -490,6 +503,14 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 			if (!eq || kn == 0) { fail(p, line, "pick: expected key=value, got '%.*s'", (int)t[i].n, t[i].s); return 0; }
 			vs = dups(p, eq + 1, t[i].n - kn - 1);
 			if (!vs) return 0;
+			if (kn == 4 && !memcmp(t[i].s, "roll", 4)) {
+				if (!strcmp(vs, "weighed")) b->roll = BT_ROLL_WEIGHED;
+				else if (!strcmp(vs, "once")) b->roll = BT_ROLL_ONCE;
+				else if (!strcmp(vs, "life")) b->roll = BT_ROLL_LIFE;
+				else { fail(p, line, "pick: roll is weighed, once or life, not '%s'", vs); return 0; }
+				pn->written |= BT_W_ROLL;
+				continue;
+			}
 			if (!tonum(vs, &val) || val < 0) {
 				fail(p, line, "pick: '%.*s' needs a number of 0 or more", (int)kn, t[i].s);
 				return 0;
@@ -501,9 +522,15 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 				b->noise = val;
 				pn->written |= BT_W_NOISE;
 			} else {
-				fail(p, line, "pick: unknown setting '%.*s' (every, sticky, noise)", (int)kn, t[i].s);
+				fail(p, line, "pick: unknown setting '%.*s' (every, sticky, noise, roll)", (int)kn, t[i].s);
 				return 0;
 			}
+		}
+		if (b->roll && (pn->written & (BT_W_EVERY | BT_W_STICKY | BT_W_NOISE))) {
+			at(p, t[1]);
+			fail(p, line, "pick: with roll=%s the choice is drawn once and kept: every, sticky and noise have no meaning",
+			     b->roll == BT_ROLL_ONCE ? "once" : "life");
+			return 0;
 		}
 		return 1;
 	case K_OPTION: {
@@ -772,6 +799,16 @@ static void parse_line(P *p, const char *q, size_t len, int line)
 	pn.above = above;
 	pn.depth = rel;
 	pn.parent = parent;
+	if (pn.n.kind == K_PICK) {
+		/* what a rolling pick's draw is made from, with the bot's identity:
+		 * its tree's name and which pick of that tree it is -- so the same
+		 * bot draws the same role whatever other trees the text holds */
+		uint32_t h = 2166136261u;
+		const char *c;
+		for (c = tr->name; *c; c++) h = (h ^ (uint8_t)*c) * 16777619u;
+		h = (h ^ (uint32_t)tr->npick++) * 16777619u;
+		pn.n.trait = (int32_t)h;
+	}
 	if (parent >= 0) p->pn[parent].nchild++;
 	p->stack[rel] = (int)p->npn;
 	p->sp = rel + 1;
@@ -906,6 +943,7 @@ static bt_source *build_source(P *p)
 		snode *sn = &src->nodes[i];
 		sn->kind = pn->n.kind;
 		sn->written = (uint8_t)pn->written;
+		sn->roll = pn->n.roll;
 		sn->end = pn->n.end;
 		sn->parent = pn->parent;
 		sn->line = pn->n.line;
@@ -1087,6 +1125,7 @@ static void stop_range(const bt_forest *f, int i, bt_state *s, const bt_ctx *c, 
 		const bnode *n = &f->nodes[k];
 		slot *sl = &s->s[k];
 		if (n->kind == K_DO && sl->run && n->stop) n->stop(c->bot, &n->args);
+		if (n->kind == K_PICK && n->roll && !all) { sl->cur = 0; continue; }   /* a role drawn is kept */
 		if (all || n->kind != K_COOLDOWN) sl->t = 0;
 		sl->cur = 0;
 		sl->run = 0;
@@ -1134,6 +1173,44 @@ static int pick_choose(const bt_forest *f, int i, bt_state *s, const bt_ctx *c)
 	return best;
 }
 
+/* A draw in [0, 1) that is this bot's for this pick, whenever asked:
+ * a mix (splitmix64's) of the bot's identity and the pick's key. */
+static double identity_draw(uint64_t identity, int32_t key)
+{
+	uint64_t z = identity + 0x9E3779B97F4A7C15ull * ((uint64_t)(uint32_t)key + 1u);
+	z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+	z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+	z ^= z >> 31;
+	return (double)(z >> 11) / 9007199254740992.0;
+}
+
+/* THE LOTTERY of a pick that rolls: the option the draw `u` lands on,
+ * each having a share of [0, 1) in proportion to its worth -- score x
+ * the bot's weight x factor, no luck, nothing for the one held. -1 when
+ * no option has a score above 0. */
+static int roll_choose(const bt_forest *f, int i, bt_state *s, const bt_ctx *c, double u)
+{
+	const bnode *n = &f->nodes[i];
+	double sum = 0, acc = 0;
+	int o, last = -1;
+	for (o = i + 1; o < n->end; o = f->nodes[o].end) {
+		const bnode *on = &f->nodes[o];
+		float sc = on->score(c->bot, &on->args);
+		if (s->trace) note_worth(s, o, sc, weight_of(c, on->trait), u, 1.0);
+		if (sc > 0) { sum += (double)sc * weight_of(c, on->trait) * on->factor; last = o; }
+	}
+	if (last < 0 || !(sum > 0)) return -1;
+	/* (the scores are asked a second time: once a life, and they are facts) */
+	for (o = i + 1; o < n->end; o = f->nodes[o].end) {
+		const bnode *on = &f->nodes[o];
+		float sc = on->score(c->bot, &on->args);
+		if (!(sc > 0)) continue;
+		acc += (double)sc * weight_of(c, on->trait) * on->factor;
+		if (u * sum < acc) return o;
+	}
+	return last;
+}
+
 static bt_status tick(const bt_forest *f, int i, bt_state *s, const bt_ctx *c)
 {
 	const bnode *n = &f->nodes[i];
@@ -1153,6 +1230,22 @@ static bt_status tick(const bt_forest *f, int i, bt_state *s, const bt_ctx *c)
 		return seq ? BT_SUCCESS : BT_FAILURE;
 	}
 	case K_PICK: {
+		if (n->roll) {
+			/* a role: drawn at the first tick after a reset, then kept --
+			 * the child is ticked again and again, whatever it answers.
+			 * sl->run: the option held + 1; sl->t: the draw */
+			if (!sl->run) {
+				int best;
+				if (n->roll == BT_ROLL_ONCE && c->identity) sl->t = identity_draw(c->identity, n->trait);
+				else if (sl->t >= 0) sl->t = -1.0 - (double)draw(c);   /* drawn once; kept as -(1 + u) */
+				best = roll_choose(f, i, s, c, sl->t < 0 ? -sl->t - 1.0 : sl->t);
+				if (best < 0) return BT_FAILURE;                       /* nothing to draw yet: asked again */
+				sl->run = best + 1;
+			}
+			r = tick(f, sl->run, s, c);
+			sl->cur = r == BT_RUNNING ? sl->run : 0;
+			return r;
+		}
 		if (sl->cur == 0 || s->now - sl->t >= n->every) {
 			int best = pick_choose(f, i, s, c);
 			/* (the option's child is stopped, not the option: its slot
@@ -1234,6 +1327,18 @@ void bt_reset(const bt_forest *f, bt_state *s, const bt_ctx *c)
 	s->trace = trace;
 }
 
+void bt_restart(const bt_forest *f, bt_state *s, const bt_ctx *c)
+{
+	size_t k;
+	for (k = 0; k < f->n_nodes; k++) {
+		const bnode *n = &f->nodes[k];
+		slot *sl = &s->s[k];
+		if (n->kind == K_DO && sl->run && n->stop) n->stop(c->bot, &n->args);
+		if (n->kind == K_PICK && n->roll) { sl->cur = 0; continue; }   /* its role is its own still */
+		memset(sl, 0, sizeof *sl);
+	}
+}
+
 typedef struct app { char *out; size_t size, len; int any; } app;
 
 static void append(app *a, const char *s)
@@ -1303,6 +1408,7 @@ static void node_out(const snode *sn, bt_node *out)
 	out->noise = sn->noise;
 	out->factor = sn->factor;
 	out->written = sn->written;
+	out->roll = sn->roll;
 	out->comment = sn->note;
 	out->above = sn->above;
 	out->via = -1;
@@ -1460,6 +1566,7 @@ int bt_state_node(const bt_forest *f, const bt_state *s, int i, bt_node_state *o
 		break;
 	case K_PICK:
 		out->running = sl->cur != 0;
+		if (n->roll) { out->child = sl->run ? sl->run - 1 : -1; break; }      /* its role, RUNNING or not */
 		out->child = sl->cur ? sl->cur - 1 : -1;
 		if (sl->cur) { since = s->now - sl->t; left = n->every - since; }
 		break;
@@ -1512,26 +1619,32 @@ int bt_state_running(const bt_forest *f, const bt_state *s, int tree, int *out, 
 
 int bt_state_worths(const bt_forest *f, const bt_state *s, int pick, bt_worth *out, int max)
 {
-	int o, n = 0;
+	int o, n = 0, roll;
+	double sum = 0;
 	if (!f || !s || pick < 0 || (size_t)pick >= f->n_nodes || f->nodes[pick].kind != K_PICK) return 0;
+	roll = f->nodes[pick].roll;
 	for (o = pick + 1; o < f->nodes[pick].end; o = f->nodes[o].end, n++) {
 		const bnode *on = &f->nodes[o];
 		bt_worth *w;
 		oslot rec;
+		memcpy(&rec, &s->s[o], sizeof rec);
+		if (roll && rec.sticky != 0.0f && rec.score > 0) sum += (double)rec.score * rec.weight * on->factor;
 		if (!out || n >= max) continue;
 		w = &out[n];
-		memcpy(&rec, &s->s[o], sizeof rec);
 		memset(w, 0, sizeof *w);
 		w->option = o;
-		w->held = s->s[pick].cur == o + 1;
+		w->held = roll ? s->s[pick].run == o + 1 : s->s[pick].cur == o + 1;
 		w->factor = on->factor;
 		if (rec.sticky == 0.0f) continue;
 		w->weighed = 1;
 		w->score = rec.score;
 		w->weight = rec.weight;
-		w->luck = rec.luck;
+		w->luck = roll ? 1.0f : rec.luck;
+		w->draw = roll ? rec.luck : 0.0f;
 		w->sticky = rec.sticky;
-		w->worth = rec.score > 0 ? (float)((double)rec.score * rec.weight * on->factor * rec.luck * rec.sticky) : 0.0f;
+		w->worth = rec.score > 0 ? (float)((double)rec.score * rec.weight * on->factor * w->luck * rec.sticky) : 0.0f;
 	}
+	for (o = 0; roll && out && o < n && o < max; o++)
+		out[o].share = sum > 0 ? (float)((double)out[o].worth / sum) : 0.0f;
 	return n;
 }

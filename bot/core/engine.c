@@ -63,6 +63,25 @@
  *   extra.<name>.tree=<text> a script's addition to every bot (below)
  *   anything else            is kept, for a tree's `if setting <key>`.
  *
+ * THE BRIDGE: what a server's script tells the trees, by names of its
+ * own choosing. The engine knows none of them -- no gamemode, no item,
+ * no script: it carries the names, and the trees ask by name.
+ *   fact.<name>=<number>   * a FACT: the condition and the score `fact
+ *                            <name>` read it. For everybody, or for one
+ *                            bot (its own is read before the world's).
+ *                            Empty: forgotten. Names are letters, digits
+ *                            and _, 23 at most; 64 for the world, 8 a
+ *                            bot: one more is refused and said. Nothing
+ *                            is done when a fact changes: a pick sees it
+ *                            at its next choice (`every`).
+ *   place.<name>=x y z     * a PLACE, written `@<name>` wherever a tree
+ *   place.<name>=pid <n>     takes a place: a point, or wherever player n
+ *                            is while he lives. The same rules; 32 for
+ *                            the world, 4 a bot. While it is not set,
+ *                            `knows @name` is false and going there
+ *                            fails, as for any place there is none of.
+ *   (and `do tell <name> ...` goes the other way: skill_misc.c, BL_AC_TELL)
+ *
  * A VALUE TOO LONG FOR ONE RECORD (a tree's text: a record is under 1000
  * bytes) comes in pieces, each a record of its own: "+key#<total>=..."
  * first, "+key=..." for those between, and "+key!=..." last
@@ -223,6 +242,8 @@ static void bot_ctx(bc_bot *b, bt_ctx *c, float dt)
 	c->n_weights = BC_T_COUNT;
 	c->dt = dt;
 	c->random = bot_random;
+	/* who it is for good (bt.h, `pick roll=once`): its seed, never 0 */
+	c->identity = ((uint64_t)b->seed << 1) | 1u;
 }
 
 static char *dup_text(const char *s)
@@ -1128,6 +1149,127 @@ static void set_tree(bc_engine *e, bc_bot *b, const char *val)
 		bc_engine_log(e, 1, "tree=%s: no tree of that name, the bots run \"default\"", name);
 }
 
+/* ---- THE BRIDGE: what a server script tells the trees ----------------- */
+
+static int bridge_name_ok(const char *name)
+{
+	size_t i, n = strlen(name);
+
+	if (n == 0 || n >= BC_BRIDGE_NAME)
+		return 0;
+	for (i = 0; i < n; i++) {
+		char c = name[i];
+
+		if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'))
+			return 0;
+	}
+	return 1;
+}
+
+/* fact.<name>=<number>, for everybody or for one bot; empty: forgotten */
+static void set_fact(bc_engine *e, bc_bot *b, const char *name, const char *val)
+{
+	bc_fact *t = b ? b->facts : e->facts, *slot = NULL;
+	int n = b ? BC_BOT_FACTS_MAX : BC_FACTS_MAX, i;
+	char *end;
+	double v;
+
+	if (!bridge_name_ok(name)) {
+		bc_engine_log(e, 2, "fact.%.40s=: not a name (letters, digits, _; %d at most): ignored", name, BC_BRIDGE_NAME - 1);
+		return;
+	}
+	for (i = 0; i < n; i++) {
+		if (!strcmp(t[i].name, name)) { slot = &t[i]; break; }
+		if (!slot && !t[i].name[0]) slot = &t[i];
+	}
+	if (!val[0]) {                          /* forgotten */
+		if (i < n) memset(&t[i], 0, sizeof t[i]);
+		return;
+	}
+	v = strtod(val, &end);
+	if (end == val || !(v == v)) {
+		bc_engine_log(e, 2, "fact.%s=%.40s: not a number: ignored", name, val);
+		return;
+	}
+	if (!slot) {
+		bc_engine_log(e, 2, "fact.%s=: no room for another fact (%d %s): ignored", name, n, b ? "a bot" : "for the world");
+		return;
+	}
+	strcpy(slot->name, name);
+	slot->value = (float)v;
+}
+
+/* place.<name>="x y z" or "pid <n>", for everybody or for one bot; empty: forgotten */
+static void set_splace(bc_engine *e, bc_bot *b, const char *name, const char *val)
+{
+	bc_splace *t = b ? b->places : e->places, *slot = NULL;
+	int n = b ? BC_BOT_SPLACES_MAX : BC_SPLACES_MAX, i, pid = -1;
+	float x, y, z;
+
+	if (!bridge_name_ok(name)) {
+		bc_engine_log(e, 2, "place.%.40s=: not a name (letters, digits, _; %d at most): ignored", name, BC_BRIDGE_NAME - 1);
+		return;
+	}
+	for (i = 0; i < n; i++) {
+		if (!strcmp(t[i].name, name)) { slot = &t[i]; break; }
+		if (!slot && !t[i].name[0]) slot = &t[i];
+	}
+	if (!val[0]) {
+		if (i < n) memset(&t[i], 0, sizeof t[i]);
+		return;
+	}
+	if (sscanf(val, "pid %d", &pid) == 1) {
+		if (pid < 0 || pid >= BL_MAX_PLAYERS || pid == BL_NO_PLAYER) pid = -2;
+	} else if (sscanf(val, "%f %f %f", &x, &y, &z) != 3 || !(x == x) || !(y == y) || !(z == z)) {
+		pid = -2;
+	}
+	if (pid == -2) {
+		bc_engine_log(e, 2, "place.%s=%.40s: neither \"x y z\" nor \"pid <n>\": ignored", name, val);
+		return;
+	}
+	if (!slot) {
+		bc_engine_log(e, 2, "place.%s=: no room for another place (%d %s): ignored", name, n, b ? "a bot" : "for the world");
+		return;
+	}
+	memset(slot, 0, sizeof *slot);
+	strcpy(slot->name, name);
+	if (pid >= 0) { slot->follows = 1; slot->pid = (uint8_t)pid; }
+	else { slot->pos.x = x; slot->pos.y = y; slot->pos.z = z; }
+}
+
+int bc_fact_get(const bc_bot *b, const char *name, float *out)
+{
+	const bc_engine *e = b->e;
+	int i;
+
+	for (i = 0; i < BC_BOT_FACTS_MAX; i++)
+		if (b->facts[i].name[0] && !strcmp(b->facts[i].name, name)) { *out = b->facts[i].value; return 1; }
+	for (i = 0; i < BC_FACTS_MAX; i++)
+		if (e->facts[i].name[0] && !strcmp(e->facts[i].name, name)) { *out = e->facts[i].value; return 1; }
+	return 0;
+}
+
+int bc_splace_get(const bc_bot *b, const char *name, bl_vec3 *out)
+{
+	const bc_engine *e = b->e;
+	const bc_splace *p = NULL;
+	int i;
+
+	for (i = 0; i < BC_BOT_SPLACES_MAX && !p; i++)
+		if (b->places[i].name[0] && !strcmp(b->places[i].name, name)) p = &b->places[i];
+	for (i = 0; i < BC_SPLACES_MAX && !p; i++)
+		if (e->places[i].name[0] && !strcmp(e->places[i].name, name)) p = &e->places[i];
+	if (!p)
+		return 0;
+	if (p->follows) {
+		if (e->w.players[p->pid].state != BL_ALIVE) return 0;
+		*out = e->w.players[p->pid].pos;
+	} else {
+		*out = p->pos;
+	}
+	return 1;
+}
+
 static void ev_set(bc_engine *e, int pid, const char *text);
 
 /* A piece of a setting too long for one record (its `+` taken off):
@@ -1228,6 +1370,14 @@ static void ev_set(bc_engine *e, int pid, const char *text)
 	}
 	if (!strncmp(key, "extra.", 6)) {
 		if (!b) set_item(e, NULL, key + 6, val, 1);
+		return;
+	}
+	if (!strncmp(key, "fact.", 5)) {
+		set_fact(e, b, key + 5, val);
+		return;
+	}
+	if (!strncmp(key, "place.", 6)) {
+		set_splace(e, b, key + 6, val);
 		return;
 	}
 	if (!strcmp(key, "tree")) {
@@ -1663,8 +1813,10 @@ static void decide(bc_engine *e, bc_bot *b, float dt)
 
 	if (b->forest && b->bt) {
 		if (b->jolt) {
+			/* startled, not born: every pick chooses now -- but a role it
+			 * drew for this life (`pick roll=`) is its own still */
 			bot_ctx(b, &c, 0.0f);
-			bt_reset(b->forest, b->bt, &c);
+			bt_restart(b->forest, b->bt, &c);
 		}
 		b->jolt = 0;
 		if (b->tree_also >= 0) {

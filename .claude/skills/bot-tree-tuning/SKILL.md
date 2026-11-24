@@ -116,6 +116,20 @@ An option's worth = `score x the bot's trait weight x factor x luck`.
   choice is favoured when chosen again (stops flip-flop). **every**: how
   often it is chosen again; long (20 s) for a plan, short (1 s) for
   reactions.
+- **A weight is not a probability.** A pick takes the option with the
+  highest worth; one bot in one situation chooses the same nearly every
+  time, and the percentages `--split` prints are shares of a crowd of
+  different characters, not odds for one bot.
+- **A role that lasts** is `pick roll=once` (or `roll=life`): there the
+  option is DRAWN, with a chance in proportion to `score x weight x
+  factor`, once for each bot and kept (TREES.md section 6). Its scores
+  must be facts about the bot (`gun_is`, `has_item`, `always`), not the
+  moment. `tdm.bt`'s campers are the example (`tree tdm_duty`): tune the
+  two factors with `$B --split --tree tdm_duty bot/trees/tdm.bt "gun_is
+  rifle=1" vantage=1` (then `smg`, then `shotgun`); `--split` gives each
+  rolled bot its own identity, so the rows are the real shares. For an
+  exact count of a role, or one with its own spawn, use a tree per bot
+  from the gamemode instead.
 - An option with score 0 is never taken; if all are 0 the pick fails:
   end a pick with `option none always x0.1` and a sane fallback.
 
