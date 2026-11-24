@@ -8,7 +8,7 @@
 -- counts. One team may have its own count (engine_bots_team1/_team2):
 -- a single bot on one side to try things against, a fleet on the other.
 --
--- And three things an operator may say about how they play, each empty
+-- And four things an operator may say about how they play, each empty
 -- by default (the gamemode's tree, every kind of bot, characters as
 -- rolled) and applied live, within a second of being set:
 --   engine_bots_tree        a behaviour tree by name: a built-in one, or
@@ -17,6 +17,12 @@
 --   engine_bots_archetypes  the mix of characters, "camper:2,pusher:1"
 --   engine_bots_traits      every bot's weights scaled, "aggression:2,
 --                           caution:0.5"
+--   engine_bots_edit        what a bot's route may do to the map: "dig"
+--                           (cut a bank down to climb out of the water,
+--                           go through a wall), "build" (a step, a
+--                           bridge), "all", or nothing. What the gamemode
+--                           protects stays protected: the server refuses
+--                           the block and the bot goes another way.
 local mod = init_mod();
 
 getcfg("engine_bots_count", 6, "Engine bots kept alive per team.");
@@ -28,10 +34,11 @@ getcfg("engine_bots_level_spread", 2, "How far a bot's level may fall from that,
 getcfg("engine_bots_tree", "", "The behaviour tree the bots run, by name (yours: <name>.bt in the data volume's trees/); empty: the gamemode's.");
 getcfg("engine_bots_archetypes", "", "The mix of characters, as camper:2,pusher:1 (soldier, camper, pusher, flanker, support, sapper, scout); empty: every kind.");
 getcfg("engine_bots_traits", "", "Every bot's trait weights scaled, as aggression:2,caution:0.5; empty: as rolled.");
+getcfg("engine_bots_edit", "", "What a bot's route may do to the map: dig, build or all; empty: nothing, it only walks and jumps.");
 
 local mine = {}; -- pid -> team
 
--- what the engine was last told of the three, to tell it only a change
+-- what the engine was last told of the four, to tell it only a change
 -- (nothing, at first: an empty setting says nothing at all)
 local told = {};
 local function tell(key, value, unset)
@@ -74,6 +81,7 @@ function mod.after.tick()
 	tell("tree", engine_bots_tree, tostring(gamemode or "default"));
 	tell("archetypes", engine_bots_archetypes, "");
 	tell("traits", engine_bots_traits, "");
+	tell("edit", engine_bots_edit, "none");
 
 	-- drop the ones the server took away (a kick, a reload of lib_bot)
 	for pid in pairs(mine) do

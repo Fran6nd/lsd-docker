@@ -20,5 +20,7 @@ return Bot {
 			ask = "Mix of characters, e.g. camper:2,pusher:1 (empty: every kind)"},
 		{key = "engine_bots_traits", type = "string", default = "",
 			ask = "Trait weights scaled, e.g. aggression:2,caution:0.5 (empty: as rolled)"},
+		{key = "engine_bots_edit", type = "string", default = "",
+			ask = "May bots dig and build on their way: dig, build or all (empty: no)"},
 	},
 }

@@ -1090,14 +1090,17 @@ do
 	end
 	step(70); engine_events();
 	engine_bots_tree, engine_bots_archetypes, engine_bots_traits = "mine", "camper:2,pusher:1", "aggression:2,caution:0.5";
+	engine_bots_edit = "dig";
 	step(70);
 	local got = sets();
-	check(got == "archetypes=camper:2,pusher:1 | traits=aggression:2,caution:0.5 | tree=mine", "set live: told to the engine, once each", got);
+	check(got == "archetypes=camper:2,pusher:1 | edit=dig | traits=aggression:2,caution:0.5 | tree=mine", "set live: told to the engine, once each", got);
 	step(70);
 	check(sets() == "", "and not again while they stand");
 	engine_bots_tree, engine_bots_archetypes, engine_bots_traits = "", "", "";
+	engine_bots_edit = "";
 	step(70);
 	got = sets();
+	check(got:find("edit=none", 1, true) ~= nil, "emptied: no digging or building again", got);
 	check(got:find("archetypes= ", 1, true) and got:find("traits= ", 1, true) and got:find("tree=" .. tostring(gamemode or "default"), 1, true),
 		"emptied: every kind, as rolled, the gamemode's tree again", got);
 end
