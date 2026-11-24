@@ -22,7 +22,17 @@
 --
 -- API (globals, defined whether or not the link works; they do nothing
 -- when it does not):
---   botlink_add{team=, level=, gun=, name=, seed=} -> pid | nil
+--   botlink_add{team=, level=, gun=, name=, seed=,
+--               tree=, at=, once=} -> pid | nil
+--        `tree`: the behaviour tree this one bot runs instead of the
+--        gamemode's -- a built-in tree's name, or the text of one
+--        (bot/TREES.md) -- which is how a mode gives a bot a role of its
+--        own: a guard, a courier, a boss. Changed at any time with
+--        botlink_set("tree", name_or_text, pid).
+--        `at`: where it spawns, a position {x=, y=, z=} or a
+--        function(pid) -> position | nil, asked at every spawn; without
+--        it (or on nil) the bot spawns where the gamemode puts a player.
+--        `once`: one life -- when it dies it leaves the server.
 --   botlink_remove(pid)
 --   botlink_set(key, value [, pid])      -- a rule or setting, for all or one bot
 --   botlink_order(pid, {order=, pos=, target=, secs=})
@@ -92,6 +102,7 @@ local next_block, ping_at = {}, {};
 local lastori = {};        -- pid -> {x,y,z} last applied
 local present, seen = {}, {};
 local settings, psettings, orders = {}, {}, {};
+local leaving = {};        -- one-life bots that died, taken out at the next tick
 local nslots = 0;
 for i = 0, 255 do
 	life[i], blocks[i], grenades[i] = 0, 0, 0;
@@ -299,6 +310,11 @@ function mod.late.kill(pid, ktype, killer)
 		e.killer = (killer ~= nil and killer >= 0 and killer < (MAX_PLAYERS or 32)) and killer or NO_PLAYER;
 		e.kind = ktype or 0;
 		push(4, pid, e, 4);
+	end
+	-- a bot of one life leaves; not from inside the kill, whose chain
+	-- other scripts are still in
+	if (ours[pid] ~= nil and ours[pid].once) then
+		leaving[#leaving + 1] = pid;
 	end
 end
 
@@ -561,16 +577,22 @@ function botlink_add(opts)
 	local seed = opts.seed or math.random(1, 2147483646);
 	local level = math.max(1, math.min(10, math.floor(opts.level or 5)));
 	local gun = opts.gun or math.random(0, 2);
+	local at = opts.at;
 	local pid = bot_create{
 		team = opts.team,
 		name = opts.name or string.format("Bot%d", seed % 1000),
 		gun = gun, tool = "gun",
+		spawn_at = type(at) == "function" and at
+			or type(at) == "table" and function() return at; end or nil,
 		data = {botlink = true},
 	};
 	if (pid == nil) then return nil; end
-	ours[pid] = {level = level, gun = gun, seed = seed, team = opts.team};
+	ours[pid] = {level = level, gun = gun, seed = seed, team = opts.team, once = opts.once == true};
 	blocks[pid], grenades[pid] = 50, 3;
 	announce(pid);
+	if (opts.tree ~= nil) then
+		botlink_set("tree", opts.tree, pid);
+	end
 	return pid;
 end
 
@@ -1013,6 +1035,13 @@ end
 
 function mod.before.tick()
 	if (f == nil) then return; end
+	if (#leaving > 0) then
+		local gone = leaving;
+		leaving = {};
+		for _, pid in ipairs(gone) do
+			if (ours[pid] ~= nil and ours[pid].once) then botlink_remove(pid); end
+		end
+	end
 	tick_n = tick_n + 1;
 	local now = get_time();
 	if (L.bl_alive(f.header.engine_beat, beat_last) == 1) then last_move = now; end

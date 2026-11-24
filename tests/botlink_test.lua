@@ -890,6 +890,46 @@ check(sent > sent0, "(and packets did go to the humans)");
 for _, q in ipairs(added) do botlink_remove(q); end
 engine_events();
 
+--=================== 10b. A BOT WITH A ROLE OF ITS OWN ==============--
+print("\n10b. a tree of its own, a place to spawn, one life");
+do
+	local post = {x = 100.5, y = 120.5, z = 40};
+	local npc = botlink_add{team = 1, tree = "guard", at = post, once = true};
+	check(npc ~= nil and P[npc].joined, "the bot is made");
+	P[npc].bot = true;
+	check(P[npc].pos.x == 100.5 and P[npc].pos.y == 120.5 and P[npc].pos.z == 40, "it spawns at the place given", P[npc].pos.x);
+	step(2);
+	local line = nil;
+	for _, s in ipairs(of(engine_events(), 11)) do
+		if (s.pid == npc and ffi.string(s.raw):find("^tree=")) then line = ffi.string(s.raw); end
+	end
+	check(line == "tree=guard", "its tree is told to the engine, for it alone", line);
+	botlink_set("tree", "tree courier:\ndo seek\n", npc);
+	step(1);
+	line = nil;
+	for _, s in ipairs(of(engine_events(), 11)) do
+		if (s.pid == npc and ffi.string(s.raw):find("^tree=")) then line = ffi.string(s.raw); end
+	end
+	check(line == "tree=tree courier:\ndo seek\n", "and changed while it plays, as text", line);
+	local where = botlink_add{team = 2, at = function(pid) return {x = 300.5, y = 310.5, z = 20}; end};
+	P[where].bot = true;
+	check(P[where].pos.x == 300.5, "a function says where, too");
+	local plain = botlink_add{team = 2};
+	P[plain].bot = true;
+	check(P[plain].pos.x == 256, "without one it spawns where the gamemode puts a player", P[plain].pos.x);
+	kill(npc, 0, where);
+	kill(plain, 0, where);
+	step(2);
+	check(not bot_is_bot(npc), "the bot of one life is gone when it dies");
+	check(bot_is_bot(plain), "any other stays, to spawn again");
+	local removed = 0;
+	for _, e in ipairs(of(engine_events(), 10)) do if (e.pid == npc) then removed = removed + 1; end end
+	check(removed == 1, "and the engine is told so, once", removed);
+	botlink_remove(where); botlink_remove(plain);
+	P[npc], P[where], P[plain] = nil, nil, nil;
+	engine_events();
+end
+
 --=================== 11. ENGINE_BOTS KEEPS THE COUNT ================--
 print("\n11. engine_bots");
 for _, q in ipairs(added) do P[q] = nil; end
@@ -936,6 +976,31 @@ step(130);
 check(ours_on(1) - base1 == 3 and ours_on(2) - base2 == 3, "-1: back to the count for both");
 for i = 0, 31 do if (P[i] and P[i].conn and bot_get(i) and bot_get(i).data.botlink) then P[i].bot = true; end end
 
+--=================== 11b. THE OPERATOR'S TREE AND WEIGHTS ===========--
+print("\n11b. engine_bots: a tree, a mix and weights of the operator's");
+do
+	local function sets()
+		local out = {};
+		for _, s in ipairs(of(engine_events(), 11)) do
+			if (s.pid == 255) then out[#out + 1] = ffi.string(s.raw); end
+		end
+		table.sort(out);
+		return table.concat(out, " | ");
+	end
+	step(70); engine_events();
+	engine_bots_tree, engine_bots_archetypes, engine_bots_traits = "mine", "camper:2,pusher:1", "aggression:2,caution:0.5";
+	step(70);
+	local got = sets();
+	check(got == "archetypes=camper:2,pusher:1 | traits=aggression:2,caution:0.5 | tree=mine", "set live: told to the engine, once each", got);
+	step(70);
+	check(sets() == "", "and not again while they stand");
+	engine_bots_tree, engine_bots_archetypes, engine_bots_traits = "", "", "";
+	step(70);
+	got = sets();
+	check(got:find("archetypes= ", 1, true) and got:find("traits= ", 1, true) and got:find("tree=" .. tostring(gamemode or "default"), 1, true),
+		"emptied: every kind, as rolled, the gamemode's tree again", got);
+end
+
 --========================= 12. THE SHUTDOWN =========================--
 print("\n12. unload and the server's shutdown take the bots down");
 local joined0 = 0;
@@ -958,6 +1023,7 @@ check(botlink_add == nil, "the API is withdrawn");
 local pending = 0;
 for _, e in ipairs(of(evs, 10)) do pending = pending + 1; end
 check(#unb + #of(evs2, 10) > 0, "BL_EV_UNBOT was sent for the bots taken down", #unb + #of(evs2, 10));
+
 
 --=========================== 13. THE COST ===========================--
 print("\n13. what a tick costs");

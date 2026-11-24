@@ -14,5 +14,11 @@ return Bot {
 			ask = "Engine bots' skill level (1 to 10)"},
 		{key = "engine_bots_level_spread", type = "number", default = 2, min = 0, max = 9,
 			ask = "How far each bot's level may differ from that"},
+		{key = "engine_bots_tree", type = "string", default = "",
+			ask = "Behaviour tree by name (empty: the gamemode's)"},
+		{key = "engine_bots_archetypes", type = "string", default = "",
+			ask = "Mix of characters, e.g. camper:2,pusher:1 (empty: every kind)"},
+		{key = "engine_bots_traits", type = "string", default = "",
+			ask = "Trait weights scaled, e.g. aggression:2,caution:0.5 (empty: as rolled)"},
 	},
 }
