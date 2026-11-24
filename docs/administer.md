@@ -8,6 +8,7 @@ Everything the server keeps lives on the `/data` volume:
 | `/data/maps/` | the maps (`.vxl`, and their `.txt` metadata) |
 | `/data/rw/` | bans, accounts, the admin console socket |
 | `/data/catalog/` | your own catalog entries (optional, see below) |
+| `/data/trees/` | your own bot behaviour trees, `<name>.bt` (optional: [bot/TREES.md](../bot/TREES.md), "Writing your own") |
 | `/data/scripts/` | loose Lua modules that override any other (optional) |
 
 ## Administer

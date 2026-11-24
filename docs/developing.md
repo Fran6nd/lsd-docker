@@ -54,7 +54,9 @@ The bots are made of three pieces, described in `bot/README.md`:
 
 In the image: `/usr/local/bin/botd`, `/lsd/exec/libbotlink.so` and
 `/lsd/exec/botlink.h` (where `lib_botlink` looks first), and the behaviour
-trees (`bot/trees/*.bt`) in `/opt/botd/trees`. The link file is
+trees (`bot/trees/*.bt`) in `/opt/botd/trees`, with `bttree` to look at
+and check them (how a tree is written, compiled and run, and how to give
+bots your own: [bot/TREES.md](../bot/TREES.md)). The link file is
 `/dev/shm/lsd-botlink` (setting `botlink_file`, read when botd starts), the
 map dumps `$LSD_DATA/rw/botlink-map-N.vxl`. botd is built only once
 `bot/core/engine.c` exists.

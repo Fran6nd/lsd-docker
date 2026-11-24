@@ -1,19 +1,32 @@
-/* bttree.c -- Look at a behaviour tree
+/* bttree.c -- Look at a behaviour tree, check it, tune it, hand it to an editor
  * Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
  *
  *   bttree [options] FILE.bt...
  *
+ * LOOKING
  *   (no option)       draw every tree of the files, `tree <name>` references
  *                     opened in place
- *   --tree NAME       draw that tree only
+ *   --tree NAME       that tree only (drawing, --split, --trace)
  *   --as ARCHETYPE    beside every weighed option, what that kind of bot's
  *                     weight for its trait is (the mean of 400 rolled bots):
  *                     camper, pusher, flanker, support, sapper, scout, soldier
+ *   --plain           no colours, ASCII lines
+ *   --words           list the vocabulary a tree may use, and exit
+ *   --words --md      the same as a Markdown page (bot/VOCAB.md is this:
+ *                     `make -C bot doc`)
+ *
+ * CHECKING
  *   --check           draw nothing: compile with the engine's own compiler and
  *                     vocabulary, say what is wrong and where, exit 1 if so
- *   --words           list the vocabulary a tree may use, and exit
+ *   --check --json    the same, as JSON: {"ok":, "diagnostics":[{"file":,
+ *                     "line":, "column":, "message":}]}
+ *   --doc FILE.md...  compile every fenced block of a Markdown file that
+ *                     opens with ```bt, each as a text of its own (what
+ *                     `make -C bot test` does to bot/TREES.md)
+ *
+ * TUNING
  *   --split [WORD=VALUE]...
- *                     TUNING: who would do what. A situation is given as
+ *                     who would do what. A situation is given as
  *                     the worth of the words the tree asks about, a crowd
  *                     of bots is rolled (--n 700, --mix "camper:2,pusher",
  *                     --level 5), the tree is ticked once for each by the
@@ -28,14 +41,44 @@
  *                     on) or `fail`. "word arg=..." sets it for those
  *                     arguments only. The words asked and not given are
  *                     listed after, so nothing is 0 by oversight.
- *   --plain           no colours, ASCII lines
+ *   --split --why     and, for every pick a bot came to, what its options
+ *                     were worth to the crowd: the mean score, trait weight
+ *                     and worth, and how many chose each
+ *   --trace [WORD=VALUE]...
+ *                     ONE bot (--as ARCHETYPE, --seed N, --level 5) in that
+ *                     situation, ticked for --secs S (default: one tick),
+ *                     and its tree drawn as the engine holds it: the nodes
+ *                     RUNNING marked, every option with the numbers its
+ *                     pick multiplied. What a debugger would show.
+ *   --trace --json    the same as JSON (the forest's node ids, each node's
+ *                     state, each option's worth)
+ *
+ * FOR AN EDITOR  (bot/TREES.md, "For tool authors")
+ *   --json            the files as a JSON tree: every node with its id,
+ *                     kind, words, numbers (those left to their default
+ *                     marked), comments, line and column
+ *   --json --expanded and the forest the engine would run: every reference
+ *                     opened, each node naming the one it was written as
+ *   --from-json FILE  such a JSON (FILE, or - for the standard input) back
+ *                     to tree text, in the canonical form
+ *   --format          the files as canonical text (what --from-json writes
+ *                     for --json's output)
+ *   --schema          everything a tree may be made of, as JSON: the node
+ *                     kinds and their numbers, every condition, score and
+ *                     action with its arguments, the traits, the
+ *                     archetypes and their mean weights, the places
+ *   --roundtrip       check that each file survives text -> JSON -> text
+ *                     and compiles to the same forest either way
  *
  * A tree is always compiled first (as --check does), so what is drawn is
- * a tree the engine accepts. The drawing is made from the text, which is
- * the tree: one node a line, children indented (bot/core/bt.h).
+ * a tree the engine accepts. Nothing here reads the text but the engine's
+ * own parser (bot/core/bt.h, bt_parse): the drawing, the JSON and the
+ * canonical text are made from what it read.
  * `tree items` and `tree extras` are filled in at run time -- by the
  * inventory's items and by server scripts -- and are drawn as such.
  */
+#include <ctype.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,19 +89,7 @@
 #include "rng.h"
 #include "vocab.h"
 
-enum { MAX_NODES = 4096, MAX_TEXT = 1 << 20, MAX_LINE = 512, MAX_OPEN = 16 };
-
-typedef struct node {
-	int depth;                 /* 0 for a tree's root */
-	int tree;                  /* index of its tree, for a root: -1 else */
-	char text[MAX_LINE];       /* the node, without its comment */
-	char note[MAX_LINE];       /* its comment, without the # */
-} node;
-
-static node nodes[MAX_NODES];
-static int n_nodes;
-static struct { char name[BT_NAME_MAX]; int first, count; } trees[256];
-static int n_trees;
+enum { MAX_TEXT = 1 << 20, MAX_FILES = 64, MAX_OPEN = 16 };
 
 static int plain, colour;
 static const char *as_name;
@@ -74,185 +105,1142 @@ static const char *c(const char *code) { return colour ? code : ""; }
 
 static char *slurp(const char *path, size_t *len)
 {
-	FILE *f = fopen(path, "rb");
+	FILE *f = !strcmp(path, "-") ? stdin : fopen(path, "rb");
 	if (!f) return NULL;
 	char *buf = malloc(MAX_TEXT + 1);
 	size_t n = buf ? fread(buf, 1, MAX_TEXT, f) : 0;
-	fclose(f);
+	if (f != stdin) fclose(f);
 	if (!buf) return NULL;
 	buf[n] = 0;
-	*len = n;
+	if (len) *len = n;
 	return buf;
 }
 
-static void rtrim(char *s)
+static char *vocab_text(void)
 {
-	size_t n = strlen(s);
-	while (n && (s[n-1] == ' ' || s[n-1] == '\t' || s[n-1] == '\r' || s[n-1] == '\n')) s[--n] = 0;
+	size_t need = bc_vocab_dump(NULL, 0);
+	char *buf = malloc(need + 1);
+	if (buf) bc_vocab_dump(buf, need + 1);
+	return buf;
 }
 
-/* The text into nodes: the same reading of indentation as bt.c (tabs, or
- * the step the first indented line uses), kept simple because the text
- * has compiled already. */
-static int read_nodes(const char *text)
+/* the shortest writing of a number that reads back as the same float */
+static const char *num(double v)
 {
-	int step = 0, base = -1, cur_tree = -1;
-	const char *p = text;
-	while (*p) {
-		char line[MAX_LINE];
-		size_t n = 0;
-		while (*p && *p != '\n' && n < sizeof line - 1) line[n++] = *p++;
-		while (*p && *p != '\n') p++;
-		if (*p == '\n') p++;
-		line[n] = 0;
-
-		char note[MAX_LINE] = "";
-		char *hash = strchr(line, '#');
-		if (hash) {
-			const char *t = hash + 1;
-			while (*t == ' ') t++;
-			snprintf(note, sizeof note, "%s", t);
-			rtrim(note);
-			*hash = 0;
+	static char buf[8][32];
+	static int k;
+	char *b = buf[k++ & 7];
+	for (int pass = 0; pass < 2; pass++)           /* "100" rather than "1e+02", if it can be */
+		for (int p = 1; p <= 9; p++) {
+			snprintf(b, 32, "%.*g", p, v);
+			if ((float)strtod(b, NULL) == (float)v && (pass || !strchr(b, 'e'))) return b;
 		}
-		rtrim(line);
-		int ind = 0, tabs = 0;
-		const char *s = line;
-		while (*s == ' ' || *s == '\t') { if (*s == '\t') tabs++; ind++; s++; }
-		if (!*s) continue;
+	return b;
+}
 
-		size_t sl = strlen(s);
-		if (ind == 0 && !strncmp(s, "tree ", 5) && s[sl-1] == ':') {
-			if (n_trees == 256) return 0;
-			snprintf(trees[n_trees].name, BT_NAME_MAX, "%.*s", (int)(sl - 6), s + 5);
-			trees[n_trees].first = n_nodes;
-			trees[n_trees].count = 0;
-			cur_tree = n_trees++;
-			base = -1;
+/* ---- the files ---------------------------------------------------------
+ * Each is read by the engine's parser alone (a mistake is told with its
+ * own line), then all as one text, as botd gives them to the engine. */
+
+typedef struct file {
+	const char *path;
+	char *text;
+	bt_source *src;
+	int first_line;            /* its first line's number in the whole text */
+	int first_node;            /* and its first node's id in the whole source */
+} file;
+
+static file files[MAX_FILES];
+static int n_files;
+static char *full;                 /* every file, then what the engine would add */
+static int stub_line, stub_node;   /* where that begins */
+static bt_source *whole;           /* every file as one source, not linked */
+static bt_forest *forest;          /* `full`, compiled with the engine's words */
+
+typedef struct diag { const char *file; int line, column; char message[280]; } diag;
+static diag diags[MAX_FILES + 1];
+static int n_diags;
+
+static void add_diag(const char *file, const bt_diag *d, const char *prefix)
+{
+	diag *g = &diags[n_diags++];
+	g->file = file;
+	g->line = d->line;
+	g->column = d->column;
+	snprintf(g->message, sizeof g->message, "%s%s", prefix, d->message);
+}
+
+/* a line of the whole text -> its file and its line there */
+static int where_line(int line, int *local)
+{
+	int i = n_files - 1;
+	if (line >= stub_line) { if (local) *local = line - stub_line + 1; return -1; }
+	while (i > 0 && files[i].first_line > line) i--;
+	if (local) *local = line - files[i].first_line + 1;
+	return i;
+}
+
+/* a node of the whole source -> its file and its id there */
+static int where_node(int id, int *local)
+{
+	int i = n_files - 1;
+	if (id >= stub_node) { if (local) *local = id - stub_node; return -1; }
+	while (i > 0 && files[i].first_node > id) i--;
+	if (local) *local = id - files[i].first_node;
+	return i;
+}
+
+static int has_tree(const bt_source *src, const char *name)
+{
+	bt_tree t;
+	for (int i = 0; bt_source_tree(src, i, &t); i++)
+		if (!strcmp(t.name, name)) return i;
+	return -1;
+}
+
+/* What the engine writes at run time (`items`, `extras`), empty here
+ * unless the text has them: added to `text`, in its own indentation.
+ * A text with no header at all is first made the tree "main"; returns
+ * how many lines were put before it. */
+static const char *const STUB[2] = { "items", "extras" };
+
+static int add_stubs(char *text, const bt_source *src)
+{
+	const char *step = "\t";
+	bt_tree t;
+	int shifted = 0;
+	for (const char *q = text; q && *q; q = strchr(q, '\n'), q = q ? q + 1 : NULL) {
+		size_t w = strspn(q, " \t");
+		if (w && q[w] && q[w] != '#' && q[w] != '\n' && q[w] != '\r') {
+			if (q[0] == ' ') step = w == 2 ? "  " : "    ";
+			break;
+		}
+	}
+	if (bt_source_tree(src, 0, &t) && !t.header) {
+		memmove(text + 11, text, strlen(text) + 1);
+		memcpy(text, "tree main:\n", 11);
+		shifted = 1;
+	}
+	for (int k = 0; k < 2; k++)
+		if (has_tree(src, STUB[k]) < 0)
+			sprintf(text + strlen(text), "\ntree %s:\nnever\n%sif enemy_visible\n", STUB[k], step);
+	return shifted;
+}
+
+static int load(const bt_vocab *v, char **paths, int n)
+{
+	size_t used = 0;
+	int line = 1, node = 0;
+	full = malloc((size_t)n * (MAX_TEXT + 2) + 256);
+	if (!full) return 0;
+	full[0] = 0;
+	for (int i = 0; i < n; i++) {
+		file *f = &files[n_files++];
+		size_t len;
+		bt_diag d;
+		f->path = paths[i];
+		f->text = slurp(paths[i], &len);
+		if (!f->text) {
+			memset(&d, 0, sizeof d);
+			snprintf(d.message, sizeof d.message, "cannot read it");
+			add_diag(f->path, &d, "");
 			continue;
 		}
-		if (cur_tree < 0) {                 /* a text with no header: "main" */
-			snprintf(trees[0].name, BT_NAME_MAX, "main");
-			trees[0].first = 0; trees[0].count = 0;
-			cur_tree = 0; n_trees = 1;
-		}
-		if (!tabs && ind > 0 && !step) step = ind;
-		int level = tabs ? ind : (step ? ind / step : 0);
-		if (base < 0) base = level;
-		if (n_nodes == MAX_NODES) return 0;
-		node *nd = &nodes[n_nodes++];
-		nd->depth = level - base;
-		nd->tree = nd->depth == 0 ? cur_tree : -1;
-		snprintf(nd->text, sizeof nd->text, "%s", s);
-		snprintf(nd->note, sizeof nd->note, "%s", note);
-		trees[cur_tree].count++;
+		f->src = bt_parse(v, f->text, &d);
+		if (!f->src) add_diag(f->path, &d, "");
+		f->first_line = line;
+		f->first_node = node;
+		memcpy(full + used, f->text, len);
+		used += len;
+		full[used++] = '\n';
+		full[used] = 0;
+		for (size_t k = 0; k < len; k++) line += f->text[k] == '\n';
+		line++;
+		node += bt_source_nodes(f->src);
+	}
+	stub_line = line;
+	stub_node = node;
+	if (n_diags) return 0;
+
+	/* together: a tree defined twice, one named and nowhere, a circle */
+	bt_diag d;
+	whole = bt_parse(v, full, &d);
+	int shifted = 0;
+	if (whole) {
+		shifted = add_stubs(full, whole);
+		for (int i = 0; i < n_files; i++) files[i].first_line += shifted;
+		stub_line += shifted;
+		forest = bt_compile_diag(v, full, &d);
+	}
+	if (!forest) {
+		int local, i = where_line(d.line, &local);
+		d.line = local;
+		add_diag(i >= 0 ? files[i].path : "(bttree)", &d, n > 1 ? "with the other files: " : "");
+		return 0;
 	}
 	return 1;
 }
 
-static int find_tree(const char *name)
+/* ---- JSON, written ------------------------------------------------------ */
+
+static void jstrn(FILE *o, const char *s, size_t n)
 {
-	for (int i = 0; i < n_trees; i++)
-		if (!strcmp(trees[i].name, name)) return i;
-	return -1;
+	fputc('"', o);
+	for (; s && n && *s; s++, n--) {
+		unsigned char ch = (unsigned char)*s;
+		if (ch == '"' || ch == '\\') fprintf(o, "\\%c", ch);
+		else if (ch == '\n') fputs("\\n", o);
+		else if (ch == '\t') fputs("\\t", o);
+		else if (ch == '\r') fputs("\\r", o);
+		else if (ch < 0x20) fprintf(o, "\\u%04x", ch);
+		else fputc(ch, o);
+	}
+	fputc('"', o);
 }
 
-static void word(const char *text, int k, char *out, size_t size)
+static void jstr(FILE *o, const char *s) { jstrn(o, s, s ? strlen(s) : 0); }
+
+static void jkey(FILE *o, const char *k) { jstr(o, k); fputs(": ", o); }
+static void jkv(FILE *o, const char *k, const char *v) { jkey(o, k); jstr(o, v); }
+static void jpad(FILE *o, int n) { fputc('\n', o); while (n-- > 0) fputs("  ", o); }
+
+/* `above` (lines, each ended by a newline) as an array of lines */
+static void jlines(FILE *o, const char *above)
 {
-	out[0] = 0;
-	const char *s = text;
-	for (int i = 0; ; i++) {
+	fputc('[', o);
+	for (int n = 0; above && *above; n++) {
+		const char *e = strchr(above, '\n');
+		size_t len = e ? (size_t)(e - above) : strlen(above);
+		if (n) fputs(", ", o);
+		jstrn(o, above, len);
+		above += len + (e ? 1 : 0);
+	}
+	fputc(']', o);
+}
+
+/* ---- JSON, read: a small one, for --from-json --------------------------- */
+
+typedef struct jv {
+	char type;                 /* n(ull) t f # (number) s a o */
+	double number;
+	char *text;                /* s: the string; a member's value: its key */
+	char *key;
+	struct jv *kids, *next;
+} jv;
+
+typedef struct jr { const char *s; int bad; } jr;
+
+static void jskip(jr *r) { while (*r->s == ' ' || *r->s == '\n' || *r->s == '\t' || *r->s == '\r') r->s++; }
+
+static char *jread_str(jr *r)
+{
+	const char *q = r->s + 1;
+	char *out = malloc(strlen(q) + 1), *w = out;
+	while (out && *q && *q != '"') {
+		if (*q != '\\') { *w++ = *q++; continue; }
+		q++;
+		switch (*q) {
+		case 'n': *w++ = '\n'; break;
+		case 't': *w++ = '\t'; break;
+		case 'r': *w++ = '\r'; break;
+		case 'b': *w++ = '\b'; break;
+		case 'f': *w++ = '\f'; break;
+		case 'u': {
+			unsigned u = 0;
+			for (int k = 1; k <= 4 && isxdigit((unsigned char)q[k]); k++) {
+				u = u * 16 + (unsigned)(isdigit((unsigned char)q[k]) ? q[k] - '0' : tolower((unsigned char)q[k]) - 'a' + 10);
+				if (k == 4) q += 4;
+			}
+			if (u < 0x80) *w++ = (char)u;
+			else if (u < 0x800) { *w++ = (char)(0xC0 | (u >> 6)); *w++ = (char)(0x80 | (u & 0x3F)); }
+			else { *w++ = (char)(0xE0 | (u >> 12)); *w++ = (char)(0x80 | ((u >> 6) & 0x3F)); *w++ = (char)(0x80 | (u & 0x3F)); }
+			break;
+		}
+		case 0: continue;
+		default: *w++ = *q;
+		}
+		q++;
+	}
+	if (!out || *q != '"') { r->bad = 1; free(out); return NULL; }
+	*w = 0;
+	r->s = q + 1;
+	return out;
+}
+
+static jv *jread(jr *r, int depth)
+{
+	jv *v = calloc(1, sizeof *v), **tail;
+	if (!v || depth > 200) { r->bad = 1; return v; }
+	jskip(r);
+	tail = &v->kids;
+	if (*r->s == '{' || *r->s == '[') {
+		char close = *r->s == '{' ? '}' : ']';
+		v->type = *r->s == '{' ? 'o' : 'a';
+		r->s++;
+		jskip(r);
+		while (!r->bad && *r->s != close) {
+			char *key = NULL;
+			if (v->type == 'o') {
+				if (*r->s != '"') { r->bad = 1; break; }
+				key = jread_str(r);
+				jskip(r);
+				if (r->bad || *r->s != ':') { r->bad = 1; free(key); break; }
+				r->s++;
+			}
+			*tail = jread(r, depth + 1);
+			if (*tail) { (*tail)->key = key; tail = &(*tail)->next; }
+			jskip(r);
+			if (*r->s == ',') { r->s++; jskip(r); }
+			else if (*r->s != close) r->bad = 1;
+		}
+		if (!r->bad) r->s++;
+	} else if (*r->s == '"') {
+		v->type = 's';
+		v->text = jread_str(r);
+	} else if (!strncmp(r->s, "null", 4)) { v->type = 'n'; r->s += 4; }
+	else if (!strncmp(r->s, "true", 4)) { v->type = 't'; r->s += 4; }
+	else if (!strncmp(r->s, "false", 5)) { v->type = 'f'; r->s += 5; }
+	else {
+		char *end;
+		v->type = '#';
+		v->number = strtod(r->s, &end);
+		if (end == r->s) r->bad = 1;
+		r->s = end;
+	}
+	return v;
+}
+
+static const jv *jget(const jv *o, const char *key)
+{
+	for (const jv *k = o && o->type == 'o' ? o->kids : NULL; k; k = k->next)
+		if (k->key && !strcmp(k->key, key)) return k;
+	return NULL;
+}
+
+static const char *jtext(const jv *o, const char *key)
+{
+	const jv *v = jget(o, key);
+	return v && v->type == 's' ? v->text : NULL;
+}
+
+/* ---- the vocabulary, as data --------------------------------------------
+ * A word's arguments are only written, today, in the usage that follows
+ * its name in bc_vocab_dump ("go_to <place> [radius]"): <x> must be
+ * given, [x] may be, a|b|c is one of those, ... is any number more. What
+ * a number means is read off its name, and its default off the sentence
+ * ("(default 60)") where that can be done without guessing. */
+
+enum { ARGS = 6, ENUMS = 8 };
+
+typedef struct argspec {
+	char name[32];
+	const char *type;          /* number, place, string, enum */
+	int required, repeat;
+	int n_values;
+	char values[ENUMS][24];
+	int or_place;              /* enum: or any place */
+	int has_range, has_default;
+	double min, max, def;
+} argspec;
+
+typedef struct wordspec {
+	const char *kind;          /* cond, score, action */
+	char name[BT_NAME_MAX];
+	char usage[96];
+	const char *doc;
+	int n_args;
+	argspec arg[ARGS];
+} wordspec;
+
+static wordspec *words;
+static int n_wordspecs;
+
+static const char *arg_type(const char *name)
+{
+	static const char *const numbers[] = { "voxels", "radius", "secs", "hp", "fraction", "count", NULL };
+	size_t n = strlen(name);
+	if (!strcmp(name, "place")) return "place";
+	for (int i = 0; numbers[i]; i++) {
+		size_t m = strlen(numbers[i]);
+		if (n >= m && !strcmp(name + n - m, numbers[i])) return "number";
+	}
+	return "string";
+}
+
+static void parse_usage(wordspec *w)
+{
+	const char *s = w->usage;
+	while (*s && w->n_args < ARGS) {
 		while (*s == ' ') s++;
-		if (!*s) return;
+		if (*s != '<' && *s != '[') break;
+		argspec *a = &w->arg[w->n_args++];
+		int depth = 0;
 		const char *e = s;
-		while (*e && *e != ' ') e++;
-		if (i == k) { snprintf(out, size, "%.*s", (int)(e - s), s); return; }
+		do {                                   /* to the bracket that closes this one */
+			if (*e == '<' || *e == '[') depth++;
+			else if (*e == '>' || *e == ']') depth--;
+			e++;
+		} while (*e && depth > 0);
+		char in[96];
+		snprintf(in, sizeof in, "%.*s", (int)(e - s - 2), s + 1);
+		a->required = *s == '<';
+		size_t n = strlen(in);
+		if (n > 3 && !strcmp(in + n - 3, "...")) { a->repeat = 1; in[n - 3] = 0; }
+		if (!strncmp(e, "...", 3)) { a->repeat = 1; e += 3; }
+		const char *dots = strstr(in, "..");
+		if (strchr(in, '|')) {                  /* one of these */
+			a->type = "enum";
+			snprintf(a->name, sizeof a->name, "choice");
+			for (char *tok = strtok(in, "|"); tok; tok = strtok(NULL, "|")) {
+				if (!strcmp(tok, "<place>")) a->or_place = 1;
+				else if (a->n_values < ENUMS) snprintf(a->values[a->n_values++], sizeof a->values[0], "%.23s", tok);
+			}
+		} else if (dots && isdigit((unsigned char)in[0])) {       /* <0..1>: a number within */
+			a->type = "number";
+			snprintf(a->name, sizeof a->name, "value");
+			a->has_range = 1; a->min = atof(in); a->max = atof(dots + 2);
+		} else {
+			snprintf(a->name, sizeof a->name, "%.31s", in);
+			for (char *q = a->name; *q; q++) if (*q == ' ') *q = '_';
+			a->type = arg_type(a->name);
+		}
 		s = e;
+	}
+	/* "(default 8)": to the optional numbers, when there is one for each */
+	double def[ARGS];
+	int n_def = 0, n_opt = 0;
+	for (const char *q = w->doc; (q = strstr(q, "default ")) != NULL && n_def < ARGS; q += 8) {
+		char *end;
+		double d = strtod(q + 8, &end);
+		if (end != q + 8) def[n_def++] = d;
+	}
+	for (int i = 0; i < w->n_args; i++) n_opt += !w->arg[i].required && !strcmp(w->arg[i].type, "number");
+	if (n_def != n_opt) return;
+	for (int i = 0, k = 0; i < w->n_args; i++)
+		if (!w->arg[i].required && !strcmp(w->arg[i].type, "number")) {
+			w->arg[i].has_default = 1;
+			w->arg[i].def = def[k++];
+		}
+}
+
+/* bc_vocab_dump's lines, "kind name [usage] -- what it is", into `words` */
+static int read_words(void)
+{
+	char *buf = vocab_text();
+	if (!buf) return 0;
+	words = calloc((size_t)bc_vocab_count() + 1, sizeof *words);
+	if (!words) return 0;
+	for (char *line = buf; line && *line;) {
+		char *nl = strchr(line, '\n'), *sep = strstr(line, " -- ");
+		if (nl) *nl = 0;
+		wordspec *w = &words[n_wordspecs];
+		char kind[16];
+		int used = 0;
+		if (sep && sep < (nl ? nl : sep + 1) && sscanf(line, "%15s %31s%n", kind, w->name, &used) == 2 &&
+		    n_wordspecs < bc_vocab_count()) {
+			*sep = 0;
+			w->kind = !strcmp(kind, "cond") ? "cond" : !strcmp(kind, "score") ? "score" : "action";
+			while (line[used] == ' ') used++;
+			snprintf(w->usage, sizeof w->usage, "%s", line + used);
+			w->doc = sep + 4;
+			parse_usage(w);
+			n_wordspecs++;
+		}
+		line = nl ? nl + 1 : NULL;
+	}
+	return 1;                                  /* buf is kept: the docs point into it */
+}
+
+static const struct { const char *name, *doc; } TRAIT_DOC[BC_T_COUNT] = {
+	{ "none", "always 1: an option nobody's character moves" },
+	{ "aggression", "take the fight, close the distance" },
+	{ "caution", "cover, retreat when hurt, keep range" },
+	{ "objective", "the intel, the point, the tower -- the game" },
+	{ "teamwork", "answer pings, escort, stay with the others" },
+	{ "builder", "dig and build rather than walk round" },
+	{ "marksman", "fight from far, hold an angle" },
+	{ "flank", "go round rather than through" },
+	{ "stealth", "sneak, lamp out, do not be heard" },
+	{ "curiosity", "go and look: noises, last-seen places" },
+	{ "greed", "use what it holds: items, grenades" },
+};
+
+static const char *trait_doc(int t)
+{
+	for (int i = 0; i < BC_T_COUNT; i++)
+		if (!strcmp(TRAIT_DOC[i].name, bc_trait_name(t))) return TRAIT_DOC[i].doc;
+	return "";
+}
+
+static const struct { const char *name, *doc; } PLACES[] = {
+	{ "self", "where it stands" },
+	{ "enemy", "the man it fights, else the nearest in sight, else the nearest it knows of" },
+	{ "group", "the middle of two or more enemies within 6 of one another (also: enemy_group)" },
+	{ "last_seen", "where somebody left its sight" },
+	{ "noise", "what it heard" },
+	{ "threat", "where a hit seemed to come from" },
+	{ "search", "the freshest of the last three, or a told sighting" },
+	{ "ping", "the ping it answers (the caller himself for a call for help)" },
+	{ "caller", "the one who pinged" },
+	{ "order", "where the server's order points" },
+	{ "mate", "the nearest team-mate" },
+	{ "leader", "the leader it follows" },
+	{ "cover", "the nearest place the enemy cannot see" },
+	{ "hot", "where its team last met the other" },
+	{ "enemy_area", "where the enemy is expected: `hot` if under a minute old, else his base" },
+	{ "rumour", "the freshest rumour of the enemy (the score `rumour`)" },
+	{ "vantage", "the best free perch for its gun" },
+	{ "own_base", "its team's base" },
+	{ "enemy_base", "the other team's base (also: their_base)" },
+	{ "own_intel", "its team's intel, where it is now (also: our_intel)" },
+	{ "enemy_intel", "the other team's intel, where it is now (also: their_intel)" },
+	{ "thief", "the enemy who carries this team's intel" },
+	{ "carrier", "the team-mate who carries the other team's intel" },
+	{ "intercept", "where to cut the thief off on his way home" },
+};
+enum { N_PLACES = sizeof PLACES / sizeof PLACES[0] };
+
+/* the mean trait weights of 400 bots of one archetype */
+static void archetype_means(int a, float *mean)
+{
+	float w[BC_A_COUNT] = {0};
+	w[a] = 1;
+	memset(mean, 0, BC_T_COUNT * sizeof *mean);
+	for (int k = 0; k < 400; k++) {
+		bc_rng r; bc_persona p;
+		bc_rng_seed(&r, 1000 + (uint64_t)k, 7);
+		bc_persona_roll(&p, &r, w, 5);
+		for (int t = 0; t < BC_T_COUNT; t++) mean[t] += p.trait[t] / 400.0f;
 	}
 }
 
-static void draw(int tree, const char *prefix, int *open, int n_open);
+/* The node kinds. `children`: none, one, many, or options (a pick's). */
+typedef struct kparam { const char *name, *type, *form; int required; double def, min, max; const char *doc; } kparam;
+typedef struct kindspec { const char *name, *children, *answers, *doc; kparam p[3]; } kindspec;
+#define NOMAX 1e30
+static const kindspec KINDS[BT_K_COUNT] = {
+	{ "seq", "many", "FAILURE at the first child that fails, RUNNING while one is, SUCCESS when all have succeeded",
+	  "its children in order; resumes at the child that was RUNNING", {{0}} },
+	{ "select", "many", "the answer of the first child that does not fail; FAILURE when all fail",
+	  "its children in order, the first that does not fail: a priority list; resumes at the child that was RUNNING", {{0}} },
+	{ "pick", "options", "the answer of the option chosen; FAILURE when no option has a score above 0",
+	  "a weighed choice among its options: the one worth most to this bot (score x trait weight x factor x luck) is ticked",
+	  { { "every", "number", "every=<secs>", 0, 2, 0, NOMAX, "seconds between two choices; it also chooses again whenever the option chosen ends" },
+	    { "sticky", "number", "sticky=<x>", 0, 0.25, 0, NOMAX, "the option being done is worth this much more, as a fraction of its own worth" },
+	    { "noise", "number", "noise=<x>", 0, 0.1, 0, 1, "luck: each option's worth is multiplied by a draw within 1 +- this" } } },
+	{ "option", "one", "its child's",
+	  "one choice of a pick: `option <trait> <score> [score's arguments] [x<factor>]`, only directly under a pick",
+	  { { "trait", "trait", "<trait>", 1, 0, 0, 0, "whose character weighs it: the bot's weight for this trait multiplies the score" },
+	    { "score", "score", "<score> [args]", 1, 0, 0, 0, "what bears on it: a score of the vocabulary, 0 to 1; at 0 the option cannot be chosen" },
+	    { "factor", "number", "x<factor>", 0, 1, 0, NOMAX, "the designer's thumb on the scale" } } },
+	{ "if", "none", "SUCCESS if the condition holds, else FAILURE", "a condition of the vocabulary, with its arguments",
+	  { { "cond", "cond", "<cond> [args]", 1, 0, 0, 0, "the condition" } } },
+	{ "unless", "none", "FAILURE if the condition holds, else SUCCESS", "a condition, the other way round",
+	  { { "cond", "cond", "<cond> [args]", 1, 0, 0, 0, "the condition" } } },
+	{ "do", "none", "the action's: RUNNING while it goes on, SUCCESS or FAILURE when it ends",
+	  "an action of the vocabulary, with its arguments; stopped (told once) if its branch is abandoned while it is RUNNING",
+	  { { "action", "action", "<action> [args]", 1, 0, 0, 0, "the action" } } },
+	{ "wait", "none", "RUNNING for that long, then SUCCESS", "let time pass",
+	  { { "seconds", "number", "<secs>", 1, 0, 0, NOMAX, "how long, from the first tick that reaches it" } } },
+	{ "invert", "one", "its child's turned: SUCCESS for FAILURE, FAILURE for SUCCESS; RUNNING stays", "turn the child's answer round", {{0}} },
+	{ "always", "one", "SUCCESS whatever the child answers; RUNNING stays", "do the child and go on whatever came of it", {{0}} },
+	{ "never", "one", "FAILURE whatever the child answers; RUNNING stays", "do the child and fail whatever came of it", {{0}} },
+	{ "cooldown", "one", "its child's; then FAILURE, without asking the child, for that long after the child ended",
+	  "not more often than this",
+	  { { "seconds", "number", "<secs>", 1, 0, 0, NOMAX, "how long after the child answers SUCCESS or FAILURE" } } },
+	{ "limit", "one", "its child's; FAILURE if the child is still RUNNING after that long (the child is stopped)",
+	  "not longer than this",
+	  { { "seconds", "number", "<secs>", 1, 0, 0, NOMAX, "how long the child may stay RUNNING" } } },
+	{ "tree", "none", "the answer of the tree named", "another tree by name, as if written here; `items` and `extras` are written by the engine",
+	  { { "ref", "tree", "<name>", 1, 0, 0, 0, "the tree's name" } } },
+};
 
-/* One node and what is under it; `i` is advanced past its subtree. */
-static void draw_node(int *i, int end, const char *prefix, int last, int *open, int n_open)
+static void schema_args(FILE *o, const wordspec *w, int pad)
 {
-	const node *nd = &nodes[*i];
-	char kind[64], arg[64];
-	word(nd->text, 0, kind, sizeof kind);
-	word(nd->text, 1, arg, sizeof arg);
+	fputs("[", o);
+	for (int i = 0; i < w->n_args; i++) {
+		const argspec *a = &w->arg[i];
+		if (i) fputc(',', o);
+		jpad(o, pad);
+		fputs("{", o);
+		jkv(o, "name", a->name);
+		fprintf(o, ", \"required\": %s, ", a->required ? "true" : "false");
+		jkv(o, "type", a->type);
+		if (a->n_values) {
+			fputs(", \"values\": [", o);
+			for (int k = 0; k < a->n_values; k++) { if (k) fputs(", ", o); jstr(o, a->values[k]); }
+			fputc(']', o);
+		}
+		if (a->or_place) fputs(", \"or\": \"place\"", o);
+		if (a->repeat) fputs(", \"repeat\": true", o);
+		if (a->has_range) fprintf(o, ", \"min\": %s, \"max\": %s", num(a->min), num(a->max));
+		if (a->has_default) fprintf(o, ", \"default\": %s", num(a->def));
+		fputs("}", o);
+	}
+	if (w->n_args) jpad(o, pad - 1);
+	fputs("]", o);
+}
 
+static void schema_words(FILE *o, const char *key, const char *kind)
+{
+	jpad(o, 1); jkey(o, key); fputs("[", o);
+	for (int i = 0, n = 0; i < n_wordspecs; i++) {
+		const wordspec *w = &words[i];
+		if (strcmp(w->kind, kind)) continue;
+		if (n++) fputc(',', o);
+		jpad(o, 2); fputs("{", o);
+		jkv(o, "name", w->name); fputs(", ", o);
+		jkv(o, "usage", w->usage); fputs(",", o);
+		jpad(o, 3); jkey(o, "args"); schema_args(o, w, 5); fputs(",", o);
+		jpad(o, 3); jkv(o, "doc", w->doc);
+		jpad(o, 2); fputs("}", o);
+	}
+	jpad(o, 1); fputs("]", o);
+}
+
+static int schema(FILE *o)
+{
+	if (!read_words()) return 1;
+	fputs("{", o);
+	jpad(o, 1); fputs("\"format\": \"lsd-bt-schema\", \"version\": 1,", o);
+	jpad(o, 1); fprintf(o, "\"limits\": {\"args\": %d, \"name\": %d, \"depth\": %d, \"words_a_line\": 16},", BT_ARGS_MAX, BT_NAME_MAX - 1, BT_DEPTH_MAX);
+	jpad(o, 1); fputs("\"answers\": [\"SUCCESS\", \"FAILURE\", \"RUNNING\"],", o);
+	jpad(o, 1); fputs("\"kinds\": [", o);
+	for (int k = 0; k < BT_K_COUNT; k++) {
+		const kindspec *s = &KINDS[k];
+		if (k) fputc(',', o);
+		jpad(o, 2); fputs("{", o);
+		jkv(o, "name", s->name); fputs(", ", o);
+		jkv(o, "children", s->children);
+		if (k == BT_K_OPTION) fputs(", \"parent\": \"pick\"", o);
+		fputs(",", o);
+		jpad(o, 3); jkey(o, "params"); fputs("[", o);
+		for (int i = 0; i < 3 && s->p[i].name; i++) {
+			const kparam *p = &s->p[i];
+			if (i) fputc(',', o);
+			jpad(o, 4); fputs("{", o);
+			jkv(o, "name", p->name); fputs(", ", o);
+			jkv(o, "type", p->type); fputs(", ", o);
+			jkv(o, "written", p->form);
+			fprintf(o, ", \"required\": %s", p->required ? "true" : "false");
+			if (!strcmp(p->type, "number")) {
+				if (!p->required) fprintf(o, ", \"default\": %s", num(p->def));
+				fprintf(o, ", \"min\": %s", num(p->min));
+				if (p->max < NOMAX) fprintf(o, ", \"max\": %s", num(p->max));
+			}
+			fputs(", ", o); jkv(o, "doc", p->doc);
+			fputs("}", o);
+		}
+		if (s->p[0].name) jpad(o, 3);
+		fputs("],", o);
+		jpad(o, 3); jkv(o, "answers", s->answers); fputs(",", o);
+		jpad(o, 3); jkv(o, "doc", s->doc);
+		jpad(o, 2); fputs("}", o);
+	}
+	jpad(o, 1); fputs("],", o);
+	schema_words(o, "conditions", "cond"); fputs(",", o);
+	schema_words(o, "scores", "score"); fputs(",", o);
+	schema_words(o, "actions", "action"); fputs(",", o);
+	jpad(o, 1); fputs("\"traits\": [", o);
+	for (int t = 0; t < BC_T_COUNT; t++) {
+		if (t) fputc(',', o);
+		jpad(o, 2); fputs("{", o); jkv(o, "name", bc_trait_name(t)); fputs(", ", o); jkv(o, "doc", trait_doc(t)); fputs("}", o);
+	}
+	jpad(o, 1); fputs("],", o);
+	jpad(o, 1); fputs("\"trait_range\": [0.2, 3],", o);
+	jpad(o, 1); fputs("\"archetypes\": [", o);
+	for (int a = 0; a < BC_A_COUNT; a++) {
+		float mean[BC_T_COUNT];
+		archetype_means(a, mean);
+		if (a) fputc(',', o);
+		jpad(o, 2); fputs("{", o); jkv(o, "name", bc_archetype_name(a)); fputs(", \"weights\": {", o);
+		for (int t = 0; t < BC_T_COUNT; t++) {
+			if (t) fputs(", ", o);
+			jkey(o, bc_trait_name(t)); fprintf(o, "%.2f", (double)mean[t]);
+		}
+		fputs("}}", o);
+	}
+	jpad(o, 1); fputs("],", o);
+	jpad(o, 1); fputs("\"places\": [", o);
+	for (int i = 0; i < N_PLACES; i++) {
+		if (i) fputc(',', o);
+		jpad(o, 2); fputs("{", o); jkv(o, "name", PLACES[i].name); fputs(", ", o); jkv(o, "doc", PLACES[i].doc); fputs("}", o);
+	}
+	jpad(o, 1); fputs("]", o);
+	fputs("\n}\n", o);
+	return 0;
+}
+
+/* --words --md: the vocabulary as a page (bot/VOCAB.md) */
+static int words_md(FILE *o)
+{
+	static const char *const title[3][3] = {
+		{ "cond", "Conditions", "For `if` and `unless`: true or false." },
+		{ "score", "Scores", "For `option <trait> <score>`: 0 to 1, how much the situation calls for the option. At 0 the option cannot be chosen." },
+		{ "action", "Actions", "For `do`. Each says what it answers: RUNNING while it goes on, SUCCESS or FAILURE when it ends." },
+	};
+	if (!read_words()) return 1;
+	fputs("# The words a behaviour tree may use\n\n"
+	      "<!-- GENERATED by `make -C bot doc` (bttree --words --md) from bot/core/vocab.c and\n"
+	      "     bot/core/persona.c. Do not edit: `make -C bot test` fails when it is stale. -->\n\n"
+	      "How a tree is written, and what it does with these words: [TREES.md](TREES.md).\n"
+	      "An argument in `<angle brackets>` must be given, one in `[square brackets]` may be;\n"
+	      "`a|b|c` is one of those words; `...` is any number more. A tree may give a leaf at most\n"
+	      "four arguments.\n", o);
+	for (int k = 0; k < 3; k++) {
+		fprintf(o, "\n## %s\n\n%s\n\n", title[k][1], title[k][2]);
+		for (int i = 0; i < n_wordspecs; i++) {
+			const wordspec *w = &words[i];
+			if (strcmp(w->kind, title[k][0])) continue;
+			fprintf(o, "- **`%s%s%s`** -- %s\n", w->name, w->usage[0] ? " " : "", w->usage, w->doc);
+		}
+	}
+	fputs("\n## Traits\n\nFor `option <trait> ...`: the bot's own weight for the trait multiplies the option's score.\n"
+	      "A weight is rolled once a bot, between 0.2 and 3, around its archetype's centre.\n\n", o);
+	for (int t = 0; t < BC_T_COUNT; t++) fprintf(o, "- **`%s`** -- %s\n", bc_trait_name(t), trait_doc(t));
+	fputs("\n## Archetypes\n\nThe kinds of bot a character is drawn from, and the mean weight each gives a trait\n"
+	      "(400 bots rolled; `none` is always 1).\n\n| |", o);
+	for (int t = 1; t < BC_T_COUNT; t++) fprintf(o, " %s |", bc_trait_name(t));
+	fputs("\n|---|", o);
+	for (int t = 1; t < BC_T_COUNT; t++) fputs("---|", o);
+	fputs("\n", o);
+	for (int a = 0; a < BC_A_COUNT; a++) {
+		float mean[BC_T_COUNT];
+		archetype_means(a, mean);
+		fprintf(o, "| **%s** |", bc_archetype_name(a));
+		for (int t = 1; t < BC_T_COUNT; t++) fprintf(o, " %.2f |", (double)mean[t]);
+		fputs("\n", o);
+	}
+	fputs("\n## Places\n\nFor an argument written `<place>` or `[place]`.\n\n", o);
+	for (int i = 0; i < N_PLACES; i++) fprintf(o, "- **`%s`** -- %s\n", PLACES[i].name, PLACES[i].doc);
+	return 0;
+}
+
+/* ---- --json: the source as an editor reads it --------------------------- */
+
+static void json_node(FILE *o, const bt_source *src, int id, int pad)
+{
+	bt_node n;
+	bt_source_node(src, id, &n);
+	jpad(o, pad);
+	fprintf(o, "{\"id\": %d, ", id);
+	jkv(o, "kind", bt_kind_name(n.kind));
+	fprintf(o, ", \"line\": %d, \"column\": %d, ", n.line, n.column);
+	jkv(o, "text", n.text);
+	switch (n.kind) {
+	case BT_K_PICK: {
+		static const struct { const char *name; unsigned bit; } S[3] = {
+			{ "every", BT_W_EVERY }, { "sticky", BT_W_STICKY }, { "noise", BT_W_NOISE } };
+		int some = 0;
+		fprintf(o, ", \"every\": %s, \"sticky\": %s, \"noise\": %s, \"defaults\": [", num(n.every), num(n.sticky), num(n.noise));
+		for (int k = 0; k < 3; k++)
+			if (!(n.written & S[k].bit)) { if (some++) fputs(", ", o); jstr(o, S[k].name); }
+		fputc(']', o);
+		break;
+	}
+	case BT_K_OPTION:
+		fputs(", ", o); jkv(o, "trait", n.trait);
+		fputs(", ", o); jkv(o, "score", n.name);
+		break;
+	case BT_K_IF: case BT_K_UNLESS: fputs(", ", o); jkv(o, "cond", n.name); break;
+	case BT_K_DO: fputs(", ", o); jkv(o, "action", n.name); break;
+	case BT_K_WAIT: case BT_K_COOLDOWN: case BT_K_LIMIT: fprintf(o, ", \"seconds\": %s", num(n.secs)); break;
+	case BT_K_TREE:
+		fputs(", ", o); jkv(o, "ref", n.name);
+		break;
+	default: break;
+	}
+	if (n.kind == BT_K_OPTION || n.kind == BT_K_IF || n.kind == BT_K_UNLESS || n.kind == BT_K_DO) {
+		fputs(", \"args\": [", o);
+		for (int k = 0; k < n.args.count; k++) { if (k) fputs(", ", o); jstr(o, n.args.text[k]); }
+		fputc(']', o);
+	}
+	if (n.kind == BT_K_OPTION)
+		fprintf(o, ", \"factor\": %s, \"defaults\": [%s]", num(n.factor), n.written & BT_W_FACTOR ? "" : "\"factor\"");
+	if (n.comment) { fputs(", ", o); jkv(o, "comment", n.comment); }
+	if (n.above) { fputs(", ", o); jkey(o, "above"); jlines(o, n.above); }
+	if (n.first_child >= 0) {
+		fputs(", \"children\": [", o);
+		for (int k = n.first_child; k >= 0;) {
+			bt_node ch;
+			json_node(o, src, k, pad + 1);
+			bt_source_node(src, k, &ch);
+			k = ch.next_sibling;
+			if (k >= 0) fputc(',', o);
+		}
+		jpad(o, pad);
+		fputc(']', o);
+	}
+	fputc('}', o);
+}
+
+static void json_file(FILE *o, const char *path, const bt_source *src, int pad)
+{
+	bt_tree t;
+	jpad(o, pad); fputs("{", o);
+	if (path) { jkv(o, "file", path); fputs(", ", o); }
+	fputs("\"trees\": [", o);
+	for (int i = 0; bt_source_tree(src, i, &t); i++) {
+		if (i) fputc(',', o);
+		jpad(o, pad + 1); fputs("{", o);
+		jkv(o, "name", t.name);
+		fprintf(o, ", \"line\": %d, \"header\": %s", t.line, t.header ? "true" : "false");
+		if (t.comment) { fputs(", ", o); jkv(o, "comment", t.comment); }
+		if (t.above) { fputs(", ", o); jkey(o, "above"); jlines(o, t.above); }
+		fputs(", \"root\":", o);
+		json_node(o, src, t.root, pad + 2);
+		jpad(o, pad + 1); fputs("}", o);
+	}
+	jpad(o, pad); fputs("]", o);
+	if (bt_source_tail(src)) { fputs(", ", o); jkey(o, "tail"); jlines(o, bt_source_tail(src)); }
+	fputs("}", o);
+}
+
+/* the forest: what a debugger's node ids are ids of */
+static void json_forest(FILE *o)
+{
+	bt_tree t;
+	bt_node n;
+	fputs(",\n  \"forest\": {\"trees\": [", o);
+	for (int i = 0; bt_forest_tree(forest, i, &t); i++) {
+		if (i) fputs(", ", o);
+		fputs("{", o); jkv(o, "name", t.name); fprintf(o, ", \"root\": %d}", t.root);
+	}
+	fputs("],\n    \"nodes\": [", o);
+	for (int i = 0; bt_forest_node(forest, i, &n); i++) {
+		int local, f = where_node(n.source, &local);
+		if (i) fputc(',', o);
+		fprintf(o, "\n      {\"id\": %d, \"parent\": %d, \"tree\": %d, \"file\": %d, \"source\": %d", i, n.parent, n.tree, f, local);
+		if (n.via >= 0) {
+			f = where_node(n.via, &local);
+			fprintf(o, ", \"via\": {\"file\": %d, \"source\": %d}", f, local);
+		}
+		fputs(", ", o); jkv(o, "kind", bt_kind_name(n.kind));
+		fputs(", ", o); jkv(o, "text", n.text);
+		fputc('}', o);
+	}
+	fputs("\n    ]}", o);
+}
+
+static void json_all(FILE *o, int expanded)
+{
+	fputs("{\"format\": \"lsd-bt\", \"version\": 1,\n  \"files\": [", o);
+	for (int i = 0; i < n_files; i++) {
+		if (i) fputc(',', o);
+		json_file(o, files[i].path, files[i].src, 2);
+	}
+	fputs("\n  ]", o);
+	if (expanded) json_forest(o);
+	fputs("\n}\n", o);
+}
+
+/* ---- --from-json: an editor's tree, back to text ------------------------
+ * The words of each node are put together from its fields ("text" is not
+ * read: it is what the node WAS), one node a line under its parent; then
+ * the engine's parser reads that and writes it back, which is what makes
+ * it canonical -- and refuses it, with the reason, if it is not a tree. */
+
+typedef struct sb { char *s; size_t n, cap; } sb;
+
+static void sput(sb *b, const char *s)
+{
+	size_t n = strlen(s);
+	if (b->n + n + 1 > b->cap) {
+		b->cap = (b->cap + n + 1) * 2;
+		b->s = realloc(b->s, b->cap);
+		if (!b->s) { fprintf(stderr, "bttree: out of memory\n"); exit(1); }
+	}
+	memcpy(b->s + b->n, s, n + 1);
+	b->n += n;
+}
+
+static void sput_above(sb *b, const jv *above, int depth)
+{
+	for (const jv *l = above && above->type == 'a' ? above->kids : NULL; l; l = l->next) {
+		const char *s = l->type == 's' ? l->text : "";
+		while (*s == ' ' || *s == '\t') s++;
+		if (*s) {
+			for (int k = 0; k < depth; k++) sput(b, "\t");
+			if (*s != '#') sput(b, "# ");
+			for (; *s; s++) { char one[2] = { *s == '\n' ? ' ' : *s, 0 }; sput(b, one); }
+		}
+		sput(b, "\n");
+	}
+}
+
+static void sput_comment(sb *b, const jv *o)
+{
+	const char *cm = jtext(o, "comment");
+	if (!cm || !*cm) return;
+	sput(b, " # ");
+	for (; *cm; cm++) { char one[2] = { *cm == '\n' ? ' ' : *cm, 0 }; sput(b, one); }
+}
+
+/* a number a node carries, written unless it is listed as left to its
+ * default and still is that */
+static int is_default(const jv *node, const char *key, double def)
+{
+	const jv *v = jget(node, key), *d = jget(node, "defaults");
+	if (!v || v->type != '#') return 1;
+	for (const jv *k = d && d->type == 'a' ? d->kids : NULL; k; k = k->next)
+		if (k->type == 's' && !strcmp(k->text, key)) return (float)v->number == (float)def;
+	return 0;
+}
+
+static int json_err;
+
+static void sput_node(sb *b, const jv *node, int depth)
+{
+	const char *kind = jtext(node, "kind");
+	const jv *v;
+	if (!kind) { fprintf(stderr, "bttree: --from-json: a node without a \"kind\"\n"); json_err = 1; return; }
+	sput_above(b, jget(node, "above"), depth);
+	for (int k = 0; k < depth; k++) sput(b, "\t");
+	sput(b, kind);
+	if (!strcmp(kind, "pick")) {
+		static const struct { const char *name; double def; } S[3] = { { "every", 2 }, { "sticky", 0.25 }, { "noise", 0.1 } };
+		for (int k = 0; k < 3; k++)
+			if (!is_default(node, S[k].name, S[k].def)) {
+				sput(b, " "); sput(b, S[k].name); sput(b, "="); sput(b, num(jget(node, S[k].name)->number));
+			}
+	} else if (!strcmp(kind, "option")) {
+		sput(b, " "); sput(b, jtext(node, "trait") ? jtext(node, "trait") : "?");
+		sput(b, " "); sput(b, jtext(node, "score") ? jtext(node, "score") : "?");
+	} else if (!strcmp(kind, "if") || !strcmp(kind, "unless")) {
+		sput(b, " "); sput(b, jtext(node, "cond") ? jtext(node, "cond") : "?");
+	} else if (!strcmp(kind, "do")) {
+		sput(b, " "); sput(b, jtext(node, "action") ? jtext(node, "action") : "?");
+	} else if (!strcmp(kind, "wait") || !strcmp(kind, "cooldown") || !strcmp(kind, "limit")) {
+		v = jget(node, "seconds");
+		sput(b, " "); sput(b, v && v->type == '#' ? num(v->number) : "?");
+	} else if (!strcmp(kind, "tree")) {
+		sput(b, " "); sput(b, jtext(node, "ref") ? jtext(node, "ref") : "?");
+	}
+	v = jget(node, "args");
+	for (const jv *a = v && v->type == 'a' ? v->kids : NULL; a; a = a->next) {
+		sput(b, " ");
+		sput(b, a->type == 's' ? a->text : a->type == '#' ? num(a->number) : "?");
+	}
+	if (!strcmp(kind, "option") && !is_default(node, "factor", 1)) { sput(b, " x"); sput(b, num(jget(node, "factor")->number)); }
+	sput_comment(b, node);
+	sput(b, "\n");
+	v = jget(node, "children");
+	for (const jv *ch = v && v->type == 'a' ? v->kids : NULL; ch; ch = ch->next) sput_node(b, ch, depth + 1);
+}
+
+/* one file of the JSON -> canonical text on `out`. 0 if it is not a tree. */
+static int text_of_json(const bt_vocab *v, const jv *file, FILE *out)
+{
+	sb b = {0};
+	const jv *trees = jget(file, "trees");
+	sput(&b, "");
+	for (const jv *t = trees && trees->type == 'a' ? trees->kids : NULL; t; t = t->next) {
+		const jv *header = jget(t, "header"), *root = jget(t, "root");
+		sput_above(&b, jget(t, "above"), 0);
+		if (!header || header->type != 'f') {
+			sput(&b, "tree "); sput(&b, jtext(t, "name") ? jtext(t, "name") : "?"); sput(&b, ":");
+			sput_comment(&b, t);
+			sput(&b, "\n");
+		}
+		if (root && root->type == 'o') sput_node(&b, root, 0);
+	}
+	sput_above(&b, jget(file, "tail"), 0);
+	if (json_err) { free(b.s); return 0; }
+
+	bt_diag d;
+	bt_source *src = bt_parse(v, b.s, &d);
+	if (!src) {
+		const char *l = b.s;
+		for (int k = 1; k < d.line && l; k++) { l = strchr(l, '\n'); if (l) l++; }
+		fprintf(stderr, "bttree: --from-json: %s\n  in: %.*s\n", d.message, l ? (int)strcspn(l, "\n") : 0, l ? l : "");
+		free(b.s);
+		return 0;
+	}
+	size_t n = bt_source_text(src, NULL, 0);
+	char *text = malloc(n + 1);
+	if (text) { bt_source_text(src, text, n + 1); fputs(text, out); }
+	free(text); free(b.s);
+	bt_source_free(src);
+	return 1;
+}
+
+static void jfree(jv *v)
+{
+	while (v) {
+		jv *next = v->next;
+		jfree(v->kids);
+		free(v->text); free(v->key); free(v);
+		v = next;
+	}
+}
+
+static int from_json_text(const bt_vocab *v, const char *json, FILE *out)
+{
+	jr r = { json, 0 };
+	jv *doc = jread(&r, 0);
+	int ok = 1;
+	jskip(&r);
+	if (r.bad || *r.s || !doc || doc->type != 'o') {
+		fprintf(stderr, "bttree: --from-json: not JSON (near character %d)\n", (int)(r.s - json));
+		jfree(doc);
+		return 0;
+	}
+	const jv *fl = jget(doc, "files");
+	if (fl && fl->type == 'a') {
+		for (const jv *f = fl->kids; f && ok; f = f->next) ok = text_of_json(v, f, out);
+	} else if (jget(doc, "trees")) {
+		ok = text_of_json(v, doc, out);
+	} else {
+		fprintf(stderr, "bttree: --from-json: neither \"files\" nor \"trees\" in it\n");
+		ok = 0;
+	}
+	jfree(doc);
+	return ok;
+}
+
+static char *canonical(const bt_source *src)
+{
+	size_t n = bt_source_text(src, NULL, 0);
+	char *text = malloc(n + 1);
+	if (text) bt_source_text(src, text, n + 1);
+	return text;
+}
+
+static char *slurp_tmp(FILE *t)
+{
+	long n = ftell(t);
+	char *s = malloc((size_t)n + 1);
+	rewind(t);
+	if (s) s[fread(s, 1, (size_t)n, t)] = 0;
+	fclose(t);
+	return s;
+}
+
+/* text -> JSON -> text, and the forest of what came back */
+static int roundtrip(const bt_vocab *v)
+{
+	int bad = 0, nodes = 0, same_bytes = 0;
+	for (int i = 0; i < n_files; i++) {
+		char *want = canonical(files[i].src), *json, *got;
+		FILE *t = tmpfile(), *u = tmpfile();
+		if (!want || !t || !u) { fprintf(stderr, "bttree: no memory or no temporary file\n"); return 1; }
+		fputs("{\"files\": [", t);
+		json_file(t, files[i].path, files[i].src, 1);
+		fputs("]}\n", t);
+		json = slurp_tmp(t);
+		if (!from_json_text(v, json, u)) { fclose(u); bad = 1; free(want); free(json); continue; }
+		got = slurp_tmp(u);
+		if (strcmp(want, got)) {
+			fprintf(stderr, "%s: comes back from JSON as another text\n", files[i].path);
+			bad = 1;
+		}
+		/* and what was written reads back as the same tree, comments and all */
+		bt_source *again = bt_parse(v, got, NULL);
+		int same = again && bt_source_nodes(again) == bt_source_nodes(files[i].src);
+		for (int k = 0; same && k < bt_source_nodes(again); k++) {
+			bt_node a, b;
+			bt_source_node(files[i].src, k, &a); bt_source_node(again, k, &b);
+			same = a.kind == b.kind && a.parent == b.parent && !strcmp(a.text, b.text) && !a.comment == !b.comment &&
+			       (!a.comment || !strcmp(a.comment, b.comment)) && !a.above == !b.above && (!a.above || !strcmp(a.above, b.above));
+		}
+		if (!same) { fprintf(stderr, "%s: written back, it reads as another tree\n", files[i].path); bad = 1; }
+		nodes += bt_source_nodes(files[i].src);
+		same_bytes += !strcmp(files[i].text, got);
+		bt_source_free(again);
+		free(want); free(json); free(got);
+	}
+	if (!bad)
+		printf("ok: %d file(s), %d nodes: text -> JSON -> text gives the canonical text, which reads as the same tree; "
+		       "%d already canonical byte for byte\n", n_files, nodes, same_bytes);
+	return bad;
+}
+
+/* ---- the drawing, from the source --------------------------------------- */
+
+static void node_words(const bt_node *n)
+{
+	const char *kind = bt_kind_name(n->kind), *rest = n->text + strlen(kind);
+	switch (n->kind) {
+	case BT_K_DO:
+		printf("%sdo%s %s%s%s", ACT, OFF, BOLD, rest + 1, OFF);
+		break;
+	case BT_K_IF: case BT_K_UNLESS:
+		printf("%s%s%s%s", ASK, kind, OFF, rest);
+		break;
+	case BT_K_OPTION: {
+		const char *after = rest + 1 + strlen(n->trait);
+		printf("%soption%s %s%s%s%s", KEY, OFF, BOLD, n->trait, OFF, after);
+		int t = bc_trait_by_name(n->trait);
+		if (as_name && t > 0)
+			printf("  %s[%s weighs %s %.2f]%s", DIM, as_name, n->trait, (double)as_weight[t], OFF);
+		break;
+	}
+	default:
+		printf("%s%s%s%s", KEY, kind, OFF, rest);
+	}
+}
+
+static void draw_node(const bt_source *src, int id, const char *prefix, int last, int *open, int n_open)
+{
+	bt_node n;
+	bt_source_node(src, id, &n);
 	const char *tee = plain ? (last ? "`- " : "|- ") : (last ? "└─ " : "├─ ");
 	const char *bar = plain ? (last ? "   " : "|  ") : (last ? "   " : "│  ");
+	const char *end = plain ? "`- " : "└─ ";
 
-	printf("%s%s%s", DIM, prefix, tee);
-	printf("%s", OFF);
-	if (!strcmp(kind, "do"))
-		printf("%sdo%s %s%s%s", ACT, OFF, BOLD, nd->text + 3, OFF);
-	else if (!strcmp(kind, "if") || !strcmp(kind, "unless"))
-		printf("%s%s%s %s", ASK, kind, OFF, nd->text + strlen(kind) + 1);
-	else if (!strcmp(kind, "option")) {
-		char score[64];
-		word(nd->text, 2, score, sizeof score);
-		const char *rest = strstr(nd->text, score);
-		rest = rest ? rest + strlen(score) : "";
-		printf("%soption%s %s%s%s %s%s", KEY, OFF, BOLD, arg, OFF, score, rest);
-		int t = bc_trait_by_name(arg);
-		if (as_name && t > 0)
-			printf("  %s[%s weighs %s %.2f]%s", DIM, as_name, arg, (double)as_weight[t], OFF);
-	} else if (!strcmp(kind, "tree"))
-		printf("%stree%s %s", KEY, OFF, arg);
-	else
-		printf("%s%s%s%s", KEY, kind, OFF, nd->text + strlen(kind));
-	if (nd->note[0]) printf("  %s# %s%s", DIM, nd->note, OFF);
+	printf("%s%s%s%s", DIM, prefix, tee, OFF);
+	node_words(&n);
+	if (n.comment) printf("  %s# %s%s", DIM, n.comment, OFF);
 	printf("\n");
 
 	char deeper[1024];
 	snprintf(deeper, sizeof deeper, "%s%s", prefix, bar);
 
-	if (!strcmp(kind, "tree")) {            /* a reference: open it in place */
-		int t = find_tree(arg);
-		int seen = 0;
+	if (n.kind == BT_K_TREE) {              /* a reference: open it in place */
+		int t = has_tree(src, n.name), seen = 0;
 		for (int k = 0; k < n_open; k++) if (open[k] == t) seen = 1;
 		if (t < 0)
-			printf("%s%s%s(filled in at run time: %s)%s\n", DIM, deeper, plain ? "`- " : "└─ ",
-				!strcmp(arg, "items") ? "each inventory item's own rule"
-				: !strcmp(arg, "extras") ? "what server scripts bring, e.g. night"
+			printf("%s%s%s(filled in at run time: %s)%s\n", DIM, deeper, end,
+				!strcmp(n.name, "items") ? "each inventory item's own rule"
+				: !strcmp(n.name, "extras") ? "what server scripts bring, e.g. night"
 				: "sent by the server", OFF);
 		else if (seen || n_open == MAX_OPEN)
-			printf("%s%s%s(again: %s)%s\n", DIM, deeper, plain ? "`- " : "└─ ", arg, OFF);
+			printf("%s%s%s(again: %s)%s\n", DIM, deeper, end, n.name, OFF);
 		else {
+			bt_tree tr;
+			bt_source_tree(src, t, &tr);
 			open[n_open] = t;
-			draw(t, deeper, open, n_open + 1);
+			draw_node(src, tr.root, deeper, 1, open, n_open + 1);
 		}
 	}
-
-	int depth = nd->depth;
-	(*i)++;
-	while (*i < end && nodes[*i].depth > depth) {
-		/* is this child the last at its level? */
-		int j = *i + 1, is_last = 1;
-		while (j < end && nodes[j].depth > depth + 1) j++;
-		if (j < end && nodes[j].depth == depth + 1) is_last = 0;
-		draw_node(i, end, deeper, is_last, open, n_open);
+	for (int k = n.first_child; k >= 0;) {
+		bt_node ch;
+		bt_source_node(src, k, &ch);
+		draw_node(src, k, deeper, ch.next_sibling < 0, open, n_open);
+		k = ch.next_sibling;
 	}
 }
 
-static void draw(int tree, const char *prefix, int *open, int n_open)
+static int draw_all(const bt_source *src, const char *only)
 {
-	int i = trees[tree].first, end = i + trees[tree].count;
-	while (i < end) {
-		int j = i + 1, is_last = 1;
-		while (j < end && nodes[j].depth > 0) j++;
-		if (j < end) is_last = 0;
-		draw_node(&i, end, prefix, is_last, open, n_open);
+	int open[MAX_OPEN], drawn = 0;
+	bt_tree t;
+	for (int i = 0; bt_source_tree(src, i, &t); i++) {
+		if (only && strcmp(only, t.name)) continue;
+		if (drawn++) printf("\n");
+		printf("%s%s%s\n", BOLD, t.name, OFF);
+		open[0] = i;
+		draw_node(src, t.root, "", 1, open, 1);
 	}
+	if (only && !drawn) { fprintf(stderr, "bttree: no tree called %s\n", only); return 1; }
+	return 0;
 }
 
-/* ---- --split: the tree ticked for a crowd, in a situation that is given */
+/* ---- --split and --trace: the tree ticked in a situation that is given -- */
 
 enum { MAX_WORDS = 160, MAX_SET = 128, MAX_OUT = 64 };
 
-static struct { char kind; char name[BT_NAME_MAX]; } words_[3 * MAX_WORDS];
+static struct { char name[BT_NAME_MAX]; } words_[3 * MAX_WORDS];
 static int n_words[3];                          /* cond, score, action */
 static struct { char key[96]; char val[32]; int used; } set_[MAX_SET];
 static int n_set;
@@ -324,11 +1312,9 @@ static float split_random(void *bot) { return bc_rng_float((bc_rng *)bot); }
  * given. The names come from the engine's own list (bc_vocab_dump). */
 static bt_vocab *split_vocab(void)
 {
-	size_t need = bc_vocab_dump(NULL, 0);
-	char *buf = malloc(need + 1);
+	char *buf = vocab_text();
 	bt_vocab *v = bt_vocab_new();
 	if (!buf || !v) return NULL;
-	bc_vocab_dump(buf, need + 1);
 	for (char *line = strtok(buf, "\n"); line; line = strtok(NULL, "\n")) {
 		char kind[16], name[BT_NAME_MAX];
 		if (sscanf(line, "%15s %31s", kind, name) != 2) continue;
@@ -345,33 +1331,69 @@ static bt_vocab *split_vocab(void)
 	return v;
 }
 
-static int split(const char *text, const char *only, int n, const char *mix, int level)
+/* `full` compiled with those words, and the tree asked for */
+static bt_forest *split_forest(const char *only, int *tree, bt_vocab **vp)
 {
-	static char full[MAX_TEXT + 256];
-	/* what the engine writes at run time: empty here unless the text has them */
-	snprintf(full, sizeof full, "%s%s%s", text,
-		strstr(text, "\ntree items:") ? "" : "\ntree items:\nnever\n\tif enemy_visible\n",
-		strstr(text, "\ntree extras:") ? "" : "\ntree extras:\nnever\n\tif enemy_visible\n");
 	bt_vocab *v = split_vocab();
-	char err[256] = "";
-	bt_forest *f = v ? bt_compile(v, full, err, sizeof err) : NULL;
-	if (!f) { fprintf(stderr, "bttree: %s\n", err[0] ? err : "no vocabulary"); return 1; }
-	int tree = only ? bt_forest_find(f, only) : 0;
-	if (tree < 0) { fprintf(stderr, "bttree: no tree called %s\n", only); return 1; }
+	bt_diag d;
+	bt_forest *f = v ? bt_compile_diag(v, full, &d) : NULL;
+	if (!f) { fprintf(stderr, "bttree: %s\n", v ? d.message : "no vocabulary"); return NULL; }
+	*tree = only ? bt_forest_find(f, only) : 0;
+	if (*tree < 0) { fprintf(stderr, "bttree: no tree called %s\n", only); return NULL; }
+	*vp = v;
+	return f;
+}
+
+static void say_unasked(void)
+{
+	int head = 0;
+	for (int i = 0; i < n_asked; i++) {
+		if (!strcmp(asked[i], "always")) continue;
+		printf("%s%s%s", head++ ? ", " : "asked and not given (so 0): ", DIM, asked[i]);
+		printf("%s", OFF);
+	}
+	if (head) printf("\n");
+	for (int i = 0; i < n_set; i++)
+		if (!set_[i].used) printf("given but never asked: %s\n", set_[i].key);
+}
+
+/* "tdm.bt line 12", for a node of the forest */
+static const char *where_text(const bt_node *n)
+{
+	static char buf[300];
+	int local, f = where_line(n->line, &local);
+	const char *base = f >= 0 ? strrchr(files[f].path, '/') : NULL;
+	snprintf(buf, sizeof buf, "%s line %d", f < 0 ? "(the engine's)" : base ? base + 1 : files[f].path, local);
+	return buf;
+}
+
+typedef struct outcome { char what[256]; int by[BC_A_COUNT]; int all; } outcome;
+typedef struct why { int bots, chosen; double score, weight, worth; } why;
+
+static int by_count(const void *a, const void *b) { return ((const outcome *)b)->all - ((const outcome *)a)->all; }
+
+static int split(const char *only, int n, const char *mix, int level, int with_why)
+{
+	int tree;
+	bt_vocab *v;
+	bt_forest *f = split_forest(only, &tree, &v);
+	if (!f) return 1;
 
 	float mixw[BC_A_COUNT];
 	if (!bc_archetype_weights(mix ? mix : "", mixw)) { fprintf(stderr, "bttree: --mix %s?\n", mix); return 1; }
 
-	static struct { char what[256]; int by[BC_A_COUNT]; int all; } out[MAX_OUT];
-	int n_out = 0, crowd[BC_A_COUNT] = {0};
+	static outcome out[MAX_OUT];
+	int n_out = 0, crowd[BC_A_COUNT] = {0}, nodes = (int)bt_forest_nodes(f);
 	bt_state *st = malloc(bt_state_size(f));
-	if (!st) return 1;
+	why *ws = calloc((size_t)nodes, sizeof *ws);
+	if (!st || !ws) return 1;
 	for (int k = 0; k < n; k++) {
 		bc_rng r; bc_persona p;
 		bc_rng_seed(&r, 4242 + (uint64_t)k, 11);
 		bc_persona_roll(&p, &r, mixw, level);
 		bt_ctx ctx = {&r, p.trait, BC_T_COUNT, 0.1f, split_random};
 		bt_state_init(st, f);
+		bt_state_trace(st, with_why);
 		bt_status res = bt_tick(f, tree, st, &ctx);
 		char what[256];
 		if (res == BT_RUNNING) bt_describe(f, st, what, sizeof what);
@@ -381,12 +1403,20 @@ static int split(const char *text, const char *only, int n, const char *mix, int
 		if (o == MAX_OUT) o = MAX_OUT - 1;
 		else if (o == n_out) { snprintf(out[o].what, sizeof out[o].what, "%s", what); n_out++; }
 		out[o].all++; out[o].by[p.archetype]++; crowd[p.archetype]++;
+		for (int i = 0; with_why && i < nodes; i++) {       /* every pick that weighed its options */
+			bt_worth w[64];
+			int m = bt_state_worths(f, st, i, w, 64);
+			for (int j = 0; j < m && j < 64; j++) {
+				if (!w[j].weighed) continue;
+				why *y = &ws[w[j].option];
+				y->bots++;
+				y->chosen += w[j].held;
+				y->score += w[j].score; y->weight += w[j].weight; y->worth += w[j].worth;
+			}
+		}
 		bt_reset(f, st, &ctx);
 	}
-	/* most chosen first */
-	for (int i = 0; i < n_out; i++)
-		for (int j = i + 1; j < n_out; j++)
-			if (out[j].all > out[i].all) { __typeof__(out[0]) t = out[i]; out[i] = out[j]; out[j] = t; }
+	qsort(out, (size_t)n_out, sizeof out[0], by_count);       /* most chosen first */
 
 	printf("%s%d bots, level %d, tree %s%s\n", BOLD, n, level, only ? only : "(the first)", OFF);
 	printf("%6s", "all");
@@ -397,43 +1427,244 @@ static int split(const char *text, const char *only, int n, const char *mix, int
 		for (int a = 0; a < BC_A_COUNT; a++) if (crowd[a]) printf(" %6.0f%%", 100.0 * out[o].by[a] / crowd[a]);
 		printf("  %s%s%s\n", BOLD, out[o].what, OFF);
 	}
-	int head = 0;
-	for (int i = 0; i < n_asked; i++) {
-		if (!strcmp(asked[i], "always")) continue;
-		printf("%s%s%s", head++ ? ", " : "asked and not given (so 0): ", DIM, asked[i]);
-		printf("%s", OFF);
+	for (int i = 0; with_why && i < nodes; i++) {
+		bt_node pk, on, ch;
+		bt_forest_node(f, i, &pk);
+		if (pk.kind != BT_K_PICK || !ws[pk.first_child].bots) continue;
+		printf("\n%swhy: %s%s  %s(%s; %d bots came to it)%s\n", BOLD, pk.text, OFF, DIM, where_text(&pk), ws[pk.first_child].bots, OFF);
+		printf("  chose   score  weight  factor   worth\n");
+		for (int o = pk.first_child; o >= 0; o = on.next_sibling) {
+			const why *y = &ws[o];
+			bt_forest_node(f, o, &on);
+			bt_forest_node(f, on.first_child, &ch);
+			if (!y->bots) continue;
+			printf(" %5.1f%%  %6.2f  %6.2f  %6s  %6.2f  %s %s%s  %s-> %s%s\n", 100.0 * y->chosen / y->bots,
+				y->score / y->bots, y->weight / y->bots, num(on.factor), y->worth / y->bots,
+				on.trait, on.name, y->score > 0 ? "" : " (0: cannot be chosen)", DIM, ch.text, OFF);
+		}
 	}
-	if (head) printf("\n");
-	for (int i = 0; i < n_set; i++)
-		if (!set_[i].used) printf("given but never asked: %s\n", set_[i].key);
+	say_unasked();
+	free(st); free(ws); bt_forest_free(f); bt_vocab_free(v);
+	return 0;
+}
+
+/* one bot, and its tree as the engine holds it */
+static void trace_node(const bt_forest *f, const bt_state *st, int id, const char *prefix, int last, const int *path, int n_path)
+{
+	bt_node n;
+	bt_node_state ns;
+	bt_forest_node(f, id, &n);
+	bt_state_node(f, st, id, &ns);
+	int on_path = 0;
+	for (int k = 0; k < n_path; k++) on_path |= path[k] == id;
+	const char *tee = plain ? (last ? "`- " : "|- ") : (last ? "└─ " : "├─ ");
+	const char *bar = plain ? (last ? "   " : "|  ") : (last ? "   " : "│  ");
+	printf("%s%4d %s%s%s%s%s", DIM, id, OFF, on_path ? (plain ? "> " : "▶ ") : "  ", DIM, prefix, tee);
+	printf("%s", OFF);
+	if (on_path) printf("%s", BOLD);
+	node_words(&n);
+	if (n.kind == BT_K_PICK && ns.running)
+		printf("  %s[chose %.1f s ago, again in %.1f s]%s", DIM, (double)ns.elapsed, (double)ns.remaining, OFF);
+	if ((n.kind == BT_K_WAIT || n.kind == BT_K_LIMIT) && ns.running)
+		printf("  %s[%.1f s in, %.1f s left]%s", DIM, (double)ns.elapsed, (double)ns.remaining, OFF);
+	if (n.kind == BT_K_COOLDOWN && ns.remaining > 0)
+		printf("  %s[cooling: %.1f s left]%s", DIM, (double)ns.remaining, OFF);
+	if (n.kind == BT_K_OPTION) {
+		bt_worth w[64];
+		int m = bt_state_worths(f, st, n.parent, w, 64);
+		for (int k = 0; k < m && k < 64; k++)
+			if (w[k].option == id && w[k].weighed && !(w[k].score > 0))
+				printf("  %sscore 0: not to be chosen%s", DIM, OFF);
+			else if (w[k].option == id && w[k].weighed)
+				printf("  %s%.2f x %.2f x %s x %.2f x %.2f = %s%.3f%s%s", DIM, (double)w[k].score, (double)w[k].weight,
+					num(w[k].factor), (double)w[k].luck, (double)w[k].sticky, OFF, (double)w[k].worth,
+					w[k].held ? "  <- held" : "", OFF);
+	}
+	printf("%s\n", OFF);
+	char deeper[1024];
+	snprintf(deeper, sizeof deeper, "%s%s", prefix, bar);
+	for (int k = n.first_child; k >= 0;) {
+		bt_node ch;
+		bt_forest_node(f, k, &ch);
+		trace_node(f, st, k, deeper, ch.next_sibling < 0, path, n_path);
+		k = ch.next_sibling;
+	}
+}
+
+static int trace(const char *only, int seed, int level, double secs, int as_json)
+{
+	static const char *const answer[3] = { "FAILURE", "SUCCESS", "RUNNING" };
+	int tree;
+	bt_vocab *v;
+	bt_forest *f = split_forest(only, &tree, &v);
+	if (!f) return 1;
+	float mixw[BC_A_COUNT] = {0};
+	int a = as_name ? bc_archetype_by_name(as_name) : BC_A_SOLDIER;
+	if (a < 0) { fprintf(stderr, "bttree: no archetype called %s\n", as_name); return 1; }
+	mixw[a] = 1;
+	as_name = NULL;                         /* its weights are in the numbers shown */
+	bc_rng r; bc_persona p;
+	bc_rng_seed(&r, 4242 + (uint64_t)seed, 11);
+	bc_persona_roll(&p, &r, mixw, level);
+	bt_ctx ctx = {&r, p.trait, BC_T_COUNT, 0.1f, split_random};
+	bt_state *st = malloc(bt_state_size(f));
+	if (!st) return 1;
+	bt_state_init(st, f);
+	bt_state_trace(st, 1);
+	bt_status res = bt_tick(f, tree, st, &ctx);
+	int ticks = 1;
+	for (double t = 0.1; t < secs; t += 0.1, ticks++) res = bt_tick(f, tree, st, &ctx);
+
+	int path[BT_DEPTH_MAX], n_path = bt_state_running(f, st, tree, path, BT_DEPTH_MAX);
+	bt_tree tr;
+	bt_forest_tree(f, tree, &tr);
+	int end = (int)bt_forest_nodes(f);
+	bt_tree nx;
+	if (bt_forest_tree(f, tree + 1, &nx)) end = nx.root;
+
+	if (as_json) {
+		FILE *o = stdout;
+		fputs("{\"format\": \"lsd-bt-trace\", \"version\": 1, ", o);
+		jkv(o, "tree", tr.name); fprintf(o, ", \"root\": %d, \"ticks\": %d, ", tr.root, ticks);
+		jkv(o, "answer", answer[res]);
+		fputs(",\n  \"bot\": {", o); jkv(o, "archetype", bc_archetype_name(p.archetype));
+		fprintf(o, ", \"level\": %d, \"weights\": {", p.level);
+		for (int t = 0; t < BC_T_COUNT; t++) { if (t) fputs(", ", o); jkey(o, bc_trait_name(t)); fputs(num(p.trait[t]), o); }
+		fputs("}},\n  \"running\": [", o);
+		for (int k = 0; k < n_path; k++) fprintf(o, "%s%d", k ? ", " : "", path[k]);
+		fputs("],\n  \"nodes\": [", o);
+		for (int i = tr.root; i < end; i++) {
+			bt_node n;
+			bt_node_state ns;
+			int local, fi, on_path = 0;
+			bt_forest_node(f, i, &n);
+			bt_state_node(f, st, i, &ns);
+			fi = where_node(n.source, &local);
+			for (int k = 0; k < n_path; k++) on_path |= path[k] == i;
+			fprintf(o, "%s\n    {\"id\": %d, \"parent\": %d, \"file\": %d, \"source\": %d, ", i > tr.root ? "," : "", i, n.parent, fi, local);
+			jkv(o, "kind", bt_kind_name(n.kind)); fputs(", ", o); jkv(o, "text", n.text);
+			fprintf(o, ", \"running\": %s", on_path ? "true" : "false");
+			if (ns.child >= 0) fprintf(o, ", \"child\": %d", ns.child);
+			if (ns.running && (n.kind == BT_K_PICK || n.kind == BT_K_WAIT || n.kind == BT_K_LIMIT))
+				fprintf(o, ", \"elapsed\": %s, \"remaining\": %s", num(ns.elapsed), num(ns.remaining));
+			if (n.kind == BT_K_COOLDOWN && ns.remaining > 0) fprintf(o, ", \"remaining\": %s", num(ns.remaining));
+			if (n.kind == BT_K_OPTION) {
+				bt_worth w[64];
+				int m = bt_state_worths(f, st, n.parent, w, 64);
+				for (int k = 0; k < m && k < 64; k++)
+					if (w[k].option == i && w[k].weighed)
+						fprintf(o, ", \"worth\": {\"score\": %s, \"weight\": %s, \"factor\": %s, \"luck\": %s, \"sticky\": %s, \"worth\": %s, \"held\": %s}",
+							num(w[k].score), num(w[k].weight), num(w[k].factor), num(w[k].luck), num(w[k].sticky),
+							num(w[k].worth), w[k].held ? "true" : "false");
+			}
+			fputc('}', o);
+		}
+		fputs("\n  ]\n}\n", o);
+	} else {
+		char what[256] = "";
+		bt_describe(f, st, what, sizeof what);
+		printf("%s%s%s: a %s, level %d, after %d tick%s (%.1f s): %s%s%s%s%s\n", BOLD, tr.name, OFF,
+			bc_archetype_name(p.archetype), p.level, ticks, ticks > 1 ? "s" : "", ticks * 0.1,
+			BOLD, answer[res], OFF, what[0] ? "  " : "", what);
+		printf("%s  id   an option: score x weight x factor x luck x sticky = worth%s\n", DIM, OFF);
+		trace_node(f, st, tr.root, "", 1, path, n_path);
+		say_unasked();
+	}
 	free(st); bt_forest_free(f); bt_vocab_free(v);
 	return 0;
 }
 
+/* ---- --doc: the trees a Markdown file shows ------------------------------ */
+
+static int check_doc(const bt_vocab *v, const char *path)
+{
+	char *text = slurp(path, NULL);
+	if (!text) { fprintf(stderr, "bttree: cannot read %s\n", path); return 1; }
+	int bad = 0, blocks = 0, line = 1;
+	for (char *q = text; q && *q;) {
+		char *nl = strchr(q, '\n');
+		if (!strncmp(q, "```bt", 5) && (q[5] == '\n' || q[5] == '\r' || q[5] == ' ')) {
+			char *start = nl ? nl + 1 : q + strlen(q), *end = start;
+			int first = ++line;
+			while (*end && strncmp(end, "```", 3)) {
+				char *e = strchr(end, '\n');
+				line++;
+				end = e ? e + 1 : end + strlen(end);
+			}
+			char *block = malloc((size_t)(end - start) + 256);
+			if (!block) return 1;
+			snprintf(block, (size_t)(end - start) + 1, "%s", start);
+			bt_diag d;
+			bt_source *src = bt_parse(v, block, &d);
+			bt_forest *f = NULL;
+			if (src) {
+				int shifted = add_stubs(block, src);
+				f = bt_compile_diag(v, block, &d);
+				if (!f) d.line -= shifted;
+			}
+			if (!f) {
+				fprintf(stderr, "%s:%d: %s\n", path, first + d.line - 1, d.message);
+				bad = 1;
+			}
+			blocks++;
+			bt_forest_free(f); bt_source_free(src); free(block);
+			q = end;
+			nl = strchr(q, '\n');
+		}
+		line++;
+		q = nl ? nl + 1 : NULL;
+	}
+	if (!blocks) { fprintf(stderr, "%s: no ```bt block in it\n", path); bad = 1; }
+	if (!bad) printf("ok: %d tree text(s) in %s\n", blocks, path);
+	free(text);
+	return bad;
+}
+
+/* ---- main ----------------------------------------------------------------- */
+
 static int usage(void)
 {
-	fprintf(stderr, "usage: bttree [--tree NAME] [--as ARCHETYPE] [--check] [--words] [--plain] FILE.bt...\n"
-		"       bttree --split [--tree NAME] [--n 700] [--mix camper:2,pusher] [--level 5] FILE.bt... [WORD=VALUE]...\n");
+	fprintf(stderr,
+		"usage: bttree [--tree NAME] [--as ARCHETYPE] [--plain] FILE.bt...     draw\n"
+		"       bttree --check [--json] FILE.bt...                            is it right\n"
+		"       bttree --split [--why] [--tree NAME] [--n 700] [--mix camper:2,pusher] [--level 5] FILE.bt... [WORD=VALUE]...\n"
+		"       bttree --trace [--json] [--tree NAME] [--as ARCHETYPE] [--seed 0] [--level 5] [--secs 0] FILE.bt... [WORD=VALUE]...\n"
+		"       bttree --json [--expanded] FILE.bt... | --from-json FILE | --format FILE.bt... | --roundtrip FILE.bt...\n"
+		"       bttree --words [--md] | --schema | --doc FILE.md...\n");
 	return 2;
 }
 
 int main(int argc, char **argv)
 {
-	const char *only = NULL, *files[64];
-	int n_files = 0, check = 0, words = 0, do_split = 0, crowd = 700, level = 5;
-	const char *mix = NULL;
+	const char *only = NULL, *mix = NULL, *from = NULL;
+	char *paths[MAX_FILES];
+	int n_paths = 0, check = 0, list = 0, md = 0, do_split = 0, do_trace = 0, with_why = 0, crowd = 700, level = 5, seed = 0;
+	int json = 0, expanded = 0, do_schema = 0, do_doc = 0, do_format = 0, do_round = 0;
+	double secs = 0;
 
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--tree") && i + 1 < argc) only = argv[++i];
 		else if (!strcmp(argv[i], "--as") && i + 1 < argc) as_name = argv[++i];
 		else if (!strcmp(argv[i], "--check")) check = 1;
-		else if (!strcmp(argv[i], "--words")) words = 1;
+		else if (!strcmp(argv[i], "--words")) list = 1;
+		else if (!strcmp(argv[i], "--md")) md = 1;
 		else if (!strcmp(argv[i], "--plain")) plain = 1;
 		else if (!strcmp(argv[i], "--split")) do_split = 1;
+		else if (!strcmp(argv[i], "--why")) with_why = 1;
+		else if (!strcmp(argv[i], "--trace")) do_trace = 1;
+		else if (!strcmp(argv[i], "--json")) json = 1;
+		else if (!strcmp(argv[i], "--expanded")) expanded = 1;
+		else if (!strcmp(argv[i], "--schema")) do_schema = 1;
+		else if (!strcmp(argv[i], "--doc")) do_doc = 1;
+		else if (!strcmp(argv[i], "--format")) do_format = 1;
+		else if (!strcmp(argv[i], "--roundtrip")) do_round = 1;
+		else if (!strcmp(argv[i], "--from-json") && i + 1 < argc) from = argv[++i];
 		else if (!strcmp(argv[i], "--n") && i + 1 < argc) crowd = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "--level") && i + 1 < argc) level = atoi(argv[++i]);
+		else if (!strcmp(argv[i], "--seed") && i + 1 < argc) seed = atoi(argv[++i]);
+		else if (!strcmp(argv[i], "--secs") && i + 1 < argc) secs = atof(argv[++i]);
 		else if (!strcmp(argv[i], "--mix") && i + 1 < argc) mix = argv[++i];
-		else if (do_split && strchr(argv[i], '=') && argv[i][0] != '-') {
+		else if ((do_split || do_trace) && strchr(argv[i], '=') && argv[i][0] != '-') {
 			char *eq = strchr(argv[i], '=');
 			if (n_set < MAX_SET) {
 				snprintf(set_[n_set].key, sizeof set_[0].key, "%.*s", (int)(eq - argv[i]), argv[i]);
@@ -441,97 +1672,75 @@ int main(int argc, char **argv)
 				n_set++;
 			}
 		}
-		else if (argv[i][0] == '-') return usage();
-		else if (n_files < 64) files[n_files++] = argv[i];
+		else if (argv[i][0] == '-' && argv[i][1]) return usage();
+		else if (n_paths < MAX_FILES) paths[n_paths++] = argv[i];
 	}
 	colour = !plain && isatty(1);
+	if (crowd < 1) crowd = 1;
+	if (level < 1) level = 1;
+	if (level > 10) level = 10;
 
-	if (words) {
-		size_t need = bc_vocab_dump(NULL, 0);
-		char *buf = malloc(need + 1);
+	if (list && md) return words_md(stdout);
+	if (list) {
+		char *buf = vocab_text();
 		if (!buf) return 1;
-		bc_vocab_dump(buf, need + 1);
 		fputs(buf, stdout);
 		free(buf);
 		return 0;
 	}
-	if (!n_files) return usage();
+	if (do_schema) return schema(stdout);
 
 	bt_vocab *v = bt_vocab_new();
 	if (!v || !bc_vocab_register(v)) { fprintf(stderr, "bttree: no vocabulary\n"); return 1; }
 
-	/* each file alone first, so a mistake is told with its own line */
-	static char all[MAX_TEXT + 1];
-	size_t used = 0;
-	int bad = 0;
-	for (int i = 0; i < n_files; i++) {
-		size_t len;
-		char *text = slurp(files[i], &len);
-		if (!text) { fprintf(stderr, "bttree: cannot read %s\n", files[i]); return 1; }
-		char err[256] = "";
-		bt_forest *f = bt_compile(v, text, err, sizeof err);
-		if (!f) {
-			/* a file that only fails for a tree defined in another one
-			 * is tried again with the rest, below */
-			if (!strstr(err, "no tree")) {
-				fprintf(stderr, "%s: %s\n", files[i], err);
-				bad = 1;
-			}
-		} else
-			bt_forest_free(f);
-		if (used + len + 2 < sizeof all) {
-			memcpy(all + used, text, len);
-			used += len;
-			all[used++] = '\n';
+	if (from) {
+		char *text = slurp(from, NULL);
+		if (!text) { fprintf(stderr, "bttree: cannot read %s\n", from); return 1; }
+		return !from_json_text(v, text, stdout);
+	}
+	if (!n_paths) return usage();
+	if (do_doc) {
+		int bad = 0;
+		for (int i = 0; i < n_paths; i++) bad |= check_doc(v, paths[i]);
+		return bad;
+	}
+
+	int ok = load(v, paths, n_paths);
+	if (check && json) {
+		printf("{\"ok\": %s, \"diagnostics\": [", ok ? "true" : "false");
+		for (int i = 0; i < n_diags; i++) {
+			printf("%s\n  {", i ? "," : "");
+			jkv(stdout, "file", diags[i].file);
+			printf(", \"line\": %d, \"column\": %d, ", diags[i].line, diags[i].column);
+			jkv(stdout, "message", diags[i].message);
+			printf("}");
 		}
-		free(text);
+		printf("%s]}\n", n_diags ? "\n" : "");
+		return !ok;
 	}
-	all[used] = 0;
-	if (!bad) {
-		char err[256] = "";
-		bt_forest *f = bt_compile(v, all, err, sizeof err);
-		if (!f) {
-			/* items and extras exist only at run time: not a mistake */
-			if (!strstr(err, "items") && !strstr(err, "extras")) {
-				fprintf(stderr, "%s%s\n", n_files > 1 ? "together: " : "", err);
-				bad = 1;
-			}
-		} else
-			bt_forest_free(f);
+	for (int i = 0; i < n_diags; i++) {
+		if (diags[i].line > 0) fprintf(stderr, "%s: line %d: %s\n", diags[i].file, diags[i].line, diags[i].message);
+		else fprintf(stderr, "%s: %s\n", diags[i].file, diags[i].message);
 	}
-	bt_vocab_free(v);
-	if (bad) return 1;
+	if (!ok) return 1;
 	if (check) { printf("ok: %d file(s)\n", n_files); return 0; }
-	if (do_split) {
-		if (crowd < 1) crowd = 1;
-		if (level < 1) level = 1;
-		if (level > 10) level = 10;
-		return split(all, only, crowd, mix, level);
+	if (do_round) return roundtrip(v);
+	if (do_trace) return trace(only, seed, level, secs, json);
+	if (json) { json_all(stdout, expanded); return 0; }
+	if (do_format) {
+		for (int i = 0; i < n_files; i++) {
+			char *text = canonical(files[i].src);
+			if (text) fputs(text, stdout);
+			free(text);
+		}
+		return 0;
 	}
+	if (do_split) return split(only, crowd, mix, level, with_why);
 
 	if (as_name) {
 		int a = bc_archetype_by_name(as_name);
 		if (a < 0) { fprintf(stderr, "bttree: no archetype called %s\n", as_name); return 1; }
-		float w[BC_A_COUNT] = {0};
-		w[a] = 1;
-		for (int k = 0; k < 400; k++) {
-			bc_rng r; bc_persona p;
-			bc_rng_seed(&r, 1000 + (uint64_t)k, 7);
-			bc_persona_roll(&p, &r, w, 5);
-			for (int t = 0; t < BC_T_COUNT; t++) as_weight[t] += p.trait[t] / 400.0f;
-		}
+		archetype_means(a, as_weight);
 	}
-
-	if (!read_nodes(all)) { fprintf(stderr, "bttree: too large to draw\n"); return 1; }
-	int open[MAX_OPEN];
-	int drawn = 0;
-	for (int t = 0; t < n_trees; t++) {
-		if (only && strcmp(only, trees[t].name)) continue;
-		if (drawn++) printf("\n");
-		printf("%s%s%s\n", BOLD, trees[t].name, OFF);
-		open[0] = t;
-		draw(t, "", open, 1);
-	}
-	if (only && !drawn) { fprintf(stderr, "bttree: no tree called %s\n", only); return 1; }
-	return 0;
+	return draw_all(whole, only);
 }

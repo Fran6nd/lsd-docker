@@ -7,10 +7,13 @@ description: Design or tune a bot behaviour tree (bot/trees/*.bt, an item's or a
 
 A tree says what CAN be done and what bears on it; each bot's character
 (ten traits, rolled per bot from its archetype) says what THAT bot would
-rather. Tuning is moving numbers in the text, never code. Grammar:
-`bot/core/bt.h`. Words: `bttree --words` (the truth) and
-`bot/core/vocab.h` (the prose). For a new word, skill or setting, use the
-`bot-behaviour` skill instead.
+rather. Tuning is moving numbers in the text, never code. The reference
+is `bot/TREES.md` (every keyword's exact answers and defaults, the worth
+formula with a worked example, `_also` / `items` / `extras`, how a tree
+is compiled and run, giving one bot a tree of its own); `bot/core/bt.h`
+is the same in short. Words: `bot/VOCAB.md`, which is `bttree --words
+--md` (the truth), and `bot/core/vocab.h` (the prose). For a new word,
+skill or setting, use the `bot-behaviour` skill instead.
 
 ## The tool
 
@@ -23,9 +26,13 @@ B=bot/build/bin/bttree
 |---|---|
 | What does the tree look like, sub-trees opened? | `$B bot/trees/tdm.bt` (`--tree NAME` for one, `--plain` for a pipe) |
 | Does it compile, with today's words? | `$B --check bot/trees/*.bt` (also the last step of `make -C bot test`) |
-| What words are there? | `$B --words` (`\| grep '^score'`) |
+| What words are there? | `$B --words` (`\| grep '^score'`); `bot/VOCAB.md` is the same as a page |
 | How does a kind of bot weigh each option? | `$B --as camper bot/trees/tdm.bt` |
 | **In this situation, who does what?** | `$B --split ...` (below) |
+| **...and why?** | `$B --split --why ...`: each pick's options with their mean score, weight, worth, and who chose them |
+| What does ONE bot hold, node by node? | `$B --trace --as camper --secs 4 FILE word=value...` (below) |
+| Is the text in the house form? | `$B --format FILE` writes it canonical (tabs, comments in one column), which is how the shipped trees are written |
+| Are the examples of TREES.md still right? | `$B --doc bot/TREES.md` (part of `make -C bot test`) |
 
 ## --split: the tuning loop
 
@@ -62,6 +69,37 @@ Loop: state the situation -> `--split` -> change a factor (`x1.4`), a
 `sticky=`, a `noise=`, the trait of an option -> `--split` again. Run
 several situations per change (nothing known / enemy far / shot at / hurt
 / objective taken): a factor that fixes one usually moves another.
+
+When a row surprises, add `--why`. Under the rows it prints, for every
+pick a bot came to (with its file and line), one line an option:
+
+```
+why: pick every=3  (first.bt line 7; 700 bots came to it)
+  chose   score  weight  factor   worth
+  32.9%    0.60    1.00     1.2    0.72  aggression enemy_near  -> do fight
+  67.1%    0.60    1.04     1.5    0.93  caution hurt  -> do retreat
+   0.0%    0.00    1.09       1    0.00  curiosity search (0: cannot be chosen)  -> do investigate
+```
+
+`weight` and `worth` are means over the bots that weighed it (worth
+includes luck). It says which of the three is too strong -- the score you
+stated, the factor, or the crowd's weights -- before you move a number.
+
+## --trace: one bot, node by node
+
+```sh
+$B --trace --as soldier --seed 3 --secs 4 first.bt enemy_near=0.6 hurt=0.6
+```
+
+One rolled bot (`--as`, `--seed`, `--level`) in the stated situation,
+ticked for `--secs` (ten ticks a second; default one tick), then its tree
+drawn as the engine holds it: references opened, each node with its id,
+`>` on the RUNNING path, a pick's time to its next choice, and for every
+option `score x weight x factor x luck x sticky = worth` with the one
+held. Use it for what `--split` cannot show: `sticky` (it only counts
+once an option is held: give `--secs` longer than the pick's `every`),
+timers (`wait`, `limit`, `cooldown`), and a `seq` that resumes. `--json`
+gives the same as data.
 
 ## What the numbers mean
 
@@ -100,9 +138,19 @@ An option's worth = `score x the bot's trait weight x factor x luck`.
 is ever above 0 on a real map (a perch found, a rumour heard). Then:
 - `make -C bot test` -- the scenarios (`bot/tests/behaviour_test.c`,
   `ctf_test.c`, `squad_test.c`) pin splits and outcomes; a retune may
-  need their bounds moved, deliberately.
+  need their bounds moved, deliberately. It also compiles every tree
+  shown in `bot/TREES.md`, sends the shipped trees to JSON and back, and
+  fails if `bot/VOCAB.md` is not today's vocabulary (`make -C bot doc`
+  rewrites it).
 - live: the `demo-server` skill to put it on the demo, `bot-live-debug`
   to see what bots are doing (the engine's "stuck" lines print each
   bot's `pick:... > action` path, the same text as --split's rows).
 - A tree can be tried on a running server without a rebuild:
-  `botlink_set("tree", <text>)` from `lsdctl exec`.
+  `botlink_set("tree", <text>)` from `lsdctl exec`, or -- an operator's
+  way -- a file `<name>.bt` in the data volume's `trees/` (read again at
+  each map load; a tree named like a built-in one replaces it) and the
+  setting `engine_bots_tree`. `engine_bots_archetypes` and
+  `engine_bots_traits` lean the crowd without touching a tree. One bot
+  with its own tree (a boss): `botlink_add{tree=<text>, at=, once=true}`,
+  changed in play with `botlink_set("tree", <text>, pid)` -- TREES.md,
+  "Writing your own".

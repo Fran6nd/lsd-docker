@@ -62,3 +62,5 @@ shows that kind of bot's weight beside each weighed choice, `--tree NAME` one tr
 the real vocabulary and names the faulty line; `make -C bot test` runs it.
 `bttree --words` lists every condition, score, action and trait.
 
+
+After any change to the words (bot/core/vocab.c) or to persona centres, run `make -C bot doc`: it regenerates bot/VOCAB.md, and `make -C bot test` fails while that file is stale.

@@ -159,7 +159,9 @@ should use it: its `bot` entry in `rewards_menu` is a fragment of
 behaviour tree in the bot engine's words (a medkit when hurt, an ammo
 box when low, a missile at an enemy in sight under open sky...). Any
 inventory item can carry one (`inventory_define`'s `bot`), and a
-gamemode's tree uses them all with `tree items`. Every impact -- rocket, missile, bomb -- also plays a grenade explosion,
+gamemode's tree uses them all with `tree items` (the language of those
+trees, and how to write your own for a mode or for one bot:
+[bot/TREES.md](../bot/TREES.md)). Every impact -- rocket, missile, bomb -- also plays a grenade explosion,
 the sound and the flash, for every client. Rocket and airstrike are
 ordinary effects too, built on the `blast` library: installed alone,
 they are everybody's.

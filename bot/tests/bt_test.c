@@ -1,6 +1,8 @@
 /* bt_test.c -- the behaviour tree runtime, with small test vocabularies */
 #include "bt.h"
 #include "persona.h"
+#include "vocab.h"
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -756,6 +758,544 @@ static void test_example(void)
 	bt_vocab_free(v);
 }
 
+/* ---- looking in: the source, the text written back, the forest walked,
+ * mistakes as data, a bot watched ------------------------------------- */
+
+static int same(const char *a, const char *b) { return (!a && !b) || (a && b && !strcmp(a, b)); }
+
+static const char SRC[] =
+	"# a file's first words\n"
+	"\n"
+	"# what main is for\n"
+	"tree main:   # the one run\n"
+	"select\n"
+	"    # hurt: get well\n"
+	"    seq                # twice a line\n"
+	"        if flag 0\n"
+	"        do act 1 far 2.5\n"
+	"\n"
+	"    #unspaced\n"
+	"    pick every=3 noise=0\n"
+	"        option a sc 0 x1.5   #first\n"
+	"            do act 2\n"
+	"        option b sc 1 near\n"
+	"            tree other\n"
+	"    limit 4\n"
+	"        tree later\n"
+	"tree other :\n"
+	"cooldown 2.5\n"
+	"    wait 1\n"
+	"# the end\n";
+
+static void test_source(void)
+{
+	bt_diag d;
+	bt_source *src = bt_parse(vocab, SRC, &d);
+	bt_tree t;
+	bt_node n;
+	CHECK(src != NULL);
+	if (!src) { printf("  %d:%d %s\n", d.line, d.column, d.message); return; }
+	CHECK(d.line == 0 && d.message[0] == 0);
+	CHECK(bt_source_trees(src) == 2 && bt_source_nodes(src) == 13);
+	CHECK(bt_source_tree(src, 0, &t) && !strcmp(t.name, "main") && t.root == 0 && t.line == 4 && t.header == 1);
+	CHECK(same(t.comment, "the one run") && same(t.above, "# a file's first words\n\n# what main is for\n"));
+	CHECK(bt_source_tree(src, 1, &t) && !strcmp(t.name, "other") && t.root == 11 && t.line == 19 && !t.comment && !t.above);
+	CHECK(!bt_source_tree(src, 2, &t) && !bt_source_tree(src, -1, &t));
+	CHECK(same(bt_source_tail(src), "# the end\n"));
+
+	CHECK(bt_source_node(src, 0, &n) && n.kind == BT_K_SELECT && n.id == 0 && n.source == 0 && n.parent == -1);
+	CHECK(n.first_child == 1 && n.next_sibling == -1 && n.n_children == 3 && n.tree == 0 && n.line == 5 && n.column == 1);
+	CHECK(same(n.text, "select") && !n.name && !n.trait && !n.comment && !n.above && n.via == -1);
+	CHECK(bt_source_node(src, 1, &n) && n.kind == BT_K_SEQ && n.parent == 0 && n.first_child == 2 && n.next_sibling == 4);
+	CHECK(n.column == 5 && same(n.comment, "twice a line") && same(n.above, "# hurt: get well\n") && n.n_children == 2);
+	CHECK(bt_source_node(src, 2, &n) && n.kind == BT_K_IF && same(n.name, "flag") && n.args.count == 1 && n.column == 9);
+	CHECK(n.first_child == -1 && n.next_sibling == 3 && n.n_children == 0);
+	CHECK(bt_source_node(src, 3, &n) && n.kind == BT_K_DO && same(n.name, "act") && n.args.count == 3);
+	CHECK(same(n.args.text[1], "far") && n.args.num[2] == 2.5f && same(n.text, "do act 1 far 2.5") && n.next_sibling == -1);
+	/* a pick: what was written, and what is the default */
+	CHECK(bt_source_node(src, 4, &n) && n.kind == BT_K_PICK && n.every == 3.0f && n.noise == 0.0f && n.sticky == 0.25f);
+	CHECK(n.written == (BT_W_EVERY | BT_W_NOISE) && same(n.above, "\n#unspaced\n") && n.n_children == 2 && n.next_sibling == 9);
+	CHECK(bt_source_node(src, 5, &n) && n.kind == BT_K_OPTION && same(n.trait, "a") && same(n.name, "sc"));
+	CHECK(n.factor == 1.5f && n.written == BT_W_FACTOR && n.args.count == 1 && same(n.comment, "first") && n.parent == 4);
+	CHECK(bt_source_node(src, 7, &n) && n.kind == BT_K_OPTION && n.factor == 1.0f && n.written == 0 && n.args.count == 2);
+	/* a reference is a node, and may name a tree the text has not */
+	CHECK(bt_source_node(src, 8, &n) && n.kind == BT_K_TREE && same(n.name, "other") && n.n_children == 0);
+	CHECK(bt_source_node(src, 9, &n) && n.kind == BT_K_LIMIT && n.secs == 4.0f && n.n_children == 1);
+	CHECK(bt_source_node(src, 10, &n) && n.kind == BT_K_TREE && same(n.name, "later") && n.line == 18);
+	CHECK(bt_source_node(src, 11, &n) && n.kind == BT_K_COOLDOWN && n.secs == 2.5f && n.tree == 1 && n.parent == -1 && n.line == 20);
+	CHECK(!bt_source_node(src, 13, &n) && !bt_source_node(src, -1, &n));
+	CHECK(same(bt_kind_name(BT_K_SEQ), "seq") && same(bt_kind_name(BT_K_TREE), "tree") && !bt_kind_name(BT_K_COUNT) && !bt_kind_name(-1));
+	bt_source_free(src);
+
+	/* no header: the tree "main", and its comments on its first node */
+	src = bt_parse(vocab, "# top\ndo act 0\n", NULL);
+	CHECK(src != NULL);
+	if (src) {
+		CHECK(bt_source_tree(src, 0, &t) && !strcmp(t.name, "main") && t.header == 0 && t.line == 2 && !t.above);
+		CHECK(bt_source_node(src, 0, &n) && same(n.above, "# top\n"));
+		bt_source_free(src);
+	}
+	/* what bt_compile refuses in a line, bt_parse refuses the same */
+	CHECK(bt_parse(vocab, "do nothing\n", &d) == NULL && d.line == 1 && strstr(d.message, "no action"));
+	CHECK(bt_parse(vocab, "seq\n", &d) == NULL && strstr(d.message, "at least one child"));
+	CHECK(bt_parse(NULL, "seq\n", &d) == NULL);
+}
+
+/* the two forests have the same nodes: kinds, words, numbers, shape */
+static int same_forest(const bt_forest *a, const bt_forest *b)
+{
+	int i, k, n = (int)bt_forest_nodes(a);
+	bt_tree ta, tb;
+	if (bt_forest_nodes(b) != (size_t)n || bt_forest_trees(a) != bt_forest_trees(b)) return 0;
+	for (i = 0; i < bt_forest_trees(a); i++) {
+		bt_forest_tree(a, i, &ta); bt_forest_tree(b, i, &tb);
+		if (strcmp(ta.name, tb.name) || ta.root != tb.root || !same(ta.comment, tb.comment)) return 0;
+	}
+	for (i = 0; i < n; i++) {
+		bt_node x, y;
+		bt_forest_node(a, i, &x); bt_forest_node(b, i, &y);
+		if (x.kind != y.kind || x.parent != y.parent || x.n_children != y.n_children || x.tree != y.tree ||
+		    x.source != y.source || x.via != y.via || x.written != y.written || x.args.count != y.args.count ||
+		    x.secs != y.secs || x.every != y.every || x.sticky != y.sticky || x.noise != y.noise || x.factor != y.factor ||
+		    !same(x.name, y.name) || !same(x.trait, y.trait) || !same(x.text, y.text) || !same(x.comment, y.comment))
+			return 0;
+		for (k = 0; k < x.args.count; k++) if (!same(x.args.text[k], y.args.text[k])) return 0;
+	}
+	return 1;
+}
+
+/* how many comments a source holds: lines above, on a line, at the end */
+static int count_comments(const bt_source *src)
+{
+	int i, n = 0;
+	const char *q;
+	bt_tree t;
+	bt_node nd;
+	for (i = 0; bt_source_tree(src, i, &t); i++) {
+		if (t.comment) n++;
+		for (q = t.above; q && *q; q++) if (*q == '#' && (q == t.above || q[-1] == '\n')) n++;
+	}
+	for (i = 0; bt_source_node(src, i, &nd); i++) {
+		if (nd.comment) n++;
+		for (q = nd.above; q && *q; q++) if (*q == '#' && (q == nd.above || q[-1] == '\n')) n++;
+	}
+	for (q = bt_source_tail(src); q && *q; q++) if (*q == '#' && (q == bt_source_tail(src) || q[-1] == '\n')) n++;
+	return n;
+}
+
+/* text -> source -> text: the canonical text, or NULL (and a CHECK failed) */
+static char *canonical(const bt_vocab *v, const char *text, int *comments)
+{
+	bt_diag d;
+	bt_source *src = bt_parse(v, text, &d);
+	size_t n;
+	char *out;
+	CHECK(src != NULL);
+	if (!src) { printf("  %d:%d %s\n", d.line, d.column, d.message); return NULL; }
+	n = bt_source_text(src, NULL, 0);
+	out = malloc(n + 1);
+	CHECK(bt_source_text(src, out, n + 1) == n && strlen(out) == n);
+	if (comments) *comments = count_comments(src);
+	bt_source_free(src);
+	return out;
+}
+
+static void test_text(void)
+{
+	static const char WANT[] =
+		"# a file's first words\n"
+		"\n"
+		"# what main is for\n"
+		"tree main:                                    # the one run\n"
+		"select\n"
+		"\t# hurt: get well\n"
+		"\tseq                                       # twice a line\n"
+		"\t\tif flag 0\n"
+		"\t\tdo act 1 far 2.5\n"
+		"\n"
+		"\t#unspaced\n"
+		"\tpick every=3 noise=0\n"
+		"\t\toption a sc 0 x1.5                    # first\n"
+		"\t\t\tdo act 2\n"
+		"\t\toption b sc 1 near\n"
+		"\t\t\ttree other\n"
+		"\tlimit 4\n"
+		"\t\ttree later\n"
+		"tree other:\n"
+		"cooldown 2.5\n"
+		"\twait 1\n"
+		"# the end\n";
+	int c1 = 0, c2 = 0;
+	char *one = canonical(vocab, SRC, &c1), *two, small[8], err[200];
+	bt_source *src;
+	CHECK(one && !strcmp(one, WANT));
+	if (one && strcmp(one, WANT)) printf("--- got\n%s--- wanted\n%s", one, WANT);
+	if (!one) return;
+	/* written again from what it wrote: the same text, no comment lost */
+	two = canonical(vocab, one, &c2);
+	CHECK(two && !strcmp(one, two));
+	CHECK(c1 == 8 && c2 == c1);
+	free(two);
+	/* a buffer too small: the length in full, what fits, a 0 */
+	src = bt_parse(vocab, SRC, NULL);
+	CHECK(bt_source_text(src, small, sizeof small) == strlen(WANT) && !strcmp(small, "# a fil"));
+	CHECK(bt_source_text(src, NULL, 0) == strlen(WANT));
+	bt_source_free(src);
+	free(one);
+
+	/* and it compiles to the same forest: a text with every kind of node */
+	{
+		static const char ALL[] =
+			"tree main:\n"
+			"  select\n"
+			"    seq\n"
+			"      if flag 0\n"
+			"      unless flag 1\n"
+			"      invert\n"
+			"        never\n"
+			"          always\n"
+			"            do act 0\n"
+			"    pick every=1.5 sticky=0 noise=0.35  # all three\n"
+			"      option a sc 0 3 x0.25\n"
+			"        limit 2\n"
+			"          tree part\n"
+			"      option none sc 1\n"
+			"        cooldown 0.5\n"
+			"          wait 1e1\n"
+			"    tree part # twice\n"
+			"tree part:\n"
+			"  seq\n"
+			"    do act 3 x2\n";
+		bt_forest *a = bt_compile(vocab, ALL, err, sizeof err), *b;
+		char *txt = canonical(vocab, ALL, NULL);
+		CHECK(a != NULL && txt != NULL);
+		b = txt ? bt_compile(vocab, txt, err, sizeof err) : NULL;
+		CHECK(b != NULL);
+		if (a && b) {
+			CHECK(same_forest(a, b));
+			CHECK(same_forest(a, a));
+		}
+		if (a && b) {                       /* and same_forest does tell two apart */
+			bt_forest *c = bt_compile(vocab, "tree main:\nselect\n\tdo act 0\n", err, sizeof err);
+			CHECK(c && !same_forest(a, c));
+			bt_forest_free(c);
+		}
+		bt_forest_free(a); bt_forest_free(b); free(txt);
+	}
+	/* a headerless text stays headerless */
+	one = canonical(vocab, "select   \n    do act 0   # go\r\n", NULL);
+	CHECK(one && !strcmp(one, "select\n\tdo act 0                                  # go\n"));
+	free(one);
+	/* a comment after a long line: one space */
+	one = canonical(vocab, "do act 0 a_very_long_argument_indeed and_another_one_as_long #c\n", NULL);
+	CHECK(one && !strcmp(one, "do act 0 a_very_long_argument_indeed and_another_one_as_long # c\n"));
+	free(one);
+}
+
+static void test_forest_walk(void)
+{
+	char err[200];
+	static const char T[] =
+		"tree main:\n"            /* source ids        forest ids */
+		"seq\n"                   /* 0                 0 */
+		"\ttree greet\n"          /* 1                 1 select, 2 if, 3 do */
+		"\tinvert\n"              /* 2                 4 */
+		"\t\ttree alias\n"        /* 3                 5 select, 6 if, 7 do */
+		"tree greet:\n"
+		"select   # hello\n"      /* 4                 8 */
+		"\tif flag 0\n"           /* 5                 9 */
+		"\tdo act 1\n"            /* 6                 10 */
+		"tree alias:\n"
+		"tree greet\n";           /* 7                 11 select, 12, 13 */
+	bt_forest *f = bt_compile(vocab, T, err, sizeof err);
+	const bt_source *src;
+	bt_tree t;
+	bt_node n;
+	int i;
+	CHECK(f != NULL);
+	if (!f) return;
+	src = bt_forest_source(f);
+	CHECK(src && bt_source_nodes(src) == 8 && bt_source_trees(src) == 3);
+	CHECK(bt_forest_nodes(f) == 14 && bt_forest_trees(f) == 3);
+	CHECK(bt_forest_tree(f, 0, &t) && !strcmp(t.name, "main") && t.root == 0);
+	CHECK(bt_forest_tree(f, 1, &t) && !strcmp(t.name, "greet") && t.root == 8);
+	CHECK(bt_forest_tree(f, 2, &t) && !strcmp(t.name, "alias") && t.root == 11 && !bt_forest_tree(f, 3, &t));
+	CHECK(bt_source_tree(src, 1, &t) && t.root == 4);
+
+	CHECK(bt_forest_node(f, 0, &n) && n.kind == BT_K_SEQ && n.source == 0 && n.via == -1 && n.parent == -1 && n.n_children == 2);
+	CHECK(n.first_child == 1 && n.next_sibling == -1 && n.tree == 0);
+	/* a tree opened in place: its root says which reference brought it */
+	CHECK(bt_forest_node(f, 1, &n) && n.kind == BT_K_SELECT && n.source == 4 && n.via == 1 && n.parent == 0);
+	CHECK(n.next_sibling == 4 && n.n_children == 2 && same(n.comment, "hello") && n.line == 7 && n.tree == 0);
+	CHECK(bt_forest_node(f, 2, &n) && n.kind == BT_K_IF && n.source == 5 && n.via == -1 && n.parent == 1 && n.next_sibling == 3);
+	CHECK(bt_forest_node(f, 3, &n) && n.kind == BT_K_DO && same(n.name, "act") && n.next_sibling == -1 && n.first_child == -1);
+	CHECK(bt_forest_node(f, 4, &n) && n.kind == BT_K_INVERT && n.source == 2 && n.first_child == 5 && n.next_sibling == -1);
+	/* through two references: the outermost is named */
+	CHECK(bt_forest_node(f, 5, &n) && n.kind == BT_K_SELECT && n.source == 4 && n.via == 3 && n.parent == 4);
+	CHECK(bt_forest_node(f, 8, &n) && n.source == 4 && n.via == -1 && n.parent == -1 && n.tree == 1);
+	CHECK(bt_forest_node(f, 11, &n) && n.source == 4 && n.via == 7 && n.parent == -1 && n.tree == 2);
+	CHECK(bt_forest_node(f, 13, &n) && n.tree == 2 && n.parent == 11);
+	CHECK(!bt_forest_node(f, 14, &n) && !bt_forest_node(f, -1, &n));
+	/* no reference is left in a forest, and every node knows its source */
+	for (i = 0; bt_forest_node(f, i, &n); i++) {
+		bt_node s;
+		CHECK(n.kind != BT_K_TREE && n.id == i);
+		CHECK(bt_source_node(src, n.source, &s) && s.kind == n.kind && s.line == n.line);
+	}
+	CHECK(i == 14);
+	bt_forest_free(f);
+}
+
+static void diag_is(const char *text, int line, int column, const char *what)
+{
+	bt_diag d;
+	char err[300], want[300];
+	bt_forest *f = bt_compile_diag(vocab, text, &d);
+	CHECK(f == NULL);
+	if (f) { bt_forest_free(f); return; }
+	if (d.line != line || d.column != column || !strstr(d.message, what)) {
+		checks++; failed++;
+		printf("FAIL diag for {%s}: got %d:%d \"%s\", wanted %d:%d ... %s\n", text, d.line, d.column, d.message, line, column, what);
+	}
+	/* the string form is the same mistake */
+	CHECK(bt_compile(vocab, text, err, sizeof err) == NULL);
+	snprintf(want, sizeof want, "line %d: %s", d.line, d.message);
+	CHECK(!strcmp(err, want));
+}
+
+static void test_diag(void)
+{
+	bt_diag d;
+	bt_forest *f;
+	diag_is("select\n\tdo figth\n", 2, 5, "no action called figth");
+	diag_is("select\n    if  nope 3\n", 2, 9, "no condition called nope");
+	diag_is("pick\n\toption zz sc 0\n\t\tdo act 0\n", 2, 9, "no trait called zz");
+	diag_is("pick\n\toption a zz 0\n\t\tdo act 0\n", 2, 11, "no score called zz");
+	diag_is("pick every=2 colour=3\n\toption a sc 0\n\t\tdo act 0\n", 1, 14, "unknown setting");
+	diag_is("pick noise=2\n\toption a sc 0\n\t\tdo act 0\n", 1, 6, "noise");
+	diag_is("seq\n\twait soon\n", 2, 7, "number of seconds");
+	diag_is("seq\n\tfrobnicate\n", 2, 2, "unknown node");
+	diag_is("seq\n\tdo act 0\n\t\tdo act 1\n", 3, 3, "takes no children");
+	diag_is("tree a:\nseq\n\ttree zzz\n", 3, 2, "no tree called zzz");
+	diag_is("tree a:\nselect\n\ttree a\n", 3, 2, "itself");
+	diag_is("tree a:\nseq\n\tselect\n", 3, 2, "at least one child");
+	diag_is("tree a:\ntree b:\ndo act 0\n", 1, 1, "empty");
+	diag_is("tree a:\ndo act 0\ntree a:\ndo act 0\n", 3, 6, "twice");
+	diag_is("seq\n \tdo act 0\n", 2, 1, "mixes");
+	diag_is("", 1, 0, "no tree");
+	/* a text that compiles leaves the diag clean */
+	memset(&d, 1, sizeof d);
+	f = bt_compile_diag(vocab, "do act 0\n", &d);
+	CHECK(f != NULL && d.line == 0 && d.column == 0 && d.message[0] == 0);
+	bt_forest_free(f);
+	f = bt_compile_diag(vocab, "do act 0\n", NULL);
+	CHECK(f != NULL);
+	bt_forest_free(f);
+	CHECK(bt_compile_diag(vocab, "do nothing\n", NULL) == NULL);
+}
+
+static int near(float a, float b) { return a > b - 1e-4f && a < b + 1e-4f; }
+
+static void test_watch(void)
+{
+	static const char T[] =
+		"select\n"                        /* 0 */
+		"\tpick every=2 sticky=0.5 noise=0.2\n"  /* 1 */
+		"\t\toption a sc 0 x2\n"          /* 2 */
+		"\t\t\tdo act 0\n"                /* 3 */
+		"\t\toption b sc 1\n"             /* 4 */
+		"\t\t\tlimit 5\n"                 /* 5 */
+		"\t\t\t\tseq\n"                   /* 6 */
+		"\t\t\t\t\twait 1\n"              /* 7 */
+		"\t\t\t\t\talways\n"              /* 8 */
+		"\t\t\t\t\t\tdo act 1\n"          /* 9 */
+		"\t\toption a sc 2\n"             /* 10 */
+		"\t\t\tdo act 2\n"                /* 11 */
+		"\tcooldown 3\n"                  /* 12 */
+		"\t\tdo act 3\n";                 /* 13 */
+	Rig r;
+	Bot b;
+	bt_node_state ns;
+	bt_worth w[4];
+	int path[BT_DEPTH_MAX], n, k;
+	bot_init(&b, 5);
+	b.ret[0] = b.ret[1] = b.ret[2] = BT_RUNNING;
+	b.sc[0] = 0.2f; b.sc[1] = 1.0f; b.sc[2] = 0.0f;
+	if (!rig_open(&r, T, &b)) return;
+	r.w[1] = 1.5f; r.w[2] = 0.8f;
+
+	/* before any tick: nothing runs */
+	CHECK(bt_state_running(r.f, r.s, 0, path, BT_DEPTH_MAX) == 0);
+	CHECK(bt_state_node(r.f, r.s, 1, &ns) && !ns.running && ns.child == -1);
+	/* not traced: the options say they were not weighed */
+	CHECK(rig_tick(&r, 0.5f) == BT_RUNNING);
+	CHECK(bt_state_worths(r.f, r.s, 1, w, 4) == 3 && !w[0].weighed && !w[1].weighed && w[1].held && w[0].factor == 2.0f);
+	CHECK(bt_state_worths(r.f, r.s, 0, w, 4) == 0 && bt_state_worths(r.f, r.s, 99, w, 4) == 0);
+
+	/* the path: select > pick > option b > limit > seq > wait */
+	n = bt_state_running(r.f, r.s, 0, path, BT_DEPTH_MAX);
+	CHECK(n == 6 && path[0] == 0 && path[1] == 1 && path[2] == 4 && path[3] == 5 && path[4] == 6 && path[5] == 7);
+	CHECK(bt_state_running(r.f, r.s, 0, path, 2) == 6);         /* the count in full, two written */
+	CHECK(bt_state_running(r.f, r.s, 0, NULL, 0) == 6 && bt_state_running(r.f, r.s, 3, path, 4) == 0);
+	CHECK(bt_state_node(r.f, r.s, 0, &ns) && ns.running && ns.child == 1);
+	CHECK(bt_state_node(r.f, r.s, 1, &ns) && ns.running && ns.child == 4 && near(ns.elapsed, 0) && near(ns.remaining, 2));
+	CHECK(bt_state_node(r.f, r.s, 7, &ns) && ns.running && near(ns.elapsed, 0) && near(ns.remaining, 1));
+	CHECK(bt_state_node(r.f, r.s, 3, &ns) && !ns.running);
+	rig_tick(&r, 0.5f);
+	CHECK(bt_state_node(r.f, r.s, 1, &ns) && near(ns.elapsed, 0.5f) && near(ns.remaining, 1.5f));
+	CHECK(bt_state_node(r.f, r.s, 5, &ns) && ns.running && near(ns.elapsed, 0.5f) && near(ns.remaining, 4.5f));
+	rig_tick(&r, 0.5f);                                       /* the wait is over: on to the action */
+	n = bt_state_running(r.f, r.s, 0, path, BT_DEPTH_MAX);
+	CHECK(n == 7 && path[5] == 8 && path[6] == 9);
+	CHECK(bt_state_node(r.f, r.s, 9, &ns) && ns.running && bt_state_node(r.f, r.s, 7, &ns) && !ns.running);
+	CHECK(bt_state_node(r.f, r.s, 6, &ns) && ns.running && ns.child == 8);
+	CHECK(!bt_state_node(r.f, r.s, 14, &ns));
+
+	/* traced: at the next choice each option's numbers are there, and
+	 * multiply to its worth; the best is the one held */
+	bt_state_trace(r.s, 1);
+	rig_tick(&r, 1.0f);                                       /* 2 s since the choice: chosen again */
+	CHECK(bt_state_worths(r.f, r.s, 1, w, 4) == 3);
+	CHECK(w[0].option == 2 && w[1].option == 4 && w[2].option == 10);
+	CHECK(w[0].weighed && near(w[0].score, 0.2f) && near(w[0].weight, 1.5f) && w[0].factor == 2.0f && w[0].sticky == 1.0f);
+	CHECK(w[0].luck >= 0.8f && w[0].luck <= 1.2f && near(w[0].worth, 0.2f * 1.5f * 2.0f * w[0].luck) && !w[0].held);
+	CHECK(w[1].weighed && near(w[1].score, 1) && near(w[1].weight, 0.8f) && near(w[1].sticky, 1.5f) && w[1].held);
+	CHECK(w[1].luck >= 0.8f && w[1].luck <= 1.2f && near(w[1].worth, 0.8f * w[1].luck * 1.5f));
+	CHECK(w[1].worth > w[0].worth);
+	/* a score of 0: weighed, no draw, worth nothing */
+	CHECK(w[2].weighed && w[2].score == 0.0f && w[2].luck == 0.0f && w[2].worth == 0.0f && near(w[2].weight, 1.5f));
+	CHECK(bt_state_worths(r.f, r.s, 1, w, 1) == 3 && bt_state_worths(r.f, r.s, 1, NULL, 0) == 3);
+	/* the choice changes: the one left keeps what was noted of it */
+	b.sc[0] = 1.0f; b.sc[1] = 0.01f;
+	rig_tick(&r, 2.0f);
+	CHECK(b.stops[1] == 1);
+	CHECK(bt_state_worths(r.f, r.s, 1, w, 4) == 3 && w[0].held && !w[1].held && w[1].weighed && near(w[1].sticky, 1.5f));
+	CHECK(w[0].worth > w[1].worth);
+	n = bt_state_running(r.f, r.s, 0, path, BT_DEPTH_MAX);
+	CHECK(n == 4 && path[2] == 2 && path[3] == 3);
+	/* bt_reset forgets the notes and keeps the tracing; bt_state_init ends it */
+	bt_reset(r.f, r.s, &r.ctx);
+	CHECK(bt_state_worths(r.f, r.s, 1, w, 4) == 3 && !w[0].weighed && !w[0].held);
+	CHECK(bt_state_running(r.f, r.s, 0, path, BT_DEPTH_MAX) == 0);
+	rig_tick(&r, 0.1f);
+	CHECK(bt_state_worths(r.f, r.s, 1, w, 4) == 3 && w[0].weighed);
+	bt_state_init(r.s, r.f);
+	rig_tick(&r, 0.1f);
+	CHECK(bt_state_worths(r.f, r.s, 1, w, 4) == 3 && !w[0].weighed);
+
+	/* nothing to choose: the cooldown's child runs once, then it cools */
+	bt_state_init(r.s, r.f);
+	b.sc[0] = b.sc[1] = 0; b.ret[3] = BT_FAILURE;
+	CHECK(rig_tick(&r, 0.5f) == BT_FAILURE && b.calls[3] == 1);
+	CHECK(bt_state_node(r.f, r.s, 12, &ns) && !ns.running && near(ns.remaining, 3));
+	rig_tick(&r, 1.0f);
+	CHECK(bt_state_node(r.f, r.s, 12, &ns) && near(ns.remaining, 2) && b.calls[3] == 1);
+	rig_close(&r);
+
+	/* watching changes nothing: 300 bots choose the same, traced or not */
+	for (k = 0; k < 300; k++) {
+		Rig p, q;
+		Bot b1, b2;
+		int j, i;
+		bot_init(&b1, 100 + (uint64_t)k); bot_init(&b2, 100 + (uint64_t)k);
+		for (j = 0; j < 3; j++) { b1.ret[j] = b2.ret[j] = BT_RUNNING; b1.sc[j] = b2.sc[j] = 0.5f + 0.1f * (float)j; }
+		if (!rig_open(&p, T, &b1)) return;
+		if (!rig_open(&q, T, &b2)) { rig_close(&p); return; }
+		p.w[1] = q.w[1] = 0.6f + 0.01f * (float)k;
+		bt_state_trace(q.s, 1);
+		for (i = 0; i < 12; i++) {
+			int pa[BT_DEPTH_MAX], pb[BT_DEPTH_MAX], na, nb;
+			if (i == 6) { b1.sc[0] = b2.sc[0] = 0.9f; }
+			CHECK(rig_tick(&p, 0.7f) == rig_tick(&q, 0.7f));
+			na = bt_state_running(p.f, p.s, 0, pa, BT_DEPTH_MAX);
+			nb = bt_state_running(q.f, q.s, 0, pb, BT_DEPTH_MAX);
+			CHECK(na == nb && !memcmp(pa, pb, (size_t)na * sizeof pa[0]));
+		}
+		for (j = 0; j < 3; j++) CHECK(b1.calls[j] == b2.calls[j] && b1.stops[j] == b2.stops[j]);
+		rig_close(&p); rig_close(&q);
+	}
+}
+
+static char *read_file(const char *path)
+{
+	FILE *fp = fopen(path, "rb");
+	char *buf;
+	long n;
+	if (!fp) return NULL;
+	fseek(fp, 0, SEEK_END);
+	n = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+	buf = malloc((size_t)n + 1);
+	n = (long)fread(buf, 1, (size_t)n, fp);
+	buf[n] = 0;
+	fclose(fp);
+	return buf;
+}
+
+/* Every tree that ships (trees/, from where `make test` runs), with the
+ * engine's own words: read, written back, read again -- the same text,
+ * no comment lost -- and all of them compiled both ways to one forest. */
+static void test_shipped(void)
+{
+	static const char STUBS[] = "tree items:\nnever\n\tif enemy_visible\ntree extras:\nnever\n\tif enemy_visible\n";
+	DIR *dir = opendir("trees");
+	struct dirent *de;
+	bt_vocab *v = bt_vocab_new();
+	char *all[2], err[300];
+	size_t len[2] = {0, 0};
+	int files = 0, same_bytes = 0, k;
+	bt_forest *f[2];
+	if (!dir) { printf("  shipped trees: no trees/ here, skipped\n"); bt_vocab_free(v); return; }
+	CHECK(bc_vocab_register(v));
+	all[0] = calloc(1, 1); all[1] = calloc(1, 1);
+	while ((de = readdir(dir)) != NULL) {
+		char path[512], *text[2];
+		size_t n = strlen(de->d_name);
+		int c1 = 0, c2 = 0;
+		if (n < 4 || strcmp(de->d_name + n - 3, ".bt")) continue;
+		snprintf(path, sizeof path, "trees/%s", de->d_name);
+		text[0] = read_file(path);
+		CHECK(text[0] != NULL);
+		if (!text[0]) continue;
+		text[1] = canonical(v, text[0], &c1);
+		if (text[1]) {
+			char *again = canonical(v, text[1], &c2);
+			CHECK(again && !strcmp(again, text[1]));
+			CHECK(c1 == c2 && c1 > 0);
+			free(again);
+			same_bytes += !strcmp(text[0], text[1]);
+			files++;
+			for (k = 0; k < 2; k++) {
+				size_t m = strlen(text[k]);
+				all[k] = realloc(all[k], len[k] + m + 2);
+				memcpy(all[k] + len[k], text[k], m);
+				len[k] += m;
+				all[k][len[k]++] = '\n';
+				all[k][len[k]] = 0;
+			}
+		} else
+			printf("  in %s\n", path);
+		free(text[0]); free(text[1]);
+	}
+	closedir(dir);
+	CHECK(files > 0);
+	for (k = 0; k < 2; k++) {
+		all[k] = realloc(all[k], len[k] + sizeof STUBS);
+		strcpy(all[k] + len[k], STUBS);
+		f[k] = bt_compile(v, all[k], err, sizeof err);
+		CHECK(f[k] != NULL);
+		if (!f[k]) printf("  shipped trees, %s: %s\n", k ? "written back" : "as shipped", err);
+	}
+	if (f[0] && f[1]) {
+		CHECK(same_forest(f[0], f[1]));
+		printf("  shipped trees: %d files, %d nodes in the forest, the same read back from the text written; %d of them written back byte for byte\n",
+		       files, (int)bt_forest_nodes(f[0]), same_bytes);
+	}
+	bt_forest_free(f[0]); bt_forest_free(f[1]);
+	free(all[0]); free(all[1]);
+	bt_vocab_free(v);
+}
+
 int main(void)
 {
 	int i;
@@ -777,6 +1317,12 @@ int main(void)
 	test_pick();
 	test_population();
 	test_example();
+	test_source();
+	test_text();
+	test_forest_walk();
+	test_diag();
+	test_watch();
+	test_shipped();
 	bt_vocab_free(vocab);
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;

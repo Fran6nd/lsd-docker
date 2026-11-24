@@ -4,7 +4,9 @@
 #                   once core/engine.c exists (botd links the engine)
 #   make test       build and run every tests/*_test.c
 #   make tools      build/bin/<name> for every tools/<name>.c (bttree: look
-#                   at a behaviour tree)
+#                   at a behaviour tree, check it, tune it: TREES.md)
+#   make doc        write VOCAB.md, the vocabulary as a page, from the words
+#                   as the core has them now (test fails when it is stale)
 #
 # Nothing here is listed by hand: every core/*.c is the core, every
 # link/*.c the link, every botd/*.c the host, every tests/*_test.c a
@@ -71,12 +73,22 @@ $(B)/tests/%: tests/%.c $(B)/libbotcore.a $(patsubst link/%.c,$(B)/link/%.o,$(LI
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(STRICT) $(INC) -D_POSIX_C_SOURCE=200809L $< $(patsubst link/%.c,$(B)/link/%.o,$(LINK)) $(B)/libbotcore.a -lm -lpthread -o $@
 
-# the trees that ship must compile, with the vocabulary as it is now
+# VOCAB.md is written by the tool from the words the core has
+doc: $(B)/bin/bttree
+	$(B)/bin/bttree --words --md > VOCAB.md
+
+# the trees that ship must compile, with the vocabulary as it is now, and
+# come back whole from the editor's JSON; the trees TREES.md shows must
+# compile too; and VOCAB.md must be the vocabulary of today
 test: $(TESTS) $(B)/bin/bttree
 	@fail=0; for t in $(TESTS); do echo "== $$t"; $$t || fail=1; done; \
-	echo "== trees"; $(B)/bin/bttree --check trees/*.bt || fail=1; exit $$fail
+	echo "== trees"; $(B)/bin/bttree --check trees/*.bt || fail=1; \
+	echo "== trees, to JSON and back"; $(B)/bin/bttree --roundtrip trees/*.bt || fail=1; \
+	echo "== the trees in TREES.md"; $(B)/bin/bttree --doc TREES.md || fail=1; \
+	echo "== VOCAB.md"; if $(B)/bin/bttree --words --md | cmp -s - VOCAB.md; then echo "ok: up to date"; \
+	else echo "VOCAB.md is not the vocabulary of today: make -C bot doc"; fail=1; fi; exit $$fail
 
 clean:
 	rm -rf $(B)
 
-.PHONY: all test tools clean
+.PHONY: all test tools doc clean

@@ -36,17 +36,27 @@ Nothing in `core/` or `botd/` may know a gamemode by name. What differs
 from one mode to the next is data, and comes over the link:
 
 - **A tree** (`bt.h`), as text. The built-in ones are files in
-  `trees/` (`tdm.bt` first), one per mode, and a gamemode's Lua can send
-  its own (`botlink_set("tree", text)`); a mode that sends none gets
-  `default.bt`. A tree is made only of the neutral vocabulary below.
-  To look at one, `make tools` then `build/bin/bttree trees/tdm.bt`:
-  the tree drawn with its sub-trees opened in place, compiled first by
-  the engine's own compiler. `--as camper` shows beside each weighed
-  choice what that kind of bot's weight is, `--tree NAME` draws one,
-  `--check` only says what is wrong, `--words` lists the vocabulary,
-  `--split word=value...` rolls 700 bots and counts what each would do in
-  the situation given (tuning: see the tool's head comment). It
-  is in the image too: `docker exec <server> bttree /opt/botd/trees/tdm.bt`.
+  `trees/` (`tdm.bt` first), one per mode; an operator adds or replaces
+  one with a file in the data volume's `trees/`; a gamemode's Lua can
+  send its own (`botlink_set("tree", text)`), for every bot or for one
+  (a boss, a villager); a mode that sends none gets `default.bt`. A tree
+  is made only of the neutral vocabulary below.
+  **[TREES.md](TREES.md) is the reference**: every keyword with its exact
+  meaning and defaults, how a text is compiled and run, how to write and
+  tune one, and the JSON an editor or a debugger reads. [VOCAB.md](VOCAB.md)
+  lists the words (`make doc` writes it; `make test` fails when it is
+  stale).
+  To look at a tree, `make tools` then `build/bin/bttree trees/tdm.bt`:
+  drawn with its sub-trees opened in place, compiled first by the
+  engine's own compiler. `--as camper` shows beside each weighed choice
+  what that kind of bot's weight is, `--tree NAME` draws one, `--check`
+  only says what is wrong, `--words` lists the vocabulary, `--split
+  word=value...` rolls 700 bots and counts what each would do in the
+  situation given (`--why`: what each option was worth), `--trace` shows
+  one bot's tree as the engine holds it, with what is RUNNING and why
+  each pick chose; `--json`, `--from-json` and `--schema` are for an
+  editor. It is in the image too: `docker exec <server> bttree
+  /opt/botd/trees/tdm.bt`.
 - **Settings**, `key=value` (`BL_EV_SET`): what the mode's objects mean
   (`intel=fetch`, `tents=defend`...), zones where editing is refused,
   the archetype mix, how many blocks a bot may spend.

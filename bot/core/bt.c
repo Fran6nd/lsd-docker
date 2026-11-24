@@ -33,9 +33,19 @@
  * each use of a tree has its own state; bt_forest_nodes counts the
  * expanded nodes. A tree's root need not be indented under its header.
  *
- * Memory. bt_compile builds the forest in one block (temporary working
- * memory is freed before it returns). bt_tick and bt_describe allocate
- * nothing; bt_tick recurses at most BT_DEPTH_MAX deep.
+ * Memory. bt_compile builds the forest in one block and the source it
+ * was read from in another, which the forest owns (temporary working
+ * memory is freed before it returns). bt_tick, bt_describe and the
+ * bt_state_* readers allocate nothing; bt_tick recurses at most
+ * BT_DEPTH_MAX deep.
+ *
+ * ONE PARSER. bt_parse and bt_compile read the text with the same code
+ * (parse_text); the first stops there and hands out the source, the
+ * second goes on to look up the references and open them. So what an
+ * editor is shown and what a bot runs cannot disagree about what a line
+ * means. What a tick reads (bnode, slot) holds nothing for the editor:
+ * comments, columns and which node came from where are kept beside it
+ * (bt_source, fmeta), not in it.
  */
 #include "bt.h"
 #include <math.h>
@@ -44,6 +54,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* the same numbers as bt.h's bt_kind, K_REF being BT_K_TREE */
 enum { K_SEQ, K_SELECT, K_PICK, K_OPTION, K_IF, K_UNLESS, K_DO, K_WAIT,
        K_INVERT, K_ALWAYS, K_NEVER, K_COOLDOWN, K_LIMIT, K_REF };
 
@@ -143,14 +154,43 @@ typedef struct bnode {
 
 typedef struct ftree { char name[BT_NAME_MAX]; int32_t root; } ftree;
 
+/* what is known of a forest node that no tick reads */
+typedef struct fmeta { int32_t src, via, parent; } fmeta;
+
+/* the text as written: bt.h, "the source" */
+typedef struct snode {
+	uint8_t kind, written;
+	int32_t end;            /* index one past its subtree, in the source */
+	int32_t parent, tree, line, col, depth, nchild;
+	const char *text, *name, *trait, *note, *above;
+	bt_args args;
+	float secs, every, sticky, noise, factor;
+} snode;
+
+typedef struct stree {
+	char name[BT_NAME_MAX];
+	int32_t first, end, line, header;
+	const char *note, *above;
+} stree;
+
+struct bt_source {
+	int n_nodes, n_trees;
+	snode *nodes;
+	stree *trees;
+	const char *tail;
+};
+
 struct bt_forest {
 	size_t n_nodes;
 	int n_trees;
 	bnode *nodes;
 	ftree *trees;
+	fmeta *meta;
+	bt_source *src;
 };
 
-void bt_forest_free(bt_forest *f) { free(f); }
+void bt_source_free(bt_source *src) { free(src); }
+void bt_forest_free(bt_forest *f) { if (f) free(f->src); free(f); }
 size_t bt_forest_nodes(const bt_forest *f) { return f->n_nodes; }
 
 int bt_forest_find(const bt_forest *f, const char *name)
@@ -168,20 +208,28 @@ typedef struct pnode {
 	bnode n;
 	int parent, nchild, ref;
 	char *refname;
+	int col, depth, written;
+	char *text, *note, *above;
 } pnode;
 
 typedef struct ptree {
 	char name[BT_NAME_MAX];
 	int first, hline, base;
+	int header;
+	char *note, *above;
 } ptree;
 
 typedef struct tok { const char *s; size_t n; } tok;
 
 typedef struct P {
 	const bt_vocab *v;
-	char *err;
-	size_t errsz;
+	bt_diag d;
 	int failed;
+	const char *lstart;     /* the line being read, and the column of the */
+	int col;                /* word a mistake found now would be about */
+	char *ab;               /* comments and empty lines met since the last node */
+	size_t nab, capab;
+	fmeta *ex; size_t capex;        /* beside em, node for node */
 	pnode *pn; size_t npn, cappn;
 	ptree *pt; size_t npt, cappt;
 	char **pool; size_t npool, cappool;
@@ -193,15 +241,13 @@ typedef struct P {
 
 static void fail(P *p, int line, const char *fmt, ...)
 {
-	int n;
 	va_list ap;
 	if (p->failed) return;
 	p->failed = 1;
-	if (!p->err || !p->errsz) return;
-	n = snprintf(p->err, p->errsz, "line %d: ", line);
-	if (n < 0 || (size_t)n >= p->errsz) return;
+	p->d.line = line;
+	p->d.column = line > 0 ? p->col : 0;
 	va_start(ap, fmt);
-	vsnprintf(p->err + n, p->errsz - (size_t)n, fmt, ap);
+	vsnprintf(p->d.message, sizeof p->d.message, fmt, ap);
 	va_end(ap);
 }
 
@@ -229,6 +275,9 @@ static char *dups(P *p, const char *s, size_t n)
 	p->pool[p->npool++] = d;
 	return d;
 }
+
+/* a mistake found from here on is about this word */
+static void at(P *p, tok t) { p->col = (int)(t.s - p->lstart) + 1; }
 
 static int tokeq(tok t, const char *s) { return strlen(s) == t.n && memcmp(t.s, s, t.n) == 0; }
 
@@ -307,6 +356,7 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 			size_t kn = eq ? (size_t)(eq - t[i].s) : t[i].n;
 			float val = 0;
 			char *vs;
+			at(p, t[i]);
 			if (!eq || kn == 0) { fail(p, line, "pick: expected key=value, got '%.*s'", (int)t[i].n, t[i].s); return 0; }
 			vs = dups(p, eq + 1, t[i].n - kn - 1);
 			if (!vs) return 0;
@@ -314,11 +364,12 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 				fail(p, line, "pick: '%.*s' needs a number of 0 or more", (int)kn, t[i].s);
 				return 0;
 			}
-			if (kn == 5 && !memcmp(t[i].s, "every", 5)) b->every = val;
-			else if (kn == 6 && !memcmp(t[i].s, "sticky", 6)) b->sticky = val;
+			if (kn == 5 && !memcmp(t[i].s, "every", 5)) { b->every = val; pn->written |= BT_W_EVERY; }
+			else if (kn == 6 && !memcmp(t[i].s, "sticky", 6)) { b->sticky = val; pn->written |= BT_W_STICKY; }
 			else if (kn == 5 && !memcmp(t[i].s, "noise", 5)) {
 				if (val > 1) { fail(p, line, "pick: noise must be between 0 and 1"); return 0; }
 				b->noise = val;
+				pn->written |= BT_W_NOISE;
 			} else {
 				fail(p, line, "pick: unknown setting '%.*s' (every, sticky, noise)", (int)kn, t[i].s);
 				return 0;
@@ -331,19 +382,22 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 		if (nt < 3) { fail(p, line, "option needs a trait and a score: option <trait> <score> [x<factor>]"); return 0; }
 		snprintf(nm, sizeof nm, "%.*s", (int)(t[1].n < BT_NAME_MAX ? t[1].n : BT_NAME_MAX - 1), t[1].s);
 		tr = t[1].n < BT_NAME_MAX ? vfind(p->v, VK_TRAIT, nm) : NULL;
+		at(p, t[1]);
 		if (!tr) { fail(p, line, "no trait called %.*s", (int)t[1].n, t[1].s); return 0; }
 		b->trait = tr->trait;
 		b->trait_name = dups(p, t[1].s, t[1].n);
 		snprintf(nm, sizeof nm, "%.*s", (int)(t[2].n < BT_NAME_MAX ? t[2].n : BT_NAME_MAX - 1), t[2].s);
 		e = t[2].n < BT_NAME_MAX ? vfind(p->v, VK_SCORE, nm) : NULL;
+		at(p, t[2]);
 		if (!e) { fail(p, line, "no score called %.*s", (int)t[2].n, t[2].s); return 0; }
 		b->score = e->score;
 		b->name = dups(p, t[2].s, t[2].n);
 		if (last > 3 && t[last - 1].s[0] == 'x') {      /* a trailing x<number> is the factor */
 			char *fs = dups(p, t[last - 1].s + 1, t[last - 1].n - 1);
 			float fv;
-			if (fs && tonum(fs, &fv) && fv >= 0) { b->factor = fv; last--; }
+			if (fs && tonum(fs, &fv) && fv >= 0) { b->factor = fv; pn->written |= BT_W_FACTOR; last--; }
 		}
+		if (last > 3) at(p, t[3]);
 		return b->trait_name && b->name && set_args(p, b, t, 3, last, line);
 	}
 	case K_IF: case K_UNLESS: case K_DO:
@@ -353,6 +407,7 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 		}
 		snprintf(nm, sizeof nm, "%.*s", (int)(t[1].n < BT_NAME_MAX ? t[1].n : BT_NAME_MAX - 1), t[1].s);
 		e = t[1].n < BT_NAME_MAX ? vfind(p->v, b->kind == K_DO ? VK_ACTION : VK_COND, nm) : NULL;
+		at(p, t[1]);
 		if (!e) {
 			fail(p, line, "no %s called %.*s", b->kind == K_DO ? "action" : "condition", (int)t[1].n, t[1].s);
 			return 0;
@@ -365,6 +420,7 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 	case K_WAIT: case K_COOLDOWN: case K_LIMIT: {
 		char *s;
 		if (nt != 2) { fail(p, line, "'%s' takes one number of seconds", kw[b->kind]); return 0; }
+		at(p, t[1]);
 		s = dups(p, t[1].s, t[1].n);
 		if (!s) return 0;
 		if (!tonum(s, &b->secs) || b->secs < 0) {
@@ -375,6 +431,7 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 	}
 	default: /* K_REF */
 		if (nt != 2 || t[1].s[t[1].n - 1] == ':') { fail(p, line, "tree reference is 'tree <name>'"); return 0; }
+		at(p, t[1]);
 		if (!valid_name(t[1])) { fail(p, line, "bad tree name '%.*s'", (int)t[1].n, t[1].s); return 0; }
 		pn->refname = dups(p, t[1].s, t[1].n);
 		return pn->refname != NULL;
@@ -391,10 +448,12 @@ static void finish_tree(P *p)
 	tr = &p->pt[p->npt - 1];
 	for (k = 0; k < p->sp; k++) p->pn[p->stack[k]].n.end = (int32_t)p->npn;
 	p->sp = 0;
+	p->col = 1;
 	if ((size_t)tr->first == p->npn) { fail(p, tr->hline, "tree '%s' is empty", tr->name); return; }
 	for (j = (size_t)tr->first; j < p->npn; j++) {
 		pnode *pn = &p->pn[j];
 		int kind = pn->n.kind;
+		p->col = pn->col;
 		if (pn->nchild == 0 && (kind == K_SEQ || kind == K_SELECT || kind == K_PICK)) {
 			fail(p, pn->n.line, "'%s' needs at least one child", kw[kind]);
 			return;
@@ -406,20 +465,47 @@ static void finish_tree(P *p)
 	}
 }
 
+/* a comment or an empty line, kept for the node that comes next */
+static void keep_above(P *p, const char *s, size_t n)
+{
+	p->ab = grow(p, p->ab, &p->capab, p->nab + n + 2, 1);
+	if (p->failed) return;
+	memcpy(p->ab + p->nab, s, n);
+	p->nab += n;
+	p->ab[p->nab++] = '\n';
+	p->ab[p->nab] = 0;
+}
+
+/* what was kept, handed to that node (NULL if nothing was) */
+static char *take_above(P *p)
+{
+	char *s = p->nab ? dups(p, p->ab, p->nab) : NULL;
+	p->nab = 0;
+	return s;
+}
+
 static void parse_line(P *p, const char *q, size_t len, int line)
 {
-	size_t i, nspace = 0, ntab = 0;
+	size_t i, nspace = 0, ntab = 0, full = len, hash, tl = 0;
 	tok t[TOKENS_MAX];
 	int nt = 0, level = 0, rel, parent, header = 0;
 	pnode pn;
 	ptree *tr;
+	char *note = NULL, *above;
 
+	p->lstart = q;
+	p->col = 1;
 	for (i = 0; i < len; i++) if (q[i] == '#') { len = i; break; }
+	hash = len;
+	while (full && (q[full - 1] == ' ' || q[full - 1] == '\t' || q[full - 1] == '\r')) full--;
 	while (len && (q[len - 1] == ' ' || q[len - 1] == '\t' || q[len - 1] == '\r')) len--;
 	for (i = 0; i < len && (q[i] == ' ' || q[i] == '\t'); i++) {
 		if (q[i] == ' ') nspace++; else ntab++;
 	}
-	if (i == len) return;            /* blank or comment */
+	if (i == len) {                  /* blank or comment */
+		keep_above(p, q + hash, full > hash ? full - hash : 0);
+		return;
+	}
 
 	while (i < len) {
 		while (i < len && (q[i] == ' ' || q[i] == '\t')) i++;
@@ -429,6 +515,12 @@ static void parse_line(P *p, const char *q, size_t len, int line)
 		while (i < len && q[i] != ' ' && q[i] != '\t') i++;
 		t[nt].n = (size_t)(q + i - t[nt].s);
 		nt++;
+	}
+
+	if (hash < full) {               /* the comment on this line */
+		size_t a = hash + 1;
+		while (a < full && (q[a] == ' ' || q[a] == '\t')) a++;
+		if (a < full && !(note = dups(p, q + a, full - a))) return;
 	}
 
 	if (ntab && nspace) { fail(p, line, "indentation mixes tabs and spaces"); return; }
@@ -452,18 +544,21 @@ static void parse_line(P *p, const char *q, size_t len, int line)
 		level = (int)nspace / p->unit;
 	}
 
+	at(p, t[0]);
 	/* `tree name:` opens a tree; `tree name` is a node */
 	if (tokeq(t[0], "tree") && nt >= 2) {
 		tok name = t[1];
+		at(p, t[1]);
 		if (name.s[name.n - 1] == ':' && nt == 2) { name.n--; header = 1; }
 		else if (nt == 3 && tokeq(t[2], ":")) header = 1;
 		else if (name.s[name.n - 1] == ':') { fail(p, line, "bad tree header"); return; }
 		if (header) {
-			if (level) { fail(p, line, "a tree header must not be indented"); return; }
+			if (level) { p->col = 1; fail(p, line, "a tree header must not be indented"); return; }
 			if (!valid_name(name)) { fail(p, line, "bad tree name '%.*s'", (int)name.n, name.s); return; }
 			if (p->implicit) { fail(p, line, "this tree header comes after lines that belong to no tree"); return; }
 			finish_tree(p);
 			if (p->failed) return;
+			at(p, t[1]);
 			for (i = 0; i < p->npt; i++)
 				if (strlen(p->pt[i].name) == name.n && !memcmp(p->pt[i].name, name.s, name.n)) {
 					fail(p, line, "tree '%.*s' is defined twice", (int)name.n, name.s);
@@ -476,8 +571,12 @@ static void parse_line(P *p, const char *q, size_t len, int line)
 			memcpy(tr->name, name.s, name.n);
 			tr->first = (int)p->npn;
 			tr->hline = line;
+			tr->header = 1;
+			tr->note = note;
+			tr->above = take_above(p);
 			return;
 		}
+		at(p, t[0]);
 	}
 
 	if (p->npt == 0) {        /* nodes with no header: the one tree "main" */
@@ -493,6 +592,18 @@ static void parse_line(P *p, const char *q, size_t len, int line)
 
 	memset(&pn, 0, sizeof pn);
 	if (!fill_node(p, &pn, t, nt, line)) return;
+	at(p, t[0]);
+	pn.col = p->col;
+	pn.note = note;
+	for (i = 0; i < (size_t)nt; i++) tl += t[i].n + 1;
+	pn.text = dups(p, q, tl);                       /* its words, one space apart */
+	if (!pn.text) return;
+	for (i = 0, tl = 0; i < (size_t)nt; i++) {
+		memcpy(pn.text + tl, t[i].s, t[i].n);
+		tl += t[i].n;
+		pn.text[tl++] = ' ';
+	}
+	pn.text[tl - 1] = 0;
 
 	if ((size_t)tr->first == p->npn) {
 		tr->base = level;
@@ -521,8 +632,11 @@ static void parse_line(P *p, const char *q, size_t len, int line)
 		return;
 	}
 	p->pn = grow(p, p->pn, &p->cappn, p->npn + 1, sizeof *p->pn);
+	above = take_above(p);
 	if (p->failed) return;
 	for (i = (size_t)rel; i < (size_t)p->sp; i++) p->pn[p->stack[i]].n.end = (int32_t)p->npn;
+	pn.above = above;
+	pn.depth = rel;
 	pn.parent = parent;
 	if (parent >= 0) p->pn[parent].nchild++;
 	p->stack[rel] = (int)p->npn;
@@ -530,11 +644,14 @@ static void parse_line(P *p, const char *q, size_t len, int line)
 	p->pn[p->npn++] = pn;
 }
 
-static int emit_node(P *p, int i, int depth)
+/* `via`: the reference that brought this node here, for the root of a
+ * tree opened in place; `parent`: its parent in the forest */
+static int emit_node(P *p, int i, int depth, int via, int parent)
 {
 	const pnode *pn = &p->pn[i];
 	size_t me;
 	int c;
+	p->col = pn->col;
 	if (pn->n.kind == K_REF) {
 		size_t k;
 		int t = pn->ref, ok;
@@ -544,18 +661,22 @@ static int emit_node(P *p, int i, int depth)
 				return 0;
 			}
 		p->tstack[p->tsp++] = t;
-		ok = emit_node(p, p->pt[t].first, depth);
+		ok = emit_node(p, p->pt[t].first, depth, via >= 0 ? via : i, parent);
 		p->tsp--;
 		return ok;
 	}
 	if (depth >= BT_DEPTH_MAX) { fail(p, pn->n.line, "nested deeper than %d levels (tree references included)", BT_DEPTH_MAX); return 0; }
 	if (p->nem >= NODES_MAX) { fail(p, pn->n.line, "the trees expand to too many nodes"); return 0; }
 	p->em = grow(p, p->em, &p->capem, p->nem + 1, sizeof *p->em);
+	p->ex = grow(p, p->ex, &p->capex, p->nem + 1, sizeof *p->ex);
 	if (p->failed) return 0;
 	me = p->nem++;
 	p->em[me] = pn->n;
+	p->ex[me].src = i;
+	p->ex[me].via = via;
+	p->ex[me].parent = parent;
 	for (c = i + 1; c < pn->n.end; c = p->pn[c].n.end)
-		if (!emit_node(p, c, depth + 1)) return 0;
+		if (!emit_node(p, c, depth + 1, -1, (int)me)) return 0;
 	p->em[me].end = (int32_t)p->nem;
 	return 1;
 }
@@ -579,15 +700,18 @@ static bt_forest *build(P *p)
 		if (b->trait_name) strs += strlen(b->trait_name) + 1;
 		for (k = 0; k < (size_t)b->args.count; k++) strs += strlen(b->args.text[k]) + 1;
 	}
-	size = sizeof *f + p->nem * sizeof(bnode) + p->npt * sizeof(ftree) + strs;
+	size = sizeof *f + p->nem * sizeof(bnode) + p->npt * sizeof(ftree) + p->nem * sizeof(fmeta) + strs;
 	block = malloc(size);
 	if (!block) { fail(p, 0, "out of memory"); return NULL; }
 	f = (bt_forest *)block;
 	f->n_nodes = p->nem;
 	f->n_trees = (int)p->npt;
+	f->src = NULL;
 	f->nodes = (bnode *)(block + sizeof *f);
 	f->trees = (ftree *)(block + sizeof *f + p->nem * sizeof(bnode));
-	arena = block + sizeof *f + p->nem * sizeof(bnode) + p->npt * sizeof(ftree);
+	f->meta = (fmeta *)(block + sizeof *f + p->nem * sizeof(bnode) + p->npt * sizeof(ftree));
+	arena = (char *)(f->meta + p->nem);
+	if (p->nem) memcpy(f->meta, p->ex, p->nem * sizeof(fmeta));
 	for (i = 0; i < p->nem; i++) {
 		bnode *b = &f->nodes[i];
 		*b = p->em[i];
@@ -598,35 +722,135 @@ static bt_forest *build(P *p)
 	return f;
 }
 
-bt_forest *bt_compile(const bt_vocab *v, const char *text, char *err, size_t err_size)
+static size_t slen(const char *s) { return s ? strlen(s) + 1 : 0; }
+static const char *skeep(char **arena, const char *s)
+{
+	const char *at_ = *arena;
+	if (!s) return NULL;
+	sdup(arena, s);
+	return at_;
+}
+
+/* the text as it was read, in one block: what an editor is given */
+static bt_source *build_source(P *p)
+{
+	size_t i, t, strs = 0, size;
+	int k;
+	bt_source *src;
+	char *block, *arena;
+	for (i = 0; i < p->npn; i++) {
+		const pnode *pn = &p->pn[i];
+		strs += slen(pn->text) + slen(pn->note) + slen(pn->above) + slen(pn->n.name) +
+		        slen(pn->n.trait_name) + slen(pn->refname);
+		for (k = 0; k < pn->n.args.count; k++) strs += slen(pn->n.args.text[k]);
+	}
+	for (t = 0; t < p->npt; t++) strs += slen(p->pt[t].note) + slen(p->pt[t].above);
+	strs += p->nab + 1;
+	size = sizeof *src + p->npn * sizeof(snode) + p->npt * sizeof(stree) + strs;
+	block = malloc(size);
+	if (!block) { fail(p, 0, "out of memory"); return NULL; }
+	src = (bt_source *)block;
+	src->n_nodes = (int)p->npn;
+	src->n_trees = (int)p->npt;
+	src->nodes = (snode *)(block + sizeof *src);
+	src->trees = (stree *)(block + sizeof *src + p->npn * sizeof(snode));
+	arena = (char *)(src->trees + p->npt);
+	for (t = 0; t < p->npt; t++) {
+		const ptree *pt = &p->pt[t];
+		stree *st = &src->trees[t];
+		memcpy(st->name, pt->name, sizeof st->name);
+		st->first = pt->first;
+		st->end = t + 1 < p->npt ? p->pt[t + 1].first : (int32_t)p->npn;
+		st->line = pt->hline;
+		st->header = pt->header;
+		st->note = skeep(&arena, pt->note);
+		st->above = skeep(&arena, pt->above);
+		for (k = st->first; k < st->end; k++) src->nodes[k].tree = (int32_t)t;
+	}
+	for (i = 0; i < p->npn; i++) {
+		const pnode *pn = &p->pn[i];
+		snode *sn = &src->nodes[i];
+		sn->kind = pn->n.kind;
+		sn->written = (uint8_t)pn->written;
+		sn->end = pn->n.end;
+		sn->parent = pn->parent;
+		sn->line = pn->n.line;
+		sn->col = pn->col;
+		sn->depth = pn->depth;
+		sn->nchild = pn->nchild;
+		sn->text = skeep(&arena, pn->text);
+		sn->name = skeep(&arena, pn->n.kind == K_REF ? pn->refname : pn->n.name);
+		sn->trait = skeep(&arena, pn->n.trait_name);
+		sn->note = skeep(&arena, pn->note);
+		sn->above = skeep(&arena, pn->above);
+		sn->args = pn->n.args;
+		for (k = 0; k < sn->args.count; k++) sn->args.text[k] = skeep(&arena, pn->n.args.text[k]);
+		sn->secs = pn->n.secs;
+		sn->every = pn->n.every;
+		sn->sticky = pn->n.sticky;
+		sn->noise = pn->n.noise;
+		sn->factor = pn->n.factor;
+	}
+	src->tail = p->nab ? skeep(&arena, p->ab) : NULL;
+	return src;
+}
+
+/* the text into p->pn and p->pt: all that bt_parse does, and the first
+ * half of bt_compile */
+static void parse_text(P *p, const bt_vocab *v, const char *text)
+{
+	const char *q;
+	int line = 0;
+
+	memset(p, 0, sizeof *p);
+	p->v = v;
+	if (!v || !text) { fail(p, 1, "no vocabulary or no text"); return; }
+	for (q = text; *q && !p->failed;) {
+		const char *e = strchr(q, '\n');
+		size_t len = e ? (size_t)(e - q) : strlen(q);
+		parse_line(p, q, len, ++line);
+		q = e ? e + 1 : q + len;
+	}
+	if (!p->failed) finish_tree(p);
+	p->col = 0;
+	if (!p->failed && p->npt == 0) fail(p, 1, "no tree in this text");
+}
+
+static void parse_done(P *p, bt_diag *diag)
+{
+	size_t i;
+	if (diag) {
+		if (p->failed) *diag = p->d;
+		else memset(diag, 0, sizeof *diag);
+	}
+	for (i = 0; i < p->npool; i++) free(p->pool[i]);
+	free(p->pool); free(p->pn); free(p->pt); free(p->em); free(p->ex); free(p->tstack); free(p->ab);
+}
+
+bt_source *bt_parse(const bt_vocab *v, const char *text, bt_diag *diag)
+{
+	P p;
+	bt_source *src = NULL;
+	parse_text(&p, v, text);
+	if (!p.failed) src = build_source(&p);
+	parse_done(&p, diag);
+	return src;
+}
+
+bt_forest *bt_compile_diag(const bt_vocab *v, const char *text, bt_diag *diag)
 {
 	P p;
 	bt_forest *f = NULL;
-	const char *q;
-	int line = 0;
 	size_t i;
 
-	memset(&p, 0, sizeof p);
-	p.v = v;
-	p.err = err;
-	p.errsz = err_size;
-	if (err && err_size) err[0] = 0;
-	if (!v || !text) { fail(&p, 1, "no vocabulary or no text"); goto done; }
-
-	for (q = text; *q && !p.failed;) {
-		const char *e = strchr(q, '\n');
-		size_t len = e ? (size_t)(e - q) : strlen(q);
-		parse_line(&p, q, len, ++line);
-		q = e ? e + 1 : q + len;
-	}
-	if (!p.failed) finish_tree(&p);
-	if (!p.failed && p.npt == 0) fail(&p, 1, "no tree in this text");
+	parse_text(&p, v, text);
 
 	for (i = 0; i < p.npn && !p.failed; i++) {      /* resolve references, all trees being read */
 		size_t t;
 		if (p.pn[i].n.kind != K_REF) continue;
 		for (t = 0; t < p.npt; t++)
 			if (strcmp(p.pt[t].name, p.pn[i].refname) == 0) { p.pn[i].ref = (int)t; break; }
+		p.col = p.pn[i].col;
 		if (p.pn[i].ref < 0) fail(&p, p.pn[i].n.line, "no tree called %s", p.pn[i].refname);
 	}
 
@@ -638,7 +862,7 @@ bt_forest *bt_compile(const bt_vocab *v, const char *text, char *err, size_t err
 		p.tsp = 0;
 		p.tstack[p.tsp++] = (int)i;
 		p.pt[i].base = (int)p.nem;                 /* base reused: the root's index in the forest */
-		emit_node(&p, p.pt[i].first, 0);
+		emit_node(&p, p.pt[i].first, 0, -1, -1);
 	}
 	if (!p.failed) {
 		f = build(&p);
@@ -647,10 +871,20 @@ bt_forest *bt_compile(const bt_vocab *v, const char *text, char *err, size_t err
 				strcpy(f->trees[i].name, p.pt[i].name);
 				f->trees[i].root = p.pt[i].base;
 			}
+		if (f && !(f->src = build_source(&p))) { free(f); f = NULL; }
 	}
-done:
-	for (i = 0; i < p.npool; i++) free(p.pool[i]);
-	free(p.pool); free(p.pn); free(p.pt); free(p.em); free(p.tstack);
+	parse_done(&p, diag);
+	return f;
+}
+
+bt_forest *bt_compile(const bt_vocab *v, const char *text, char *err, size_t err_size)
+{
+	bt_diag d;
+	bt_forest *f = bt_compile_diag(v, text, &d);
+	if (err && err_size) {
+		err[0] = 0;
+		if (!f) snprintf(err, err_size, "line %d: %s", d.line, d.message);
+	}
 	return f;
 }
 
@@ -665,9 +899,15 @@ typedef struct slot {
 struct bt_state {
 	double now;
 	uint32_t n;
-	uint32_t pad_;
+	uint32_t trace;     /* bt_state_trace: picks note what they weighed */
 	slot s[];
 };
+
+/* What a pick notes of an option it weighed, when asked to: kept in the
+ * option's own slot, which nothing else uses (a pick ticks the option's
+ * child, never the option). `sticky` is never 0 once written. */
+typedef struct oslot { float score, weight, luck, sticky; } oslot;
+typedef char oslot_fits_[sizeof(oslot) <= sizeof(slot) ? 1 : -1];
 
 size_t bt_state_size(const bt_forest *f) { return sizeof(bt_state) + f->n_nodes * sizeof(slot); }
 
@@ -700,7 +940,18 @@ static float weight_of(const bt_ctx *c, int trait)
 	return 1.0f;
 }
 
-static int pick_choose(const bt_forest *f, int i, const bt_state *s, const bt_ctx *c)
+static void note_worth(bt_state *s, int o, float score, float weight, double luck, double sticky)
+{
+	oslot w;
+	w.score = score;
+	w.weight = weight;
+	w.luck = (float)luck;
+	w.sticky = (float)sticky;
+	memset(&s->s[o], 0, sizeof s->s[o]);
+	memcpy(&s->s[o], &w, sizeof w);
+}
+
+static int pick_choose(const bt_forest *f, int i, bt_state *s, const bt_ctx *c)
 {
 	const bnode *n = &f->nodes[i];
 	int o, best = -1;
@@ -708,10 +959,15 @@ static int pick_choose(const bt_forest *f, int i, const bt_state *s, const bt_ct
 	for (o = i + 1; o < n->end; o = f->nodes[o].end) {
 		const bnode *on = &f->nodes[o];
 		float sc = on->score(c->bot, &on->args);
-		double w;
-		if (!(sc > 0)) continue;
-		w = (double)sc * weight_of(c, on->trait) * on->factor * (1.0 + n->noise * (2.0 * draw(c) - 1.0));
-		if (s->s[i].cur == o + 1) w *= 1.0 + n->sticky;
+		double w, luck, held = 1.0;
+		if (!(sc > 0)) {
+			if (s->trace) note_worth(s, o, sc, weight_of(c, on->trait), 0.0, 1.0);
+			continue;
+		}
+		luck = 1.0 + n->noise * (2.0 * draw(c) - 1.0);
+		w = (double)sc * weight_of(c, on->trait) * on->factor * luck;
+		if (s->s[i].cur == o + 1) { held = 1.0 + n->sticky; w *= held; }
+		if (s->trace) note_worth(s, o, sc, weight_of(c, on->trait), luck, held);
 		if (best < 0 || w > bw) { best = o; bw = w; }
 	}
 	return best;
@@ -738,13 +994,15 @@ static bt_status tick(const bt_forest *f, int i, bt_state *s, const bt_ctx *c)
 	case K_PICK: {
 		if (sl->cur == 0 || s->now - sl->t >= n->every) {
 			int best = pick_choose(f, i, s, c);
+			/* (the option's child is stopped, not the option: its slot
+			 * holds nothing but what pick_choose noted there) */
 			if (best < 0) {
-				if (sl->cur) stop_range(f, sl->cur - 1, s, c, 0);
+				if (sl->cur) stop_range(f, sl->cur, s, c, 0);
 				sl->cur = 0;
 				return BT_FAILURE;
 			}
 			if (sl->cur != best + 1) {
-				if (sl->cur) stop_range(f, sl->cur - 1, s, c, 0);
+				if (sl->cur) stop_range(f, sl->cur, s, c, 0);
 				sl->cur = best + 1;
 			}
 			sl->t = s->now;
@@ -805,11 +1063,14 @@ bt_status bt_tick(const bt_forest *f, int tree, bt_state *s, const bt_ctx *c)
 void bt_reset(const bt_forest *f, bt_state *s, const bt_ctx *c)
 {
 	size_t k;
+	uint32_t trace;
 	for (k = 0; k < f->n_nodes; k++) {
 		const bnode *n = &f->nodes[k];
 		if (n->kind == K_DO && s->s[k].run && n->stop) n->stop(c->bot, &n->args);
 	}
+	trace = s->trace;
 	bt_state_init(s, f);
+	s->trace = trace;
 }
 
 typedef struct app { char *out; size_t size, len; int any; } app;
@@ -856,4 +1117,260 @@ size_t bt_describe(const bt_forest *f, const bt_state *s, char *out, size_t out_
 		}
 	}
 	return a.len;
+}
+
+/* ---- looking in: bt.h, "looking into a tree" and "watching a bot think" */
+
+const char *bt_kind_name(int kind)
+{
+	return kind >= 0 && kind < (int)(sizeof kw / sizeof *kw) ? kw[kind] : NULL;
+}
+
+static void node_out(const snode *sn, bt_node *out)
+{
+	memset(out, 0, sizeof *out);
+	out->kind = sn->kind;
+	out->line = sn->line;
+	out->column = sn->col;
+	out->text = sn->text;
+	out->name = sn->name;
+	out->trait = sn->trait;
+	out->args = sn->args;
+	out->secs = sn->secs;
+	out->every = sn->every;
+	out->sticky = sn->sticky;
+	out->noise = sn->noise;
+	out->factor = sn->factor;
+	out->written = sn->written;
+	out->comment = sn->note;
+	out->above = sn->above;
+	out->via = -1;
+}
+
+static void tree_out(const stree *st, bt_tree *out)
+{
+	out->name = st->name;
+	out->root = st->first;
+	out->line = st->line;
+	out->header = st->header;
+	out->comment = st->note;
+	out->above = st->above;
+}
+
+int bt_source_trees(const bt_source *src) { return src ? src->n_trees : 0; }
+int bt_source_nodes(const bt_source *src) { return src ? src->n_nodes : 0; }
+const char *bt_source_tail(const bt_source *src) { return src ? src->tail : NULL; }
+
+int bt_source_tree(const bt_source *src, int tree, bt_tree *out)
+{
+	if (!src || !out || tree < 0 || tree >= src->n_trees) return 0;
+	tree_out(&src->trees[tree], out);
+	return 1;
+}
+
+int bt_source_node(const bt_source *src, int id, bt_node *out)
+{
+	const snode *sn;
+	if (!src || !out || id < 0 || id >= src->n_nodes) return 0;
+	sn = &src->nodes[id];
+	node_out(sn, out);
+	out->id = id;
+	out->source = id;
+	out->tree = sn->tree;
+	out->parent = sn->parent;
+	out->first_child = id + 1 < sn->end ? id + 1 : -1;
+	out->next_sibling = sn->parent >= 0 && sn->end < src->nodes[sn->parent].end ? sn->end : -1;
+	out->n_children = sn->nchild;
+	return 1;
+}
+
+typedef struct wr { char *out; size_t size, len; } wr;
+
+static void put(wr *w, const char *s, size_t n)
+{
+	size_t i;
+	for (i = 0; i < n; i++, w->len++)
+		if (w->out && w->len + 1 < w->size) w->out[w->len] = s[i];
+}
+
+/* `above` lines, each behind `depth` tabs (an empty line stays empty) */
+static void put_above(wr *w, const char *above, int depth)
+{
+	int k;
+	while (above && *above) {
+		const char *e = strchr(above, '\n');
+		size_t n = e ? (size_t)(e - above) : strlen(above);
+		if (n) for (k = 0; k < depth; k++) put(w, "\t", 1);
+		put(w, above, n);
+		put(w, "\n", 1);
+		above += n + (e ? 1 : 0);
+	}
+}
+
+/* one line: the words, and the comment at its column */
+static void put_line(wr *w, int depth, const char *words, const char *colon, const char *note)
+{
+	enum { NOTE_COL = 46, TAB = 4 };
+	int k, col = depth * TAB + (int)strlen(words) + (int)strlen(colon);
+	for (k = 0; k < depth; k++) put(w, "\t", 1);
+	put(w, words, strlen(words));
+	put(w, colon, strlen(colon));
+	if (note) {
+		do { put(w, " ", 1); col++; } while (col < NOTE_COL);
+		put(w, "# ", 2);
+		put(w, note, strlen(note));
+	}
+	put(w, "\n", 1);
+}
+
+size_t bt_source_text(const bt_source *src, char *out, size_t out_size)
+{
+	wr w;
+	int t, i;
+	w.out = out_size ? out : NULL; w.size = out_size; w.len = 0;
+	if (!src) { if (w.out) w.out[0] = 0; return 0; }
+	for (t = 0; t < src->n_trees; t++) {
+		const stree *st = &src->trees[t];
+		if (st->header) {
+			char head[BT_NAME_MAX + 8];
+			snprintf(head, sizeof head, "tree %s", st->name);
+			put_above(&w, st->above, 0);
+			put_line(&w, 0, head, ":", st->note);
+		}
+		for (i = st->first; i < st->end; i++) {
+			const snode *sn = &src->nodes[i];
+			put_above(&w, sn->above, sn->depth);
+			put_line(&w, sn->depth, sn->text, "", sn->note);
+		}
+	}
+	put_above(&w, src->tail, 0);
+	if (w.out) w.out[w.len < w.size ? w.len : w.size - 1] = 0;
+	return w.len;
+}
+
+const bt_source *bt_forest_source(const bt_forest *f) { return f ? f->src : NULL; }
+int bt_forest_trees(const bt_forest *f) { return f ? f->n_trees : 0; }
+
+int bt_forest_tree(const bt_forest *f, int tree, bt_tree *out)
+{
+	if (!f || !out || tree < 0 || tree >= f->n_trees) return 0;
+	tree_out(&f->src->trees[tree], out);
+	out->root = f->trees[tree].root;
+	return 1;
+}
+
+int bt_forest_node(const bt_forest *f, int i, bt_node *out)
+{
+	const bnode *b;
+	const fmeta *m;
+	int k;
+	if (!f || !out || i < 0 || (size_t)i >= f->n_nodes) return 0;
+	b = &f->nodes[i];
+	m = &f->meta[i];
+	node_out(&f->src->nodes[m->src], out);
+	out->id = i;
+	out->source = m->src;
+	out->via = m->via;
+	out->parent = m->parent;
+	out->first_child = i + 1 < b->end ? i + 1 : -1;
+	out->next_sibling = m->parent >= 0 && b->end < f->nodes[m->parent].end ? b->end : -1;
+	for (k = i + 1; k < b->end; k = f->nodes[k].end) out->n_children++;
+	for (k = f->n_trees - 1; k > 0 && f->trees[k].root > i; k--) ;
+	out->tree = k;
+	return 1;
+}
+
+void bt_state_trace(bt_state *s, int on) { if (s) s->trace = on ? 1 : 0; }
+
+int bt_state_node(const bt_forest *f, const bt_state *s, int i, bt_node_state *out)
+{
+	const bnode *n;
+	const slot *sl;
+	double left = 0, since = 0;
+	if (!f || !s || !out || i < 0 || (size_t)i >= f->n_nodes) return 0;
+	n = &f->nodes[i];
+	sl = &s->s[i];
+	memset(out, 0, sizeof *out);
+	out->child = -1;
+	switch (n->kind) {
+	case K_SEQ: case K_SELECT:
+		out->running = sl->cur != 0;
+		out->child = sl->cur - 1;
+		break;
+	case K_PICK:
+		out->running = sl->cur != 0;
+		out->child = sl->cur ? sl->cur - 1 : -1;
+		if (sl->cur) { since = s->now - sl->t; left = n->every - since; }
+		break;
+	case K_DO:
+		out->running = sl->run != 0;
+		break;
+	case K_WAIT: case K_LIMIT:
+		out->running = sl->run != 0;
+		if (sl->run) { since = s->now - sl->t; left = n->secs - since; }
+		break;
+	case K_COOLDOWN:
+		left = sl->t - s->now;
+		break;
+	default:
+		break;
+	}
+	out->elapsed = (float)since;
+	out->remaining = left > 0 ? (float)left : 0.0f;
+	return 1;
+}
+
+int bt_state_running(const bt_forest *f, const bt_state *s, int tree, int *out, int max)
+{
+	int path[2 * BT_DEPTH_MAX], n = 0, i, k;
+	if (!f || !s || tree < 0 || tree >= f->n_trees) return 0;
+	for (i = f->trees[tree].root; n < 2 * BT_DEPTH_MAX - 1;) {
+		const bnode *b = &f->nodes[i];
+		const slot *sl = &s->s[i];
+		path[n++] = i;
+		if (b->kind == K_SEQ || b->kind == K_SELECT) {
+			if (!sl->cur) return 0;
+			i = sl->cur - 1;
+		} else if (b->kind == K_PICK) {
+			if (!sl->cur) return 0;
+			path[n++] = sl->cur - 1;
+			i = sl->cur;
+		} else if (b->kind == K_LIMIT) {
+			if (!sl->run) return 0;
+			i = i + 1;
+		} else if (is_decor(b->kind)) {
+			i = i + 1;
+		} else {
+			if (!sl->run) return 0;
+			break;
+		}
+	}
+	for (k = 0; out && k < n && k < max; k++) out[k] = path[k];
+	return n;
+}
+
+int bt_state_worths(const bt_forest *f, const bt_state *s, int pick, bt_worth *out, int max)
+{
+	int o, n = 0;
+	if (!f || !s || pick < 0 || (size_t)pick >= f->n_nodes || f->nodes[pick].kind != K_PICK) return 0;
+	for (o = pick + 1; o < f->nodes[pick].end; o = f->nodes[o].end, n++) {
+		const bnode *on = &f->nodes[o];
+		bt_worth *w;
+		oslot rec;
+		if (!out || n >= max) continue;
+		w = &out[n];
+		memcpy(&rec, &s->s[o], sizeof rec);
+		memset(w, 0, sizeof *w);
+		w->option = o;
+		w->held = s->s[pick].cur == o + 1;
+		w->factor = on->factor;
+		if (rec.sticky == 0.0f) continue;
+		w->weighed = 1;
+		w->score = rec.score;
+		w->weight = rec.weight;
+		w->luck = rec.luck;
+		w->sticky = rec.sticky;
+		w->worth = rec.score > 0 ? (float)((double)rec.score * rec.weight * on->factor * rec.luck * rec.sticky) : 0.0f;
+	}
+	return n;
 }
