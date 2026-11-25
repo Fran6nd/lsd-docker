@@ -51,6 +51,7 @@ DONE (commit), BLOCKED (on what).
 | 17 | Hostage gamemode: the hostages as engine bots with a tree of their own (botlink_add with a tree), falling back to today's lib_bot hostages with no engine; guards kept | TODO (brain agent, after 8) |
 | 18 | 230 bots without lag: botd sized for every seat, the planner's budget grown with the fleet, nothing built or walked for a bot on the server's send paths | REVIEW (scale agent): branch commits; numbers in BRAIN-STATUS.md (c2) |
 | 19 | Structural review of the fast fixes (the owner's rule: no quick hacks, one rule in one place) | REVIEW (review agent): see the 2026-11-25 log |
+| 21 | Never send a packet to a bot, nor the same packet to each: lib_bot is the one broadcaster (`broadcast`, `broadcast_each`, `people_in`), the guard counts what a script still sends at a bot, a test fails on any | REVIEW (bcast agent): branch commits; the core's own per-slot loops need C (see the log) |
 
 ## Log
 
@@ -284,3 +285,50 @@ DONE (commit), BLOCKED (on what).
   static exact, 14 crouched), a lane run 8/8 with a double hit counted
   once, a marker per hit (49 body, 100 head) with the target at 100 hp,
   the IPSC queue end to end. Not done: a bot tree to run the course.
+- 2026-11-25 (bcast agent, item 21): "make sure the server never sends the
+  same packet to each bot; lib_bot provides a custom broadcaster".
+  Measured first (tests/bot_sends_test.lua --table: one simulated minute,
+  100 bots and one person, the core's own hook chain from core.lua with a
+  stub of the C core that sends the way funcs_send.c and main.c do), on
+  d99cc30: 33 650 sends made at a bot pid, 27 350 of them to the end of
+  the chain, 445 000 visits of a bot by a piditer loop, 3.3 M Lua calls.
+  The cause was not a script that sends in a loop but the upstream hooks
+  that SPLIT a send to a group into one send for each id of it: purgatory
+  (every packet of the server, 255 sends for each broadcast), command_ignore
+  (chat), command_secspec (spawn, kill), command_ups (a World Update, 100
+  bot visits a tick), and what C does itself for a bot (see below). Done:
+  lib_bot's THE BROADCASTER: `broadcast(set, data[, unreliable])` (one
+  call into the core for a group, none if no person is in it),
+  `broadcast_each(set, fn)` and `people_in`; every typed send (30 of them)
+  is guarded at the top of the chain (a send at a bot is dropped before any
+  hook or packet, counted by name: `bot_guard_drops()`, one log line a
+  minute with the file:line of the first of each when there were any), the
+  core's own sends to the player an event is about kept apart (ENGINE:
+  map, state, restock, reload, position...); a send to a group is made to
+  the people of it a person at a time only for send_spawn_player, which the
+  core takes apart itself (a has_quirk and a send for each slot).
+  Overrides (checksummed): purgatory, command_ignore, command_secspec,
+  command_ups send a group WHOLE unless someone in it needs a different
+  packet, and then walk the people; map_meta tells the people the next
+  map. Catalog loops that sent to each player now walk people_in
+  (l10n's split, silent_player, message_types, teamplay, pie_menu, night,
+  hostage, the_fall, callouts (now one send to the group), babel_plus,
+  edit_mode, botlink, airstrike). After: 0 sends at a bot, the guard 0, 0
+  to the end of the chain, 31 600 bot visits (lib_bot's seat count and its
+  1 Hz people check, night's catch-up of a viewer), 2.0 M Lua calls (1.5 M
+  of them the test's own stub core). Not loaded by the image, not
+  patched: ffa, if_websocket (both split per id: use people_in if you load
+  them), tip_spam, command_admin (rare). NEEDS C (not done, patches/lsd is
+  another agent's): (1) send_map(PID_BROADCAST) on a map change and
+  on_successful_connect of a bot call send_state for each slot that
+  matches, bots too (answered by lib_bot at the top of the chain, but one
+  Lua call each, 100 a map change); (2) main.c set_block / cull_* walk
+  every slot with `pid_matches(PID_BROADCAST, i) && has_quirk(i, ...)`:
+  one Lua has_quirk call per bot per block edit, and the OpenSpades
+  noneighbor branch sends a block action to each slot WITHOUT the quirk,
+  bots included; (3) send_spawn_player, demand_fingerprint and any C loop
+  over pid_matches(set, i) reach Lua per bot. One C change would remove
+  all of them: a recipient test `pid_matches(set, i) && st->p[i].peer !=
+  NULL` in those loops (funcs_send.c send_map, send_spawn_player; main.c
+  cull and set_block loops), as send_packet_flags already does for the
+  send itself.

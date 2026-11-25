@@ -396,6 +396,41 @@ The category decides where the modules load (`phase`), what every entry
 of the kind depends on, and what installing means. An entry for an
 upstream LSd module sets `upstream = true` and ships no files.
 
+## Sending packets: never loop over the players
+
+A bot is a player in every way a script can ask about, and it has no
+client: whatever is sent to it is made, handed through every script's
+send hook, and thrown away. A script that walks the players and sends to
+each does that for every bot, for every message (a fleet of 230 is 230
+times the work for nobody). So, in a catalog script:
+
+- **a message for a group is one send to the group**: `send_chat(PID_BROADCAST, ...)`,
+  `send_fog(PID_BROADCAST_TEAM(t), ...)`, `server_msg(...)`,
+  `l10n_send_chat(...)`. The core makes the packet once and hands it to
+  the peers; lib_l10n (an `xearly` hook) makes a send for each reader's
+  language, among the people only.
+- **a raw packet for a group** is `broadcast(set, data [, unreliable])`
+  (lib_bot): one call into the core, none if no person is in the group.
+- **what differs from one recipient to the next** (a view of your own,
+  a team colour, a language you work out yourself) is
+  `broadcast_each(set, function(pid) ... end)`, or `for pid in
+  people_in(set) do ... end`: `piditer(set)` without the bots.
+- `piditer(PID_BROADCAST)` is for looking at the players (who is near,
+  who is alive), never for sending to them. Where lib_bot may not be
+  loaded, `(people_in or piditer)(set)`.
+- A hook on a send (`mod.send_chat`, `mod.send_packet`, ...) that has to
+  treat each recipient differently walks `people_in(pid)` and passes the
+  group on whole when nobody in it needs a different packet (see
+  `catalog/overrides/purgatory.lua`).
+
+lib_bot's send guard drops what is addressed to a bot all the same and
+counts it: `bot_guard_drops()`, and a line in the log once a minute
+("N packets addressed to bots were dropped ... first from file:line")
+when there were any. It should never fire in normal play: a line there
+is a script to fix. `tests/bot_sends_test.lua` runs a minute of a game
+with 100 bots and one person through the real hook chain and the
+catalog's senders, and fails if any send reaches a bot.
+
 ## Your own scripts
 
 A server runs scripts of your own -- new ones, or your version of one
