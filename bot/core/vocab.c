@@ -732,6 +732,41 @@ static float s_carrying_intel(void *bot, const bt_args *a) { return (float)c_car
 static float s_their_intel_home(void *bot, const bt_args *a) { return (float)c_their_intel_home(bot, a); }
 static float s_their_intel_dropped(void *bot, const bt_args *a) { return (float)c_their_intel_dropped(bot, a); }
 static float s_their_intel_carried(void *bot, const bt_args *a) { return (float)c_their_intel_carried(bot, a); }
+/* A DUTY FOR A FEW OF THE TEAM: `slot <name> <n>` holds while this bot
+ * holds it, or while fewer than n team-mates do -- and asking it, with
+ * that answer, is holding it (for 2 s: a pick that keeps choosing the
+ * branch asks it every second). The first to have come keep it; a branch
+ * the bot is in no more lets it go by itself. Like escorts' two a
+ * carrier, for whatever a tree wants a few of (babel's platform). */
+static int c_slot(void *bot, const bt_args *a)
+{
+	bc_bot *b = bot;
+	bc_engine *e = b->e;
+	const char *name = a->count > 0 ? a->text[0] : "";
+	int n = a->count > 1 ? (int)(a->num[1] + 0.5f) : 1, i, before = 0, mine;
+	double keep = 2.0;
+
+	mine = !strcmp(b->slot.name, name) && e->now - b->slot.at <= keep;
+	for (i = 0; i < e->max_bots; i++) {
+		const bc_bot *o = &e->bots[i];
+
+		if (!o->used || o == b || e->w.players[o->pid].team != bc_me(b)->team ||
+		    strcmp(o->slot.name, name) || e->now - o->slot.at > keep)
+			continue;
+		if (!mine || o->slot.since < b->slot.since || (o->slot.since == b->slot.since && o->pid < b->pid))
+			before++;
+	}
+	if (before >= n)
+		return 0;
+	if (!mine) {
+		snprintf(b->slot.name, sizeof b->slot.name, "%s", name);
+		b->slot.since = e->now;
+	}
+	b->slot.at = e->now;
+	return 1;
+}
+static float s_slot(void *bot, const bt_args *a) { return (float)c_slot(bot, a); }
+
 static int c_escort_open(void *bot, const bt_args *a) { (void)a; return bc_escort_open(bot); }
 static float s_escort_open(void *bot, const bt_args *a) { return (float)c_escort_open(bot, a); }
 static float s_our_intel_home(void *bot, const bt_args *a) { return (float)c_our_intel_home(bot, a); }
@@ -989,6 +1024,7 @@ static const word WORDS[] = {
 	{ VK_C, "their_intel_home", NOARGS, "the other team's intel lies where the server put it", c_their_intel_home, NULL, NULL, NULL },
 	{ VK_C, "their_intel_dropped", NOARGS, "the other team's intel lies where a carrier of this team fell", c_their_intel_dropped, NULL, NULL, NULL },
 	{ VK_C, "their_intel_carried", NOARGS, "a team-mate carries the other team's intel", c_their_intel_carried, NULL, NULL, NULL },
+	{ VK_C, "slot", 2, { TEXT("name"), NRANGE("n", 1.0f, 32.0f) }, "a duty for a few of the team: true while this bot holds it, or while fewer than n team-mates do -- and then it holds it (for 2 s, so a branch that keeps asking keeps it; the first to come keep it)", c_slot, NULL, NULL, NULL },
 	{ VK_C, "escort_open", NOARGS, "a team-mate carries their intel, is going somewhere (not still for 4 s), and fewer than two escort him -- or this bot is one of them", c_escort_open, NULL, NULL, NULL },
 	{ VK_C, "our_intel_home", NOARGS, "this team's intel lies where the server put it", c_our_intel_home, NULL, NULL, NULL },
 	{ VK_C, "our_intel_dropped", NOARGS, "this team's intel lies where its thief fell (it cannot be picked up by its own team: it is guarded there)", c_our_intel_dropped, NULL, NULL, NULL },
@@ -1000,6 +1036,7 @@ static const word WORDS[] = {
 	{ VK_S, "their_intel_home", NOARGS, "1 while the other team's intel lies where the server put it", NULL, s_their_intel_home, NULL, NULL },
 	{ VK_S, "their_intel_dropped", NOARGS, "1 while it lies where a carrier fell", NULL, s_their_intel_dropped, NULL, NULL },
 	{ VK_S, "their_intel_carried", NOARGS, "1 while a team-mate carries it", NULL, s_their_intel_carried, NULL, NULL },
+	{ VK_S, "slot", 2, { TEXT("name"), NRANGE("n", 1.0f, 32.0f) }, "1 while this bot holds the duty, or fewer than n team-mates do (and then it holds it, for 2 s); else 0", NULL, s_slot, NULL, NULL },
 	{ VK_S, "escort_open", NOARGS, "1 while a team-mate carries their intel, going somewhere, with a place for this bot beside him (two escorts at most)", NULL, s_escort_open, NULL, NULL },
 	{ VK_S, "our_intel_home", NOARGS, "1 while this team's intel lies where the server put it", NULL, s_our_intel_home, NULL, NULL },
 	{ VK_S, "our_intel_dropped", NOARGS, "1 while it lies where its thief fell", NULL, s_our_intel_dropped, NULL, NULL },

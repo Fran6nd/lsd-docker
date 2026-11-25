@@ -297,6 +297,7 @@ typedef struct bc_bot {
 	struct { uint8_t started, pad_[7]; double until; bl_vec3 spot, place; } guard;
 	struct { double stand_since; } fetch;
 	struct { double since, at; } esc;    /* escorting: since when, the last tick (skill_objective.c) */
+	struct { char name[16]; double since, at; } slot;   /* a duty for a few of the team it holds (vocab.c `slot`) */
 	struct { int16_t leader; uint8_t pad_[6]; double eval_at, still_since, off_until; bl_vec3 still_at; } squad;
 	uint32_t kills;         /* this life's */
 	double born_at;         /* when this life began */

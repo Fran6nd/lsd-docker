@@ -689,3 +689,22 @@ DONE (commit), BLOCKED (on what).
   team, at most 2 escort him, none once he has stood 7 s. build_cover's
   side cells are judged from the bot's own eye (it waited on one it
   could not see, to the word's 8 s): 5 of 6 builders hidden, was 4.
+- 2026-11-25 (brain agent): PROPS FACE TO FACE, and BABEL'S PLATFORM MEN.
+  The server's collapse floods through faces (cull.c): build_test shows
+  a pillar beside a step at the same x holds the stair (the worst cut
+  below it drops 0), one a column over, touching by an edge, holds
+  nothing (72); babel_plus's props are the first kind (the same x, the
+  row beside), pinned by babel_test. Babel (the owner: no escorts; "they
+  go over the enemy spawn to camp from platform and wait for flag to
+  reset to cap it"): escort gone from babel.bt (escort_open stays for
+  ctf); a platform role (aggression): three of the team at most hold the
+  platform once their stair is up -- the word `slot <name> <n>`, a duty
+  for a few, the first come keeping it while their branch keeps asking --
+  guarding the intel's home (`place.intel_home`, sent by babel_plus) on
+  the side the enemy comes up, taking the intel the moment it is home or
+  dropped; the rest of the role run. build_test: 5 of the role, at most
+  3 hold it; the intel put back is taken again in 2 s; a man coming up
+  shot at in 0.1 s. Harness, 3 seeds x 10 min (blueresortbabel, 10 a
+  side): captures 3/4/2 before, 2/4/2 after; carrier deaths 5/4/1
+  before, 1/2/0 after. (The earlier 3-0, 1-0, 0-0 captures were one
+  seed's noise: the three seeds of the old tree make 3, 4, 2.)

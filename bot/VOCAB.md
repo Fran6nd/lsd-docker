@@ -92,6 +92,9 @@ For `if` and `unless`: true or false.
 - **`their_intel_home`** -- the other team's intel lies where the server put it
 - **`their_intel_dropped`** -- the other team's intel lies where a carrier of this team fell
 - **`their_intel_carried`** -- a team-mate carries the other team's intel
+- **`slot <name> <n>`** -- a duty for a few of the team: true while this bot holds it, or while fewer than n team-mates do -- and then it holds it (for 2 s, so a branch that keeps asking keeps it; the first to come keep it)
+  - `name`: a word; must be given
+  - `n`: a number, 1 to 32; must be given
 - **`escort_open`** -- a team-mate carries their intel, is going somewhere (not still for 4 s), and fewer than two escort him -- or this bot is one of them
 - **`our_intel_home`** -- this team's intel lies where the server put it
 - **`our_intel_dropped`** -- this team's intel lies where its thief fell (it cannot be picked up by its own team: it is guarded there)
@@ -169,6 +172,9 @@ For `option <trait> <score>`: 0 to 1, how much the situation calls for the optio
 - **`their_intel_home`** -- 1 while the other team's intel lies where the server put it
 - **`their_intel_dropped`** -- 1 while it lies where a carrier fell
 - **`their_intel_carried`** -- 1 while a team-mate carries it
+- **`slot <name> <n>`** -- 1 while this bot holds the duty, or fewer than n team-mates do (and then it holds it, for 2 s); else 0
+  - `name`: a word; must be given
+  - `n`: a number, 1 to 32; must be given
 - **`escort_open`** -- 1 while a team-mate carries their intel, going somewhere, with a place for this bot beside him (two escorts at most)
 - **`our_intel_home`** -- 1 while this team's intel lies where the server put it
 - **`our_intel_dropped`** -- 1 while it lies where its thief fell

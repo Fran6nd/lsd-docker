@@ -478,6 +478,134 @@ static void test_pillar(void)
 	bs_free(s);
 }
 
+/* A prop holds the stair up only face to face: the server's collapse
+ * floods through faces (cull.c), so a pillar beside a step at the same x
+ * joins it, one a column over -- touching it by an edge only -- does not
+ * (the owner: "pillars must join face to face the stair to consolidate
+ * it, otherwise it does not consolidate it"). */
+static void test_prop_face(void)
+{
+	int k, P = base_k() / 2, x0 = SX0 - P, top = step_z(P), held[2], fx = 0, fz = 0;
+
+	printf("a prop holds a stair face to face, not by an edge\n");
+	for (k = 0; k < 2; k++) {
+		bs_sim *s = tower_field();
+		int x = x0 + k, j, n, worst = 0;    /* k 1: a column over, toward the top -- an edge, no face */
+
+		lay_band(s, SY);
+		bs_box(s, x, SY - 1, top + k, x, SY - 1, G - 1, 1);   /* its top level with the step (k 1: the step beside is one up) */
+		for (j = 0; j <= base_k(); j++) {
+			int bx, bz;
+
+			band_cells(j, 0, &bx, &bz);
+			if (bz < G && bx < x0 && (n = bc_cull_would_drop(s->truth, s->cull, bx, SY, bz, -1, -1, -1)) > worst) {
+				worst = n; fx = bx; fz = bz;
+			}
+		}
+		held[k] = worst;
+		bs_free(s);
+	}
+	(void)fx; (void)fz;
+	printf("  the worst cut below the prop drops %d with the prop face to face, %d with it a column over\n", held[0], held[1]);
+	CHECK(held[0] == 0);                       /* everything above the cut leans on the prop */
+	CHECK(held[1] > 0);                        /* an edge holds nothing */
+}
+
+/* BABEL'S PLATFORM MEN (babel.bt, babel_platform): with our stair up, a
+ * few -- three of the five here -- go up and hold the platform by the
+ * intel's home; the intel home, they take it; put back there after its
+ * carrier fell, they take it again at once; a man of theirs coming up
+ * onto the platform is shot at. The shipped trees, loaded as botd loads
+ * them. */
+static void test_platform_men(void)
+{
+	static const char *const files[] = { "trees/default.bt", "trees/tdm.bt", "trees/ctf.bt", "trees/babel.bt" };
+	bs_sim *s = tower_field();
+	char *all = calloc(1, 1 << 20), err[256];
+	size_t q;
+	int i, k, most = 0, up = 0, first = -1, again = -1, reset_at = -1, shots_before, hit_at = -1;
+
+	printf("babel's platform men: a few hold it, take the intel home again, shoot who comes up\n");
+	lay_band(s, SY);
+	s->ctf = 1; s->one_intel = 1;
+	s->intel_zone[0][0] = 218; s->intel_zone[0][1] = 243; s->intel_zone[0][2] = 218; s->intel_zone[0][3] = 243;
+	bs_intel_home(s, 0);
+	s->intel[1].x = 1e6f; s->intel[1].y = 1e6f; s->intel_holder[1] = -1;
+	bs_start(s);
+	for (q = 0; q < sizeof files / sizeof files[0]; q++) {
+		char *t = bs_slurp(files[q]);
+
+		strcat(all, t); strcat(all, "\n"); free(t);
+	}
+	CHECK(bc_engine_trees(s->e, all, err, sizeof err));
+	free(all);
+	bs_set(s, BL_NO_PLAYER, "edit=all");
+	bs_set(s, BL_NO_PLAYER, "leaders.per=0");
+	bs_set(s, BL_NO_PLAYER, "tree=babel");
+	bs_set(s, BL_NO_PLAYER, "fact.stair_done@1=1");
+	bs_set(s, BL_NO_PLAYER, "place.intel_home=218.50 243.50 -1.25");
+	for (k = 0; k < 5; k++) {
+		bs_add(s, k, 1, 1, 7, BL_GUN_RIFLE, 610u + (uint32_t)k * 13u, 170.5f + (float)k * 2.0f, 244.5f, 1, 0);
+		bs_set(s, k, "tree=babel_platform");
+	}
+	for (i = 0; i < 60 * 90; i++) {
+		char t[64];
+
+		if (s->intel_holder[0] >= 0) {
+			snprintf(t, sizeof t, "place.intel=pid %d", s->intel_holder[0]);
+			if (first < 0) first = i;
+			if (reset_at >= 0 && again < 0) again = i - reset_at;
+		} else {
+			snprintf(t, sizeof t, "place.intel=%.2f %.2f %.2f", s->intel[0].x, s->intel[0].y, s->intel[0].z - 2.25);
+		}
+		if (i % 30 == 0) bs_set(s, BL_NO_PLAYER, t);
+		/* the first carrier falls (shot): the intel is put back home */
+		if (first >= 0 && reset_at < 0 && i > first + 60) {
+			bl_vec3 from;
+
+			from.x = 230.5f; from.y = 243.5f; from.z = -1.0f;
+			bs_hurt(s, s->intel_holder[0], 200, BL_NO_PLAYER, from, 0);
+			s->intel_holder[0] = -1;
+			bs_intel_home(s, 0);
+			reset_at = i;
+		}
+		bs_step(s);
+		if (i % 60 == 0 && i > 60 * 40) {
+			int n = 0, h = 0;
+			const bc_bot *b;
+
+			for (k = 0; k < 5; k++) {
+				b = bc_engine_bot(s->e, k);
+				n += s->p[k].alive && bc_body_feet(&s->p[k].body) < (float)PZ + 0.5f;
+				h += b && !strcmp(b->slot.name, "platform") && s->e->now - b->slot.at <= 2.0;
+			}
+			if (h > most) most = h;
+			if (n > up) up = n;
+		}
+	}
+	/* a man of theirs comes up at the platform's far edge */
+	bs_add(s, 100, 0, 2, 5, BL_GUN_RIFLE, 1, 229.5f, 248.5f, -1, 0);
+	bc_body_place(&s->p[100].body, s->truth, 229.5f, 248.5f, PZ, 0);
+	shots_before = 0;
+	for (k = 0; k < 5; k++) shots_before += s->p[k].shots;
+	for (i = 0; i < 60 * 8 && hit_at < 0; i++) {
+		int shots = 0;
+
+		s->p[100].hp = 100;
+		bs_step(s);
+		for (k = 0; k < 5; k++) shots += s->p[k].shots;
+		if (shots > shots_before) hit_at = i;
+	}
+	printf("  5 of the role: at most %d hold the platform, %d up there at most; the intel taken after %.1f s; put back, taken again after %.1f s;\n"
+	       "  a man of theirs on the platform's edge: shot at after %.1f s\n",
+	       most, up, first / 60.0, again / 60.0, hit_at / 60.0);
+	CHECK(most >= 2 && most <= 3);
+	CHECK(first > 0);
+	CHECK(again > 0 && again < 60 * 10);
+	CHECK(hit_at >= 0);
+	bs_free(s);
+}
+
 /* Ours cut in the middle by the other team: what stood above fell. The
  * script names the next missing step from the ground, as babel_plus does,
  * and the builders lay it again. */
@@ -524,6 +652,8 @@ int main(void)
 	test_ranged_cut();
 	test_widen();
 	test_pillar();
+	test_prop_face();
+	test_platform_men();
 	test_repair();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;

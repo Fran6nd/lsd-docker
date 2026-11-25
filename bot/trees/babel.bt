@@ -18,6 +18,7 @@
 #   @breach      the OTHER team's stair where it is weakest (dig_weakest:
 #                the block there whose removal drops the most)
 #   @intel       the intel: where it lies, or the man who carries it
+#   @intel_home  where the intel is put back (a capture, a carrier down)
 #   fact stair_done  1 when its team's stair reaches the platform
 #   fact stair_high  how far up its team's stair is, 0 to 1
 #   fact widen, fact prop   1 while there is such a block to put
@@ -30,8 +31,9 @@
 #
 # The top `pick` is a priority list looked at every second; `babel_role`
 # under it is a ROLE drawn once for each bot and kept in every life
-# (`pick roll=once`): builders, masons, guards, snipers, raiders, runners
-# -- by character.
+# (`pick roll=once`): builders, masons, guards, snipers, raiders, runners,
+# platform men -- by character. Nobody escorts a carrier in babel: the
+# few on the platform wait for the intel's return there.
 
 tree babel:
 select
@@ -52,8 +54,6 @@ select
 			tree babel_under_fire
 		option none enemy_visible 3 x5        # somebody in sight, or just gone behind something: the fight it is in
 			tree babel_contact
-		option teamwork escort_open x1.5           # a mate carries it home, on his way, with room by him: with him
-			do escort
 		option aggression our_intel_taken x1.5     # one of theirs carries it: cut him off
 			do intercept
 		option none always                    # the game
@@ -107,6 +107,8 @@ pick roll=once
 		tree babel_mason
 	option objective always x0.8              # a runner: builds, then goes for the intel
 		tree babel_runner
+	option aggression always x0.6             # a platform man: up there, over their side, for the intel's return
+		tree babel_platform
 	option marksman gun_is rifle x0.6         # a sniper: up its stair, shooting their builders
 		tree babel_sniper
 	option caution always x0.5                # a guard: the stair's foot, where it can be broken
@@ -156,6 +158,32 @@ select
 			do fetch
 		option none always x0.3                   # somebody has it: near the top, ready
 			do guard @stair_top 20
+
+# THE PLATFORM (the owner: no escorts in babel; "they go over the enemy
+# spawn to camp from platform and wait for flag to reset to cap it"). A
+# few hold it -- three of the team, the first come -- once their stair is
+# up: near the intel's home, on the side the enemy comes up from, shooting
+# whoever does; the intel home again (a capture, a carrier down): theirs
+# at once. Without a place among the three: a runner.
+tree babel_platform:
+pick every=1 sticky=0.5 noise=0
+	option none slot platform 3               # one of the few up there
+		tree babel_on_platform
+	option none always x0.5                   # the rest: runners
+		tree babel_runner
+
+tree babel_on_platform:
+select
+	seq
+		unless fact stair_done                # not up yet: the stair first, as a runner
+		tree babel_runner
+	pick every=2 sticky=0.5 noise=0
+		option none their_intel_home x3       # it is home again: take it, at once
+			do fetch
+		option none their_intel_dropped x3    # it lies where a carrier fell
+			do fetch
+		option none always                    # watch the way they come up, by the intel's home
+			do guard @intel_home 20
 
 tree babel_sniper:
 pick every=20 sticky=0.5 noise=0

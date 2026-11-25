@@ -31,7 +31,7 @@
 --   place.stair, place.stair_top, place.stair_foot, place.widen,
 --   place.prop, place.breach    each team's, as the world's "<name>@<team>"
 --   fact.stair_done, fact.stair_high, fact.widen, fact.prop, fact.breach
---   place.intel                 for everybody (who carries it the engine
+--   place.intel, place.intel_home  for everybody (who carries it the engine
 --                               reads from the world: `carrying_intel`)
 -- The stair runs from the platform's corner side outward and down, one
 -- column and one voxel a step, along the platform's near edge row: team 1
@@ -360,6 +360,8 @@ local function tell_bots()
 	local intel = type(il) == "number" and ("pid " .. il)
 		or type(il) == "table" and point(il.x, il.y, il.z - 2.25) or "";
 	botlink_set("place.intel", intel);
+	-- where it is put back (babel's putback: the platform's middle)
+	botlink_set("place.intel_home", point(256.5, 256.5, babel_z - 2.25));
 	for team = 1, 2 do
 		local me, them, st = s[team], s[other(team)], stairs[team];
 		tell_team(team, "place.stair", me.nextp and eye(me.nextp) or eye(st.steps[#st.steps]));
