@@ -33,6 +33,7 @@ os.getenv = function(k) if (k == "LSD_DATA") then return DATA; end return real_g
 
 local L = dofile("tests/support/l10n_env.lua").load{};
 L.pids = {0, 1, 2};
+local lib = dofile("catalog/libs/vote/lib_vote.lua");   -- the vote itself
 local mod = dofile("catalog/tools/vote_map/vote_map.lua");
 -- the hook chain as LSd links it: advance_map is ours, then map_queue's
 mod.next.advance_map = function() advanced = advanced + 1; end
@@ -42,7 +43,7 @@ local function last() return L.chat[#L.chat] and L.chat[#L.chat].text or ""; end
 local function exists(p) local f = io.open(p); if (f) then f:close(); return true; end return false; end
 local function slurp(p) local f = io.open(p); local s = f and f:read("*a"); if (f) then f:close(); end return s; end
 local function spit(p, s) local f = io.open(p, "w"); f:write(s); f:close(); end
-local function tick(secs) NOW = NOW + (secs or 1); mod.after.tick(); end
+local function tick(secs) NOW = NOW + (secs or 1); lib.after.tick(); mod.after.tick(); end
 
 --============================= CHECKS ===============================--
 print("\n0. the first map, at start, is the rotation's even in random mode");

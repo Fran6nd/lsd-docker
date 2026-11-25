@@ -46,19 +46,7 @@ local no_fetch_msg = {en = "No new map could be had: on to the next one here."};
 local failed_msg = {en = "The vote for the next map failed."};
 local busy_msg = {en = "A new map is already on its way."};
 
-local vote = nil;     -- {voters = {pid = true}, count, need, deadline}
 local fetch = nil;    -- {deadline, next_look}
-
--- people who can vote: joined, not a bot or the console
-local function voters()
-	local n = 0;
-	for i in piditer(PID_BROADCAST) do
-		if (is_joined(i) and not is_fakepid(i) and not (bot_is_bot ~= nil and bot_is_bot(i))) then
-			n = n + 1;
-		end
-	end
-	return n;
-end
 
 local function read(path)
 	local f = io.open(path, "r");
@@ -110,21 +98,14 @@ local function next_map()
 	advance_map();
 end
 
-local function cast(pid)
-	if (vote.voters[pid]) then
-		l10n_send_chat(pid, already_msg);
-		return;
-	end
-	vote.voters[pid] = true;
-	vote.count = vote.count + 1;
-	if (vote.count >= vote.need) then
-		vote = nil;
+-- the tally, majority and timeout are lib_vote's
+local vote = vote_new{
+	started = started_msg, voted = voted_msg, already = already_msg, failed = failed_msg,
+	passed = function()
 		l10n_send_chat(PID_BROADCAST, passed_msg);
 		next_map();
-	else
-		l10n_send_chat(PID_BROADCAST, voted_msg, {name = get_name(pid), have = vote.count, need = vote.need});
-	end
-end
+	end,
+};
 
 local cmd = {name = {"va", "votemap"},
 	desc = "Vote to move on to the next map (a new one from the web where maps are random)."};
@@ -133,30 +114,12 @@ function cmd.func(pid)
 		l10n_send_chat(pid, busy_msg);
 		return;
 	end
-	if (vote ~= nil) then
-		cast(pid);
-		return;
-	end
-	local n = math.max(1, voters());
-	local need = math.min(n, math.floor(n * vote_map_ratio) + 1);
-	-- the starter's own voice, said once: in the start's line
-	vote = {voters = {[pid] = true}, count = 1, need = need, deadline = get_time() + vote_map_timeout};
-	if (vote.count >= need) then
-		vote = nil;
-		l10n_send_chat(PID_BROADCAST, passed_msg);
-		next_map();
-		return;
-	end
-	l10n_send_chat(PID_BROADCAST, started_msg, {name = get_name(pid), have = 1, need = need});
+	vote:ask(pid, vote_map_ratio, vote_map_timeout);
 end
 register_command(cmd, mod);
 
 function mod.after.tick()
 	local now = get_time();
-	if (vote ~= nil and now >= vote.deadline) then
-		vote = nil;
-		l10n_send_chat(PID_BROADCAST, failed_msg);
-	end
 	if (fetch == nil or now < fetch.next_look) then
 		return;
 	end
@@ -183,10 +146,9 @@ function mod.after.tick()
 	end
 end
 
--- a vote is for this map: a new one starts afresh. The first map
+-- (a vote is for one map: lib_vote drops it on a new one.) The first map
 -- loaded, the server is playing: map changes may wait for the web now.
 function mod.after.load_map()
-	vote = nil;
 	playing = true;
 end
 
