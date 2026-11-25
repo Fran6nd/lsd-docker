@@ -150,10 +150,12 @@ static int move_to(bc_bot *b, bl_vec3 pos, float radius, int raw)
 		if (dx * dx + dy * dy <= (radius + 0.75f) * (radius + 0.75f) && fabsf(pos.z - me->pos.z) < 1.5f &&
 		    !(mv->goal_set && mv->state == BC_MV_FOLLOWING))
 			return BC_MV_ARRIVED;
-		/* (a goal a single step away is still asked for: its search is
-		 * bounded by what is round the body -- a stranded bot building
-		 * its way out a block at a time, build_perch) */
-		if (e->now < mv->shut_until && dx * dx + dy * dy > 2.0f * 2.0f)
+		/* shut in: no search over the map. A goal within the reach of one
+		 * move (BC_NAV_JUMP_DMAX columns) is still asked for, by a LOCAL
+		 * search (fill_policy: policy.scope) whose cost is bounded by what
+		 * is round the body -- a stranded bot building its way out a block
+		 * at a time (build_perch) */
+		if (e->now < mv->shut_until && (fabsf(dx) > (float)BC_NAV_JUMP_DMAX || fabsf(dy) > (float)BC_NAV_JUMP_DMAX))
 			return BC_MV_FAILED;
 	}
 	if (raw) {
@@ -287,6 +289,10 @@ static void fill_policy(bc_bot *b)
 	p->build_secs = 0.85f - 0.30f * lv->dig;
 	p->h_weight = e->plan_greed;
 	p->goal_exact_z = b->mv.exact;
+	/* shut in (bc_move_to): only a local search, bounded by what is round
+	 * the body */
+	if (e->now < b->mv.shut_until)
+		p->scope = BC_NAV_JUMP_DMAX;
 	/* OFF A ROOF: the goal far below and edits allowed -- the way down is
 	 * dug or built, and a search that takes going down for free floods the
 	 * whole roof first (nav.h, descent_secs: 33 000 to 75 000 expansions on

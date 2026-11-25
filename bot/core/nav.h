@@ -372,6 +372,13 @@ typedef struct bc_nav_policy {
 	 * price for a voxel climbed by a pillar. Without it, a pillar of ten to
 	 * a step of a stair took 73 000 expansions on Babelpocalypse; 0: off. */
 	float ascent_secs;
+	/* A LOCAL SEARCH: nodes farther than this many columns from the start
+	 * (either way) are not entered, so the search is bounded by what is
+	 * round the body whatever the goal. 0: the whole map. A caller that
+	 * throttles searches over the map (a body found shut in) can still
+	 * run these: their cost is bounded by construction. */
+	int16_t scope;
+	uint8_t pad3_[2];
 } bc_nav_policy;
 
 /* The planner's own price of a voxel of height by edits (see above). */

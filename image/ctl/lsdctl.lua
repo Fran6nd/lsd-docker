@@ -1322,7 +1322,7 @@ local GAMES = {
 	{value = "ctf", label = "ctf", hint = "capture the flag", maps = "ctf", bots = true},
 	{value = "bots", label = "bots", hint = "team deathmatch with bots, day and night", maps = "ctf"},
 	{value = "bots_rewards", label = "bots_rewards", hint = "bots, with every reward free and unlimited", maps = "ctf"},
-	{value = "babel", label = "babel", hint = "build a tower to the enemy's flag", maps = "babel"},
+	{value = "babel", label = "babel", hint = "build a tower to the enemy's flag", maps = "babel", bots = true},
 };
 
 function game(mode)

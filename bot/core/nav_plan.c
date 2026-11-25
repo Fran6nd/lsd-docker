@@ -894,6 +894,9 @@ static void relax(bc_nav_search *s, uint32_t ci, bc_nav_node from, const edge *e
 
 	if (extra < 0.0f || used > s->pol->blocks)
 		return;
+	if (s->pol->scope > 0 &&
+	    (abs(e->to.x - s->start.x) > s->pol->scope || abs(e->to.y - s->start.y) > s->pol->scope))
+		return;                 /* a local search: not out of its scope */
 	g = s->recs[ci].g + e->secs + extra;
 	ni = node_get(s, nav_pack(e->to), &is_new);
 	if (ni == NOWHERE) {
