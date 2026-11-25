@@ -65,6 +65,9 @@
 #define U32(p) ((_Atomic uint32_t *)(p))
 
 enum { NAP_NS = 1000000, INODE_EVERY_MS = 250, MAX_MAP_BYTES = 64 << 20 };
+/* the health line's spread of round times: tenths of a millisecond, the
+ * last bucket all from 200 ms up */
+enum { ROUND_BUCKETS = 2001 };
 
 /* ------------------------------------------------------------------ */
 /* Small things                                                       */
@@ -138,6 +141,7 @@ typedef struct session {
 	/* health window */
 	uint64_t rounds, events, actions, drops, world_misses;
 	double sum_round, worst_round;
+	uint32_t round_hist[ROUND_BUCKETS];
 	uint32_t ring_dropped_seen;
 	int bots;
 	int user_trees;         /* the operator's directory had trees at the last look */
@@ -556,16 +560,31 @@ static int still_the_file(const session *s)
 	return st.st_ino == s->ino && st.st_dev == s->dev;
 }
 
+/* The round time below which a share `q` of the window's rounds fell, ms. */
+static double round_q(const session *s, double q)
+{
+	uint64_t want = (uint64_t)((double)s->rounds * q), seen = 0;
+	int i;
+
+	for (i = 0; i < ROUND_BUCKETS; i++) {
+		seen += s->round_hist[i];
+		if (seen > want)
+			return (double)(i + 1) * 0.1;
+	}
+	return (double)ROUND_BUCKETS * 0.1;
+}
+
 static void health(session *s, double window)
 {
 	double r = s->rounds ? (double)s->rounds : 1;
-	say("health: %.0f rounds/s, round mean %.2f ms worst %.2f ms, events %llu, actions %llu, "
+	say("health: %.0f rounds/s, round mean %.2f p50 %.1f p99 %.1f worst %.2f ms, events %llu, actions %llu, "
 	    "drops %llu, no-world %llu, bots %d",
-	    (double)s->rounds / window, s->sum_round / r * 1e3, s->worst_round * 1e3,
+	    (double)s->rounds / window, s->sum_round / r * 1e3, round_q(s, 0.5), round_q(s, 0.99), s->worst_round * 1e3,
 	    (unsigned long long)s->events, (unsigned long long)s->actions,
 	    (unsigned long long)s->drops, (unsigned long long)s->world_misses, s->bots);
 	s->rounds = s->events = s->actions = s->drops = s->world_misses = 0;
 	s->sum_round = s->worst_round = 0;
+	memset(s->round_hist, 0, sizeof s->round_hist);
 }
 
 enum { END_STOP, END_CLOSED, END_GONE, END_REPLACED };
@@ -645,6 +664,7 @@ static int run_session(session *s)
 		double end = now_s(), took = end - start;
 		s->rounds++;
 		s->sum_round += took;
+		s->round_hist[took * 1e4 < ROUND_BUCKETS - 1 ? (int)(took * 1e4) : ROUND_BUCKETS - 1]++;
 		if (took > s->worst_round) s->worst_round = took;
 		if (took > 3 * period) say("stall: a round took %.1f ms (period %.1f ms)", took * 1e3, period * 1e3);
 		if (end - last_health >= o->health_s) { health(s, end - last_health); last_health = end; }
