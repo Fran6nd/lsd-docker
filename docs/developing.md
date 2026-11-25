@@ -66,7 +66,9 @@ map dumps `$LSD_DATA/rw/botlink-map-N.vxl`. botd is built only once
 To run botd by hand against a server (a local one, or in the container
 with `docker exec -u lsd`): `botd --file /dev/shm/lsd-botlink --trees
 bot/trees`; `--once` exits at once if there is no file, `--hz` and
-`--budget` set the rate and the planner's work per round.
+`--budget` set the rate and the planner's work per round (at least),
+`--plan-rate` each bot's share of the planner a second (a round spends
+the larger).
 
 ```sh
 make -C bot          # libbotcore.a, libbotlink.so, build/bin/botd

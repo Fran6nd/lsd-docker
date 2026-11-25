@@ -798,7 +798,9 @@ function mod.after.tick()
 	end
 	last_sweep = now;
 
-	for pid in piditer(PID_BROADCAST) do
+	-- the people only (lib_bot's people_in): a bot is never warned,
+	-- held or locked out
+	for pid in (people_in or piditer)(PID_BROADCAST) do
 		local want = pending_team[pid];
 		local last = told_at[pid];
 		local due = last == nil

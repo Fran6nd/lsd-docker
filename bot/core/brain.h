@@ -46,7 +46,8 @@ enum {
 	BC_SETTINGS_MAX = 64,
 	BC_ITEMDEFS_MAX = 24,       /* items and extras together */
 	BC_ZONES_MAX = 32,
-	BC_GRENADES_MAX = 16,
+	BC_GRENADES_MAX = 3 * BL_MAX_PLAYERS,  /* live grenades: the three every player can
+	                               hold, thrown at once (e->nnades bounds the walks) */
 	BC_DANGER_MAX = 4,
 	BC_SEARCH_MAX = 4,
 	BC_CHANGE_CELLS = 2048,
@@ -57,8 +58,9 @@ enum {
 	BC_COVER_QUEUE = 660,
 	BC_VISIT_N = 32,            /* the visit grid: 32 x 32 cells of 16 columns */
 	BC_AVOID_MAX = 3,           /* enemies a carrier's route keeps away from */
-	BC_LEADERS_MAX = 52         /* a team's leaders: one for every 5 of 255 (it was 8,
-	                               which 115 a side outgrew without a word) */
+	BC_LEADERS_MAX = BL_MAX_PLAYERS /* a team's leaders: as many as it has players,
+	                               the most `leaders.per` (1: everyone) can ask for,
+	                               so the set cannot overflow whatever the setting */
 };
 
 /* BC_COVER_VIEW: HIDE, but only cells within a cone toward the threat
@@ -428,6 +430,7 @@ struct bc_engine {
 	bl_vec3 hot[2];             /* where a team last met the other */
 	double hot_at[2];
 	bc_nade nades[BC_GRENADES_MAX];
+	int32_t nnades;             /* nades[0 .. nnades): the slots ever filled since the map */
 	bc_objstate obj[2];         /* [team - 1]: that team's own */
 	bc_leaders lead[2];
 	bc_rng rng;                 /* the engine's own dice: who leads */
@@ -470,6 +473,7 @@ struct bc_engine {
 	uint32_t last_tick;
 	int have_world;
 	int budget_left;
+	int plan_per_bot;           /* a bot's share of a think's planner (engine.h) */
 
 	uint32_t chg_cells[BC_CHANGE_CELLS];
 	bc_engine_stats stats;

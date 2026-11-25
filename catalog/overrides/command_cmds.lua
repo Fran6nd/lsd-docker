@@ -1,4 +1,5 @@
 -- command_cmds.lua -- List available commands
+-- upstream: lsd/scripts/command_cmds.lua fnv1a32 0ea26bcb (tests/overrides_test.lua)
 --
 -- Upstream's, with every command's description in the reader's language:
 -- print_cmd takes the player it is for, and a description is looked up

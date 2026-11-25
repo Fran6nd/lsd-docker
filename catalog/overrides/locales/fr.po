@@ -49,22 +49,6 @@ msgctxt "command"
 msgid "Display the invocation and description of a command."
 msgstr "Afficher l'utilisation et la description d'une commande."
 
-#: catalog/overrides/command_ups.lua
-#: lsd/scripts/command_ups.lua
-msgid "%(arg) should be one of {%(freqs)} (Hz)"
-msgstr "%(arg) doit être l'une de {%(freqs)} (Hz)"
-
-#: catalog/overrides/command_ups.lua
-#: lsd/scripts/command_ups.lua
-msgid "Current update rate: %(freq) Hz"
-msgstr "Fréquence de mise à jour actuelle : %(freq) Hz"
-
-#: catalog/overrides/command_ups.lua
-#: lsd/scripts/command_ups.lua
-msgctxt "command"
-msgid "Get/set the rate your client receives player position/orientation."
-msgstr "Voir ou changer la fréquence à laquelle ton client reçoit la position et l'orientation des joueurs."
-
 #: catalog/overrides/lib_l10n.lua
 msgid "usage: %(cmd)"
 msgstr "utilisation : %(cmd)"
@@ -973,6 +957,19 @@ msgstr "Tu n'es allé nulle part, avec succès."
 msgctxt "command"
 msgid "Teleport one player (or you) to a different player."
 msgstr "Téléporter un joueur (ou toi) vers un autre joueur."
+
+#: lsd/scripts/command_ups.lua
+msgid "%(arg) should be one of {%(freqs)} (Hz)"
+msgstr "%(arg) doit être l'une de {%(freqs)} (Hz)"
+
+#: lsd/scripts/command_ups.lua
+msgid "Current update rate: %(freq) Hz"
+msgstr "Fréquence de mise à jour actuelle : %(freq) Hz"
+
+#: lsd/scripts/command_ups.lua
+msgctxt "command"
+msgid "Get/set the rate your client receives player position/orientation."
+msgstr "Voir ou changer la fréquence à laquelle ton client reçoit la position et l'orientation des joueurs."
 
 #: lsd/scripts/command_version.lua
 msgid "Running %(server_name) commit %(commit)"

@@ -132,7 +132,7 @@ void bc_leaders_think(bc_engine *e)
 		}
 		want = e->lead_per > 0 && members >= 3 ? (members + e->lead_per / 2) / e->lead_per : 0;
 		if (want < 1 && e->lead_per > 0 && members >= 3) want = 1;
-		if (want > BC_LEADERS_MAX) want = BC_LEADERS_MAX;
+		/* want <= members <= BL_MAX_PLAYERS = BC_LEADERS_MAX: no clamp */
 		for (i = l->n - 1; i >= 0; i--) {
 			const bl_player *p = &e->w.players[l->pid[i]];
 			const bc_bot *lb = bc_engine_bot(e, l->pid[i]);

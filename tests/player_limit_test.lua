@@ -59,6 +59,16 @@ function piditer(set)
 	return function() n = n + 1; return list[n]; end
 end
 function bot_is_bot(pid) return BOTS[pid] == true; end
+function is_connected(pid) return CONNECTED[pid] == true; end
+-- lib_bot's people_in: piditer without the bots
+function people_in(set)
+	local it = piditer(set);
+	return function()
+		local i = it();
+		while (i ~= nil and BOTS[i]) do i = it(); end
+		return i;
+	end
+end
 function get_ipaddr(pid) return BOTS[pid] and 0 or 1; end
 function ext_supported(pid, id) return SPEAKS[pid] and id == 192 and 1 or nil; end
 function ext_replied(pid) return REPLIED[pid] == true; end
@@ -79,6 +89,7 @@ local function load()
 	player_limit_max = max;
 	mod.late.next.send_packet = function(pid, data) SENT[#SENT+1] = {pid, data, true}; return 1; end
 	mod.late.next.send_packet_unreliable = function(pid, data) SENT[#SENT+1] = {pid, data, false}; return 1; end
+	mod.on_load();    -- as register() does, with whoever is connected
 	return mod;
 end
 local function ch(...) return string.char(...); end

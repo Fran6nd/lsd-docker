@@ -22,14 +22,11 @@ Upstream LSd modules, patched. Copied over upstream's at every start.
                each tick, stopping every script after it (bots, blasts).
                Reads the block whole; an incomplete one is none. Report
                upstream (lib_pyscrape's get_ext reads one line only).
-  command_ups.lua
-               A World Update is built for each PERSON among the
-               recipients (lib_bot's people_in), not for each of a fleet
-               of bots it would never reach: with 230 bots it was built
-               230 times a tick. Ours (bots are lib_bot's).
-  afkick.lua   A bot is never away: no timer, and its inputs cost
-               nothing (each walked every player three times); its
-               walks are nil-safe. Ours (bots are lib_bot's).
+  afkick.lua   A bot is never away from its keyboard: it is given no
+               timer, so its inputs -- hundreds a second in a fleet --
+               cost nothing (upstream walks every player three times
+               for each). The one rule for it: lib_bot fakes no life
+               for afkick. Ours (bots are lib_bot's).
 
   tentspawns.lua
                A spawn is not put on a thin layer floating far above
@@ -37,5 +34,17 @@ Upstream LSd modules, patched. Copied over upstream's at every start.
                fall: keidoro's at z 0): the floor under it instead.
                Report upstream.
 
-Each one is a whole file, so after `dev/bump-lsd.sh` re-apply the patch
-onto upstream's new copy (git -C lsd diff OLD..NEW -- scripts/<file>).
+Each one is a whole file, so it can drift from upstream silently. A
+change that can be made from outside -- a hook on the chain, in the
+module that owns the rule -- is made there instead: the World Update
+built for each bot is dropped under command_ups by lib_bot's late
+send_player_update hook, and command_ups stays upstream's. What is
+left here could not be (a local function changed, a parse inside).
+
+So each file's second line names the upstream file it was made from,
+by a checksum (-- upstream: lsd/scripts/<file> fnv1a32 ...), and each
+change in it is marked (lsd-docker, PATCHED). tests/overrides_test.lua
+fails the moment upstream's file is not that one any more: after
+`dev/bump-lsd.sh`, re-apply the patch onto upstream's new copy
+(git -C lsd diff OLD..NEW -- scripts/<file>) and write the checksum the
+test prints.

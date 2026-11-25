@@ -49,22 +49,6 @@ msgctxt "command"
 msgid "Display the invocation and description of a command."
 msgstr "显示命令的用法和说明。"
 
-#: catalog/overrides/command_ups.lua
-#: lsd/scripts/command_ups.lua
-msgid "%(arg) should be one of {%(freqs)} (Hz)"
-msgstr "%(arg) 必须是 {%(freqs)} 之一（Hz）"
-
-#: catalog/overrides/command_ups.lua
-#: lsd/scripts/command_ups.lua
-msgid "Current update rate: %(freq) Hz"
-msgstr "当前更新频率：%(freq) Hz"
-
-#: catalog/overrides/command_ups.lua
-#: lsd/scripts/command_ups.lua
-msgctxt "command"
-msgid "Get/set the rate your client receives player position/orientation."
-msgstr "获取/设置你的客户端接收玩家位置/朝向的频率。"
-
 #: catalog/overrides/lib_l10n.lua
 msgid "usage: %(cmd)"
 msgstr "用法：%(cmd)"
@@ -973,6 +957,19 @@ msgstr "你成功地哪儿也没去。"
 msgctxt "command"
 msgid "Teleport one player (or you) to a different player."
 msgstr "将一名玩家（或你）传送到另一名玩家处。"
+
+#: lsd/scripts/command_ups.lua
+msgid "%(arg) should be one of {%(freqs)} (Hz)"
+msgstr "%(arg) 必须是 {%(freqs)} 之一（Hz）"
+
+#: lsd/scripts/command_ups.lua
+msgid "Current update rate: %(freq) Hz"
+msgstr "当前更新频率：%(freq) Hz"
+
+#: lsd/scripts/command_ups.lua
+msgctxt "command"
+msgid "Get/set the rate your client receives player position/orientation."
+msgstr "获取/设置你的客户端接收玩家位置/朝向的频率。"
 
 #: lsd/scripts/command_version.lua
 msgid "Running %(server_name) commit %(commit)"

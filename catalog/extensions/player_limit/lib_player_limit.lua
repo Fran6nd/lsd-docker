@@ -174,20 +174,18 @@ end
 -- lua.c check_plid): the editor's first door raised it. So above the
 -- core's answer, the highest free seat is the hand instead -- what the
 -- core itself falls back to when its slot is taken, searched from the
--- top since people and bots are given the lowest. Only when all 255 ids
--- are taken is there none; lib_bot keeps one free whenever it has bots.
+-- top since people and bots are given the lowest (so it is found in a
+-- step or two, not a walk of every seat). Only when all 255 ids are
+-- taken is there none; lib_bot keeps one free whenever it has bots
+-- (bot_seats_free).
 function mod.get_anon_pid()
 	local pid = mod.next.get_anon_pid();
 	if (pid < MAX_PLAYERS) then
 		return pid;
 	end
 
-	local taken = {};
-	for i in piditer(PID_BROADCAST) do
-		taken[i] = true;
-	end
 	for i = MAX_PLAYERS - 1, 0, -1 do
-		if (not taken[i]) then
+		if (not is_connected(i)) then
 			return i;
 		end
 	end
@@ -582,13 +580,20 @@ local function deliver(pid, data, reliable)
 	return raw_send(pid, out, reliable);
 end
 
--- Who has a client (false: a bot), found once for each id and forgotten
--- when it leaves.
-local human = pid_connected_table();
--- True while no person connected needs a packet held or cut: every one
--- of them speaks the extension and is owed nothing. Worked out a few
--- times a second (tick, below) and dropped the moment somebody connects.
-local calm = false;
+-- THE CLIENTS OWED SOMETHING: those a broadcast may have to be held or
+-- cut for. A person is owed from his connect until he is "all" with
+-- nothing held -- he spoke 192 and his queue went out -- and from then
+-- on never again (whether a client speaks 192 is settled once a
+-- connection); one that does not speak it stays owed until he leaves.
+-- Kept from the events and the sweep below, never walked for: with
+-- nobody owed, a broadcast goes on whole, as at 32 seats.
+local owed = pid_connected_table();
+
+local function settle(pid)
+	if (owed[pid] and queue[pid] == nil and classify(pid) == "all") then
+		owed[pid] = nil;
+	end
+end
 
 -- Every packet LSd sends passes here. With 32 seats or fewer it is the
 -- one comparison and nothing else.
@@ -600,28 +605,14 @@ local function route(pid, data, reliable)
 	if (sane_pid(pid)) then
 		return deliver(pid, data, reliable);
 	end
-	if (not is_set(pid)) then
+	if (not is_set(pid) or next(owed) == nil) then
 		return raw_send(pid, data, reliable);
 	end
 
-	-- Everybody a broadcast names who has a client is sent it as they
-	-- always were, in one go, when none of them needs it held or cut.
-	if (calm) then
-		return raw_send(pid, data, reliable);
-	end
-
-	-- Otherwise one by one -- and only to people: a bot has no client to
-	-- send to, and a server full of bots must not pay for each of them at
-	-- every packet.
-	for i in piditer(pid) do
-		local h = human[i];
-		if (h == nil) then
-			h = person(i);
-			human[i] = h;
-		end
-		if (h) then
-			deliver(i, data, reliable);
-		end
+	-- one by one, to the people among the recipients (lib_bot's
+	-- people_in: a bot has no client to send to)
+	for i in (people_in or piditer)(pid) do
+		deliver(i, data, reliable);
 	end
 	return 0;
 end
@@ -636,14 +627,15 @@ end
 
 function mod.after.on_successful_connect(pid)
 	since[pid] = get_time();
-	human[pid] = nil;
-	calm = false;
+	if (person(pid)) then
+		owed[pid] = true;
+	end
 end
 
 local last_sweep = 0;
 
 -- A client that has answered, with nothing sent to it since, is owed
--- what was held.
+-- what was held; one that is owed nothing more leaves the set.
 function mod.after.tick()
 	local now = get_time();
 	if (now - last_sweep < 0.25) then
@@ -651,21 +643,12 @@ function mod.after.tick()
 	end
 	last_sweep = now;
 
-	local quiet = true;
-	for i in piditer(PID_BROADCAST) do
+	for i in pairs(owed) do
 		if (queue[i] ~= nil and decided(i)) then
 			flush(i);
 		end
-		local h = human[i];
-		if (h == nil) then
-			h = person(i);
-			human[i] = h;
-		end
-		if (h and (queue[i] ~= nil or classify(i) ~= "all")) then
-			quiet = false;
-		end
+		settle(i);
 	end
-	calm = quiet;
 end
 
 -- What makes the extension required while the server seats more than
@@ -688,6 +671,13 @@ function mod.on_load()
 	end
 
 	ext_register("lib_player_limit", EXT_ID, EXT_VERSION, nil, "Player Limit", floor);
+
+	-- (re)loaded with clients connected: each is owed until settled
+	for i in (people_in or piditer)(PID_BROADCAST) do
+		if (person(i)) then
+			owed[i] = true;
+		end
+	end
 end
 
 -- No EXPORTS sweep, because there are no globals to sweep: see the API

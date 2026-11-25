@@ -1,4 +1,5 @@
 -- sel.lua -- Perform bulk place/destroy operations on selections
+-- upstream: lsd/scripts/sel.lua fnv1a32 5cf8bfe7 (tests/overrides_test.lua)
 require "lib_l10n";
 require "lib_bulk_destroy";
 local bit = require("bit");

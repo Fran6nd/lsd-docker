@@ -396,30 +396,29 @@ local function sane_pid(pid)
 	return pid ~= nil and pid >= 0 and pid < MAX_PLAYERS and pid % 1 == 0;
 end
 
--- Is nobody editing, and nobody owed or missing a block packet? Asked
--- for every block packet there is, so it is worked out once and kept
--- until something that could change it happens (unknown()) or the tick
--- ends -- on a server full of bots that dig and build, walking every
--- player for every block was most of what the server did.
-local idle = nil;
-local function unknown()
-	idle = nil;
+-- THE PEOPLE: everything here is for a client -- an edit mode, a held
+-- queue, a missed edit, a bench -- and a bot has none (it never
+-- negotiates, so it never edits, is never held, never misses). So every
+-- walk is over lib_bot's people (people_in: piditer without the bots;
+-- piditer where lib_bot is not loaded, and there are no bots), a handful
+-- on a server of 230 bots.
+local function people(set)
+	return (people_in or piditer)(set);
 end
+
+-- Is nobody editing, and nobody owed or missing a block packet? Asked
+-- for every block packet there is: a look at each person.
 local function nobody_busy()
-	if (idle == nil) then
-		idle = true;
-		for i in piditer(PID_BROADCAST) do
-			if (editing[i] or missed[i] or queue[i] ~= nil) then
-				idle = false;
-				break;
-			end
+	for i in people(PID_BROADCAST) do
+		if (editing[i] or missed[i] or queue[i] ~= nil) then
+			return false;
 		end
 	end
-	return idle;
+	return true;
 end
 
 local function edit_any()
-	for i in piditer(PID_BROADCAST) do
+	for i in people(PID_BROADCAST) do
 		if (editing[i]) then
 			return true;
 		end
@@ -459,13 +458,12 @@ end
 -- behind it, so the client ends up where everybody else is.
 local function start_queue(pid)
 	local q = {n_blocks = 0};
-	for i in piditer(PID_BROADCAST) do
+	for i in people(PID_BROADCAST) do
 		if (editing[i]) then
 			q[#q+1] = mode_packet(i, true);
 		end
 	end
 	queue[pid] = q;
-	unknown();
 	return q;
 end
 
@@ -526,7 +524,7 @@ end
 -- did not negotiate never gets packet 0x76. One that misses a batch has
 -- missed an edit.
 local function deliver_ext(data, changes_map)
-	for i in piditer(PID_BROADCAST) do
+	for i in people(PID_BROADCAST) do
 		if (negotiated(i)) then
 			raw_send(i, data);
 		elseif (person(i) and not missed[i]) then
@@ -564,7 +562,7 @@ function mod.late.send_packet(pid, data)
 		return deliver(pid, data, id, any);
 	end
 
-	for i in piditer(pid) do
+	for i in people(pid) do
 		deliver(i, data, id, any);
 	end
 	return 0;
@@ -635,7 +633,6 @@ function miss(pid)
 	local q = queue[pid];
 	queue[pid] = nil;
 	missed[pid] = true;
-	unknown();
 
 	-- what was held that is not an edit still goes, in order
 	if (q ~= nil) then
@@ -766,7 +763,7 @@ local function notify_unquirked(x, y, z)
 	end
 
 	local pos = {x = x, y = y, z = z};
-	for i in piditer(PID_BROADCAST) do
+	for i in people(PID_BROADCAST) do
 		if (not has_quirk(i, QUIRK_OS_BACTION_CULL)) then
 			send_block_action(i, pos, 1, get_anon_pid());
 		end
@@ -922,7 +919,7 @@ local function changed(pid, on)
 
 	-- out of play at once, before a single edit can reach them
 	if (on) then
-		for i in piditer(PID_BROADCAST) do
+		for i in people(PID_BROADCAST) do
 			local why = sit_reason(i);
 			if (why ~= nil) then
 				bench(i, why);
@@ -953,7 +950,6 @@ function edit_mode_set(pid, on)
 	end
 
 	editing[pid] = on;
-	unknown();
 	changed(pid, on);
 	return true;
 end
@@ -996,7 +992,7 @@ local function on_ready(pid)
 		end
 		dbg("#%d negotiated, sent the %d packets held for it", pid, #q);
 	else
-		for i in piditer(PID_BROADCAST) do
+		for i in people(PID_BROADCAST) do
 			if (editing[i]) then
 				raw_send(pid, mode_packet(i, true));
 			end
@@ -1013,14 +1009,13 @@ end
 local last_sweep = 0;
 
 function mod.after.tick()
-	unknown();
 	local now = get_time();
 	if (now - last_sweep < 0.25) then
 		return;
 	end
 	last_sweep = now;
 
-	for i in piditer(PID_BROADCAST) do
+	for i in people(PID_BROADCAST) do
 		-- answered, and not with us: what it was held has been missed
 		if (queue[i] ~= nil and decided(i) and not negotiated(i)) then
 			miss(i);

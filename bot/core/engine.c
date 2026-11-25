@@ -180,7 +180,7 @@
 #include "vocab.h"
 
 static const double DECIDE_PERIOD = 0.05;       /* about 20 a second */
-enum { SEARCH_NODES = 131072, BUDGET_BOTS = 40 };
+enum { SEARCH_NODES = 131072 };
 
 static const char FALLBACK_TREES[] =
 	"tree default:\n"
@@ -679,6 +679,7 @@ bc_engine *bc_engine_new(const bc_engine_host *host, int max_bots)
 	e->plan_greed = 1.5f;
 	e->plan_cap = 8000;
 	e->lead_per = 5;
+	bc_engine_plan_rate(e, BC_PLAN_RATE, 60);
 	e->lead_human = 2.0f;
 	bc_rng_seed(&e->rng, 0x6c656164, 1);
 	memset(e->hurt_by, BL_NO_PLAYER, sizeof e->hurt_by);
@@ -756,6 +757,7 @@ int bc_engine_map(bc_engine *e, const uint8_t *vxl, size_t bytes, uint32_t map_s
 	bc_board_clear(&e->board);
 	e->hot_at[0] = e->hot_at[1] = -1e9;
 	memset(e->nades, 0, sizeof e->nades);
+	e->nnades = 0;
 	bc_tactics_map(e);
 	memset(e->obj, 0, sizeof e->obj);
 	memset(e->lead, 0, sizeof e->lead);
@@ -1712,12 +1714,23 @@ void bc_engine_event(bc_engine *e, const bl_record *rec)
 	}
 	case BL_EV_GRENADE: {
 		bl_ev_grenade ev;
-		int i, slot = 0;
+		int i, slot = -1;
 
 		if (n < sizeof ev || pid == BL_NO_PLAYER || !e->have_world) break;
 		memcpy(&ev, pl, sizeof ev);
-		for (i = 0; i < BC_GRENADES_MAX; i++)
-			if (!e->nades[i].valid || e->nades[i].at < e->now) { slot = i; break; }
+		/* a slot burst already, else a new one; with every one live (more
+		 * than three a player: a restock between throws) the one to burst
+		 * first gives way, said */
+		for (i = 0; i < e->nnades && slot < 0; i++)
+			if (!e->nades[i].valid || e->nades[i].at < e->now) slot = i;
+		if (slot < 0 && e->nnades < BC_GRENADES_MAX)
+			slot = e->nnades++;
+		if (slot < 0) {
+			for (slot = 0, i = 1; i < BC_GRENADES_MAX; i++)
+				if (e->nades[i].at < e->nades[slot].at) slot = i;
+			bc_engine_log(e, 2, "grenade of #%d: %d live already; the one to burst first is forgotten",
+			              pid, BC_GRENADES_MAX);
+		}
 		e->nades[slot].burst = bc_grenade_fly(e->have_map ? e->map : NULL, ev.pos, ev.vel, ev.fuse);
 		e->nades[slot].born = e->now;
 		e->nades[slot].at = e->now + (double)ev.fuse;
@@ -2363,6 +2376,13 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 	b->aim_out = out;
 }
 
+void bc_engine_plan_rate(bc_engine *e, int rate, int hz)
+{
+	if (rate < 0) rate = 0;
+	if (hz < 1) hz = 1;
+	e->plan_per_bot = (rate + hz / 2) / hz;
+}
+
 void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
                      float dt, int budget)
 {
@@ -2389,14 +2409,14 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 	e->have_world = 1;
 	bc_objective_world(e);
 	bc_leaders_think(e);
-	e->budget_left = budget > 0 ? budget : 0;
 	{
-		/* the budget is for BUDGET_BOTS bots: a fleet beyond gets more in
-		 * proportion, or most of 230 bots stood waiting for a route */
-		int n = bc_engine_bots(e);
+		/* engine.h, THE PLANNER'S BUDGET: the think's own, or every
+		 * bot's share, whichever is more */
+		long long share = (long long)e->plan_per_bot * bc_engine_bots(e);
 
-		if (n > BUDGET_BOTS && budget > 0)
-			e->budget_left = (int)((long long)budget * n / BUDGET_BOTS);
+		e->budget_left = budget > 0 ? budget : 0;
+		if (budget > 0 && share > e->budget_left)
+			e->budget_left = share > INT32_MAX ? INT32_MAX : (int)share;
 	}
 	dtw = e->world_dt > 0.25f ? 0.25f : e->world_dt;
 	e->world_dt = 0.0f;

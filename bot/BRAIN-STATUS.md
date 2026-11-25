@@ -210,9 +210,15 @@ for 64 (`--bots` defaulted to 64 and the entrypoint gave none), so 166
 stood still, and the server carried 230 peerless players through Lua
 send paths that walked every player for every packet. Now botd is sized
 for every seat (255, the default and the entrypoint's), and nothing is
-built, sent or walked for a bot (lib_bot's `people_in`, used by the
-overrides of command_ups and afkick; lib_player_limit's, lib_edit_mode's
-and lib_bot's own send guards on master; lib_player_properties).
+built, sent or walked for a bot: one rule, lib_bot's THE PEOPLE --
+`people_in(set)`, piditer without the bots, over the people kept from
+connects and disconnects (no walk, no per-tick list) -- which every loop
+for a client's sake uses: lib_bot's send guard and its late
+send_player_update hook (no World Update built for a bot, under an
+upstream command_ups), lib_player_limit, lib_edit_mode,
+lib_player_properties, lib_night, lib_ext_policy, lib_headless; afkick's
+override gives a bot no timer (item 19 replaced the per-tick caches and
+the command_ups copy this section first described).
 
 **Measured** on a container of its own (M-series laptop, Docker
 Desktop, arm64 native, other containers running), one headless client
@@ -266,10 +272,16 @@ stays inside two periods; no "stall" line in any run above.
 
 1. botd sized for every seat: 64 -> 255 (entrypoint, botd's default; a
    bot the engine has no room for is said with the option to raise). The
-   only other cap that 115 a side outgrew: a team's leaders, 8 -> 52.
+   only other cap that 115 a side outgrew: a team's leaders, 8 -> 52;
+   since item 19 the set holds as many as a team has players (it cannot
+   overflow whatever `leaders.per`), and the live grenades the engine
+   tracks are three a player (16 before, the oldest silently lost).
    botd's RSS at 255: 35-40 MB.
-2. THE PLANNER'S BUDGET grows with the fleet (engine.h): `--budget` (3000
-   expansions a think) is for 40 bots, and n bots get n/40 of it. A fixed
+2. THE PLANNER'S BUDGET grows with the fleet (engine.h): a think spends
+   the larger of `--budget` (3000) and each bot's share, `--plan-rate`
+   (4500 expansions a second, 75 a think at 60) times the bots -- the
+   same numbers as "3000 for 40 bots, more in proportion", said as the
+   model it is (item 19). A fixed
    budget planned about 11 routes a second for everybody: bench map230
    (prisonbreakv1, 120 s): waiting for a route 32.7% -> 2.1% of the bots'
    time, no key 51 -> 24%, plans 1280 -> 11045, kills 130 -> 251; a think

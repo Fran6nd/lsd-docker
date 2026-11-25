@@ -3,10 +3,11 @@
 --
 --   luajit tests/fleet_sends_test.lua      (from the repository root)
 --
--- lib_bot's people_in (piditer without the bots), and the two upstream
--- scripts overridden to use it or to leave bots alone: command_ups (a
--- World Update per recipient: built for people only) and afkick (a
--- bot's inputs walked every player three times each).
+-- lib_bot's people (kept from connects and disconnects, never walked
+-- for), people_in (piditer without the bots), the World Update the core
+-- would build for each bot (dropped under command_ups, which stays
+-- upstream's), and afkick's override (a bot is never away: its inputs
+-- walked every player three times each).
 local failures, checks = 0, 0;
 local function check(ok, what, detail)
 	checks = checks + 1;
@@ -65,19 +66,35 @@ function server.assign_new_pid()
 	end
 	return MAX_PLAYERS;
 end
-function on_successful_connect(pid) CONNECTED[pid] = true; end
 function on_join() end
+function masterlist_set_players() end
+function masterlist_set_max_players() end
 
+-- afkick (our override of it) is loaded at boot, before anybody, as
+-- group_feature loads it; then lib_bot
+afkick_time_kick, afkick_time_warn, afkick_time_limbo = 1800, 1740, 120;
+function get_inputs() return 0; end
+bit = require("bit");
+local afk = dofile("catalog/overrides/afkick.lua");
+afk.on_load();
 local bot = dofile("catalog/libs/bot/lib_bot.lua");
 bot.next.assign_new_pid = server.assign_new_pid;
+-- the chain as the core runs it: lib_bot's xearly hooks outermost
+function on_successful_connect(pid)
+	bot.xearly.before.on_successful_connect(pid);
+	CONNECTED[pid] = true;
+	afk.after.on_successful_connect(pid);
+end
 function on_disconnect(pid)
 	CONNECTED[pid] = nil;
+	afk.after.on_disconnect(pid);
 	bot.after.on_disconnect(pid);
+	bot.xearly.after.on_disconnect(pid);
 end
 -- what a person's connect calls: the chain, lib_bot's hook on top
 local function person_connects()
 	local pid = bot.assign_new_pid();
-	if (pid < MAX_PLAYERS) then CONNECTED[pid] = true; end
+	if (pid < MAX_PLAYERS) then on_successful_connect(pid); end
 	return pid;
 end
 function is_connected(pid) return CONNECTED[pid] == true; end
@@ -104,30 +121,46 @@ eq(list(people_in(0)), "", "a bot alone: nobody");
 eq(list(people_in(a)), tostring(a), "a person alone: him");
 eq(list(people_in(255)), "255", "the console's own pid goes as piditer takes it");
 
-print("\n2. command_ups: a World Update for each person, none for a bot");
+print("\n2. no World Update is built for a bot: under command_ups (upstream's)");
 function register_command() end
 function pid_connected_table(v) local t = {}; return setmetatable(t, {__index = function() return v; end}); end
-local ups = dofile("catalog/overrides/command_ups.lua");
-local sent = {};
-ups.next.send_player_update = function(i) sent[#sent + 1] = i; end
+local ups = dofile("lsd/scripts/command_ups.lua");
+local built = {};
+bot.late.next.send_player_update = function(i) built[#built + 1] = i; end
+ups.next.send_player_update = bot.late.send_player_update;
 ups.send_player_update(PID_BROADCAST);
-table.sort(sent);
-eq(table.concat(sent, ","), a .. "," .. b, "built for the two people only (it was 42 a tick)");
+table.sort(built);
+eq(table.concat(built, ","), a .. "," .. b, "built for the two people only (it was 42 a tick)");
+built = {};
+bot.late.send_player_update(PID_BROADCAST);
+eq(#built, 1, "a broadcast with nobody above to split it goes on whole");
+
+print("\n   the people are kept from the events");
+on_disconnect(a);
+eq(list(people_in(PID_BROADCAST)), tostring(b), "one leaves: the other is left");
+local c = person_connects();
+TEAM[c] = 1;
+eq(list(people_in(PID_BROADCAST_TEAM(1))), tostring(c), "one comes: counted at once");
+on_disconnect(c);
+a = person_connects();
+TEAM[a] = 1;
+local victim;
+for i = 0, MAX_PLAYERS - 1 do if (bot_is_bot(i)) then victim = i; break; end end
+bot_destroy(victim);
+eq(list(people_in(PID_BROADCAST)), a .. "," .. b, "a bot destroyed is nobody's loss");
+eq(bot_seats_free(), get_effective_max_players() - 2 - 39 - 1, "the seats a bot may take: all free but the server's own");
 
 print("\n3. afkick: a bot's inputs walk nobody");
-afkick_time_kick, afkick_time_warn, afkick_time_limbo = 1800, 1740, 120;
-function get_inputs() return 0; end
-bit = require("bit");
 local walks = 0;
 local real = piditer;
 piditer = function(pid) if (pid == PID_BROADCAST) then walks = walks + 1; end return real(pid); end
-local afk = dofile("catalog/overrides/afkick.lua");
-afk.on_load();
 afk.after.on_join(a);
+local one;
+for i = 0, MAX_PLAYERS - 1 do if (bot_is_bot(i)) then one = i; break; end end
 walks = 0;
-afk.after.on_join(0);
+afk.after.on_join(one);
 local first = walks;
-for k = 1, 100 do afk.before.on_move_input(0, k % 2 == 0 and 1 or 2); afk.after.on_mouse_input(0); end
+for k = 1, 100 do afk.before.on_move_input(one, k % 2 == 0 and 1 or 2); afk.after.on_mouse_input(one); end
 eq(walks, first, "100 inputs of a bot after its first: no walk over the players");
 NOW = 1e6;
 local kicked = {};

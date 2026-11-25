@@ -56,6 +56,8 @@ local function new_player(pid, team)
 		pos = {x = 100 + pid, y = 100, z = 30}, ori = {x = 0, y = 1, z = 0}, vel = {x = 0, y = 0, z = 0},
 		inputs = 0, mouse = 0, mag = 10, reserve = 50, reload = 0, air = false, wading = false,
 		color = {r = 1, g = 2, b = 3}};
+	-- a person connects through the chain (lib_bot keeps the people from it)
+	if (on_successful_connect ~= nil) then on_successful_connect(pid); end
 	return P[pid];
 end
 local ALLOC = false;
@@ -293,6 +295,7 @@ local function load_modules(libpath)
 	local bl = dofile("catalog/libs/botlink/lib_botlink.lua");
 	mods = {lb, bl, prot};
 	wire();
+	lb.on_load();    -- as register() does: the people already connected
 	return lb, bl;
 end
 

@@ -301,6 +301,35 @@ static void test_gaps(void)
 			CHECK(r.kinds & K(BC_NAV_RUNJUMP));     /* sprint and run-up */
 	}
 
+	/* at the very top of the map (a slab at z 0, the head above the
+	 * map) a jump is the jump measured lower down: above the map is air to
+	 * the server's physics (demoncore.c phys_solid) as to ours. Every
+	 * width, crossed as at the bottom of a deep drop: the same ticks, no
+	 * fall. (A rule that refused jumps in the map's top three voxels was
+	 * added for a fall seen live on keidoro's slab; the physics does not
+	 * give it -- this -- and the same change stopped the net's step back
+	 * and sidestep from walking off an edge.) */
+	if (begin("top_of_map_jumps")) {
+		sim_result top, low;
+
+		memset(&top, 0, sizeof top);
+		memset(&low, 0, sizeof low);
+		for (gap = 1; gap <= W.t->gap_sprint; gap++) {
+			int z;
+
+			for (z = 0; z <= 10; z += 10) {
+				fresh(40);
+				box(W.m, 80, 80, z, 109, 120, z, 1);
+				box(W.m, 110 + gap, 80, z, 140, 120, z, 1);
+				r = sim_run(&W, pol, node(100, 100, z), node(110 + gap + 6, 100, z), 0, 3000);
+				if (z == 0) top = r; else low = r;
+			}
+			CHECK(top.arrived && top.damage == 0 && top.max_feet < 1.2f);
+			CHECK(top.ticks == low.ticks && top.kinds == low.kinds);
+		}
+		report("top_of_map_jumps (the widest)", &top);
+	}
+
 	/* the same with the link's delay: commands land two ticks late */
 	if (begin("gap_3_late")) {
 		trench_scene(3, 0);

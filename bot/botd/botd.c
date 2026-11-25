@@ -111,6 +111,7 @@ void botd_opts_default(botd_opts *o)
 	o->file = "/dev/shm/lsd-botlink";
 	o->hz = 60;
 	o->budget = 3000;
+	o->plan_rate = BC_PLAN_RATE;
 	o->max_bots = 255;
 	o->poll_ms = 1000;
 	o->stale_ms = 5000;
@@ -625,6 +626,7 @@ static int session_main(session *s)
 		bus_armed = 0;
 		return END_GONE;
 	}
+	bc_engine_plan_rate(s->e, s->o->plan_rate, s->o->hz);
 	s->user_trees = load_trees(s->e, s->o->trees, s->o->user_trees);
 	{
 		char dir[512];

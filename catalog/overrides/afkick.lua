@@ -1,4 +1,5 @@
 -- afkick.lua -- Automatically prune abandoned players
+-- upstream: lsd/scripts/afkick.lua fnv1a32 e9afcfe0 (tests/overrides_test.lua)
 local mod = init_mod();
 
 local kicked_msg = {
@@ -23,7 +24,7 @@ local function bumpnext(timer, pid)
 		next = nil;
 
 		for i in piditer(PID_BROADCAST) do
-			if (afktm[i] ~= nil and afktm[i].timer == timer) then   -- (lsd-docker: nil-safe)
+			if (afktm[i].timer == timer) then
 				next = i;
 				pid = next;
 				goto diffpid;
@@ -36,7 +37,7 @@ local function bumpnext(timer, pid)
 	::diffpid::
 	if (next == pid) then
 		for i in piditer(PID_BROADCAST) do
-			if (afktm[i] ~= nil and afktm[i].timer == timer and afktm[i].tm < afktm[next].tm) then
+			if (afktm[i].timer == timer and afktm[i].tm < afktm[next].tm) then
 				next = i;
 			end
 		end
@@ -103,7 +104,7 @@ function mod.after.tick()
 		local time = _G["afkick_time_"..timer];
 		if (next and now >= afktm[next].tm + time) then
 			for i in piditer(PID_BROADCAST) do
-				if (afktm[i] ~= nil and afktm[i].timer == timer and now >= afktm[i].tm + time) then
+				if (afktm[i].timer == timer and now >= afktm[i].tm + time) then
 					handle_timer(timer, i);
 				end
 			end

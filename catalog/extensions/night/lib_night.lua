@@ -293,7 +293,7 @@ end
 -- change to daytime_night reaches clients already connected -- without
 -- it, only the ones that negotiate afterwards see the new sky.
 function daytime_announce()
-	for i in piditer(PID_BROADCAST) do
+	for i in (people_in or piditer)(PID_BROADCAST) do
 		if (day_negotiated(i)) then
 			send_sky(i);
 		end
@@ -351,7 +351,9 @@ local function paint()
 		return;
 	end
 
-	for pid in piditer(PID_BROADCAST) do
+	-- every tick: the people only (lib_bot's people_in; a bot has no
+	-- client to paint)
+	for pid in (people_in or piditer)(PID_BROADCAST) do
 		-- served by the extension itself, so not ours to paint
 		if (not day_negotiated(pid)) then
 			local had = painted[pid];
@@ -808,7 +810,7 @@ end
 local function broadcast_beam(pid, now)
 	local w = effective(pid, now);
 
-	for i in piditer(PID_BROADCAST) do
+	for i in (people_in or piditer)(PID_BROADCAST) do
 		if (fl_negotiated(i)) then
 			send_config(i, pid, beam_for(i, pid, now));
 		end
@@ -1299,7 +1301,7 @@ function flashlight_set(pid, on)
 
 	lit[pid] = on;
 
-	for i in piditer(PID_BROADCAST) do
+	for i in (people_in or piditer)(PID_BROADCAST) do
 		if (fl_negotiated(i)) then
 			send_light(i, pid, on);
 		end

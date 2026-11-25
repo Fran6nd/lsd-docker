@@ -50,6 +50,7 @@ DONE (commit), BLOCKED (on what).
 | 16 | A release (the published image predates `lsdctl bots`; the editor refuses it) | when the owner asks |
 | 17 | Hostage gamemode: the hostages as engine bots with a tree of their own (botlink_add with a tree), falling back to today's lib_bot hostages with no engine; guards kept | TODO (brain agent, after 8) |
 | 18 | 230 bots without lag: botd sized for every seat, the planner's budget grown with the fleet, nothing built or walked for a bot on the server's send paths | REVIEW (scale agent): branch commits; numbers in BRAIN-STATUS.md (c2) |
+| 19 | Structural review of the fast fixes (the owner's rule: no quick hacks, one rule in one place) | REVIEW (review agent): see the 2026-11-25 log |
 
 ## Log
 
@@ -222,3 +223,43 @@ DONE (commit), BLOCKED (on what).
   stair laid on the row beside the platform with nothing in its way (a
   team may not break its own area's blocks), live: team 2's stair whole
   in 4 minutes, 2 captures in 9.
+- 2026-11-25 (review agent, item 19): the fast fixes of the day against
+  the owner's rule. ONE RULE FOR A FLEET: lib_bot's THE PEOPLE -- the
+  people kept from connects and disconnects (xearly hooks; no walk, no
+  per-tick list), `people_in(set)` over them with the one pid_matches
+  mirror (no binding asks it of one id; piditer per packet is the walk to
+  avoid) -- used by every loop for a client's sake: lib_bot's send guard,
+  lib_player_limit (its `human` cache and the 0.25 s `calm` sweep replaced
+  by an event-kept set of the clients still owed a cut, empty = a
+  broadcast goes whole), lib_edit_mode (its per-tick `idle` cache gone: a
+  look at each person), lib_player_properties, lib_night (fog, sky, beams,
+  lights), lib_ext_policy's sweep, lib_headless's split. The command_ups
+  copy is gone: lib_bot's late send_player_update drops a bot's World
+  Update under upstream's command_ups. afkick's copy kept (a local
+  function), cut to the exemption; lib_bot's 45 s sneak fidget, a second
+  mechanism for "a bot is never away", removed. Every override names the
+  upstream file it was made from by checksum; tests/overrides_test.lua
+  fails when upstream changes under it. `bot_seats_free()` is the one
+  count of "one seat kept for the server's hand" (engine_bots used its own
+  copy); get_anon_pid finds the highest free seat without a walk.
+  tentspawns: BODY (3) and SAFE_DROP (9) named from the game's rules.
+  Engine: a team's leaders sized by its players (no clamp, no overflow);
+  live grenades three a player, walked to the high-water mark, the oldest
+  no longer silently overwritten; the planner's budget is max(--budget,
+  --plan-rate x bots / hz) (same numbers: bench unchanged). The top-band
+  jump rule in try_move removed: jumps at z 0 are the measured ones
+  (nav_test top_of_map_jumps); keidoro's ceiling_slab results unchanged.
+  Left open: try_edit's top-band rule for edits up into z < 3 (no test
+  moves without it either; its reason, routes onto slabs, wants a look by
+  the brain agent).
+- 2026-11-25 (brain agent): the shut-in rule stated as what it is: a
+  search over the map is what the throttle limits, a local search is
+  always allowed. The nav policy has a `scope` (columns from the start a
+  search may enter, 0 = the map, enforced in relax()); while shut in,
+  fill_policy bounds the search to BC_NAV_JUMP_DMAX (the reach of one
+  move) and move_to refuses only a goal beyond that scope -- the old "one
+  step away (2 voxels)" distance is gone. Babel live with the row fix
+  (Babelpocalypse, 6 bots a team, edit=all): both teams' stairs whole on
+  row 255 (42/42 each) and the score 2-1 at 6 minutes, unchanged at 10
+  (3 of 12 bots read "idle" in bots list then: to look at); babel's
+  GAMES row in lsdctl now says bots = true.

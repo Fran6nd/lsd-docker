@@ -126,7 +126,8 @@ function mod.send_player_update(pid)
 	local due = (ctr % every == 0);
 	ctr = (ctr + 1) % 60;
 
-	for i in piditer(pid) do
+	-- the people among them (lib_bot's people_in: a bot is sent none)
+	for i in people_in(pid) do
 		if (due or not bot_is_headless(i)) then
 			mod.next.send_player_update(i);
 		end

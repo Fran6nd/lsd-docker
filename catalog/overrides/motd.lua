@@ -1,4 +1,5 @@
 -- motd.lua -- Send a blob of text to players when they join
+-- upstream: lsd/scripts/motd.lua fnv1a32 e834f3c8 (tests/overrides_test.lua)
 -- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Upstream's, with the lines in each player's language: `motd` is a

@@ -25,9 +25,11 @@
 --                                       lib_silent_player (re)loads
 --   bot_destroy(pid)                 -- idempotent
 --   bot_is_bot(pid) / bot_get(pid)   -- bot_get(pid).data is yours
---   people_in(set)                   -- piditer(set) without the bots: what
---                                       splits a send or walks players for
---                                       a person's sake uses it (THE SEND GUARD)
+--   people_in(set)                   -- piditer(set) without the bots: every
+--                                       loop that sends, builds or walks for
+--                                       a client's sake uses it (THE PEOPLE)
+--   bot_seats_free()                 -- the seats a bot may still take (one
+--                                       is the server's own: GIVE WAY)
 --   bot_walk(pid, {forward=, back=, left=, right=, jump=, crouch=,
 --                  sneak=, sprint=})  -- unset keys mean released
 --   bot_keys(pid, mask)              -- the whole key set as one number
@@ -73,8 +75,9 @@
 -- on every spawn, so respawns return there), per-tick think, input
 -- reconciliation (on_move_input only fires on change; the jump key
 -- auto-releases once airborne so it acts as one-shot), rejoining
--- after map-change limbo, an idle fidget so afkick sees life, and
--- destruction on unload/disconnect. It also keeps bots out of the
+-- after map-change limbo, and destruction on unload/disconnect. (A bot
+-- is never away from its keyboard: afkick, catalog/overrides, gives it
+-- no timer -- there is nothing to fake for it.) It also keeps bots out of the
 -- player count published to the masterlist (see MASTERLIST below):
 -- only humans are population.
 --
@@ -109,7 +112,6 @@ local mod = init_mod();
 
 require "lib_bulk_destroy";   -- bdestroy_* for bot_dig_block below
 
-getcfg("bot_fidget_secs", 45);      -- idle keepalive period
 getcfg("bot_shoot_range", 128);     -- max bullet reach, in blocks
 getcfg("bot_grenade_speed", 1.0);   -- throw speed (|vel|); a client's orientation throw is ~1
 getcfg("bot_grenade_max_fuse", 3.0);-- longest fuse a bot will cook toward
@@ -137,6 +139,19 @@ local nonhuman = {};
 -- otherwise keeps clean, and nothing outside has any business calling
 -- it.
 local advertise_humans;
+
+-- Who has a client behind him (THE PEOPLE, below): pid -> true, and the
+-- same as a list in id order (nil: to be listed again). Declared here
+-- because the disconnect hooks above that section forget a person.
+local person = {};
+local people = nil;
+
+local function forget_person(pid)
+	if (person[pid]) then
+		person[pid] = nil;
+		people = nil;
+	end
+end
 
 local function has_bit(bits, key)
 	return bits % (2*key) >= key;
@@ -295,6 +310,14 @@ local function free_seats()
 	return get_effective_max_players() - n;
 end
 
+-- The seats a bot may still take: the free ones but the last, which is
+-- the server's own hand (GIVE WAY, below). The one place that rule is
+-- counted: bot_create below, and an owner that says why its fleet is
+-- short (engine_bots).
+function bot_seats_free()
+	return math.max(0, free_seats() - 1);
+end
+
 function bot_create(opts)
 	if (opts.team ~= 1 and opts.team ~= 2) then
 		error("bot_create: team must be 1 or 2", 2);
@@ -311,7 +334,7 @@ function bot_create(opts)
 	end
 
 	-- the last free seat is the server's own hand (GIVE WAY, below)
-	if (free_seats() <= 1) then
+	if (bot_seats_free() == 0) then
 		return nil; -- server full
 	end
 	local pid = server.assign_new_pid();
@@ -332,7 +355,6 @@ function bot_create(opts)
 		silent = opts.silent,
 		data = opts.data or {},
 		want = 0,
-		fidget = get_time(),
 	};
 
 	on_successful_connect(pid);
@@ -404,12 +426,7 @@ local function give_way()
 	return true;
 end
 
--- the ids that are not bots, listed when first asked (THE SEND GUARD,
--- below); nil: not known
-local people = nil;
-
 function mod.assign_new_pid()
-	people = nil;        -- somebody is connecting
 	local pid = mod.next.assign_new_pid();
 	if (next(bots) == nil) then
 		return pid;
@@ -994,6 +1011,7 @@ mod.xearly.after.on_disconnect = function(pid)
 	-- Clear first: pids are recycled, and a mark left behind would hide
 	-- the next person to be given this one from the player count.
 	nonhuman[pid] = nil;
+	forget_person(pid);
 	advertise_humans();
 end;
 mod.xearly.after.disconnect_now = advertise_humans;
@@ -1001,7 +1019,6 @@ mod.xearly.after.disconnect_now = advertise_humans;
 local next_advertise = 0;
 
 function mod.after.tick()
-	people = nil;
 	-- also once a second: it heals the count if anything else (a
 	-- `lsdctl load masterlist`, say) recomputes it with bots in. Every
 	-- event that changes it already recomputes it at once (above).
@@ -1045,39 +1062,8 @@ function mod.after.tick()
 				b.want = b.want - KEY.jump;
 			end
 
-			local send = b.want;
-
-			-- Idle bots flip their sneak key now and then so activity
-			-- trackers (afkick) see a living player.
-			--
-			-- The flip is measured against what the server currently
-			-- believes the bot is holding, NOT against b.want, and that
-			-- is the whole point. Flipping want could land on the value
-			-- the server already has -- want without sneak, inputs with
-			-- it, which is where a bot ends up if it stops being alive
-			-- between the nudge and the tick that undoes it. The send
-			-- below is then skipped as a no-op, b.fidget is only
-			-- refreshed when a send happens, so it is never refreshed
-			-- again: due forever, never done. Measured against inputs
-			-- the flip differs from them by construction, so it always
-			-- sends and always counts as life.
-			--
-			-- The cost of getting this wrong is worse than a stuck key.
-			-- afkick eventually kicks the bot, disconnect() on a
-			-- peerless slot does nothing (see LIMITATIONS), so its timer
-			-- stays expired and it re-broadcasts "was kicked: AFK" every
-			-- tick, forever. Seen live: 238 chat sends a second.
-			if (get_time() - b.fidget >= bot_fidget_secs) then
-				local held = get_inputs(pid);
-
-				send = has_bit(held, KEY.sneak)
-					and held - KEY.sneak or held + KEY.sneak;
-				b.fidget = get_time();
-			end
-
-			if (send ~= get_inputs(pid)) then
-				on_move_input(pid, send);
-				b.fidget = get_time();
+			if (b.want ~= get_inputs(pid)) then
+				on_move_input(pid, b.want);
 			end
 		end
 	end
@@ -1108,45 +1094,49 @@ end
 
 function mod.after.on_disconnect(pid)
 	bots[pid] = nil;
-	people = nil;
 end
 
--- Every packet addressed to a bot alone, or to a group with only bots
--- in it, would never be sent and never be freed.
+--============================ THE PEOPLE ============================--
+-- THE ONE RULE for a fleet: nothing is sent, built, queued or walked for
+-- a bot. A bot has no client; whatever a script does for a client's sake
+-- -- a packet, a World Update, a queue, a timer, a check of what it
+-- negotiated -- done for 230 bots is 230 times the work for nobody. So
+-- every loop over the recipients of a send, or over the players for
+-- something only a client can want, goes through people_in(set) (or
+-- piditer where lib_bot is not loaded: no lib_bot, no bots), and this
+-- file's own send guard below is the same test.
 --
--- send_packet_flags (lsd/src/funcs_send.c) creates the ENet packet and
--- then hands it to the peers that match, and ENet frees a packet only
--- once a peer has taken it. A group send (team, all-but-one) with no
--- member that has a peer is therefore created and never freed. A
--- single peerless pid used to leak the same way -- fifty guards each
--- sent a WorldUpdate per tick was ~175MB a minute, and it ran the
--- machine out of memory -- and upstream 2cd8e5b fixed that case by
--- returning before the packet is made; the group case is still open.
--- A plain PID_BROADCAST never leaked: enet_host_broadcast destroys a
--- packet nobody took.
---
--- Dropping the send here, before C, costs nothing anyone could see: the
--- core would have sent these nowhere anyway. The single-pid branch is
--- kept because it is free and saves the trip into C.
---
--- Asked for every packet, so it must not walk every player each time:
--- the people connected are listed once (a tick, or until somebody
--- connects) and a set of recipients is tested against that short list
--- -- with a fleet of bots and nobody else, every packet stops here at
--- the cost of one comparison.
-local function who()
+-- The people are kept as the events say, never walked for: a connect
+-- that is not a bot's adds one (bot_create registers its bot before the
+-- connect it fires), a disconnect removes one. A headless client
+-- (bot_mark_nonhuman) has a peer and stays among them: it is sent what
+-- any client is.
+local function people_list()
 	if (people == nil) then
 		people = {};
-		for i in piditer(PID_BROADCAST) do
-			if (bots[i] == nil) then
-				people[#people + 1] = i;
-			end
+		for i = 0, MAX_PLAYERS - 1 do
+			if (person[i]) then people[#people + 1] = i; end
 		end
 	end
 	return people;
 end
 
+-- xearly: before any other module hears of the connect, so a broadcast
+-- sent from inside it already counts him (whether he is connected yet is
+-- asked of the core at each send: in_set)
+function mod.xearly.before.on_successful_connect(pid)
+	if (bots[pid] == nil) then
+		person[pid] = true;
+		people = nil;
+	end
+end
+
 -- main.c's pid_matches, for one id: is it among a broadcast's recipients?
+-- A copy of the C, on purpose: no binding asks pid_matches of one id, and
+-- piditer(set) walks every seat in C and yields each bot of a set back
+-- into Lua -- per packet, the very walk this section exists to avoid.
+-- Tested against the people only (a handful), live at each send, so a
+-- team change or a connect in the middle of a tick is seen at once.
 local SET = 0x20000000;
 local function in_set(set, i)
 	local flags = math.floor(set / SET);
@@ -1164,14 +1154,8 @@ local function in_set(set, i)
 	return false;
 end
 
--- THE ONE RULE for a fleet: nothing is built, sent, queued or looped
--- over for a bot. people_in(set) is piditer(set) without the bots -- the
--- recipients of a send that have a client behind them, out of the list
--- of people made once a tick -- for every script that splits a send or
--- walks the players for something only a person can want (the overrides
--- of command_ups and afkick; lib_player_limit and lib_edit_mode have
--- their own lists of people). A pid of the server's own (the console's
--- 255, a fakepid) goes as piditer would take it.
+-- piditer(set) without the bots. A pid of the server's own (the
+-- console's 255, a fakepid) goes as piditer takes it.
 local function none() end
 function people_in(set)
 	if (set < MAX_PLAYERS) then
@@ -1181,7 +1165,7 @@ function people_in(set)
 	if (set < SET) then
 		return piditer(set);
 	end
-	local list, k = who(), 0;
+	local list, k = people_list(), 0;
 	return function()
 		while (true) do
 			k = k + 1;
@@ -1191,22 +1175,41 @@ function people_in(set)
 	end
 end
 
+-- THE SEND GUARD. Every packet addressed to a bot alone, or to a group
+-- with only bots in it, would never be sent and never be freed.
+--
+-- send_packet_flags (lsd/src/funcs_send.c) creates the ENet packet and
+-- then hands it to the peers that match, and ENet frees a packet only
+-- once a peer has taken it. A group send (team, all-but-one) with no
+-- member that has a peer is therefore created and never freed. A
+-- single peerless pid used to leak the same way -- fifty guards each
+-- sent a WorldUpdate per tick was ~175MB a minute, and it ran the
+-- machine out of memory -- and upstream 2cd8e5b fixed that case by
+-- returning before the packet is made; the group case is still open.
+-- A plain PID_BROADCAST never leaked: enet_host_broadcast destroys a
+-- packet nobody took.
+--
+-- Dropping the send here, before C, costs nothing anyone could see: the
+-- core would have sent these nowhere anyway. The single-pid branch is
+-- kept because it is free and saves the trip into C.
 local function only_bots(pid)
-	if (pid < MAX_PLAYERS) then
-		return bots[pid] ~= nil;
-	end
-	if (pid == PID_BROADCAST) then
-		return #who() == 0;
-	end
-	if (pid < SET) then
+	if (pid >= MAX_PLAYERS and pid < SET) then
 		return false;    -- a handle of the server's own (the console)
 	end
-	for _, i in ipairs(who()) do
-		if (in_set(pid, i)) then
-			return false;
-		end
+	return people_in(pid)() == nil;
+end
+
+-- AND NO WORLD UPDATE IS BUILT FOR A BOT. The core builds one per
+-- recipient (funcs_send.c send_player_update: every live player's
+-- position, 24 bytes each) and only then sends it -- to a bot, nowhere.
+-- command_ups calls this once for each id of the broadcast (its rate per
+-- client); `late` puts this hook under it, next to the core, so every
+-- caller's split ends here.
+function mod.late.send_player_update(pid)
+	if (pid < MAX_PLAYERS and bots[pid] ~= nil) then
+		return;
 	end
-	return true;
+	return mod.late.next.send_player_update(pid);
 end
 
 function mod.send_packet(pid, data)
@@ -1229,6 +1232,15 @@ end
 
 function mod.after.finish_map_load()
 	ready = true;
+end
+
+-- loaded (or reloaded) with people connected: they are the people; a
+-- bot of the last load was destroyed with it
+function mod.on_load()
+	for i in piditer(PID_BROADCAST) do
+		person[i] = true;
+	end
+	people = nil;
 end
 
 function mod.on_unload()

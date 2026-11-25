@@ -1,4 +1,5 @@
 -- lib_ctf.lua -- Bucket of functions for implementing CTF-like gamemodes
+-- upstream: lsd/scripts/lib_ctf.lua fnv1a32 099d391e (tests/overrides_test.lua)
 local mod = init_mod();
 
 getcfg("lib_ctf_tent_radius",  3);

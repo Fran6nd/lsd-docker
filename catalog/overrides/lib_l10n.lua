@@ -1,4 +1,5 @@
 -- lib_l10n.lua -- Every message in the player's own language
+-- upstream: lsd/scripts/lib_l10n.lua fnv1a32 40af76cc (tests/overrides_test.lua)
 -- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Replaces upstream's lib_l10n, whose API every LSd script already uses

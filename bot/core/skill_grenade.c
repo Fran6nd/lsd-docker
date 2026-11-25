@@ -269,7 +269,7 @@ float bc_grenade_threat(bc_bot *b, bl_vec3 *burst)
 
 	if (skill < 0.2f)
 		return 0.0f;
-	for (i = 0; i < BC_GRENADES_MAX; i++) {
+	for (i = 0; i < e->nnades; i++) {
 		const bc_nade *n = &e->nades[i];
 		float dmg;
 

@@ -1,5 +1,5 @@
 -- tentspawns.lua -- Spawn randomly in an area around your team's tent
--- (catalog/overrides: upstream's, patched -- skip_sky_slabs)
+-- upstream: lsd/scripts/tentspawns.lua fnv1a32 2a44cb01 (tests/overrides_test.lua)
 local mod = init_mod();
 
 getcfg("tentspawns_radius", 20);
@@ -19,27 +19,41 @@ end
 -- PATCHED (lsd-docker): not on a SLAB IN THE SKY. The highest point of
 -- a column can be a thin floating layer far above the tent -- keidoro's
 -- one-voxel slab at the map's very top, over 36 voxels of air -- and a
--- player put there, person or bot, has no way down that does not kill
--- him (2026-11-25: bots stood on it for good). So: while the floor found
--- is a thin layer (3 voxels or fewer) with more than 9 voxels of air
--- under it (more than a fall that does not hurt) and is higher than the
--- tent by more than 9, the floor under it is taken instead. A roof, a
--- hill, a bridge near the tent's level is left as it was.
+-- player put there, person or bot, has no way down that does not hurt
+-- or kill him (2026-11-25: bots stood on it for good). So the floor
+-- under such a layer is taken instead: a layer
+--   * no thicker than a body (BODY): a slab, not the solid mass of a
+--     hill or a building -- those reach down to something one can walk
+--     or climb along, a slab hangs in the air;
+--   * with more than a safe drop of air under it (SAFE_DROP): stepping
+--     off it hurts;
+--   * higher than the tent by more than a safe drop: from a roof, a hill
+--     or a bridge within that of the tent's level, the way to the tent
+--     is a drop that does not hurt, so it is left as it was.
+-- The two numbers are the game's own:
+--   BODY       a player standing is 3 voxels tall (his eye 2.25 over
+--              the floor: the 2.251 below)
+--   SAFE_DROP  the highest drop fall_damage.lua charges nothing for: its
+--              get_fall_damage, demoncore's gravity until the speed
+--              passes FALL_DAMAGE_VELOCITY (0.58), is 0 up to 9 voxels
+--              and 1 at 10 (and 113, a death, at 20)
+local BODY = 3;
+local SAFE_DROP = 9;
 local function skip_sky_slabs(pos, tent_z)
-	while (pos.z < 63 and tent_z ~= nil and tent_z - pos.z > 9) do
+	while (pos.z < 63 and tent_z ~= nil and tent_z - pos.z > SAFE_DROP) do
 		local z = pos.z;
 		while (z < 63 and is_solid({x = pos.x, y = pos.y, z = z})) do z = z + 1; end
-		if (z - pos.z > 3) then return; end           -- not thin: a real structure
+		if (z - pos.z > BODY) then return; end                 -- not a slab
 		local below = z;
 		while (below < 64 and not is_solid({x = pos.x, y = pos.y, z = below})) do below = below + 1; end
-		if (below >= 64 or below - z <= 9) then return; end   -- nothing under, or a fall that does not hurt
+		if (below >= 64 or below - z <= SAFE_DROP) then return; end   -- nothing under, or a safe drop
 		pos.z = below;
 	end
 end
 
-local function set_highest_point_spawn(pos, tent_z)
+local function set_highest_point_spawn(pos, tent_z)   -- PATCHED (lsd-docker): tent_z
 	set_highest_point(pos);
-	if (pos.z < 63) then skip_sky_slabs(pos, tent_z); end
+	if (pos.z < 63) then skip_sky_slabs(pos, tent_z); end   -- PATCHED (lsd-docker)
 
 	if (pos.z == 63) then
 		pos.z = 64;
@@ -66,7 +80,7 @@ function mod.get_spawn_position(pid)
 		y=math.random(math.floor(tentpos.y-tentspawns_radius), math.floor(tentpos.y-1+tentspawns_radius))+0.5
 	};
 
-	set_highest_point_spawn(pos, tentpos.z);
+	set_highest_point_spawn(pos, tentpos.z);   -- PATCHED (lsd-docker): the tent's level
 
 	return pos;
 end

@@ -1,4 +1,5 @@
 -- boundary_damage.lua -- Punish players who step too far out of line
+-- upstream: lsd/scripts/boundary_damage.lua fnv1a32 22637705 (tests/overrides_test.lua)
 --
 -- lsd-docker's copy of upstream's (catalog/overrides/README): a map's
 -- boundary_damage written over several lines -- "'boundary_damage' :"
