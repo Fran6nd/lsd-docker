@@ -31,29 +31,36 @@ DONE (commit), BLOCKED (on what).
 
 | # | Item | State |
 |---|---|---|
-| 0 | 255 players by default; joining a server with 32+ bots works; outdated clients take the spectator path | REVIEW (Lua only, no C; tests green, live run on lsd-limit) |
+| 0 | 255 players by default; joining a server with 32+ bots works; outdated clients take the spectator path | DONE (v2026.11.25.2, CI fix .3) |
 | 1 | This file | DONE |
-| 2 | Study of tree diagrams + a visual proof of concept for the owner to choose from | DOING (agent) |
-| 3 | Report: how botd is built, CPU with 30 bots, where the bottlenecks are | DOING (agent) |
-| 4 | Audit: every decision about WHAT that still lives in C; plan to move each | REVIEW (brain agent): bot/DECISIONS.md; 8 numbers made word arguments |
-| 5 | Archetypes as a data file beside the trees | REVIEW (brain agent, 2026-11-25) |
-| 6 | Bots look where they are heading; shot at: cover within the field of view, else face the threat, never turn the back to search | REVIEW (brain agent): heading-first head, cover in view; bench re-baselined in BRAIN-STATUS.md |
-| 7 | Bots stuck on a roof bridge or dig their way down (engine_bots_edit=all) | REVIEW (brain agent): planner can bridge, stair down and dig down from a roof at scale; `stranded` for the trees |
-| 8 | A babel tree, sent by babel_plus only when bots are added; no bots, no engine | TODO (brain agent) |
+| 2 | Study of tree diagrams + a visual proof of concept for the owner to choose from | DONE (owner chose A main, B secondary) |
+| 3 | Report: how botd is built, CPU with 30 bots, where the bottlenecks are | DONE (report; acted on in 18, 19, 20) |
+| 4 | Audit: every decision about WHAT that still lives in C; plan to move each | DONE (bot/DECISIONS.md; moves continue as items) |
+| 5 | Archetypes as a data file beside the trees | DONE (archetypes.txt, v2026.11.25.7) |
+| 6 | Bots look where they are heading; shot at: cover within the field of view, else face the threat, never turn the back to search | DONE (v2026.11.25.3) |
+| 7 | Bots stuck on a roof bridge or dig their way down (engine_bots_edit=all) | DONE (player-realistic edits; v2026.11.25.4) |
+| 8 | A babel tree, sent by babel_plus only when bots are added; no bots, no engine | DONE (babel.bt, masons/raiders, GAMES bots=true; v2026.11.25.5) |
 | 9 | Remove battle_bots and the gamemodes bots, bots_rewards (setup, scripts, docs, migration of servers that run them) | TODO (after 0) |
-| 10 | Shooting range gamemode on a generated map: a static range (bots as targets from 5 to 50 m, standing or crouched, never dying, never moving, damage shown to the shooter; a target on a rail or one that blinks from place to place) and an IPSC course, one player at a time; all targets as fast as possible; IPSC after the owner played it: targets drop, a start wall, no-shoots with a time penalty | REVIEW (range agent): branch commits; `lsdctl play range`; live runs on lsd-range |
-| 11 | Graphical node editor in tools/tree-editor (replaces its text-first phase 2) | REVIEW (editor agent): diagram A/B, edits through the engine, upload to chosen bots/team/kind, who-chooses-what; real run green. No live view (owner) |
+| 10 | Shooting range gamemode on a generated map: a static range (bots as targets from 5 to 50 m, standing or crouched, never dying, never moving, damage shown to the shooter; a target on a rail or one that blinks from place to place) and an IPSC course, one player at a time; all targets as fast as possible; IPSC after the owner played it: targets drop, a start wall, no-shoots with a time penalty | DONE (range + IPSC + colour flip; v2026.11.25.6) |
+| 11 | Graphical node editor in tools/tree-editor (replaces its text-first phase 2) | DONE (diagram editor; never seen on a real screen yet) |
 | 12 | Docs pass left unfinished by the tooling agent (bot/trees/README.md, TREES.md trimmed, docs/*, skills) | TODO |
-| 13 | A scenario test for the sniper role (tdm, ctf) | REVIEW (brain agent, 2026-11-25) |
-| 14 | Proposal to the owner: a behaviour's HOW written in Lua (a script skill a tree can `do`) | REPORTED, waiting for a yes |
+| 13 | A scenario test for the sniper role (tdm, ctf) | DONE (sniper_test, 07ad876) |
+| 14 | Proposal to the owner: a behaviour's HOW written in Lua (a script skill a tree can `do`) | ON HOLD (owner stopped it; branch kept) |
 | 15 | Editor backend gaps: a game list as data, a quiet roster poll, an outline for text that does not compile | PARTLY DONE: `lsdctl bots games`, `bttree --split --json` committed; open for botd/bt.c: a quiet roster request, a parse of a wrong text (see the 2026-11-25 log) |
-| 16 | A release (the published image predates `lsdctl bots`; the editor refuses it) | when the owner asks |
-| 17 | Hostage gamemode: the hostages as engine bots with a tree of their own (botlink_add with a tree), falling back to today's lib_bot hostages with no engine; guards kept | REVIEW (brain agent, 2026-11-25) |
-| 18 | 230 bots without lag: botd sized for every seat, the planner's budget grown with the fleet, nothing built or walked for a bot on the server's send paths | REVIEW (scale agent): branch commits; numbers in BRAIN-STATUS.md (c2) |
-| 19 | Structural review of the fast fixes (the owner's rule: no quick hacks, one rule in one place) | REVIEW (review agent): see the 2026-11-25 log |
-| 20 | Server optimisation, "4 parallel threads?": the route board (a team's bots going the same way share one search) and the route planner on botd's threads, deterministic at any thread count | REVIEW (parallel agent): branch commits; numbers in BRAIN-STATUS.md (c3) |
-| 21 | Never send a packet to a bot, nor the same packet to each: lib_bot is the one broadcaster (`broadcast`, `broadcast_each`, `people_in`), the guard counts what a script still sends at a bot, a test fails on any | REVIEW (bcast agent): branch commits; the core's own per-slot loops need C (see the log) |
-| 22 | `/votepeace`: a vote toggles a peace where no player damage is done; bots stand down; on by default in every mode | REVIEW (peace agent): branch commits; live run on lsd-peace |
+| 16 | A release (the published image predates `lsdctl bots`; the editor refuses it) | DONE (releases .2 to .7) |
+| 17 | Hostage gamemode: the hostages as engine bots with a tree of their own (botlink_add with a tree), falling back to today's lib_bot hostages with no engine; guards kept | DONE (v2026.11.25.7) |
+| 18 | 230 bots without lag: botd sized for every seat, the planner's budget grown with the fleet, nothing built or walked for a bot on the server's send paths | DONE (v2026.11.25.4/.5) |
+| 19 | Structural review of the fast fixes (the owner's rule: no quick hacks, one rule in one place) | DONE (d99cc30) |
+| 20 | Server optimisation, "4 parallel threads?": the route board (a team's bots going the same way share one search) and the route planner on botd's threads, deterministic at any thread count | DONE (route board in .5; threads off by default in .7) |
+| 21 | Never send a packet to a bot, nor the same packet to each: lib_bot is the one broadcaster (`broadcast`, `broadcast_each`, `people_in`), the guard counts what a script still sends at a bot, a test fails on any | DONE (broadcaster ac59a52; C patch 0002 d3a06f8) |
+| 22 | `/votepeace`: a vote toggles a peace where no player damage is done; bots stand down; on by default in every mode | DONE on master (28e28bb), not released yet |
+
+| 23 | Clients' UPS: large World Updates travel as reliable ENet fragments (flow control collapses on jitter); fix and measure under netem | PAUSED (UPS agent; findings in its report, scratchpad/ups/) |
+| 24 | botd's slow rounds at 200 bots (p99 27-31 ms): every bot deciding in one think, and sight; two-phase sight so it could thread | TODO |
+| 25 | Babel: carriers falling 26-30 voxels off their own stair's top under fire | TODO |
+| 26 | CI: bttree does not build on Ubuntu (upstream demoncore.c -Werror=address-of-packed-member), so bots_ctl_test skips there | TODO |
+| 27 | try_edit's top-band rule (no edits up into z < 3): same reasoning as the removed jump rule | TODO |
+| 28 | lib_bot's send_spawn_player split, redundant since patch 0002 | TODO |
 
 ## Log
 
