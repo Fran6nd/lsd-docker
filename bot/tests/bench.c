@@ -20,6 +20,11 @@
  *   ctf:<n>                   ctf, n a side, a town of walls, four games of 300 s
  *   ctfnear:<n>               the same with each intel right beside its base
  *   map:<file.vxl> [secs]     40 bots, tdm, on a real map, bases at 1/4 and 3/4 of it (120 s)
+ *   map<N>:<file.vxl> [secs]  the same with N bots (N/2 a side; up to 254)
+ *   arena<N>, ctf:<n>         take any count up to 254 bots in all: the SCALE scenes are
+ *                             arena100 arena160 arena230 ctf:115 map230:<file> (BRAIN-STATUS.md)
+ * Up to 100 a side the second team's pids are 100 + i (as they always were,
+ * so the baseline stands); beyond, they follow the first team's.
  *
  * METRICS
  *   think_mean_us, think_worst_us   bc_engine_think, a call (the host calls twice a world)
@@ -141,14 +146,14 @@ static bs_sim *arena(int max_bots)
 static void teams(bs_sim *s, int per, float x1, float x2, uint32_t seed, const char *tree)
 {
 	char set[64];
-	int i;
+	int i, two = per > 100 ? per : 100;
 
 	for (i = 0; i < per; i++) {
 		float y = 256.5f - 2.5f * (float)per + 5.0f * (float)i;
 
 		if (y < 180.0f) y = 180.0f + (float)(i % 30) * 5.0f;
 		bs_add(s, i, 1, 1, 3 + (i * 3) % 7, i % 3, seed + (uint32_t)i * 7919u, x1 + (float)(i % 3) * 2.0f, y, 1, 0);
-		bs_add(s, 100 + i, 1, 2, 3 + (i * 5) % 7, (i + 1) % 3, seed + 500u + (uint32_t)i * 104729u, x2 - (float)(i % 3) * 2.0f, y, -1, 0);
+		bs_add(s, two + i, 1, 2, 3 + (i * 5) % 7, (i + 1) % 3, seed + 500u + (uint32_t)i * 104729u, x2 - (float)(i % 3) * 2.0f, y, -1, 0);
 	}
 	snprintf(set, sizeof set, "tree=%s", tree);
 	bs_set(s, BL_NO_PLAYER, set);
@@ -301,7 +306,7 @@ static void scene_ctf(int per, int near)
 	}
 }
 
-static void scene_map(const char *path, double secs)
+static void scene_map(const char *path, double secs, int bots)
 {
 	static unsigned char buf[40 << 20];
 	const char *base = strrchr(path, '/');
@@ -317,9 +322,11 @@ static void scene_map(const char *path, double secs)
 	n = fread(buf, 1, sizeof buf, f);
 	fclose(f);
 	memset(&t, 0, sizeof t);
-	snprintf(name, sizeof name, "map:%s", base ? base + 1 : path);
+	if (bots == 40) snprintf(name, sizeof name, "map:%s", base ? base + 1 : path);
+	else snprintf(name, sizeof name, "map%d:%s", bots, base ? base + 1 : path);
 	if (strchr(name, '.')) *strchr(name, '.') = 0;
-	s = bs_new(G, 40);
+	s = bs_new(G, bots);
+	if (getenv("BENCH_BUDGET")) s->budget = atoi(getenv("BENCH_BUDGET"));
 	if (!bc_map_load_vxl(s->truth, buf, n) || !bc_engine_map(s->e, buf, n, 1) ||
 	    !bc_nav_snap_dry(s->truth, 128, 256, 40, 120, &a) || !bc_nav_snap_dry(s->truth, 384, 256, 40, 120, &b)) {
 		fprintf(stderr, "bench: %s is not a usable map\n", path);
@@ -330,16 +337,20 @@ static void scene_map(const char *path, double secs)
 	s->tent[0].x = (float)a.x + 0.5f; s->tent[0].y = (float)a.y + 0.5f; s->tent[0].z = (float)a.z - 2.25f;
 	s->tent[1].x = (float)b.x + 0.5f; s->tent[1].y = (float)b.y + 0.5f; s->tent[1].z = (float)b.z - 2.25f;
 	s->respawn = 5.0;
-	for (i = 0; i < 20; i++) {
+	for (i = 0; i < bots / 2; i++) {
 		int tm;
 
 		for (tm = 0; tm < 2; tm++) {
 			const bc_nav_node *c = tm ? &b : &a;
 			bc_nav_node p;
-			int pid = tm * 100 + i;
+			int pid = tm * (bots / 2 > 100 ? bots / 2 : 100) + i;
 
-			/* round its base, in the water or out of it as the map has it */
-			if (!bc_nav_snap(s->truth, c->x + (i % 5) * 4 - 8, c->y + (i / 5) * 4 - 8, c->z, 6, &p)) p = *c;
+			/* round its base, in the water or out of it as the map has it
+			 * (beyond 25 a side, in rings further out) */
+			static const int rx[5] = { 0, 24, -24, 0, 0 }, ry[5] = { 0, 0, 0, 24, -24 };
+			int r = (i / 25) % 5;
+
+			if (!bc_nav_snap(s->truth, c->x + (i % 5) * 4 - 8 + rx[r], c->y + (i / 5) % 5 * 4 - 8 + ry[r], c->z, 6, &p)) p = *c;
 			bs_add(s, pid, 1, tm + 1, 3 + (i * (tm ? 5 : 3)) % 7, (i + tm) % 3, 31u + (uint32_t)pid * 7919u, (float)p.x + 0.5f,
 			       (float)p.y + 0.5f, tm ? -1.0f : 1.0f, 0);
 			bc_body_place(&s->p[pid].body, s->truth, (float)p.x + 0.5f, (float)p.y + 0.5f, p.z, 0);
@@ -364,11 +375,14 @@ int main(int argc, char **argv)
 		else if (!strcmp(sc, "sea40")) scene_sea();
 		else if (!strncmp(sc, "ctfnear:", 8)) scene_ctf(atoi(sc + 8) > 0 ? atoi(sc + 8) : 10, 1);
 		else if (!strncmp(sc, "ctf:", 4)) scene_ctf(atoi(sc + 4) > 0 ? atoi(sc + 4) : 10, 0);
-		else if (!strncmp(sc, "map:", 4)) {
+		else if (!strncmp(sc, "map", 3) && strchr(sc, ':')) {
 			double secs = 120.0;
+			int bots = sc[3] == ':' ? 40 : atoi(sc + 3);
 
+			if (bots < 2) bots = 2;
+			if (bots > 254) bots = 254;
 			if (i + 1 < n && argc > 1 && atof(argv[i + 2]) > 0.0) secs = atof(argv[++i + 1]);
-			scene_map(sc + 4, secs);
+			scene_map(strchr(sc, ':') + 1, secs, bots);
 		} else {
 			fprintf(stderr, "bench: no scene called %s (arena<N>, fight<N>, sea40, ctf:<N>, ctfnear:<N>, map:<file> [secs])\n", sc);
 			return 2;
