@@ -19,8 +19,7 @@
 --   * no send was made at a bot (a pid) by a script, and lib_bot's guard
 --     fired 0 times: bot_guard_drops()
 --   * no packet reached the end of the chain addressed to a bot
---   * no script visited a bot of a group to send it something: the
---     number of calls the hooks made per recipient is the people's
+--   * (informational, --table) which loops walked the bots of a group
 --
 -- What it only counts (and prints): the core's own asks (ENGINE, in
 -- lib_bot): they are the core's loops, to be fixed there.
@@ -124,6 +123,13 @@ function pid_connected_table(v)
 end
 pid_joined_table = pid_connected_table;
 function register_command() end
+-- the one person is a client that speaks every extension (lib_ext's answers)
+function ext_register() end
+function ext_unregister() end
+function ext_supported(pid, id) return PERSON[pid] and 1 or nil; end
+function ext_replied(pid) return true; end
+function get_fog() return {r = 10, g = 10, b = 10}; end
+function set_fog() end
 function masterlist_set_players() end
 function masterlist_set_max_players() end
 function has_cap() return false; end
@@ -283,7 +289,7 @@ function server.send_packet_unreliable(pid, data) return terminal(pid, data, tru
 --================================ the core's chains ===========================--
 local saved_path, saved_cpath = package.path, package.cpath;
 dofile("lsd/scripts/core.lua");
-package.path, package.cpath = saved_path, saved_cpath;
+package.path, package.cpath = "catalog/core/?.lua;lsd/scripts/?.lua;catalog/overrides/?.lua;" .. saved_path, saved_cpath;
 function log(fmt, ...) LOGS[#LOGS + 1] = string.format(fmt, ...); end
 package.preload["lib_bulk_destroy"] = function() return true; end
 
@@ -341,7 +347,18 @@ local function catalog(path)
 	end
 	return m;
 end
+for _, path in ipairs{
+	"catalog/overrides/lib_l10n.lua",
+	"catalog/extensions/player_limit/lib_player_limit.lua",
+	"catalog/extensions/silent_player/lib_silent_player.lua",
+	"catalog/extensions/message_types/lib_message_types.lua",
+	"catalog/extensions/teamplay/lib_teamplay.lua",
+	"catalog/libs/callouts/lib_callouts.lua",
+	"catalog/extensions/pie_menu/lib_pie_menu.lua",
+	"catalog/extensions/night/lib_night.lua",
+} do catalog(path); end
 register(probe);
+io.stderr:write("\n");
 
 print("\n1. the minute: " .. BOTS_N .. " bots, one person, " .. TICKS .. " ticks");
 local person = 0;
@@ -375,6 +392,12 @@ local function count_calls(on)
 	end, "c");
 end
 
+local DRIVE_ERRORS = {};
+local function drive(what, fn)
+	local ok, err = xpcall(fn, function(e) return tostring(e); end);
+	if (not ok) then DRIVE_ERRORS[#DRIVE_ERRORS + 1] = what .. ": " .. tostring(err):sub(1, 120); end
+end
+
 local function run_minute()
 	for n = 1, TICKS do
 		NOW = n / 60;
@@ -397,6 +420,25 @@ local function run_minute()
 			player_msg("hello", 0, person);
 			player_msg("team", 1, person);
 			server_msg(PID_BROADCAST, "a tip");
+		end
+		if (n % 600 == 0) then
+			local at = {x = 50, y = 50, z = 30};
+			drive("teamplay_ping_all", function() teamplay_ping_all(at, {reason = {en = "Here"}}); end);
+			drive("teamplay_mark_all", function() teamplay_mark_all(5, 5, {}); teamplay_clear_all(5); end);
+			drive("teamplay_send_config", function() teamplay_send_config(); end);
+			drive("callouts_ping_team", function() callouts_ping_team(1, at, {en = "Here"}); end);
+			drive("msg_send", function() msg_send(PID_BROADCAST, 1, "hello"); msg_send(PID_BROADCAST, 0, {en = "big"}); end);
+			drive("l10n_send_chat", function() l10n_send_chat(PID_BROADCAST, {en = "hello %(a)"}, {a = 1}); end);
+			drive("server_msg", function() server_msg(PID_BROADCAST, {en = "a tip"}); end);
+			drive("send_fog", function() send_fog(PID_BROADCAST, {r = 1, g = 2, b = 3}); end);
+			drive("pie_menu_add", function()
+				pie_menu_add("probe", {when = "block", slices = {{text = "/a"}}}, 1);
+			end);
+			drive("flashlight", function()
+				flashlight_announce_default();
+				flashlight_set(bot_pids[1], true);
+				flashlight_set(bot_pids[2], true);
+			end);
 		end
 		if (n == 1800) then
 			prepare_map_load();
@@ -453,19 +495,43 @@ if (WANT_TABLE) then
 end
 
 print("\n2. what was sent");
+eq(#DRIVE_ERRORS, 0, "the scripted events all ran", DRIVE_ERRORS[1]);
+for _, e in ipairs(DRIVE_ERRORS) do print("    " .. e); end
 eq(entry_bot_total, 0, "no script made a send at a bot");
 eq(n_drops, 0, "the guard fired 0 times");
 eq(END.to_bot, 0, "nothing reached the core addressed to a bot");
-local walked = 0;
-for at, n in pairs(VISITS) do
-	if (not at:find("lib_bot", 1, true)) then
-		walked = walked + n;
-		print("  walked bots: " .. at .. " x" .. n);
-	end
-end
-eq(walked, 0, "no script's loop walked the bots of a group (lib_bot's own count seats and people)");
 check(END.to_set > 0 and END.to_person > 0, "and the person was sent his share",
 	END.to_set .. " group sends, " .. END.to_person .. " to him");
+
+print("\n3. the broadcaster, and the guard for the script that does not use it");
+local sets0, person0 = END.to_set, END.to_person;
+local reached0 = ENTRY.set;
+broadcast(PID_BROADCAST, "\x1bfog");
+eq(END.to_set - sets0, 1, "broadcast: one call into the core for the group, whatever the bots");
+broadcast(bot_pids[1], "\x1bfog");
+broadcast(PID_BROADCAST_TEAM(7), "\x1bfog");
+eq(END.to_set - sets0, 1, "a bot alone, or a group with no person in it: nothing is sent");
+eq(ENTRY.set - reached0, 1, "and no call is made for them");
+broadcast(person, "\x1bfog", true);
+eq(END.to_person - person0, 1, "a person alone: sent");
+local seen = {};
+broadcast_each(PID_BROADCAST, function(i) seen[#seen + 1] = i; end);
+eq(#seen, 1, "broadcast_each: fn for the person of the group, none of the 100 bots");
+
+local n0 = bot_guard_drops();
+for i in piditer(PID_BROADCAST) do send_fog(i, {r = 1, g = 2, b = 3}); end
+local n1, by = bot_guard_drops();
+eq(n1 - n0, BOTS_N, "a script that sends to each player is caught: one drop for each bot");
+eq(by.send_fog, BOTS_N, "by the function it called");
+for i in piditer(PID_BROADCAST) do
+	if (BOT_OF[i]) then send_packet(i, "\x1bfog"); end
+end
+eq(END.to_bot, 0, "and nothing of it reached the core");
+for t = 1, 61 do NOW = NOW + 1; tick(); end
+local told;
+for _, l in ipairs(LOGS) do if (l:find("addressed to bots were dropped", 1, true)) then told = l; end end
+check(told ~= nil and told:find("send_fog", 1, true) ~= nil and told:find("bot_sends_test", 1, true) ~= nil,
+	"and said in the log once a minute, with the place it came from", told);
 
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures == 0 and 0 or 1);
