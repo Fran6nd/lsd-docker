@@ -34,6 +34,10 @@ Upstream LSd modules, patched. Copied over upstream's at every start.
                fall: keidoro's at z 0): the floor under it instead.
                Report upstream.
 
+  map_meta.lua The name of the next map is told to the people (lib_bot's
+               people_in), not to each bot: upstream sent it to every
+               id, a bot's too, at each map change.
+
   purgatory.lua, command_ignore.lua, command_secspec.lua, command_ups.lua
                Upstream split every packet a script sent to a group
                (a broadcast, a team) into one send for each id of it,

@@ -122,6 +122,22 @@ msgstr "语言"
 msgid "Show or change the language you read"
 msgstr "显示或更改阅读语言"
 
+#: catalog/overrides/map_meta.lua
+#: lsd/scripts/map_meta.lua
+msgid "Next up: %(name)"
+msgstr "下一张：%(name)"
+
+#: catalog/overrides/map_meta.lua
+#: lsd/scripts/map_meta.lua
+msgid "Next up: %(name) by %(author)"
+msgstr "下一张：%(name)，作者 %(author)"
+
+#: catalog/overrides/map_meta.lua
+#: lsd/scripts/map_meta.lua
+msgctxt "command"
+msgid "Dump the current map's metadata."
+msgstr "输出当前地图的元数据。"
+
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "Beginning selection."
@@ -1136,19 +1152,6 @@ msgstr "解除认证账户与 IRC 的关联。"
 msgctxt "command"
 msgid "Press sneak (V) to fly upwards."
 msgstr "按潜行键（V）向上飞。"
-
-#: lsd/scripts/map_meta.lua
-msgid "Next up: %(name)"
-msgstr "下一张：%(name)"
-
-#: lsd/scripts/map_meta.lua
-msgid "Next up: %(name) by %(author)"
-msgstr "下一张：%(name)，作者 %(author)"
-
-#: lsd/scripts/map_meta.lua
-msgctxt "command"
-msgid "Dump the current map's metadata."
-msgstr "输出当前地图的元数据。"
 
 #: lsd/scripts/map_queue.lua
 msgctxt "command"

@@ -60,7 +60,8 @@ end
 -- without it): a chat line scrolls by unread in a firefight.
 local function warn_near(pos)
 	local r2 = airstrike_warn_radius * airstrike_warn_radius;
-	for i in piditer(PID_BROADCAST) do
+	-- the people only: a bot has no screen to warn (lib_bot's people_in)
+	for i in (people_in or piditer)(PID_BROADCAST) do
 		local p = is_alive(i) and get_position(i);
 		if (p) then
 			local dx, dy = p.x - pos.x, p.y - pos.y;

@@ -120,6 +120,22 @@ msgstr ""
 msgid "Show or change the language you read"
 msgstr ""
 
+#: catalog/overrides/map_meta.lua
+#: lsd/scripts/map_meta.lua
+msgid "Next up: %(name)"
+msgstr ""
+
+#: catalog/overrides/map_meta.lua
+#: lsd/scripts/map_meta.lua
+msgid "Next up: %(name) by %(author)"
+msgstr ""
+
+#: catalog/overrides/map_meta.lua
+#: lsd/scripts/map_meta.lua
+msgctxt "command"
+msgid "Dump the current map's metadata."
+msgstr ""
+
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "Beginning selection."
@@ -1133,19 +1149,6 @@ msgstr ""
 #: lsd/scripts/jp.lua
 msgctxt "command"
 msgid "Press sneak (V) to fly upwards."
-msgstr ""
-
-#: lsd/scripts/map_meta.lua
-msgid "Next up: %(name)"
-msgstr ""
-
-#: lsd/scripts/map_meta.lua
-msgid "Next up: %(name) by %(author)"
-msgstr ""
-
-#: lsd/scripts/map_meta.lua
-msgctxt "command"
-msgid "Dump the current map's metadata."
 msgstr ""
 
 #: lsd/scripts/map_queue.lua

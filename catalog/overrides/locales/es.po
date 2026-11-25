@@ -122,6 +122,22 @@ msgstr "Idioma"
 msgid "Show or change the language you read"
 msgstr "Ver o cambiar el idioma en que lees"
 
+#: catalog/overrides/map_meta.lua
+#: lsd/scripts/map_meta.lua
+msgid "Next up: %(name)"
+msgstr "Siguiente: %(name)"
+
+#: catalog/overrides/map_meta.lua
+#: lsd/scripts/map_meta.lua
+msgid "Next up: %(name) by %(author)"
+msgstr "Siguiente: %(name) de %(author)"
+
+#: catalog/overrides/map_meta.lua
+#: lsd/scripts/map_meta.lua
+msgctxt "command"
+msgid "Dump the current map's metadata."
+msgstr "Volcar los metadatos del mapa actual."
+
 #: catalog/overrides/sel.lua
 #: lsd/scripts/sel.lua
 msgid "Beginning selection."
@@ -1136,19 +1152,6 @@ msgstr "Desvincular una cuenta de IRC."
 msgctxt "command"
 msgid "Press sneak (V) to fly upwards."
 msgstr "Volar: pulsa sigilo (V) para subir."
-
-#: lsd/scripts/map_meta.lua
-msgid "Next up: %(name)"
-msgstr "Siguiente: %(name)"
-
-#: lsd/scripts/map_meta.lua
-msgid "Next up: %(name) by %(author)"
-msgstr "Siguiente: %(name) de %(author)"
-
-#: lsd/scripts/map_meta.lua
-msgctxt "command"
-msgid "Dump the current map's metadata."
-msgstr "Volcar los metadatos del mapa actual."
 
 #: lsd/scripts/map_queue.lua
 msgctxt "command"
