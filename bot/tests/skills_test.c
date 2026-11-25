@@ -98,12 +98,14 @@ static void test_fire_discipline(void)
 	CHECK(s->p[0].mag == 30);
 	bs_free(s);
 
-	/* no rounds at all: the spade, and nobody hears it */
+	/* no rounds at all: the spade, and nobody hears it. The skill, `fight`
+	 * (2026-11-25: on the tdm tree a man with no round left is pressed now,
+	 * and the careful back off rather than swing) */
 	s = game();
 	bs_start(s);
 	bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, 5, 240.5f, 256.5f, 1, 0);
 	bs_add(s, 1, 0, 2, 5, BL_GUN_RIFLE, 1, 258.5f, 256.5f, -1, 0);
-	bs_set(s, BL_NO_PLAYER, "tree=tdm");
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tdo fight\n\twait 1\n");
 	s->p[0].mag = 0;
 	s->p[0].reserve = 0;
 	for (i = 0; i < 60 * 25 && s->p[1].alive; i++)

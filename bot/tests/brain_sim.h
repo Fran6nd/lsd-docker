@@ -60,6 +60,8 @@ typedef struct bs_player {
 	int cmds;
 	char last_tell[96];         /* `do tell ...`, as the server would be handed it */
 	int tells;
+	int hit_by;                 /* the last hit taken: who, and when (s->time) */
+	double hit_at;
 } bs_player;
 
 typedef struct bs_action { uint8_t type, pid; uint32_t bytes; uint8_t data[96]; } bs_action;
@@ -423,6 +425,8 @@ static inline void bs_hurt(bs_sim *s, int pid, int dmg, int by, bl_vec3 from, in
 
 	if (!p->alive) return;
 	p->hp -= dmg;
+	p->hit_by = by;
+	p->hit_at = s->time;
 	memset(&h, 0, sizeof h);
 	h.from = from;
 	h.by = (uint8_t)by;

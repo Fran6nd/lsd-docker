@@ -635,8 +635,13 @@ static float pressed(const bc_bot *b)
 		return 0.0f;
 	if (b->e->now - b->cover.since < 6.0 && !b->cover.valid)
 		return 0.0f;
-	return clamp01(0.75f * (1.0f - (float)me->hp / 100.0f) +
-	               0.25f * (float)(b->senses.n_visible - 1 - bc_mates_within(b, me->pos, 20.0f)));
+	/* truly pressed, and only then: no round left; or hurt AND
+	 * outnumbered -- either alone is a fight to face (the owner: "when
+	 * getting shot at you should almost never turn around and go back") */
+	if (me->mag == 0 && me->reserve == 0)
+		return 1.0f;
+	return clamp01(1.0f - (float)me->hp / 100.0f) *
+	       clamp01((float)(b->senses.n_visible - 1 - bc_mates_within(b, me->pos, 20.0f)));
 }
 
 /* the man it would fight is in its gun's reach and beyond its own
@@ -951,7 +956,7 @@ static const word WORDS[] = {
 	{ VK_C, "in_harmful_water", NOARGS, "it is wading in water that hurts (the settings water=lethal or water.damage)", c_in_harmful_water, NULL, NULL, NULL },
 	{ VK_S, "gun_is", 1, { ONE_REP("gun", "rifle|smg|shotgun") }, "1 if its gun is one of those named, else 0", NULL, s_gun_is, NULL, NULL },
 	{ VK_S, "under_fire", 1, { NOPT("secs", 4.0f) }, "1 just shot at (see the condition), falling to 0 over that many seconds (default 4)", NULL, s_under_fire, NULL, NULL },
-	{ VK_S, "pressed", NOARGS, "how hard pressed in a fight: three parts health lost, one part enemies in sight beyond the team-mates within 20; 0 with nobody in sight and no round for 4 s", NULL, s_pressed, NULL, NULL },
+	{ VK_S, "pressed", NOARGS, "how hard pressed in a fight: 1 with no round left; else the health lost, times 1 when more enemies are in sight than itself and the team-mates within 20 (0 when not: hurt alone, or outnumbered alone, is a fight to face); 0 with nobody in sight and no round for 4 s", NULL, s_pressed, NULL, NULL },
 	{ VK_S, "standoff", NOARGS, "1 when the nearest enemy in sight is within half its gun's opening range and farther than it would close to: one to stand and shoot at", NULL, s_standoff, NULL, NULL },
 	{ VK_S, "enemy_far", 1, { NOPT("voxels", 60.0f) }, "0 with an enemy in sight at arm's length, rising to 1 at that distance (default 60); 0 with none in sight", NULL, s_enemy_far, NULL, NULL },
 	{ VK_S, "mate_near", 1, { NOPT("voxels", 40.0f) }, "1 beside a team-mate, falling to 0.2 at that distance (default 40); 0 with none alive or one it just gave up following", NULL, s_mate_near, NULL, NULL },

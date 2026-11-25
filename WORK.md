@@ -544,3 +544,27 @@ DONE (commit), BLOCKED (on what).
   at will, so trees alone could not keep a bot from shooting). On by
   default in every mode: lsdctl's default scripts, and `defaults_offered`
   gives an older settings file the script once, at `lsdctl init`.
+- 2026-11-25 (brain agent): SHOT AT, NEVER ITS BACK (the owner: "when
+  getting shot at you should almost never turn around and go back").
+  Measured in the sim (6 a side, walls, 5 min each; for every hit, the
+  next 3 s): before, back turned and walked away 2 of 211 hits (tdm),
+  4 of 139 (ctf), 2 of 183 (default) -- fall_back_by_cover, fetch,
+  fight; facing the shooter most of the 3 s 68% / 83% / 76%. The cause
+  in the movement layer: a skill with nothing to aim at leaves the head
+  to the travel gaze, which faced the route. ONE RULE there
+  (skill_look.c): shot at (the trees' `threat`, 8 s) the head stays on
+  the man and the body goes where the route goes, backwards or aside
+  (act's remap_keys) -- every skill, falling back and a duty behind it
+  alike; not on a move that needs the facing, and not for a man
+  carrying the objective home (he runs: carry_home). `pressed` is now
+  truly pressed: no round left, or hurt AND outnumbered (it was hurt OR
+  outnumbered); the trees' fall-back options lowered (x0.6 under fire,
+  x0.8 in contact, caution only). After: back turned 1 / 4 / 3, facing
+  71% / 83% / 89%, fall_back_by_cover after a hit 5 -> 0; 5 ctf games:
+  back turned 28 -> 9, captures 7 -> 5 (noise of 5 games), kills the
+  same. Scenario (behaviour_test): shot from the front on its way to its
+  base behind it -- on a bare duty its back to him 16 ticks after the
+  first second before, 0 now (it backs away); on tdm it faces him all 5 s
+  and goes no farther. Tests changed: skills_test's spade check runs the
+  fight skill, not the tdm tree (a man with no round left is pressed
+  now, and the careful back off).

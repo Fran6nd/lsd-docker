@@ -227,6 +227,25 @@ int bc_look_travel(bc_bot *b, const bc_nav_cmd *cmd, bl_vec3 *at)
 		g->until = 0.0;
 		return 0;
 	}
+	{
+		/* SHOT AT, OR THE MAN WHO DID IT IN SIGHT: the head stays on him and
+		 * the body goes where the route goes -- backwards or to the side
+		 * (the keys follow the head) -- never its back to him, whatever it
+		 * is doing (falling back, a duty that lies behind it). The man's
+		 * place is the trees' `threat` (its senses: 8 s, kept where he is
+		 * while it sees him). Not where a move needs the facing (a jump,
+		 * an edit: above); and not for a man carrying the objective home:
+		 * he runs for it, flat out -- backwards he could not sprint, and
+		 * every man he faced would be a duel (carry_home: "it does not
+		 * stop to duel") */
+		bl_vec3 th;
+
+		if (!bc_carrying(b) && bc_place_of(b, "threat", &th)) {
+			g->until = 0.0;
+			*at = th;
+			return 1;
+		}
+	}
 	if (clear < CLEAR_FREE) {
 		/* a move that needs the facing is near: on the heading, so that
 		 * when the follower takes it back there is nothing to snap */

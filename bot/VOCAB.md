@@ -152,7 +152,7 @@ For `option <trait> <score>`: 0 to 1, how much the situation calls for the optio
   - `gun`: one of `rifle|smg|shotgun`; may be given several times; must be given
 - **`under_fire [secs]`** -- 1 just shot at (see the condition), falling to 0 over that many seconds (default 4)
   - `secs`: a number; left out: 4
-- **`pressed`** -- how hard pressed in a fight: three parts health lost, one part enemies in sight beyond the team-mates within 20; 0 with nobody in sight and no round for 4 s
+- **`pressed`** -- how hard pressed in a fight: 1 with no round left; else the health lost, times 1 when more enemies are in sight than itself and the team-mates within 20 (0 when not: hurt alone, or outnumbered alone, is a fight to face); 0 with nobody in sight and no round for 4 s
 - **`standoff`** -- 1 when the nearest enemy in sight is within half its gun's opening range and farther than it would close to: one to stand and shoot at
 - **`enemy_far [voxels]`** -- 0 with an enemy in sight at arm's length, rising to 1 at that distance (default 60); 0 with none in sight
   - `voxels`: a number; left out: 60

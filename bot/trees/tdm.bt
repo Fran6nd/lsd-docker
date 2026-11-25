@@ -72,7 +72,7 @@ seq
 			do fight
 		option caution under_fire x1.1        # to cover, and fight from it
 			tree tdm_take_cover
-		option caution pressed x1.4           # hurt or outnumbered: back, from cover to cover
+		option caution pressed x0.6           # hurt AND outnumbered, or no round left: back, from cover to cover, facing them
 			do fall_back_by_cover
 		option greed grenade_worth x0.6       # he is behind something: a grenade
 			do throw_grenade
@@ -94,7 +94,7 @@ select
 # An enemy in sight, and not (or no longer) under fire.
 tree tdm_contact:
 pick every=1.5 sticky=0.3 noise=0.15
-	option caution pressed x1.8               # hurt or outnumbered: break off
+	option caution pressed x0.8               # hurt AND outnumbered, or no round left: break off, facing them
 		do fall_back_by_cover
 	option aggression enemy_visible           # fight him: close to its own range, strafe
 		do fight

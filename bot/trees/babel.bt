@@ -199,7 +199,7 @@ seq
 					if cover_in_view
 					do take_cover in_view
 				do crouch 3
-		option caution pressed x1.4           # hurt or outnumbered: back, from cover to cover
+		option caution pressed x0.6           # hurt AND outnumbered, or no round left: back, from cover to cover, facing them
 			do fall_back_by_cover
 		option builder always x0.4            # a builder goes on building under fire
 			do build_at @stair
@@ -207,7 +207,7 @@ seq
 # An enemy in sight.
 tree babel_contact:
 pick every=1.5 sticky=0.3 noise=0.15
-	option caution pressed x1.8               # hurt or outnumbered: break off
+	option caution pressed x0.8               # hurt AND outnumbered, or no round left: break off, facing them
 		do fall_back_by_cover
 	option aggression enemy_visible           # fight him
 		do fight

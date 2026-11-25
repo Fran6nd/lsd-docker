@@ -167,7 +167,7 @@ seq
 			do fight
 		option caution under_fire x0.9        # to cover it can see, facing him; none: face him
 			tree ctf_take_cover
-		option caution pressed                # hurt or outnumbered: back, from cover to cover
+		option caution pressed x0.6           # hurt AND outnumbered, or no round left: back, from cover to cover, facing them
 			do fall_back_by_cover
 		option objective their_intel_home x1.2 # the keen on the game run on for their intel, shooting
 			do fetch
@@ -191,7 +191,7 @@ pick every=1.5 sticky=0.3 noise=0.15
 		tree ctf_round
 	option objective their_intel_dropped x1.5
 		do fetch
-	option caution pressed x1.3               # hurt or outnumbered: break off
+	option caution pressed x0.8               # hurt AND outnumbered, or no round left: break off, facing them
 		do fall_back_by_cover
 	option aggression enemy_near 45 x1.8      # a man near: fight him (one far off is not worth the stop)
 		do fight

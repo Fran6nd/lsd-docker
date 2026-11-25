@@ -707,6 +707,66 @@ static void test_no_way_from_there(void)
 	bs_free(s);
 }
 
+/* SHOT FROM THE FRONT, ON ITS WAY TO A GOAL BEHIND IT (the owner: "when
+ * getting shot at you should almost never turn around and go back").
+ * On a bare duty -- its base, behind it -- the head stays on the man who
+ * shot it while the body goes on: backwards (the travel gaze, one rule
+ * for every skill). On the tdm tree it faces him and deals with him:
+ * no farther from him than cover is sought (take_cover: 12 steps). */
+static void shot_heading_away(const char *tree, int *facing, int *back, int *ticks, float *away)
+{
+	bs_sim *s = field(4, 160.5f, 330.5f);
+	bl_vec3 from;
+	int i;
+	float d0;
+
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "leaders.per=0");
+	bs_set(s, BL_NO_PLAYER, tree);
+	bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, 31, 230.5f, 256.5f, -1, 0);
+	bs_add(s, 1, 0, 2, 5, BL_GUN_RIFLE, 1, 262.5f, 256.5f, -1, 0);
+	bs_run(s, 1.5);                             /* on its way back to its base, west */
+	from = eye_of(s, 1);
+	d0 = bs_dist(s, 0, 1);
+	*facing = *back = *ticks = 0;
+	*away = 0.0f;
+	for (i = 0; i < 60 * 5; i++) {
+		float dx, dy, l, ol, d;
+
+		if (i % 60 == 0) bs_hurt(s, 0, 8, 1, from, 0);     /* a round a second, from the east */
+		s->p[0].hp = s->p[0].hp < 60 ? 60 : s->p[0].hp;     /* hurt, never so hurt as to be pressed */
+		s->p[1].hp = 100;
+		bs_step(s);
+		dx = s->p[1].body.pos.x - s->p[0].body.pos.x; dy = s->p[1].body.pos.y - s->p[0].body.pos.y;
+		l = sqrtf(dx * dx + dy * dy);
+		ol = sqrtf(s->p[0].ori.x * s->p[0].ori.x + s->p[0].ori.y * s->p[0].ori.y);
+		(*ticks)++;
+		if (l > 1e-3f && ol > 1e-3f && (dx * s->p[0].ori.x + dy * s->p[0].ori.y) / (l * ol) > 0.7071f) (*facing)++;
+		/* its back to him: from the second on -- a head turns half a
+		 * circle in about a second at this level (175 deg/s, TREES.md 11) */
+		if (i >= 60 && l > 1e-3f && ol > 1e-3f && (dx * s->p[0].ori.x + dy * s->p[0].ori.y) / (l * ol) < 0.0f) (*back)++;
+		d = bs_dist(s, 0, 1) - d0;
+		if (d > *away) *away = d;
+	}
+	bs_free(s);
+}
+
+static void test_shot_heading_away(void)
+{
+	int f0, b0, t0, f1, b1, t1;
+	float a0, a1;
+
+	printf("shot from the front on its way to a goal behind it\n");
+	shot_heading_away("tree=tree t:\ndo go_to own_base\n", &f0, &b0, &t0, &a0);
+	shot_heading_away("tree=tdm", &f1, &b1, &t1, &a1);
+	printf("  a bare duty (its base, behind it): head within 45 deg of him %d of %d ticks, its back to him %d, %.1f farther from him at most\n"
+	       "  the tdm tree: head on him %d of %d ticks, its back to him %d, %.1f farther at most\n",
+	       f0, t0, b0, (double)a0, f1, t1, b1, (double)a1);
+	CHECK(f0 * 4 >= t0 * 3 && b0 == 0);        /* it goes, backwards: never its back to him once turned */
+	CHECK(f1 * 4 >= t1 * 3 && b1 == 0);
+	CHECK(a1 <= 12.0f);                        /* no farther than cover is sought */
+}
+
 /* in a pool with banks too high to climb: with digging allowed the route
  * digs its way out, and the digs are asked for from the water */
 static void test_dig_out_of_water(void)
@@ -757,6 +817,7 @@ int main(void)
 	test_waiting_for_routes();
 	test_capped_in_a_maze();
 	test_no_way_from_there();
+	test_shot_heading_away();
 	test_dig_out_of_water();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;
