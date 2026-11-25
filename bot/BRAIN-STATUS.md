@@ -428,7 +428,60 @@ not the board: at 230 on a flat field a bot is hardly ever travelling
 with nobody in sight (about 600 samples in the whole run), and those on
 joined routes were 79% on their heading (instrumented).
 
-LIVE_TABLE_HERE
+**Again after master's babel planner changes** (is_goal a disc, exact
+goals; map230, 60 s, quiet): think 2945 -> 2228 us with the board (-24%)
+-> 1871 us with it and 4 threads (-36%); expansions 26.6M -> 16.8M
+(-37%); waiting for a route 4.2 -> 0.9%; every deterministic line the
+same at 1 and 4 threads.
+
+**Live** (a container of its own, lsd-par: ctf, prisonbreakv1,
+engine_bots_edit=all; one headless Player Limit client on the Mac
+against the published port; 60 s a point after 65 s of play; CPU is
+percent of ONE core from /proc/<pid>/stat, botd's threads summed;
+round = botd's whole round, from its health line, which now gives p50
+and p99; tick = the server's, probe on mod.xearly; the machine shared
+with other agents' containers, load 1.4 to 5 in the rows below):
+
+| bots | | server % | botd % | botd round mean / p99 / worst ms | server tick p99 / max ms | server UPS min | client UPS min / med, gap max ms | keys % |
+|---|---|---|---|---|---|---|---|---|
+| 100 | before (share 0, 1 thread) | 8.2 | 9.7 | 1.33 / 15.7 / 23.8 | 2.05 / 4.9 | 60 | 59 / 60, 22 | 81 |
+| 100 | board | 8.4 | 10.0 | 1.57 / 15.9 / 24.0 | 2.16 / 27.3 | 60 | 60 / 60, 50 | 84 |
+| 100 | board + 4 threads | 8.0 | 16.1 | 1.83 / 14.3 / 31.6 | 2.02 / 5.0 | 60 | 59 / 60, 28 | 89 |
+| 200 | before (two runs) | 10.8, 10.1 | 25.1, 20.4 | 2.5-3.2 / 28.5-31.4 / 42-45 | 3.4-3.5 / 5.1-5.6 | 60 | 59 / 60, 25 | 84-86 |
+| 200 | board (two runs) | 9.1, 9.3 | 20.1, 21.7 | 3.1-3.3 / 27.0-28.1 / 38-40 | 2.9-3.0 / 5.2-10.7 | 60 | 59 / 60, 23-32 | 85-87 |
+| 200 | board + 4 threads (two runs) | 10.1, 9.0 | 20.9, 18.4 | 2.5-2.8 / 27.7-30.2 / 36-40 | 2.8-3.3 / 5.4-6.5 | 60 | 59-60 / 60, 21-23 | 83-88 |
+
+A third 200-bot run fell while the host was loaded (load 7 to 10: another
+agent's demo container was restarting): server UPS min 46 and 37, tick max
+138 and 103 ms, botd's worst round 485 and 840 ms, the client at 52
+updates a second at worst -- in the board and the board + threads rows
+alike, and in the server and botd AT THE SAME MOMENTS. **On the owner's
+question** (do the client's dropped updates come from botd's planning
+loading the VM?): not on this evidence. botd used a fifth to a quarter
+of one core at 200 bots, whatever the setting; in every quiet run the
+client got 59-60 updates a second with gaps under 33 ms; the drops came
+only with the HOST loaded, and they hit the server and botd together,
+which a busy botd cannot do to the server on a 14-core VM.
+
+**What it says.** The board takes planning work off (bench: expansions
+-16 to -37%, routes come sooner), and botd's CPU at 200 is 20-22% with
+it against 20-25% without (noise of the same size). Live, botd's p99
+round (27-31 ms at 200) is NOT the planner: it stayed where it was with
+the board and with 4 threads. The bench's planner share (54% of a think
+at map230) is higher than live, where fewer bots plan at once and
+decide bursts (every bot deciding in the same think) and sight make the
+slow rounds. So `--threads` stays at 1 by default (botlink_threads;
+docs/administer.md); at 100 bots four threads cost 6% of a core more for
+nothing measurable. Next, by these numbers: the slow round itself --
+which phase (decide, sight) makes botd's p99 30 ms at 200 -- and sight
+in two phases (the rays in parallel, the board in order), the one
+remaining piece that threads could speed on a flat field.
+
+**Found on the way** (fixed, its own commit): a botd killed and started
+again at once by the entrypoint (inside `botlink_stale`, 2 s) was never
+told the bots, the map or the settings -- lib_botlink only resynced an
+engine after a silence. Now a change of `engine_pid` is a new engine
+(tests/botlink_test.lua 9a).
 
 ## (d) WHAT THE SERVER MAY SEND (BL_EV_SET, "key=value")
 

@@ -461,3 +461,28 @@ DONE (commit), BLOCKED (on what).
   is a radius: it succeeded at once, and nothing followed); now they
   watch from there. The scenario test is parked: "a shot heard, up a
   hill" holds for 1 sniper in 7 -- to look at next.
+- 2026-11-25 (parallel agent, item 20): "multi threading bots? 4
+  parallel threads?" -- both the owner's options built, measured in
+  BRAIN-STATUS.md (c3). The server process: nothing to move off its
+  thread (World Updates are a loop and a memcpy a person, ENet is not
+  thread-safe and every send comes from Lua, the map's compression is
+  OpenMP already). THE ROUTE BOARD (core/routes.h, in master since the
+  checkpoint): a team's bots going the same way share one search (a
+  fresh route joined by a local search onto it, checked against the map
+  as it is now; a search under way waited on; plan.share=0 is the old
+  engine metric for metric); bench map230: expansions -16% (-37% after
+  babel's planner changes), waiting for a route halved or better, think
+  -18 to -24%. THE PLANNER ON THREADS: the core cuts its planner's work
+  into units (engine.h) and applies what they found in its own order;
+  botd runs them on a pool (botd/pool.h, --threads, setting
+  botlink_threads); the same intents at any thread count
+  (parallel_test, ThreadSanitizer clean); bench think -35% at 4. Live at
+  100 and 200 bots (lsd-par, ctf prisonbreakv1 edit=all, a client on the
+  Mac): botd 20-25% of a core at 200 whatever the setting, its p99 round
+  27-31 ms untouched by either (not the planner), client 59-60 updates a
+  second in every quiet run; the only drops came with the host loaded
+  and hit server and botd together -- not botd's planning. So threads
+  default to 1. Fixed on the way: a botd restarted at once by the
+  entrypoint was never told the bots (lib_botlink resynced only after a
+  silence; now a new engine_pid is a new engine). Next: what makes botd's
+  p99 round at 200 (decide bursts, sight), and sight in two phases.

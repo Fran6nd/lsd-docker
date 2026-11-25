@@ -42,8 +42,10 @@
  * thread. The core applies what the units found in its own order, so the
  * bots do the same whatever the number of threads (tests/parallel_test.c).
  * Measured (BRAIN-STATUS.md (c3)): the planner is about half of a think
- * at 230 bots on a real map once routes are shared; four threads take a
- * think's planning time down by about 40%.
+ * at 230 bots on a real map once routes are shared, and four threads take
+ * a think's planning time down by about 40% in the bench; live, at 100 and
+ * 200 bots, a round's p99 is not the planner's and stayed where it was --
+ * so one thread is the default, more an operator's choice.
  */
 #include "botd.h"
 #include "engine.h"
@@ -118,7 +120,7 @@ void botd_opts_default(botd_opts *o)
 	o->budget = 3000;
 	o->plan_rate = BC_PLAN_RATE;
 	o->max_bots = 255;
-	o->threads = 0;
+	o->threads = 1;     /* BRAIN-STATUS.md (c3): live, more bought nothing yet */
 	o->poll_ms = 1000;
 	o->stale_ms = 5000;
 	o->health_s = 60;
@@ -743,7 +745,7 @@ int botd_run(const botd_opts *o)
 	int hz = o->hz > 0 ? o->hz : 60;
 	botd_opts opts = *o;
 	opts.hz = hz;
-	opts.threads = o->threads > 0 ? o->threads : botd_threads_auto();
+	opts.threads = o->threads > 0 ? o->threads : botd_threads_auto();   /* 0: auto */
 	if (!pool) {
 		pool = botd_pool_new(opts.threads);
 		if (!pool) { say("cannot make %d threads", opts.threads); return 1; }
