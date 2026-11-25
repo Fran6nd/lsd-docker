@@ -48,6 +48,7 @@ static struct {
 	bl_intent *intents_ptr;
 	bc_engine_host host;
 	float last_dt;
+	_Atomic int plan_bound;      /* what botd bounds the planner to (THE PLANNER'S BOUND) */
 	uint32_t life_seen;
 } fake;
 
@@ -137,6 +138,8 @@ void bc_engine_think(bc_engine *e, const bl_world *w, bl_intent *intents, float 
 
 void bc_engine_plan_rate(bc_engine *e, int rate, int hz) { (void)e; (void)rate; (void)hz; }
 void bc_engine_runner(bc_engine *e, bc_runner run, void *ctx) { (void)e; (void)run; (void)ctx; }
+void bc_engine_plan_bound(bc_engine *e, int most) { (void)e; atomic_store(&fake.plan_bound, most); }
+uint32_t bc_engine_plan_spent(const bc_engine *e) { (void)e; return 0; }
 int bc_engine_bots(const bc_engine *e) { (void)e; return atomic_load(&fake.bots); }
 size_t bc_engine_describe(const bc_engine *e, int pid, char *out, size_t n)
 { (void)e; (void)pid; (void)out; (void)n; return 0; }
@@ -345,6 +348,9 @@ static void test_session(void)
 	printf("   round rate %.1f/s (asked %d)\n", rate, r.o.hz);
 	CHECK(rate > r.o.hz * 0.96 && rate < r.o.hz * 1.04);
 	CHECK(fake.last_dt > 0.012f && fake.last_dt < 0.03f);
+	/* a planner that spends nothing tells no cost: the bound is --plan-ms at
+	 * the cost botd assumes (2 us an expansion) */
+	CHECK(atomic_load(&fake.plan_bound) == r.o.plan_ms * 500);
 
 	/* closing: botd exits 0, clears its pid, thinks no more */
 	bl_shutdown(s.f);

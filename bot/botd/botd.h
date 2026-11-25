@@ -16,6 +16,8 @@ typedef struct botd_opts {
 	int hz;                 /* rounds a second (default 60) */
 	int budget;             /* planner expansions a think may always spend (default 1500) */
 	int plan_rate;          /* and each bot's share, expansions a second (BC_PLAN_RATE) */
+	int plan_ms;            /* the planner's part of a round, ms (default 8; 0: unbounded):
+	                           botd.c, THE PLANNER'S BOUND */
 	int max_bots;           /* bots the engine is sized for (default 255: every seat) */
 	int threads;            /* the planner's threads, botd's own included (pool.h);
 	                           1 (the default): botd's own alone; 0: botd_threads_auto() */

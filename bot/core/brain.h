@@ -505,6 +505,7 @@ struct bc_engine {
 	int have_world;
 	int budget_left;
 	int plan_per_bot;           /* a bot's share of a think's planner (engine.h) */
+	int plan_bound;             /* the host's bound on a think's planner; 0: none */
 
 	uint32_t chg_cells[BC_CHANGE_CELLS];
 	bc_engine_stats stats;

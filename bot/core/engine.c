@@ -2529,6 +2529,16 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 	b->aim_out = out;
 }
 
+void bc_engine_plan_bound(bc_engine *e, int most)
+{
+	e->plan_bound = most > 0 ? most : 0;
+}
+
+uint32_t bc_engine_plan_spent(const bc_engine *e)
+{
+	return e->stats.last_expansions;
+}
+
 void bc_engine_plan_rate(bc_engine *e, int rate, int hz)
 {
 	if (rate < 0) rate = 0;
@@ -2599,12 +2609,14 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 	}
 	{
 		/* engine.h, THE PLANNER'S BUDGET: the think's own, or every
-		 * bot's share, whichever is more */
+		 * bot's share, whichever is more; and no more than the bound */
 		long long share = (long long)e->plan_per_bot * bc_engine_bots(e);
 
 		e->budget_left = budget > 0 ? budget : 0;
 		if (budget > 0 && share > e->budget_left)
 			e->budget_left = share > INT32_MAX ? INT32_MAX : (int)share;
+		if (e->plan_bound > 0 && e->budget_left > e->plan_bound)
+			e->budget_left = e->plan_bound;
 	}
 
 	/* WHOSE TURN */

@@ -33,6 +33,7 @@
  *                  expansions a second (bc_engine_plan_rate), divided
  *                  among the thinks of a second -- so a fleet's routes
  *                  keep coming however many bots there are
+ * and no more than the host's BOUND, if it gives one (bc_engine_plan_bound).
  * With the defaults (1500; 2250 a second, 38 a think at 60 thinks a
  * second) the second passes the first at 40 bots. A fixed budget left
  * most of 230 bots waiting for routes (2026-11-25, the bench's map230:
@@ -111,6 +112,20 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
  * is called: BC_PLAN_RATE at 60. */
 #define BC_PLAN_RATE 2250
 void bc_engine_plan_rate(bc_engine *e, int rate, int hz);
+
+/* THE PLANNER'S BOUND: the most expansions one think may spend, whatever
+ * the budget and the share (0, the default: no bound). The budget and the
+ * share are what the fleet needs; what a round can hold is a matter of
+ * time, which only the host knows -- an expansion costs from under 1 us
+ * to over 2 by the map and by whether bots may dig and build, and a share
+ * of 230 bots' spent by one long search took 30 to 40 ms where a round
+ * has 16.7 (2026-11-25, BRAIN-STATUS.md (c4)). botd sets it every round
+ * from what the planner's jobs have been taking (--plan-ms). What does
+ * not fit waits for the next think, as with the budget. */
+void bc_engine_plan_bound(bc_engine *e, int most);
+/* The expansions the last think's planner spent, for a host that times
+ * them. */
+uint32_t bc_engine_plan_spent(const bc_engine *e);
 
 /* THE THINK'S WORK AS JOBS, for a host with threads. The core has none
  * (README.md); what it can offer is its heavy work cut so that a host's

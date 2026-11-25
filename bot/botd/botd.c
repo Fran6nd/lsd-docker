@@ -42,6 +42,16 @@
  * of a think stays on the round's thread. The core takes in what the jobs
  * found in its own order, so the bots do the same whatever the number of
  * threads (tests/parallel_test.c).
+ *
+ * THE PLANNER'S BOUND. The core spends what the fleet needs on routes
+ * (engine.h, THE PLANNER'S BUDGET), in expansions; what a round can hold
+ * is a matter of time, and only botd has a clock. An expansion costs from
+ * under 1 us to over 2 by the map and whether bots may dig and build, so
+ * botd keeps what one has been costing it -- the planner's jobs' time over
+ * the expansions they took, threads and all, a moving mean over the
+ * rounds that planned -- and bounds each think to what fits in --plan-ms
+ * (8 of a round's 16.7). At 200 bots on a real map with edits a single
+ * long search had taken 25 to 40 ms of one round (BRAIN-STATUS.md (c4)).
  * Measured (BRAIN-STATUS.md (c3)): the planner is about half of a think
  * at 230 bots on a real map once routes are shared, and four threads take
  * a think's planning time down by about 40% in the bench; live, at 100 and
@@ -120,6 +130,7 @@ void botd_opts_default(botd_opts *o)
 	o->hz = 60;
 	o->budget = 1500;
 	o->plan_rate = BC_PLAN_RATE;
+	o->plan_ms = 8;
 	o->max_bots = 255;
 	o->threads = 1;     /* BRAIN-STATUS.md (c3): live, more bought nothing yet */
 	o->poll_ms = 1000;
@@ -151,6 +162,10 @@ typedef struct session {
 	int maps;
 	botd_watch watch;       /* the debug channel (watch.c) */
 	int watchers;
+	/* THE PLANNER'S BOUND: this round's planner time; the cost of an
+	 * expansion (us, a moving mean); the bound it gives */
+	double plan_s, exp_us;
+	int plan_bound, bound_min;
 } session;
 
 static session S;       /* static: survives the longjmp of a SIGBUS */
@@ -172,11 +187,37 @@ static void host_action(void *ctx, uint8_t type, uint8_t pid, const void *payloa
 	else s->drops++;
 }
 
-/* The think's jobs, on the pool (THREADS, above). */
-static void run_jobs(void *pool, int kind, bc_job job, void *arg, int n)
+static botd_pool *pool;     /* the process's: made once, in botd_run */
+
+/* The think's jobs, on the pool (THREADS, above); the planner's timed. */
+static void run_jobs(void *ctx, int kind, bc_job job, void *arg, int n)
 {
-	(void)kind;
+	session *s = ctx;
+	double t0 = kind == BC_WORK_PLAN ? now_s() : 0.0;
+
 	botd_pool_run(pool, job, arg, n);
+	if (kind == BC_WORK_PLAN)
+		s->plan_s += now_s() - t0;
+}
+
+/* THE PLANNER'S BOUND (above): from the round that just planned, the next
+ * round's. A round that spent little tells little of the cost. */
+static void plan_bound(session *s)
+{
+	uint32_t spent = bc_engine_plan_spent(s->e);
+
+	if (s->o->plan_ms <= 0)
+		return;
+	if (spent >= 500) {
+		double us = s->plan_s * 1e6 / (double)spent;
+
+		s->exp_us = s->exp_us > 0.0 ? 0.8 * s->exp_us + 0.2 * us : us;
+	}
+	s->plan_s = 0.0;
+	s->plan_bound = (int)(s->o->plan_ms * 1000.0 / (s->exp_us > 0.0 ? s->exp_us : 2.0));
+	if (s->plan_bound < 500) s->plan_bound = 500;     /* routes always come */
+	if (!s->bound_min || s->plan_bound < s->bound_min) s->bound_min = s->plan_bound;
+	bc_engine_plan_bound(s->e, s->plan_bound);
 }
 
 int botd_threads_auto(void)
@@ -192,8 +233,6 @@ int botd_threads_auto(void)
 
 	return n < 4 ? n : 4;
 }
-
-static botd_pool *pool;     /* the process's: made once, in botd_run */
 
 /* ------------------------------------------------------------------ */
 /* Trees                                                              */
@@ -577,10 +616,12 @@ static void health(session *s, double window)
 {
 	double r = s->rounds ? (double)s->rounds : 1;
 	say("health: %.0f rounds/s, round mean %.2f p50 %.1f p99 %.1f worst %.2f ms, events %llu, actions %llu, "
-	    "drops %llu, no-world %llu, bots %d",
+	    "drops %llu, no-world %llu, bots %d, plan bound %d (least %d, %.2f us an expansion)",
 	    (double)s->rounds / window, s->sum_round / r * 1e3, round_q(s, 0.5), round_q(s, 0.99), s->worst_round * 1e3,
 	    (unsigned long long)s->events, (unsigned long long)s->actions,
-	    (unsigned long long)s->drops, (unsigned long long)s->world_misses, s->bots);
+	    (unsigned long long)s->drops, (unsigned long long)s->world_misses, s->bots,
+	    s->plan_bound, s->bound_min, s->exp_us);
+	s->bound_min = s->plan_bound;
 	s->rounds = s->events = s->actions = s->drops = s->world_misses = 0;
 	s->sum_round = s->worst_round = 0;
 	memset(s->round_hist, 0, sizeof s->round_hist);
@@ -639,6 +680,7 @@ static int run_session(session *s)
 			if (dt > 0.25f) dt = 0.25f;
 			last_think = start;
 			think_all(s, dt);
+			plan_bound(s);
 			if (bl_closing(f) || stop_flag) { why = stop_flag ? END_STOP : END_CLOSED; break; }
 			flush_intents(s);
 		} else {
@@ -708,7 +750,10 @@ static int session_main(session *s)
 		return END_GONE;
 	}
 	bc_engine_plan_rate(s->e, s->o->plan_rate, s->o->hz);
-	bc_engine_runner(s->e, run_jobs, pool);
+	bc_engine_runner(s->e, run_jobs, s);
+	s->plan_s = s->exp_us = 0.0;
+	s->plan_bound = s->bound_min = 0;
+	plan_bound(s);
 	s->user_trees = load_trees(s->e, s->o->trees, s->o->user_trees);
 	{
 		char dir[512];
