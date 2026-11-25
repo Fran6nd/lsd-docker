@@ -408,27 +408,48 @@ does not use it: building there works the same for every client.
 
 ## Protected blocks
 
-An effect or a bot that breaks blocks -- a rocket's crater, a railgun,
-the Fall's shaft, a guard digging through a wall -- is the server
-breaking them, which nothing guarding blocks against players sees. So
-they all go through one door, `PlayerEffect.break_blocks(owner, list,
-type)` (bots: `bot_dig_block(x, y, z, pid)`), which asks one gate,
-`may_break_block(owner, pos, type)`, for every block. A script that
-protects blocks joins the gate once and holds for every effect and
-bot there is:
+A gamemode protects blocks in one place: it answers `may_edit_block`, the
+one question every edit of the map is asked. Whatever edits blocks -- a
+player's spade, build or line; a grenade's crater; a bot's dig; a rocket,
+missile, airstrike, grenade launcher, railgun or the Fall; a script's
+`/selrm` or bulk destroy -- ends in the engine's `block_action_rm`,
+`block_action` or `block_line`, and the Block filter library
+(`lib_block_filter`, loaded with every gamemode) asks the question there,
+for each block the action would take or build:
 
 ```lua
-function mod.may_break_block(owner, pos, type)
+function mod.may_edit_block(who, pos, type)
 	if (<pos is mine to guard>) then return false; end
-	local below = mod.next.may_break_block;
-	return below == nil or below(owner, pos, type);
+	local below = mod.next.may_edit_block;
+	return below == nil or below(who, pos, type);
 end
 ```
 
-Babel does: its platform, and each team's tower area against that
-team (and against ownerless world effects). `tests/catalog_test.lua`
-refuses an effect or a bot, or a library one needs, that breaks a
-block without asking the gate.
+`who` is the player the edit is for (a player's own action; a bot's; an
+effect's owner) or `nil` for the world's own effects and for scripts;
+`pos` is one block; `type` is 0 to build it, 1 to take it. A grenade's 27
+blocks and a spade's 3 are asked one by one, and when some are refused the
+rest are still taken: a rocket beside babel's platform takes the ground and
+leaves the platform. Air is never asked about.
+
+Who an edit is for, when the server makes it under the anonymous player:
+`edit_as(who, fn, ...)` (effects do it through `PlayerEffect.break_blocks`,
+bots through `bot_dig_block`); without it the edit is a script's. And the
+server rebuilding its own structure -- map_layout drawing a door, the range
+raising and bringing down its wall -- says so with `server_edit(fn, ...)`,
+and is not asked. `tests/catalog_test.lua` refuses an effect or a bot that
+breaks blocks any other way.
+
+Who answers today: babel (the platform, never broken; each team's tower
+area, not broken by that team nor by the world, and nobody builds in the
+other's), map_layout (the cells of a door, an elevator, a reserved volume),
+the range (everything, so its start wall stands) and parkour (everything).
+
+The cull is not an edit and is not asked: blocks that float after
+something under them is taken fall, on every client's own flood too. So a
+protected structure held up by blocks that are not protected falls with
+them -- babel's platform, held up by the towers, is rebuilt at once by
+babel itself, as the server's own work.
 
 ## Writing a catalog entry
 

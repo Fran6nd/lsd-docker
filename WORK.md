@@ -61,6 +61,7 @@ DONE (commit), BLOCKED (on what).
 | 26 | CI: bttree does not build on Ubuntu (upstream demoncore.c -Werror=address-of-packed-member), so bots_ctl_test skips there | TODO |
 | 27 | try_edit's top-band rule (no edits up into z < 3): same reasoning as the removed jump rule | TODO |
 | 28 | lib_bot's send_spawn_player split, redundant since patch 0002 | TODO |
+| 29 | One filter for every edit of the map (the owner: "all destruction effects must go through the gamemode's filter"): `may_edit_block`, asked at the engine's block_action_rm / block_action / block_line, answered once by each gamemode | DONE on the branch (lib_block_filter), not released |
 
 ## Log
 
@@ -614,3 +615,55 @@ DONE (commit), BLOCKED (on what).
   to fight from. behaviour_test: 6 builders on the tdm tree shot at from
   40 in the open -- 5 walled up, 4 hidden from him crouched behind it;
   6 of other character: none; building off: none; refused for sight 0.
+- 2026-11-25 (protect agent, item 29): THE ONE FILTER. The owner, on babel:
+  "with a rocket I destroyed the platform". Measured on a live babel
+  (container, Lua through `lsdctl exec`): a blast on the platform, a
+  grenade, a spade, a bulk destroy all leave it whole -- upstream's own
+  block_action_rm hook (babel.lua) keeps the platform from everything --
+  but the platform did go once a tower holding it up was cut (a crater
+  on a column built to it): the cull dropped it, babel rebuilt it
+  (platform_destroyed ">:("). See "what remains". What was wrong
+  structurally: each protection lived in its own hooks (upstream babel's
+  block_action_rm for the platform, babel_protect's on_block_action for
+  the towers, map_layout's two for "foreign" writes, parkour's and the
+  range's block_action for a grenade only), and the effects' `may_break_block`
+  was a second, parallel gate asked by the effect's own door and by bots'
+  digs, with babel the only one answering. So: a rocket at the range's
+  start wall, at a parkour course, a grenade beside a map_layout door
+  (map_layout looked only at the grenade's centre) all took blocks.
+  After: lib_block_filter (catalog/libs/block_filter), required by
+  map_layout (so by every gamemode), player_effect and bot. A gamemode
+  answers `may_edit_block(who, pos, type)` once (babel_plus: platform and
+  towers, now also builds; map_layout: its cells; range and parkour:
+  everything) and it holds for every edit, because the filter hooks the
+  three engine calls every edit ends in, in the early chain, and asks per
+  block (a spade's 3, a grenade's 27; when some are refused the rest are
+  taken one by one, each with its cull; air is never asked). Who: a
+  player's `from`; under the anonymous pid, `edit_as(who, fn)` (effects'
+  break_blocks, lib_bot's bot_dig_block) or else "a script" (nil);
+  `server_edit(fn)` for the server rebuilding its own (map_layout's
+  fill/paint/dig_box, the range's wall) -- not asked. `may_break_block`
+  is gone. Table of paths (before -> after):
+    player spade/gun/build/line ........ upstream hooks only (babel, babel_protect, map_layout, parkour, range each their own) -> the filter too
+    server grenade (detonate_grenade) .. babel.lua hook for the platform only; map_layout: centre cell only; range/parkour: refused whole -> the filter, per block
+    effects (rocket, missile, airstrike, grenade_launcher, the_fall, railgun) .. may_break_block, asked by break_blocks, only babel answered -> the filter, as the owner
+    bots' digs (lib_bot, botlink) ...... may_break_block precheck -> edit_as + the filter (the botlink precheck stays, advisory)
+    lib_bulk_destroy users (sel.lua, scripts) .. block_action_rm: upstream babel + map_layout's anon check -> the filter, as a script
+    map_layout drawing, the range's wall ... unchecked / `we.drawing` -> server_edit
+    edit_mode (spade_with_62, batches) .. block_action_rm / block_action with the player's pid -> the filter (nothing to change)
+    the cull ........................... not an edit, not asked (see below)
+  Tests: tests/block_filter_test.lua (the real filter between a copy of
+  main.c's block paths and the real babel_plus, range, parkour and
+  lib_map_layout: rocket, missile, airstrike bomb, grenade, spade, bulk
+  destroy, a bot's dig, lines; 18 of its checks fail with the hooks
+  off), the old may_break_block tests moved to the new question.
+  WHAT REMAINS: the cull. A protected structure that unprotected blocks
+  hold up falls with them (clients flood-fill themselves, so the server
+  cannot keep it), and babel's platform hangs on whichever tower reaches
+  it: cut that tower and the platform vanishes for a moment and is
+  rebuilt (upstream's after.finish_cull). Refusing a cut that would drop
+  it would make the first stair to reach the platform uncuttable, which
+  the raiders' tactics (item 8) rely on; the owner may want it anyway.
+  sel.lua's admin edits run as "a script" (the protections hold against
+  them); a decision for the owner whether an admin may edit protected
+  blocks.
