@@ -124,7 +124,7 @@ end
 
 -- What a new server runs: every protocol extension -- each at its own
 -- policy, which is never "required", so no client is turned away -- and
--- votekick, time_limit, rewards and vote_map.
+-- votekick, time_limit, rewards, vote_map and vote_peace.
 local function default_scripts()
 	local ids = {};
 	for _, e in ipairs(cat():of_class(catalog.Extension)) do
@@ -134,8 +134,14 @@ local function default_scripts()
 	ids[#ids+1] = "time_limit";
 	ids[#ids+1] = "rewards";
 	ids[#ids+1] = "vote_map";
+	ids[#ids+1] = "vote_peace";
 	return ids;
 end
+
+-- The defaults that came after servers existed: a settings file that
+-- never heard of one is given it, once (init), then its owner's removing
+-- it is final. A new file is written knowing them all.
+local NEWER_DEFAULTS = {"vote_peace"};
 
 local function entry(name)
 	local e = cat():find(name);
@@ -595,7 +601,14 @@ local function install_ids(doc, ids, ui, flags)
 	return added;
 end
 
-command("install", "install <script>... [--preset P] [--policy L] [--yes] [--no-restart]",
+-- A new server's scripts, and the note that it was offered every default
+-- there is (see NEWER_DEFAULTS).
+local function install_defaults(doc)
+	install_ids(doc, default_scripts(), make_ui(true), {});
+	doc:set("defaults_offered", NEWER_DEFAULTS);
+end
+
+command("install","install <script>... [--preset P] [--policy L] [--yes] [--no-restart]",
 	"install scripts (and what they need), running each one's setup",
 	function(args)
 		local words, flags = parse_args(args, {preset = true, policy = true});
@@ -2457,6 +2470,25 @@ local MERGED = {night = {"daytime", "flashlight"}};
 local function migrate(doc)
 	local changed = false;
 
+	-- a default that came after this file was written: given once
+	local offered = doc:get("defaults_offered");
+	offered = type(offered) == "table" and offered or {};
+	local seen, grown = {}, false;
+	for _, id in ipairs(offered) do seen[id] = true; end
+	for _, id in ipairs(NEWER_DEFAULTS) do
+		if (not seen[id]) then
+			if (not doc:is_installed(id)) then
+				install_ids(doc, {id}, make_ui(true), {});
+			end
+			offered[#offered+1] = id;
+			grown = true;
+		end
+	end
+	if (grown) then
+		doc:set("defaults_offered", offered);
+		changed = true;
+	end
+
 	local moved = {};
 	for old, new in pairs(RENAMED) do
 		local v = doc:get(old);
@@ -2596,7 +2628,7 @@ command("init", "init", "write default settings if there are none, and bring old
 			return;
 		end
 		local doc = fresh_doc();
-		install_ids(doc, default_scripts(), make_ui(true), {});
+		install_defaults(doc);
 		doc:save();
 		say("wrote default settings to %s -- customise with: lsdctl setup", SETTINGS);
 	end);
@@ -2619,7 +2651,7 @@ local function quick_setup(doc, ui, existing, flags)
 		doc:get("rewards_enabled") == false and "off"
 		or doc:get("rewards_free") == true and "infinite" or "on");
 	if (not existing) then
-		install_ids(doc, default_scripts(), make_ui(true), {});
+		install_defaults(doc);
 	end
 	set_game_and_map(doc, mode, want, {rotation = true});
 	set_bots(doc, bots, mode);
@@ -2749,6 +2781,7 @@ command("setup", "setup [--defaults]",
 		for _, id in ipairs(want) do add[#add+1] = id; end
 		for _, d in ipairs(mode_e and mode_e:dependencies() or {}) do add[#add+1] = d; end
 		install_ids(doc, add, ui, {});
+		doc:set("defaults_offered", NEWER_DEFAULTS);   -- every default was in the list shown
 
 		-- libraries nothing needs any more
 		local needed = {};

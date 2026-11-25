@@ -1,0 +1,58 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: es\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: catalog/tools/vote_peace/vote_peace.lua
+msgid "Peace: nobody can hurt anybody. /votepeace to end it."
+msgstr "Paz: nadie puede herir a nadie. /votepeace para terminarla."
+
+#: catalog/tools/vote_peace/vote_peace.lua
+msgid "Peace is over: damage is back."
+msgstr "La paz terminó: el daño vuelve."
+
+#: catalog/tools/vote_peace/vote_peace.lua
+msgid "New map: peace is over, damage is back."
+msgstr "Mapa nuevo: la paz terminó, el daño vuelve."
+
+#: catalog/tools/vote_peace/vote_peace.lua
+msgid "%(name) wants to change the peace (a vote): type /votepeace to agree (%(have)/%(need))."
+msgstr "%(name) quiere cambiar la paz (una votación): escribe /votepeace para estar de acuerdo (%(have)/%(need))."
+
+#: catalog/tools/vote_peace/vote_peace.lua
+msgid "%(name) agrees to change the peace (%(have)/%(need))."
+msgstr "%(name) está de acuerdo en cambiar la paz (%(have)/%(need))."
+
+#: catalog/tools/vote_peace/vote_peace.lua
+msgid "You already voted on the peace."
+msgstr "Ya votaste sobre la paz."
+
+#: catalog/tools/vote_peace/vote_peace.lua
+msgid "The vote on the peace failed."
+msgstr "La votación sobre la paz falló."
+
+#: catalog/tools/vote_peace/vote_peace.lua
+msgid "Peace is on: nobody can hurt anybody. /votepeace to end it."
+msgstr "Hay paz: nadie puede herir a nadie. /votepeace para terminarla."
+
+#: catalog/tools/vote_peace/vote_peace.lua
+msgid "Peace is on: nobody can hurt anybody. /votepeace to vote it over."
+msgstr "Hay paz: nadie puede herir a nadie. /votepeace para votar su fin."
+
+#: catalog/tools/vote_peace/vote_peace.lua
+msgid "No peace: /votepeace to vote one."
+msgstr "No hay paz: /votepeace para votar una."
+
+#: catalog/tools/vote_peace/vote_peace.lua
+msgctxt "command"
+msgid "Vote for a peace, where nobody can hurt anybody -- or, at peace, to end it."
+msgstr "Votar una paz, en la que nadie puede herir a nadie -- o, en paz, para terminarla."
+
+#: catalog/tools/vote_peace/vote_peace.lua
+msgctxt "command"
+msgid "Say whether there is peace (nobody can hurt anybody)."
+msgstr "Decir si hay paz (nadie puede herir a nadie)."

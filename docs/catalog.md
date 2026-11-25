@@ -7,9 +7,9 @@
 | effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit, nightvision, rocket, missile, grenade_launcher, airstrike, ammo_box |
 | effects/world | `WorldEffect` | change the map or the match for everybody; same | the_fall |
 | bots | `Bot` | server-side players | guards, battle_bots |
-| tools | `Tool` | everything else | votekick, vote_map, rewards, inventory, esp_demo, headless, time_limit, ... |
+| tools | `Tool` | everything else | votekick, vote_map, vote_peace, rewards, inventory, esp_demo, headless, time_limit, ... |
 | demos | `Demo` | set a server up to show something off, not to run for good | demo_reward (every reward free and unlimited) |
-| libs | `Library` | what the others need; installed with them, not listed | ext, ext_policy, bot, shot_detect, player_effect, map_layout, callouts, blast, babel_protect, ask_player |
+| libs | `Library` | what the others need; installed with them, not listed | ext, ext_policy, bot, shot_detect, player_effect, map_layout, callouts, blast, babel_protect, ask_player, vote |
 
 A player effect forced on in setup is everybody's (`<id>_everyone = true`).
 A gamemode can hand one out instead, per player, for a time, until death
@@ -314,6 +314,34 @@ the rotation). The server may not run programs (its sandbox), so it
 asks the container's entrypoint with a file and loads what comes back,
 playing on meanwhile; with nothing in `vote_map_fetch_secs` (60), the
 rotation's next.
+
+The vote itself -- the tally, the majority, the timeout -- is the
+library `vote` (`lib_vote`), which `/va` and `/votepeace` share
+(`/votekick` has a target of its own and is not one of them).
+
+## Voting a peace (/votepeace)
+
+On by default, in every gamemode; a server made before it was given it
+once, at its next start (`lsdctl init`), and one whose owner removes it
+keeps it removed. `/votepeace` starts a vote as `/va` does
+(`vote_peace_ratio`, `vote_peace_timeout`), and a vote that carries
+TOGGLES the peace: with none, it begins; at peace, it ends. Everyone is
+told; `/peace` says which it is; a player joining at peace is told so,
+in their language.
+
+At peace no damage is done by a player or by anything a player did --
+bullets, the spade, grenades, rockets, airstrikes, missiles, rail guns,
+areas that hurt, a bot's shot -- decided in one place, the last of the
+damage chain before the core (a script that answers a hit itself, as the
+range's targets do, is not touched). What still counts is the map's own
+rule, the fall-type damage: a fall, water that kills, the map's boundary
+(so a parkour course stays what it is). Healing works as ever. Without
+peace nothing changes. The peace ends with the map.
+
+The bots know: while engine bots play, the server tells the engine
+`fact.peace` and the setting `fire=hold`; the shipped trees (tdm, ctf,
+default, babel) start no fight and throw no grenade at peace and go on
+with the game, and no bot fires a shot (bot/TREES.md).
 
 ## Asking a player (ask_player)
 
