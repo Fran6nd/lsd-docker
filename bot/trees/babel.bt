@@ -210,6 +210,8 @@ seq
 	pick every=2.5 sticky=0.5 noise=0.2
 		option aggression enemy_visible       # fight back from where it stands
 			do fight
+		option builder under_fire x0.6        # no cover in view: a wall where it stands, then down behind it
+			tree babel_wall_up
 		option caution under_fire x1.1        # to cover it can see, facing him; none: face him
 			select
 				seq
@@ -269,3 +271,15 @@ seq
 		select
 			if fact peace                     # at peace nothing is used on anyone
 			tree items                            # whatever it holds, used as each item says
+
+# Shot at with no cover in view, building allowed: a wall put up where
+# it stands toward the man (two high, one to three wide), then down
+# behind it; at its next choice, it is cover in view to fight from. With
+# cover in view already: to it.
+tree babel_wall_up:
+select
+	seq
+		unless cover_in_view
+		do build_cover
+		do crouch 3
+	do take_cover in_view

@@ -767,6 +767,83 @@ static void test_shot_heading_away(void)
 	CHECK(a1 <= 12.0f);                        /* no farther than cover is sought */
 }
 
+/* SHOT AT IN THE OPEN, NO COVER IN VIEW (the owner: "they should
+ * sometimes create cover"): on the tdm tree, a bot of the builder's
+ * character walls up where it stands, toward the man, and is hidden from
+ * him crouched behind it; one of other character does not; with building
+ * not allowed, nobody does. Every block a face it saw. */
+static void wall_pass(uint32_t seed, const char *edit, int *built, int *hidden, int *refused)
+{
+	bs_sim *s = field(4, 160.5f, 330.5f);
+	bl_vec3 from;
+	int i;
+	char t[32];
+
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "leaders.per=0");
+	snprintf(t, sizeof t, "edit=%s", edit);
+	bs_set(s, BL_NO_PLAYER, t);
+	bs_set(s, BL_NO_PLAYER, "tree=tdm");
+	bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, seed, 230.5f, 256.5f, 1, 0);
+	bs_add(s, 1, 0, 2, 5, BL_GUN_RIFLE, 1, 270.5f, 256.5f, -1, 0);
+	bs_run(s, 0.5);
+	from = eye_of(s, 1);
+	*hidden = 0;
+	for (i = 0; i < 60 * 12; i++) {
+		if (i % 60 == 0) bs_hurt(s, 0, 4, 1, from, 0);
+		s->p[0].hp = s->p[0].hp < 70 ? 70 : s->p[0].hp;
+		s->p[1].hp = 100;
+		bs_step(s);
+		if (i > 60 * 2 && (s->p[0].body.keys & BC_K_CROUCH) &&
+		    !bc_sight_body(s->truth, from, eye_of(s, 0), 1))
+			(*hidden)++;
+	}
+	*built = 0;
+	{
+		int x, y, z;
+
+		for (x = 225; x <= 236; x++)
+			for (y = 250; y <= 262; y++)
+				for (z = G - 3; z < G; z++)
+					*built += bc_map_solid(s->truth, x, y, z);
+	}
+	*refused = s->vis_refused;
+	bs_free(s);
+}
+
+static void test_build_cover(void)
+{
+	uint32_t seed = 1;
+	int k, walls_b = 0, hid_b = 0, walls_n = 0, walls_off = 0, refused = 0, n = 6;
+
+	printf("shot at in the open: a wall where it stands (tdm)\n");
+	for (k = 0; k < n; k++) {
+		int built, hidden, ref;
+
+		seed = seed_with(BC_T_BUILDER, 2.0f, 3.0f, seed + 1);
+		wall_pass(seed, "all", &built, &hidden, &ref);
+		walls_b += built >= 2;
+		hid_b += hidden > 60;
+		refused += ref;
+		wall_pass(seed, "none", &built, &hidden, &ref);
+		walls_off += built > 0;
+	}
+	for (k = 0; k < n; k++) {
+		int built, hidden, ref;
+
+		seed = seed_with(BC_T_BUILDER, 0.2f, 0.6f, seed + 1);
+		wall_pass(seed, "all", &built, &hidden, &ref);
+		walls_n += built > 0;
+		refused += ref;
+	}
+	printf("  %d builders: %d walled up, %d hidden from him crouched behind it a second or more; edits off: %d built;\n"
+	       "  %d of other character: %d built; refused for sight: %d\n", n, walls_b, hid_b, walls_off, n, walls_n, refused);
+	CHECK(walls_b * 3 >= n * 2 && hid_b * 3 >= n * 2);
+	CHECK(walls_off == 0);
+	CHECK(walls_n * 3 <= n);
+	CHECK(refused == 0);
+}
+
 /* in a pool with banks too high to climb: with digging allowed the route
  * digs its way out, and the digs are asked for from the water */
 static void test_dig_out_of_water(void)
@@ -818,6 +895,7 @@ int main(void)
 	test_capped_in_a_maze();
 	test_no_way_from_there();
 	test_shot_heading_away();
+	test_build_cover();
 	test_dig_out_of_water();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;

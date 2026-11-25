@@ -30,6 +30,8 @@ select
 			tree default_stranded
 		option caution under_fire x1.5        # shot at: to cover, and fight from it
 			tree default_cover
+		option builder under_fire x0.8        # shot at, no cover in view: a wall where it stands, then down behind it
+			tree default_wall_up
 		option aggression enemy_visible x1.2  # fight him
 			do fight
 		option curiosity search x0.6          # a noise, a man lost, a hit from somewhere
@@ -95,3 +97,15 @@ seq
 		select
 			if fact peace                     # at peace nothing is used on anyone
 			tree items                            # whatever it holds, used as each item says
+
+# Shot at with no cover in view, building allowed: a wall put up where
+# it stands toward the man (two high, one to three wide), then down
+# behind it; at its next choice, it is cover in view to fight from. With
+# cover in view already: to it.
+tree default_wall_up:
+select
+	seq
+		unless cover_in_view
+		do build_cover
+		do crouch 3
+	do take_cover in_view

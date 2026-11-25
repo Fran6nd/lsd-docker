@@ -167,6 +167,8 @@ seq
 			do fight
 		option caution under_fire x0.9        # to cover it can see, facing him; none: face him
 			tree ctf_take_cover
+		option builder under_fire x0.6        # no cover in view: a wall where it stands, then down behind it
+			tree ctf_wall_up
 		option caution pressed x0.6           # hurt AND outnumbered, or no round left: back, from cover to cover, facing them
 			do fall_back_by_cover
 		option objective their_intel_home x1.2 # the keen on the game run on for their intel, shooting
@@ -280,3 +282,15 @@ select
 	seq
 		if sniped                             # hit from far away
 		do ping threat Sniper
+
+# Shot at with no cover in view, building allowed: a wall put up where
+# it stands toward the man (two high, one to three wide), then down
+# behind it; at its next choice, it is cover in view to fight from. With
+# cover in view already: to it.
+tree ctf_wall_up:
+select
+	seq
+		unless cover_in_view
+		do build_cover
+		do crouch 3
+	do take_cover in_view

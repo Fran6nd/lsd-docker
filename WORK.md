@@ -600,3 +600,17 @@ DONE (commit), BLOCKED (on what).
   "destroy" on the client's word (it counts the round); a bot has no
   client, and lib_botlink has no honest path for it yet (the rounds
   really fired at a block in sight, the hits a block takes counted).
+- 2026-11-25 (brain agent): BUILDING COVER (the owner: "they should
+  sometimes create cover"). A word, `build_cover`: shot at, a wall two
+  high put up where it stands in the column beside it toward the man (the
+  trees' threat), on the axis nearest the way to him, the middle then a
+  column either side while it has the blocks (1 to 3 wide) -- each block
+  from where it stands, against a face its eye sees (the floor's top,
+  then the first block's), not where a zone forbids building, never with
+  building off. In the under-fire picks of tdm, ctf, default and babel,
+  weighted by the builder trait (x0.6 under fire, x0.8 in default's top
+  pick), only with no cover in view (else to the cover in view): walls
+  up, down behind it, and at its next choice the wall is cover in view
+  to fight from. behaviour_test: 6 builders on the tdm tree shot at from
+  40 in the open -- 5 walled up, 4 hidden from him crouched behind it;
+  6 of other character: none; building off: none; refused for sight 0.

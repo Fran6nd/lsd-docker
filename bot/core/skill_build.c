@@ -419,6 +419,91 @@ bt_status bc_do_dig_weakest(void *bot, const bt_args *a, float dt)
 	return r;
 }
 
+/* --- build_cover -----------------------------------------------------------
+ *
+ * Shot at with no cover in view: cover made where it stands. A wall two
+ * high in the column beside it toward the man who shot it (the trees'
+ * `threat`), on the axis nearest the way to him -- enough to hide a
+ * crouched body -- the middle first, then a column either side while it
+ * has the blocks: one to three wide. Each block as a player puts it: the
+ * first on the floor's top face, the second on top of the first, both
+ * under its eye, sent when its own eye sees the face (edit_voxel). Not
+ * where a zone forbids building. SUCCESS the middle stands (the sides as
+ * far as blocks and sight allow); FAILURE nobody shot at it, no block in
+ * hand, building not allowed, in the air, or the middle cannot be made. */
+
+/* the cells of the wall, middle first: index k -> (x, y, z) */
+static void cover_cell(const bc_bot *b, int k, int *x, int *y, int *z)
+{
+	int w = k / 2 == 0 ? 0 : k / 2 == 1 ? -1 : 1;   /* middle, one side, the other */
+	int px = -b->bld.dy, py = b->bld.dx;            /* across the way to him */
+
+	*x = b->bld.from.x + b->bld.dx + w * px;
+	*y = b->bld.from.y + b->bld.dy + w * py;
+	*z = b->bld.from.z - 1 - (k & 1);               /* on the floor, then on it */
+}
+
+bt_status bc_do_build_cover(void *bot, const bt_args *a, float dt)
+{
+	bc_bot *b = bot;
+	bc_engine *e = b->e;
+	const bl_player *me = bc_me(b);
+	bl_vec3 th;
+	int k;
+
+	(void)a; (void)dt;
+	if (!e->have_map || !may_edit(b, 0)) {
+		b->bld.started = 0;
+		return BT_FAILURE;
+	}
+	if (!b->bld.started) {
+		bc_body body;
+		bc_nav_node at;
+		float dx, dy;
+
+		if (me->blocks < 2 || !bc_place_of(b, "threat", &th))
+			return BT_FAILURE;
+		bc_body_of(me, &body);
+		if (!bc_nav_node_of_body(e->map, &body, &at))
+			return BT_FAILURE;
+		dx = th.x - me->pos.x; dy = th.y - me->pos.y;
+		b->bld.from = at;
+		b->bld.dx = (int8_t)(fabsf(dx) >= fabsf(dy) ? (dx > 0.0f ? 1 : -1) : 0);
+		b->bld.dy = (int8_t)(fabsf(dx) >= fabsf(dy) ? 0 : (dy > 0.0f ? 1 : -1));
+		b->bld.started = 1;
+		b->bld.until = e->now + 8.0;
+	}
+	for (k = 0; k < 6; k++) {
+		int x, y, z;
+		bt_status r;
+
+		cover_cell(b, k, &x, &y, &z);
+		if (!bc_map_in(x, y, z) || bc_map_solid(e->map, x, y, z))
+			continue;
+		/* a side it cannot make (no block left, a zone, out of its sight,
+		 * nothing to put it against): the wall is as wide as it gets */
+		if (k >= 2 && (me->blocks == 0 || zoned(b, x, y, 0) ||
+		               !bc_nav_sees_edit(e->map, b->bld.from, x, y, z, 1)))
+			continue;
+		if (k < 2 && (me->blocks == 0 || zoned(b, x, y, 0) ||
+		              !bc_nav_sees_edit(e->map, b->bld.from, x, y, z, 1))) {
+			b->bld.started = 0;
+			return BT_FAILURE;
+		}
+		r = edit_voxel(b, x, y, z, 1);
+		if (r == BT_FAILURE) {
+			if (k < 2) { b->bld.started = 0; return BT_FAILURE; }
+			continue;
+		}
+		if (r == BT_RUNNING) {
+			b->wish.crouch = 0;         /* up to put it on: the face under its eye */
+			return BT_RUNNING;
+		}
+	}
+	b->bld.started = 0;
+	return BT_SUCCESS;
+}
+
 /* --- put_at <place> -------------------------------------------------------
  *
  * A block at a voxel a script names ("x y z"), placed as a player places
