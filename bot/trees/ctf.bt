@@ -24,6 +24,8 @@ select
 			do carry_home
 		option none has_order x30             # the server said so
 			do obey
+		option none stranded x20              # no way from here (a roof, no edits): hold and watch, shoot from there
+			tree ctf_stranded
 		option none under_fire x10            # being shot at
 			tree ctf_under_fire
 		option none enemy_visible x5          # somebody in sight
@@ -183,6 +185,19 @@ select
 		if ping_called help                   # he wants company: stay by him
 		do follow caller
 	do go_to ping 4                           # anything else is a place: go there
+
+# Up where there is no way down (a roof with no edits allowed), or shut
+# in: not pacing an edge, not asking for routes. It fights what it sees,
+# faces what shoots at it, and watches the way the enemy comes.
+tree ctf_stranded:
+select
+	seq
+		if enemy_visible
+		do fight
+	seq
+		if under_fire
+		do crouch 3
+	do hold self 10
 
 # Beside the above, at every decision.
 tree ctf_also:

@@ -50,6 +50,16 @@ away", so it may turn its back, but its search should be the cover query's
 (one cover finder, not two). Not done in step B: it changes what an
 explicit retreat picks, and no shipped tree uses `retreat`.
 
+## Done since (step C, 2026-11-25)
+
+Row 43: the condition and score `stranded` (no way from here to anywhere
+it was sent: three searches with none; holds 30 s from the last shut-in,
+or till a route out of over 30 voxels is found). The shipped trees put it
+high: fight what it sees, crouch facing a shot, else `hold self 10`. The
+engine's pacing is left only for a tree that still asks to go somewhere;
+a goal where the bot stands is reached without a search. Row 15: a perch
+must have a way DOWN as well as up (skill_tactics.c, perch_flood).
+
 ## The table
 
 ### Being shot at, cover, looking

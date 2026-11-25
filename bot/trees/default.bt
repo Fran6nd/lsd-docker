@@ -24,6 +24,8 @@ select
 			do leave_water
 		option none has_order x30             # the server said so
 			do obey
+		option none stranded x20              # no way from here: hold and watch, shoot from there
+			tree default_stranded
 		option caution under_fire x1.5        # shot at: to cover, and fight from it
 			tree default_cover
 		option aggression enemy_visible x1.2  # fight him
@@ -45,6 +47,16 @@ seq
 			if cover_in_view              # cover it can see as it faces him
 			do take_cover in_view         # there, its eyes on him all the way
 		do crouch 3                       # none: down where it stands, facing him
+
+tree default_stranded:
+select
+	seq
+		if enemy_visible
+		do fight
+	seq
+		if under_fire
+		do crouch 3
+	do hold self 10
 
 tree default_also:
 seq

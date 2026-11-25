@@ -38,15 +38,15 @@ DONE (commit), BLOCKED (on what).
 | 4 | Audit: every decision about WHAT that still lives in C; plan to move each | REVIEW (brain agent): bot/DECISIONS.md; 8 numbers made word arguments |
 | 5 | Archetypes as a data file beside the trees | TODO (after 4) |
 | 6 | Bots look where they are heading; shot at: cover within the field of view, else face the threat, never turn the back to search | REVIEW (brain agent): heading-first head, cover in view; bench re-baselined in BRAIN-STATUS.md |
-| 7 | Bots stuck on a roof bridge or dig their way down (engine_bots_edit=all) | TODO (brain agent) |
+| 7 | Bots stuck on a roof bridge or dig their way down (engine_bots_edit=all) | REVIEW (brain agent): planner can bridge, stair down and dig down from a roof at scale; `stranded` for the trees |
 | 8 | A babel tree, sent by babel_plus only when bots are added; no bots, no engine | TODO (brain agent) |
 | 9 | Remove battle_bots and the gamemodes bots, bots_rewards (setup, scripts, docs, migration of servers that run them) | TODO (after 0) |
 | 10 | Shooting range gamemode on a generated map: a static range (bots as targets from 5 to 50 m, standing or crouched, never dying, never moving, damage shown to the shooter; a target on a rail or one that blinks from place to place) and an IPSC course, one player at a time; all targets as fast as possible | TODO (after 9) |
-| 11 | Graphical node editor in tools/tree-editor (replaces its text-first phase 2) | DOING (editor agent): diagram A/B, edits through the engine, apply to some bots, who-chooses-what done; real run and final shots next. No live view (owner) |
+| 11 | Graphical node editor in tools/tree-editor (replaces its text-first phase 2) | REVIEW (editor agent): diagram A/B, edits through the engine, upload to chosen bots/team/kind, who-chooses-what; real run green. No live view (owner) |
 | 12 | Docs pass left unfinished by the tooling agent (bot/trees/README.md, TREES.md trimmed, docs/*, skills) | TODO |
 | 13 | A scenario test for the sniper role (tdm, ctf) | TODO |
 | 14 | Proposal to the owner: a behaviour's HOW written in Lua (a script skill a tree can `do`) | REPORTED, waiting for a yes |
-| 15 | Editor backend gaps: a game list as data, a quiet roster poll, an outline for text that does not compile | DOING (editor agent): `lsdctl bots games --json`, `bttree --split --json` done; roster poll and an outline of a wrong text open |
+| 15 | Editor backend gaps: a game list as data, a quiet roster poll, an outline for text that does not compile | PARTLY DONE: `lsdctl bots games`, `bttree --split --json` committed; open for botd/bt.c: a quiet roster request, a parse of a wrong text (see the 2026-11-25 log) |
 | 16 | A release (the published image predates `lsdctl bots`; the editor refuses it) | when the owner asks |
 | 17 | Hostage gamemode: the hostages as engine bots with a tree of their own (botlink_add with a tree), falling back to today's lib_bot hostages with no engine; guards kept | TODO (brain agent, after 8) |
 
@@ -131,3 +131,37 @@ DONE (commit), BLOCKED (on what).
   call; refused whole. Backend: `bttree --split --json`, `lsdctl bots
   games --json` (the app reads which games have one team from it).
   Tests: 82 green (34 of phase 1, one changed: the Watch button is gone).
+- 2026-11-25 (editor agent, items 11 and 15, final): A's first view of
+  every shipped tree fits a 1440 x 900 laptop at 85-100 % (a parent of
+  more than three leaves stacks them in a column; tdm 724 px wide, ctf
+  724, ctf_duty and tdm_duty a column). Window size and panes, A/B and
+  the colours (system, light, dark) remembered between runs; Cmd+I /
+  Cmd+Shift+I insert, Backspace deletes on macOS. "Revert all" also
+  gives back the trees given to single bots (`revert --each`; `--all`
+  alone leaves them). Real run on Docker (tdm, 6 bots, three edits in
+  0.1 s each, apply to team 1, revert, quit): nothing left, lsd-demo
+  untouched. The published image 2026.11.25.2 passes the app's probe:
+  the default image works as it comes. Still needed from the backend:
+  (1) botd logs two lines for every roster request ("1 request ...",
+  "nobody watches any more"): one a poll; the app asks every 2 s in
+  front, 10 s behind -- quiet it in botd, or let `bttree --bots` reuse a
+  bots.json under a second old; (2) a structure for a text that does
+  not compile (bt.c stops at the first error: the diagram shows the
+  last good tree); (3) `lsdctl bots` for what the app still asks bttree
+  directly (--json, --from-json, --split and the one-call remake);
+  (4) `revert --all --each` as one command.
+- 2026-11-25 (brain agent, item 7): off the roof. Reproduced on real maps
+  (Pyeongyang 19 roofs, BigPineTree 21: with edits, at the engine's cap,
+  no way found from any; the search flooded the roof). nav: a heuristic
+  term for a goal far below (`descent_secs`, set by the engine when edits
+  are allowed): found at the cap 19/19 and 16/21 (rest within the long
+  search), 1 550 / 5 000 expansions on average; bridges and stairs past
+  their first block in the open; a stair DOWN hung from the step above;
+  a step down digs its arrival. Brain: `stranded` (cond, score) and a
+  `<mode>_stranded` branch in the three trees (fight what it sees, face a
+  shot, hold and watch); a goal where it stands needs no search; perches
+  need a way down. Fixed on the way: the net's jump threw strafing bots off
+  roofs; walk_safe missed an edge under half the body; a flinch jump needs
+  floor; no walking on toward a goal far below while planning. Edit soak:
+  lost 9 -> 0. Bench: ctf:10 4 -> 11 captures (4 of 4 games); the rest as
+  before or within noise of the trees' new branch.

@@ -639,6 +639,15 @@ static int c_gun_is(void *bot, const bt_args *a) { return gun_named(bot, a, 0); 
 static int c_under_fire(void *bot, const bt_args *a) { bc_bot *b = bot; return b->e->now - b->senses.shot_at < (double)arg(a, 0, 3.0f); }
 static int c_in_cover(void *bot, const bt_args *a) { bc_bot *b = bot; bl_vec3 th; (void)a; return bc_threat_place(b, &th) && !bc_exposed_to(b, th); }
 static int c_in_harmful_water(void *bot, const bt_args *a) { (void)a; return bc_in_harmful_water(bot); }
+/* no way from here to anywhere it was sent (skill_move.c, SHUT IN) */
+static int c_stranded(void *bot, const bt_args *a)
+{
+	bc_bot *b = bot;
+
+	(void)a;
+	return b->e->now < b->mv.shut_until || b->e->now < b->mv.stranded_until;
+}
+static float s_stranded(void *bot, const bt_args *a) { return (float)c_stranded(bot, a); }
 static int cover_in_view(bc_bot *b, const bt_args *a)
 {
 	bl_vec3 th;
@@ -920,6 +929,8 @@ static const word WORDS[] = {
 	{ VK_C, "gun_is", 1, { ONE_REP("gun", "rifle|smg|shotgun") }, "its gun is one of those named", c_gun_is, NULL, NULL, NULL },
 	{ VK_C, "under_fire", 1, { NOPT("secs", 3.0f) }, "it was shot at within that many seconds (default 3): hurt by somebody, a round that passed within 2.5 voxels, a team-mate killed within 12", c_under_fire, NULL, NULL, NULL },
 	{ VK_C, "in_cover", NOARGS, "what threatens it (the man it fights, where a hit came from) has no line of sight to its body as it stands", c_in_cover, NULL, NULL, NULL },
+	{ VK_C, "stranded", NOARGS, "it has no way from where it is to anywhere it was sent: three searches in a row found none (a roof with no way down and no edits, a closed room). While so no route is asked for; a goal where it stands is reached. What it does meanwhile is the tree's: hold and watch, shoot from there", c_stranded, NULL, NULL, NULL },
+	{ VK_S, "stranded", NOARGS, "1 while stranded (see the condition), else 0", NULL, s_stranded, NULL, NULL },
 	{ VK_C, "cover_in_view", 2, { NOPT("steps", 12.0f), NOPT("degrees", 120.0f) }, "there is cover from what threatens it within that many steps walked (default 12) and a cone of that many degrees (default 120, the whole angle) about the bearing to the threat: cover it can see as it faces him, ahead or across, not behind its back", c_cover_in_view, NULL, NULL, NULL },
 	{ VK_S, "cover_in_view", 2, { NOPT("steps", 12.0f), NOPT("degrees", 120.0f) }, "1 when there is cover in view (see the condition), else 0", NULL, s_cover_in_view, NULL, NULL },
 	{ VK_C, "in_harmful_water", NOARGS, "it is wading in water that hurts (the settings water=lethal or water.damage)", c_in_harmful_water, NULL, NULL, NULL },

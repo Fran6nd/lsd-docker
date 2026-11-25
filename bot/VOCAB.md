@@ -81,6 +81,7 @@ For `if` and `unless`: true or false.
 - **`under_fire [secs]`** -- it was shot at within that many seconds (default 3): hurt by somebody, a round that passed within 2.5 voxels, a team-mate killed within 12
   - `secs`: a number; left out: 3
 - **`in_cover`** -- what threatens it (the man it fights, where a hit came from) has no line of sight to its body as it stands
+- **`stranded`** -- it has no way from where it is to anywhere it was sent: three searches in a row found none (a roof with no way down and no edits, a closed room). While so no route is asked for; a goal where it stands is reached. What it does meanwhile is the tree's: hold and watch, shoot from there
 - **`cover_in_view [steps] [degrees]`** -- there is cover from what threatens it within that many steps walked (default 12) and a cone of that many degrees (default 120, the whole angle) about the bearing to the threat: cover it can see as it faces him, ahead or across, not behind its back
   - `steps`: a number; left out: 12
   - `degrees`: a number; left out: 120
@@ -140,6 +141,7 @@ For `option <trait> <score>`: 0 to 1, how much the situation calls for the optio
 - **`has_item <name>`** -- 1 if it holds one
   - `name`: a word; must be given
 - **`ammo_low`** -- 0 with a full load, 1 with none
+- **`stranded`** -- 1 while stranded (see the condition), else 0
 - **`cover_in_view [steps] [degrees]`** -- 1 when there is cover in view (see the condition), else 0
   - `steps`: a number; left out: 12
   - `degrees`: a number; left out: 120

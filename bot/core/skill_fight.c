@@ -140,6 +140,25 @@ void bc_fight_select(bc_bot *b)
 	}
 }
 
+/* floor (or a wall) all the way a jump that way would carry it: 1 to 3
+ * voxels on, within a voxel of the feet */
+static int jump_safe(const bc_bot *b, float mx, float my)
+{
+	const bc_engine *e = b->e;
+	const bl_player *me = bc_me(b);
+	int fz = (int)floorf(me->pos.z + 2.75f), k;
+
+	if (!e->have_map)
+		return 1;
+	for (k = 1; k <= 3; k++) {
+		int x = (int)floorf(me->pos.x + mx * (float)k), y = (int)floorf(me->pos.y + my * (float)k);
+
+		if (bc_floor_near(e->map, x, y, fz) < 0 && !bc_map_solid(e->map, x, y, fz - 1))
+			return 0;
+	}
+	return 1;
+}
+
 static void strafe(bc_bot *b, bl_vec3 at, float flat, float hold, int melee, float dt)
 {
 	bc_engine *e = b->e;
@@ -200,7 +219,7 @@ static void strafe(bc_bot *b, bl_vec3 at, float flat, float hold, int melee, flo
 			b->wish.crouch = 1;
 		}
 		if (flinch && !b->wish.crouch && e->now >= f->jump_cd_until && (mx != 0.0f || my != 0.0f) &&
-		    bc_frand(b) < 1.5f * lv->dodge * b->style_dodge * dt) {
+		    bc_frand(b) < 1.5f * lv->dodge * b->style_dodge * dt && jump_safe(b, mx, my)) {
 			f->jump_cd_until = e->now + (double)bc_rng_range(&b->rng, 2.0f, 5.0f);
 			b->wish.jump = 1;
 		}

@@ -327,16 +327,24 @@ static int may_edit(const bc_nav_policy *pol, int x, int y, int z, int dig)
 	return !bc_nav_protect_has(pol->protect, x, y, z);
 }
 
+/* Is (x, y, z) solid when the step from `from` is made? The map's word,
+ * and the floor the body stands on: that one is there by then whatever
+ * the map says, for the search reached `from` by building it (the planner
+ * otherwise prices later steps against the unedited map, NAV-STATUS (f)8;
+ * without this a bridge or a stair could never be planned past its first
+ * block in the open). */
+static int solid_at(const bc_map *m, bc_nav_node from, int x, int y, int z)
+{
+	return (x == from.x && y == from.y && z == from.z) || (bc_map_in(x, y, z) && bc_map_solid(m, x, y, z));
+}
+
 /* Would a block placed at (x, y, z) have a face to stick to? Below it or
  * beside it -- the floor the builder stands on is beside a bridge's first
  * block, which is what makes a causeway. Not above: that is head room. */
-static int has_support(const bc_map *m, int x, int y, int z)
+static int has_support(const bc_map *m, bc_nav_node from, int x, int y, int z)
 {
-	return bc_map_solid(m, x, y, z + 1) ||
-	       (bc_map_in(x - 1, y, z) && bc_map_solid(m, x - 1, y, z)) ||
-	       (bc_map_in(x + 1, y, z) && bc_map_solid(m, x + 1, y, z)) ||
-	       (bc_map_in(x, y - 1, z) && bc_map_solid(m, x, y - 1, z)) ||
-	       (bc_map_in(x, y + 1, z) && bc_map_solid(m, x, y + 1, z));
+	return solid_at(m, from, x, y, z + 1) || solid_at(m, from, x - 1, y, z) || solid_at(m, from, x + 1, y, z) ||
+	       solid_at(m, from, x, y - 1, z) || solid_at(m, from, x, y + 1, z);
 }
 
 #define ADD_EDIT(X, Y, Z, OP) do { \
@@ -427,15 +435,44 @@ int nav_edits(const bc_nav_moves *t, const bc_map *m, const bc_nav_policy *pol,
 			}
 		}
 	}
+	/* and where the body comes to stand: the measured stride down ends
+	 * with the body still on the tread above (nav_at's tolerance), so its
+	 * mask leaves out the arrival -- a step down under an overhang (out
+	 * from under a roof, 2026-11-25) was planned with the roof voxel left
+	 * in the head's way */
+	for (k = tz - 3; k < tz; k++) {
+		int j, have = 0;
+
+		if (k < 0 || !bc_map_solid(m, bx, by, k))
+			continue;
+		for (j = 0; j < n && !have; j++)
+			have = vox[j].x == bx && vox[j].y == by && vox[j].z == k;
+		if (have)
+			continue;
+		if (!may_edit(pol, bx, by, k, 1))
+			return -1;
+		ADD_EDIT(bx, by, k, BC_BLOCK_DESTROY);
+		nd++;
+	}
 	/* the floor, and under it something for it to stick to */
 	if (!bc_map_solid(m, bx, by, tz)) {
 		if (!may_edit(pol, bx, by, tz, 0))
 			return -1;
-		if (!has_support(m, bx, by, tz)) {
-			if (!may_edit(pol, bx, by, tz + 1, 0) || !has_support(m, bx, by, tz + 1))
+		if (!has_support(m, from, bx, by, tz)) {
+			if (may_edit(pol, bx, by, tz + 1, 0) && has_support(m, from, bx, by, tz + 1)) {
+				ADD_EDIT(bx, by, tz + 1, BC_BLOCK_BUILD);
+				nb++;
+			} else if (tz == from.z + 1 && !bc_map_solid(m, from.x, from.y, tz) && may_edit(pol, from.x, from.y, tz, 0)) {
+				/* A STAIR DOWN INTO THE OPEN: a block hung under the
+				 * floor it stands on (the server takes a block with any
+				 * face against another: lib_botlink's neighbours), and the
+				 * step beside it. Two blocks a step, each step hung from
+				 * the one before -- off a roof with nothing below. */
+				ADD_EDIT(from.x, from.y, tz, BC_BLOCK_BUILD);
+				nb++;
+			} else {
 				return -1;
-			ADD_EDIT(bx, by, tz + 1, BC_BLOCK_BUILD);
-			nb++;
+			}
 		}
 		ADD_EDIT(bx, by, tz, BC_BLOCK_BUILD);
 		nb++;
@@ -560,13 +597,16 @@ static float heur(const bc_nav_search *s, bc_nav_node n)
 	 * tighter than the straight line on a map of this size. */
 	float dx = fabsf((float)(n.x - s->goal.x)) - (float)s->radius;
 	float dy = fabsf((float)(n.y - s->goal.y)) - (float)s->radius;
-	float lo, hi;
+	float lo, hi, down = (float)(s->goal.z - n.z - BC_NAV_DZ_MAX);
 
 	if (dx < 0.0f) dx = 0.0f;
 	if (dy < 0.0f) dy = 0.0f;
 	lo = dx < dy ? dx : dy;
 	hi = dx < dy ? dy : dx;
-	return (hi + 0.41421356f * lo) * s->inv_speed;     /* inv_speed carries policy.h_weight */
+	/* policy.descent_secs (nav.h): the goal far below, on a search made
+	 * for a body that has no way down without edits */
+	return (hi + 0.41421356f * lo) * s->inv_speed +
+	       (down > 0.0f && s->pol->descent_secs > 0.0f ? down * s->pol->descent_secs : 0.0f);
 }
 
 static int is_goal(const bc_nav_search *s, bc_nav_node n)
@@ -827,6 +867,36 @@ static void try_edit(bc_nav_search *s, uint32_t ci, bc_nav_node a, bc_nav_node t
 	int digs = 0, builds = 0, n;
 	float move_secs;
 
+	/* From a floor the search itself built (a bridge, a stair hung in the
+	 * air: the map does not have it), the building goes on STRAIGHT: a
+	 * bridge does not fan out into the void in every direction from each
+	 * of its blocks. Without this, edits planned across open space made
+	 * the soak's exact searches run out of nodes on Parkour2 (98 of 200
+	 * pairs, was 41). */
+	if (dir != 8 && !bc_map_solid(s->m, a.x, a.y, a.z)) {
+		uint32_t k = ci;
+		int built = 0;
+
+		if (s->recs[ci].parent == ci || dir != s->recs[ci].dir)
+			return;
+		/* and only so far: a bridge of 4 to the next roof, a stair down
+		 * 8 steps to where a drop is safe -- not a causeway across the
+		 * map, which every edge would then try. A stair UP is built
+		 * against something (a cliff), not into the open */
+		int most = to.z > a.z ? 8 : 4;
+
+		if (to.z < a.z)
+			return;
+		while (k != NOWHERE && s->recs[k].parent != k) {
+			bc_nav_node p = unpack(s->recs[k].key);
+
+			if (bc_map_solid(s->m, p.x, p.y, p.z) || ++built >= most)
+				break;
+			k = s->recs[k].parent;
+		}
+		if (built >= most)
+			return;
+	}
 	n = nav_edits(s->t, s->m, pol, a, to, vox, op, &digs, &builds);
 	if (n <= 0)
 		return;

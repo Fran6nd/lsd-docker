@@ -17,6 +17,54 @@ Real maps are not in the repo. Tests that want them read a directory of
 used below were copied out of the `lsd-demo` container
 (`docker cp lsd-demo:/data/maps/<name>.vxl <dir>/`).
 
+## Changed by the brain's agent (2026-11-25, off the roof: WORK.md item 7)
+
+The owner, on the demo with edit=all: bots on a roof do not try to get
+down. Reproduced on real maps with a scan (every roof column 12 or more
+over the ground near it from which a search with no edits finds no way):
+Pyeongyang 19 roofs, BigPineTree 21. With edits, at the engine's cap
+(8000 expansions, greed 1.5) NONE found a way; uncapped, all did, in
+40 000 to 85 000 expansions (a dig down through the building, or a dig
+then a drop). The search thought down was free and flooded the roof. And
+three things the planner could not do at all. What changed (nav.h,
+nav_plan.c; nav_follow.c and nav_exec.c untouched):
+
+- `bc_nav_policy.descent_secs` (nav.h says why): each voxel the goal lies
+  below the node beyond a safe drop adds that much to the heuristic. Not
+  admissible; 0 (the default) is off, so nav_test's scenarios and the
+  soak's searches are as before unless they set it. The engine sets 1.5
+  when edits are allowed and the goal is more than 9 below. The scan,
+  same roofs: Pyeongyang found at the cap 19 of 19, 1 550 expansions on
+  average; BigPineTree 16 of 21 at the cap, all within the long search,
+  5 000 on average (19 500 at most).
+- The floor a step starts from counts as solid for what is built there
+  (it is, by then: the search reached it by building it). Before, a
+  bridge or stair could never be planned past its first block in the
+  open (has_support asked the unedited map). From a floor the search
+  built, building goes on only STRAIGHT and only so far: a bridge of 4, a
+  stair down of 8; a stair up only against something, never into the
+  open. Without those bounds the edit soak ran out of nodes on Parkour2
+  in 98 of 200 pairs.
+- A STAIR DOWN INTO THE OPEN: a block hung under the floor the body stands
+  on (the server takes a block with any face against another), then the
+  step beside it. Two blocks a step.
+- A step DOWN digs where the body comes to stand. The measured stride down
+  ends with the body still on the tread above, so its mask left out the
+  arrival: a step down out from under a roof was planned with the roof
+  voxel left in the head's way, and the follower stood under it.
+
+Scenarios (nav_test, test_off_the_roof): `roof_dig_down` (a hollow building
+18 high with a floor 9 under its roof: dig, drop, dig, drop), `roof_bridge`
+(a hollow tower 20 high, a lower roof 3 off), `roof_stair_down` (edit=build:
+a stair down the side), `roof_middle` (from the middle of a hollow roof,
+also with the engine's policy), `roof_no_edits` (stays up, 55 expansions).
+
+Soak, 8 maps, 200 pairs, delay 1, EDITS ON, before -> after: reachable
+1027 -> 1002, **lost 9 -> 0** (Parkour2 4 -> 0, BigPineTree 5 -> 0: (f)1
+below), out of nodes (the soak's exact searches, pool 131072) Parkour2 41
+-> 58, 2FortCTF 13 -> 22, the others within 2. No edits, 500 pairs: 2520 of
+2520 arrived, as before.
+
 ## Changed by the brain's agent (2026-11-24, the "frozen bots" fix)
 
 One addition, nothing else in nav touched: `bc_nav_policy.h_weight` (nav.h
@@ -226,7 +274,11 @@ Each: what is wrong / what it costs in play / what to do / how to see it.
 `M=<dir of maps>`; `T=build/tests/nav_test`.
 
 1. **With digging and building on, bots get stuck on BigPineTree and lose
-   routes on Parkour2. Untraced.**
+   routes on Parkour2.** 2026-11-25: after the roof work (top of this
+   file) the edit soak loses none of 1002 (was 9 of 1027): the lost routes
+   were bridges that could not be planned past their first block. Not
+   traced tick by tick; the stuck reports were not recounted. The text
+   below is as it was.
    In play: on BigPineTree about one route in 35 is abandoned after 14 to 25
    STUCK reports in a row (the follower's GIVE_UP ends it; before, it ground
    on until a cap), and 277 stuck reports in 181 routes means bots visibly

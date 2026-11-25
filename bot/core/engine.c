@@ -1845,10 +1845,12 @@ static void decide(bc_engine *e, bc_bot *b, float dt)
 			bt_tick(b->forest, b->tree, b->bt, &c);
 		}
 	}
-	if (e->now < b->mv.shut_until && b->wish.move != BC_MOVE_FREE && b->wish.fire_pid < 0) {
+	if (e->now < b->mv.shut_until && b->wish.move == BC_MOVE_GOTO && b->wish.fire_pid < 0) {
 		/* SHUT IN (skill_move.c): no way to anywhere, and no route is
-		 * asked for. Not a post: it paces what room it has, a new way
-		 * every second or two, and looks about. */
+		 * asked for. A tree that asks to go somewhere all the same (it
+		 * did not read `stranded`) gets this: not a post, it paces what
+		 * room it has, a new way every second or two, and looks about. A
+		 * tree that holds or camps where it is, is left to. */
 		if (e->now >= b->pace.turn_at) {
 			float a = bc_rng_range(&b->rng, 0.0f, 6.2831853f);
 
@@ -2017,7 +2019,10 @@ static void watchdog(bc_engine *e, bc_bot *b, const bc_body *body, int nav, cons
 	const bl_player *me = bc_me(b);
 	float dt = e->world_dt_last;
 	int editing = nav && cmd->edit != BC_NAV_EDIT_NONE, building = 0;
-	int pushing = (*keys & 15) != 0 && !editing;
+	/* (strafing in a fight goes back and forth on purpose: not pushing.
+	 * Taken for it, the net's jump threw a bot fighting on a roof's edge
+	 * off the roof, 2026-11-25) */
+	int pushing = (*keys & 15) != 0 && !editing && !(b->fight.strafing && b->wish.move == BC_MOVE_FREE);
 	float dx = me->pos.x - b->anchor.x, dy = me->pos.y - b->anchor.y, dz = me->pos.z - b->anchor.z;
 
 	if (nav && cmd->step >= 0 && cmd->step < b->mv.route.n) {
@@ -2153,6 +2158,10 @@ static int waiting_for_route(bc_bot *b, const bc_body *body, float *wx, float *w
 	l = sqrtf(dx * dx + dy * dy);
 	if (l < 3.0f)
 		return 0;
+	if (mv->goal.z - (int)floorf(me->pos.z + 2.75f) > BC_NAV_DZ_MAX)
+		return 0;       /* far below (off a roof): the way is down, from
+		                   where it stands -- an edit, a stair -- not on
+		                   toward it (it walked off the route's start) */
 	dx /= l; dy /= l;
 	if (!bc_walk_safe(b, dx, dy))
 		return 0;

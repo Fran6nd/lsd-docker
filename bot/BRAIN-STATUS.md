@@ -253,6 +253,19 @@ against 5, nobody seeing anybody).
 
 ## (e) The vocabulary added (all neutral; vocab.h has every word)
 
+- 2026-11-25 (step C, off the roof): `stranded` (condition, score). In
+  the trees: `option none stranded x20` -> `<mode>_stranded` (fight what it
+  sees, crouch facing a shot, else hold and watch). Scenario in
+  tactics_test, "a bot on a roof with no way down": no edits, 60 s -- 8
+  searches, still on the roof, a movement key down on 32 of 1800 ticks,
+  `hold` on 1734, 20 rounds at a man who comes in sight; edits allowed --
+  on the ground after 4.9 s, health 100, 13 searches. Found on the way and
+  fixed: the net took strafing for pushing and its jump threw a bot
+  fighting on a roof's edge off it; `bc_walk_safe` missed a body already
+  half over an edge; a flinch jump now needs floor where it lands; a bot
+  did not walk on toward a goal far below while its route was searched (it
+  walked off the start of a route whose first step is an edit).
+
 - 2026-11-25: numbers that were fixed are arguments now, same defaults
   (DECISIONS.md, "Done in this step"): `camp [secs] [kills]`, `retreat
   [secs]`, `sniped [voxels] [secs]`, `outnumbered [radius]`,

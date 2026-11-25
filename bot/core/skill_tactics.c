@@ -476,10 +476,15 @@ static int top_floor(const bc_map *m, int x, int y)
 	return st ? bc_ctz64(st) : 64;
 }
 
-/* Can a body get up there? A flood back down from the perch over steps a
- * body can take upward (two voxels: a jump) must come out on open ground:
- * 20 columns away, or 300 cells. */
-static int perch_reachable(const bc_map *m, bc_nav_node top)
+/* Can a body get up there, and down again? A flood back down from the
+ * perch over steps a body can take upward (two voxels: a jump; and drops
+ * of up to six onto the way) must come out on open ground: 20 columns
+ * away, or 300 cells. `down`: the flood forward instead -- steps up of two
+ * at most, drops of nine at most (the deepest that does not hurt): a way
+ * DOWN from it. A perch reached by a drop onto it has the first and not
+ * the second: a body that goes up there stays there (2026-11-25, the
+ * owner's bots on roofs they could not leave). */
+static int perch_flood(const bc_map *m, bc_nav_node top, int down)
 {
 	enum { W = 41, R = 20, QN = 320 };
 	static const int8_t nb[4][2] = { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 } };
@@ -508,7 +513,7 @@ static int perch_reachable(const bc_map *m, bc_nav_node top)
 			/* a floor from which the one in hand is at most two up, and
 			 * not more than six below it (a way up need not be a way down) */
 			st = bc_map_stand_mask(m, top.x + ex, top.y + ey);
-			for (zz = z - 6 < 1 ? 1 : z - 6; zz <= z + 2 && zz <= BC_MAP_GROUND_Z; zz++)
+			for (zz = z - (down ? 2 : 6) < 1 ? 1 : z - (down ? 2 : 6); zz <= z + (down ? 9 : 2) && zz <= BC_MAP_GROUND_Z; zz++)
 				if ((st >> zz) & 1) { fz = zz; if (zz >= z - 1) break; }
 			if (fz < 0)
 				continue;
@@ -520,6 +525,11 @@ static int perch_reachable(const bc_map *m, bc_nav_node top)
 		}
 	}
 	return 0;
+}
+
+static int perch_reachable(const bc_map *m, bc_nav_node top)
+{
+	return perch_flood(m, top, 0) && perch_flood(m, top, 1);
 }
 
 static void perch_offer(bc_vantage *v, bc_nav_node n, float score)

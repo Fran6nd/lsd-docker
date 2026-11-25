@@ -106,6 +106,8 @@ typedef struct bc_mover {
 	uint8_t noway;          /* searches in a row that found no way to anywhere */
 	double noway_at;        /* the last of them */
 	double shut_until;      /* SHUT IN: no route is asked for before (skill_move.c) */
+	double stranded_until;  /* `stranded` holds till then: 30 s from the last
+	                           shut-in, or till a route out (over 30 voxels) */
 	int16_t radius;
 	double plan_since;      /* when it began to wait for a route */
 	double retry_at;        /* a failed goal is not searched again before */

@@ -396,6 +396,66 @@ static void test_shut_in(void)
 	CHECK(out2);
 }
 
+/* ON A ROOF WITH NO WAY DOWN (the owner's live case, 2026-11-25): a hollow
+ * tower 14 high, nothing inside to land on, the bot on its roof. With no
+ * edits it must not pace the edge or keep asking for routes: it holds and
+ * watches, and shoots what comes into sight. With edits it gets down. */
+static void roof_pass(const char *edit, int enemy, unsigned *plans, int *on_roof, int *keys_ticks,
+                      int *hold_ticks, int *shots, double *down_at, int *hp)
+{
+	bs_sim *s = field(4, 200.5f, 300.5f);
+	char leaf[64];
+	int i;
+
+	bs_box(s, 226, 254, G - 14, 230, 258, G - 1, 1);
+	bs_box(s, 227, 255, G - 13, 229, 257, G - 1, 0);
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "tree=tdm");
+	bs_set(s, BL_NO_PLAYER, "leaders.per=0");
+	bs_set(s, BL_NO_PLAYER, edit);
+	bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, 77, 228.5f, 256.5f, 1, 0);
+	bc_body_place(&s->p[0].body, s->truth, 228.5f, 256.5f, G - 14, 0);
+	*keys_ticks = *hold_ticks = 0;
+	*down_at = -1.0;
+	for (i = 0; i < 60 * 60; i++) {
+		if (enemy && i == 60 * 40)
+			bs_add(s, 1, 0, 2, 5, BL_GUN_RIFLE, 1, 250.5f, 256.5f, -1, 0);
+		if (enemy && i > 60 * 40) s->p[1].hp = 100;
+		bs_step(s);
+		if (*down_at < 0.0 && bc_body_feet(&s->p[0].body) > (float)G - 0.5f) *down_at = i / 60.0;
+		if (i >= 60 * 10 && i < 60 * 40) {
+			*keys_ticks += (s->intents[0].keys & 15) != 0;
+			leaf_of(s, 0, leaf, sizeof leaf);
+			*hold_ticks += !strcmp(leaf, "hold");
+		}
+	}
+	*plans = bc_engine_stats_get(s->e)->plans;
+	*on_roof = bc_body_feet(&s->p[0].body) < (float)G - 13.0f;
+	*shots = s->p[0].shots;
+	*hp = s->p[0].hp;
+	bs_free(s);
+}
+
+static void test_roof(void)
+{
+	unsigned plans, plans2;
+	int on, on2, keys, keys2, hold, hold2, shots, shots2, hp, hp2;
+	double down, down2;
+
+	printf("a bot on a roof with no way down\n");
+	roof_pass("edit=none", 1, &plans, &on, &keys, &hold, &shots, &down, &hp);
+	printf("  no edits, 60 s: %u searches for a route; still on the roof: %s; from 10 to 40 s a movement key down on %d of 1800 ticks, `hold` on %d;\n"
+	       "  a man in sight from 40 s: %d rounds fired at him\n", plans, on ? "yes" : "NO", keys, hold, shots);
+	CHECK(on && hp == 100);
+	CHECK(plans <= 12);
+	CHECK(keys < 1800 / 10);
+	CHECK(hold > 1800 * 8 / 10);
+	CHECK(shots > 0);
+	roof_pass("edit=all", 0, &plans2, &on2, &keys2, &hold2, &shots2, &down2, &hp2);
+	printf("  digging and building allowed: on the ground after %.1f s, health %d, %u searches\n", down2, hp2, plans2);
+	CHECK(down2 > 0.0 && down2 < 30.0 && hp2 == 100);
+}
+
 /* 200 characters, nothing in sight: what each sets out to do */
 static void test_split(void)
 {
@@ -621,6 +681,7 @@ int main(void)
 	test_bounds();
 	test_unreachable();
 	test_shut_in();
+	test_roof();
 	test_split();
 	test_twenty();
 	test_roles();

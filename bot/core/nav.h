@@ -350,6 +350,16 @@ typedef struct bc_nav_policy {
 	 * and the search looks at a fraction of the nodes. For a caller with
 	 * many bodies and one budget. nav's own tests run at 1. */
 	float h_weight;
+	/* A BODY UP WHERE IT HAS NO WAY DOWN (a roof, a pillar) that may dig
+	 * or build: its way down is edits, a few tenths of a second a voxel,
+	 * and a search that thinks down is free (the heuristic above knows
+	 * only the ground between) wanders the whole roof before it digs --
+	 * 33 000 to 75 000 expansions on Pyeongyang's and BigPineTree's roofs,
+	 * past any cap (2026-11-25). With this, each voxel the goal lies below
+	 * the node beyond a safe drop (BC_NAV_DZ_MAX) adds this many seconds to
+	 * the heuristic. Not admissible (a stair or a drop chain is cheaper):
+	 * for the caller that has seen the plain search fail. 0: off. */
+	float descent_secs;
 } bc_nav_policy;
 
 /* What a hit point is worth, in seconds of route. */

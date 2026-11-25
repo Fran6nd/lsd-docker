@@ -1053,6 +1053,102 @@ static void test_drops(void)
 	}
 }
 
+/* OFF THE ROOF (2026-11-25, the owner's live case: "bots stuck on map's
+ * roof ... not attempting a bridge toward a building that could help them
+ * get down"). A body on a roof higher than a safe drop (9) with digging
+ * and building allowed must find the cheapest of: a dig down through the
+ * roof onto a floor a safe drop below (and on down), a level bridge to a
+ * lower roof it can drop onto, a stair built DOWN into the open air (each
+ * step hung from the one before: a block under the step it stands on,
+ * then the next step beside that). With no edits it must stay up. */
+static void hollow_tower(int x0, int y0, int x1, int y1, int top)
+{
+	box(W.m, x0, y0, top, x1, y1, G - 1, 1);
+	box(W.m, x0 + 1, y0 + 1, top + 1, x1 - 1, y1 - 1, G - 1, 0);
+}
+
+static void test_off_the_roof(void)
+{
+	bc_nav_policy pol;
+	sim_result r;
+	int i;
+
+	bc_nav_policy_default(&pol);
+	pol.may_dig = pol.may_build = 1;
+	pol.blocks = 50;
+	if (begin("roof_dig_down")) {
+		/* a hollow building 18 high with a floor 9 below its roof: dig
+		 * the roof, drop, dig that floor, drop, and out through the wall */
+		fresh(G);
+		hollow_tower(100, 95, 110, 105, G - 18);
+		box(W.m, 101, 96, G - 9, 109, 104, G - 9, 1);
+		r = sim_run(&W, pol, node(105, 100, G - 18), node(130, 100, G), 0, 60 * 60);
+		report("roof_dig_down", &r);
+		CHECK(r.arrived && r.damage == 0);
+		CHECK(r.kinds & K(BC_NAV_DIG));
+	}
+	if (begin("roof_bridge")) {
+		/* a hollow tower 20 high, nothing inside to land on; 3 voxels
+		 * off, a building 11 high with a stair down its far side */
+		fresh(G);
+		hollow_tower(100, 95, 104, 105, G - 20);
+		area_top(W.m, 108, 90, 118, 110, G - 11);
+		for (i = 1; i < 11; i++)
+			area_top(W.m, 118 + i, 100, 118 + i, 101, G - 11 + i);
+		r = sim_run(&W, pol, node(102, 100, G - 20), node(140, 100, G), 0, 60 * 60);
+		report("roof_bridge", &r);
+		CHECK(r.arrived && r.damage == 0);
+		CHECK(r.kinds & K(BC_NAV_BUILD));
+		CHECK(r.edits <= 12);
+	}
+	if (begin("roof_stair_down")) {
+		/* a hollow tower 14 high, alone, building allowed and digging
+		 * not (edit=build; with digging it digs down a wall): a stair
+		 * down its side into the air until a drop is safe */
+		pol.may_dig = 0;
+		fresh(G);
+		hollow_tower(100, 95, 104, 105, G - 14);
+		r = sim_run(&W, pol, node(102, 100, G - 14), node(130, 100, G), 0, 60 * 60);
+		report("roof_stair_down", &r);
+		CHECK(r.arrived && r.damage == 0);
+		CHECK(r.kinds & K(BC_NAV_BUILD));
+		CHECK(!(r.kinds & K(BC_NAV_DIG)));
+		pol.may_dig = 1;
+	}
+	if (begin("roof_middle")) {
+		/* from the middle of a hollow roof: no step down into the room
+		 * under the roof without digging the roof out of the way */
+		fresh(G);
+		hollow_tower(100, 95, 104, 105, G - 14);
+		r = sim_run(&W, pol, node(102, 100, G - 14), node(140, 100, G), 0, 60 * 60);
+		report("roof_middle", &r);
+		CHECK(r.arrived && r.damage == 0);
+		CHECK(r.ticks < 60 * 20);
+		/* the same, searched as the engine searches a way down (greedy,
+		 * and the goal far below priced: nav.h descent_secs) */
+		fresh(G);
+		hollow_tower(100, 95, 104, 105, G - 14);
+		pol.h_weight = 1.5f;
+		pol.descent_secs = 1.5f;
+		r = sim_run(&W, pol, node(102, 100, G - 14), node(140, 100, G), 0, 60 * 60);
+		report("roof_middle (descent priced)", &r);
+		CHECK(r.arrived && r.damage == 0);
+		CHECK(r.ticks < 60 * 20);
+		pol.h_weight = 0.0f;
+		pol.descent_secs = 0.0f;
+	}
+	if (begin("roof_no_edits")) {
+		/* the same tower, nothing allowed: it stays up, and the search
+		 * that proves there is no way is small (the roof) */
+		bc_nav_policy_default(&pol);
+		fresh(G);
+		hollow_tower(100, 95, 104, 105, G - 14);
+		r = sim_run(&W, pol, node(102, 100, G - 14), node(130, 100, G), 0, 600);
+		report("roof_no_edits", &r);
+		CHECK(!r.arrived && r.damage == 0 && r.max_feet < G - 14 + 0.5f);
+	}
+}
+
 /* SIDEWAYS. The ground safety rule once looked at height only, and what
  * it lost were bodies that overshot a turn. These are those places. */
 static void test_turns(void)
@@ -1867,6 +1963,7 @@ int main(int argc, char **argv)
 	test_water_out();
 	test_water_harmful();
 	test_drops();
+	test_off_the_roof();
 	test_turns();
 	test_surprises();
 	test_collapse();
