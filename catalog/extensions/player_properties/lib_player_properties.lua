@@ -254,11 +254,11 @@ end
 
 --============================= THE TICK =============================--
 
--- Everyone who agreed, worked out once per tick and only on a tick
--- where somebody actually changed.
+-- Everyone who agreed, worked out once per tick, among the people only
+-- (lib_bot's people_in: a bot agrees to nothing).
 local function viewers()
 	local out = {};
-	for i in piditer(PID_BROADCAST) do
+	for i in (people_in or piditer)(PID_BROADCAST) do
 		if (negotiated(i)) then
 			out[#out+1] = i;
 		end
@@ -271,7 +271,13 @@ function mod.after.tick()
 		return;
 	end
 
-	local to = nil;
+	-- nobody to tell (a fleet of bots and no client that agreed): no
+	-- snapshot of anybody either -- one who agrees later is told about
+	-- everybody afresh (on_ready)
+	local to = viewers();
+	if (#to == 0) then
+		return;
+	end
 
 	for pid in piditer(PID_BROADCAST) do
 		local pkt = snapshot(pid);
@@ -280,7 +286,6 @@ function mod.after.tick()
 			last[pid] = pkt;
 
 			if (pkt ~= nil) then
-				to = to or viewers();
 				for _, v in ipairs(to) do
 					send_packet(v, pkt);
 				end
