@@ -1128,7 +1128,7 @@ local function send_menu(pid, force)
 end
 
 local function refresh_all()
-	for i in piditer(PID_BROADCAST) do
+	for i in (people_in or piditer)(PID_BROADCAST) do
 		send_menu(i, false);
 	end
 end

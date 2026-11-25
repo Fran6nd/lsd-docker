@@ -862,7 +862,7 @@ local function announce_default(pid)
 		return;
 	end
 
-	for i in piditer(PID_BROADCAST) do
+	for i in (people_in or piditer)(PID_BROADCAST) do
 		if (fl_negotiated(i)) then
 			send_view(i, now);
 		end
@@ -1673,7 +1673,7 @@ function mod.on_unload()
 	local fog = get_fog();
 
 	if (fog ~= nil) then
-		for pid in piditer(PID_BROADCAST) do
+		for pid in (people_in or piditer)(PID_BROADCAST) do
 			if (painted[pid] ~= nil) then
 				send_fog(pid, fog);
 			end

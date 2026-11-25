@@ -19,6 +19,7 @@
 --            the English template, its arguments, and the finished
 --            text (the first recipient's)
 --   L.pids   the connected pids a broadcast reaches (default 0..3)
+--   L.matches(set, pid)  optional: whether a group other than the broadcast reaches pid
 --   L.reset()  forget both, in place
 --   L.clean(check)   one check that no line a player got holds a
 --            "table: 0x" or an unfilled %(placeholder)
@@ -82,7 +83,9 @@ function M.load(opts)
 	function env.piditer(pid)
 		local list = {};
 		for _, p in ipairs(L.pids) do
-			if (pid == broadcast or pid == p) then list[#list+1] = p; end
+			if (pid == broadcast or pid == p or (L.matches ~= nil and L.matches(pid, p))) then
+				list[#list+1] = p;
+			end
 		end
 		local i = 0;
 		return function() i = i + 1; return list[i]; end;

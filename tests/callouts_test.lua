@@ -27,6 +27,8 @@ local L = dofile("tests/support/l10n_env.lua").load{
 	send_chat = function(to, line, kind, from) chat[#chat+1] = {to = to, line = line, from = from}; end,
 };
 L.pids = {0, 1, 2};
+function PID_BROADCAST_TEAM(t) return 3 * 0x20000000 + t; end
+L.matches = function(set, p) return set == PID_BROADCAST_TEAM(teams[p]); end
 local said = L.chat;
 
 local added, sliced = {}, {};

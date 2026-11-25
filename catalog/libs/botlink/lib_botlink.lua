@@ -1164,7 +1164,7 @@ local function do_ping(pid)
 	local pos = {x = x, y = y, z = z};
 	local reason = label_for(text);
 	if (teamplay_relay_pings ~= false) then
-		for i in piditer(PID_BROADCAST_TEAM(get_team(pid))) do
+		for i in (people_in or piditer)(PID_BROADCAST_TEAM(get_team(pid))) do
 			if (ours[i] == nil) then
 				teamplay_ping(i, pos, {from = pid, reason = reason});
 			end

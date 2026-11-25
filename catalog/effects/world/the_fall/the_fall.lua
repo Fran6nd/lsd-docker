@@ -714,7 +714,7 @@ function draw_ring(pid)
 	end
 
 	if (is_faller(pid)) then
-		for i in piditer(PID_BROADCAST) do
+		for i in (people_in or piditer)(PID_BROADCAST) do
 			send_set_block_color(i, get_team_color(apparent_team(pid, i)),
 				get_anon_pid());
 			for _,b in ipairs(gen) do
@@ -896,7 +896,7 @@ function mod.late.send_spawn_player(pid, pos, gun, team, name, from)
 		return mod.late.next.send_spawn_player(pid, pos, gun, team, name, from);
 	end
 
-	for i in piditer(pid) do
+	for i in (people_in or piditer)(pid) do
 		mod.late.next.send_spawn_player(i, pos, gun, enemy_of(i, team), name, from);
 	end
 end
@@ -912,7 +912,7 @@ function mod.late.send_existing_player(pid, team, gun, tool, score, color, name,
 			color, name, from);
 	end
 
-	for i in piditer(pid) do
+	for i in (people_in or piditer)(pid) do
 		mod.late.next.send_existing_player(i, enemy_of(i, team + 1) - 1, gun,
 			tool, score, color, name, from);
 	end

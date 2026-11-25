@@ -43,9 +43,16 @@ function is_alive(pid) return ALIVE[pid]; end
 function get_time() return NOW; end
 function get_tentloc() return {[1] = {x = 118, y = 256, z = 30}, [2] = {x = 394, y = 256, z = 30}}; end
 function get_team_color(t) return t == 1 and {b = 1, g = 2, r = 3} or {b = 4, g = 5, r = 6}; end
-function piditer()
+function PID_BROADCAST_TEAM(t) return 3 * 0x20000000 + t; end
+function piditer(set)
 	local i = -1;
-	return function() i = i + 1; if (TEAM[i]) then return i; end end;
+	return function()
+		while (true) do
+			i = i + 1;
+			if (TEAM[i] == nil) then return nil; end
+			if (set == nil or set < 3 * 0x20000000 or set == PID_BROADCAST_TEAM(TEAM[i])) then return i; end
+		end
+	end;
 end
 
 babel_protect_zones = {

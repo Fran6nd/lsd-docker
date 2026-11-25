@@ -711,7 +711,7 @@ end
 -- Map Start, to one client or all: a fresh map, so nothing it missed
 -- matters any more, and nothing held for the old one may be sent.
 function mod.after.send_map_start(pid, size)
-	for i in piditer(pid) do
+	for i in (people_in or piditer)(pid) do
 		missed[i] = false;
 		queue[i] = nil;
 	end

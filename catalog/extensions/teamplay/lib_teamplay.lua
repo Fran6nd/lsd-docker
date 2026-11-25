@@ -824,7 +824,7 @@ local function request_ping(pid, pos, raw_reason)
 	if (teamplay_relay_pings) then
 		local sent = 0;
 
-		for i in piditer(PID_BROADCAST_TEAM(get_team(pid))) do
+		for i in (people_in or piditer)(PID_BROADCAST_TEAM(get_team(pid))) do
 			if (negotiated(i) and teamplay_ping(i, pos, {
 					from = pid, reason = reason})) then
 				sent = sent + 1;
@@ -1046,7 +1046,7 @@ function teamplay_mark_all(target, secs, opts)
 		end
 	end
 
-	for i in piditer(PID_BROADCAST) do
+	for i in (people_in or piditer)(PID_BROADCAST) do
 		teamplay_mark(i, target, secs, opts);
 	end
 end
@@ -1091,7 +1091,7 @@ function teamplay_ping(viewer, pos, opts)
 end
 
 function teamplay_ping_all(pos, opts)
-	for i in piditer(PID_BROADCAST) do
+	for i in (people_in or piditer)(PID_BROADCAST) do
 		teamplay_ping(i, pos, opts);
 	end
 end
@@ -1111,7 +1111,7 @@ end
 -- is in them is what every Config says, including the ones this module
 -- sends on its own after a map load and on negotiation.
 function teamplay_send_config()
-	for i in piditer(PID_BROADCAST) do
+	for i in (people_in or piditer)(PID_BROADCAST) do
 		if (negotiated(i)) then
 			send_config(i);
 		end

@@ -111,7 +111,7 @@ function msg_send(pid, type, text)
 		return;
 	end
 
-	for i in piditer(pid) do
+	for i in (people_in or piditer)(pid) do
 		if (negotiated(i)) then
 			send_chat(i, text, type, SERVER_FROM);
 		else

@@ -40,9 +40,16 @@ TEAMPLAY_FOREVER = math.huge;
 local TEAM = {[0] = 1, [1] = 2, [2] = 1, [3] = 2, [4] = 3};   -- 4: spectator
 function get_team(pid) return TEAM[pid]; end
 function get_position(pid) return {x = 7, y = 8, z = 9}; end
-function piditer() 
+function PID_BROADCAST_TEAM(t) return 3 * 0x20000000 + t; end
+function piditer(set)
 	local i = -1;
-	return function() i = i + 1; if (TEAM[i]) then return i; end end;
+	return function()
+		while (true) do
+			i = i + 1;
+			if (TEAM[i] == nil) then return nil; end
+			if (set == nil or set < 3 * 0x20000000 or set == PID_BROADCAST_TEAM(TEAM[i])) then return i; end
+		end
+	end;
 end
 
 local LOG = {};

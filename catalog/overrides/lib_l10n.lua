@@ -430,7 +430,8 @@ local function each(pid, msg, send)
 		send(pid, l10n_str(pid, msg));
 		return;
 	end
-	for i in piditer(pid) do
+	-- the people of the group (lib_bot): a bot has no language to be told in
+	for i in (people_in or piditer)(pid) do
 		send(i, l10n_str(i, msg));
 	end
 end

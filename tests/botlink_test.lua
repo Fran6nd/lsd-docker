@@ -63,7 +63,7 @@ end
 local ALLOC = false;
 local function vec(v) if (ALLOC) then return {x = v.x, y = v.y, z = v.z}; end return v; end
 function is_connected(p) return P[p] ~= nil and P[p].conn; end
-function is_joined(p) return P[p].conn and P[p].joined; end
+function is_joined(p) return P[p] ~= nil and P[p].conn and P[p].joined; end
 function is_alive(p) return P[p] ~= nil and P[p].conn and P[p].joined and P[p].alive; end
 function get_team(p) return P[p].team; end
 function get_gun(p) return P[p].gun; end

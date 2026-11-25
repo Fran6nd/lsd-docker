@@ -100,7 +100,7 @@ end
 
 -- Everyone who has agreed to hear this.
 local function each_listener()
-	return piditer(PID_BROADCAST);
+	return (people_in or piditer)(PID_BROADCAST);
 end
 
 local function send_entries(pid, pairs_)

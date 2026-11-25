@@ -89,10 +89,8 @@ end
 
 local function defenders(team)
 	local out = {};
-	for i in piditer(PID_BROADCAST) do
-		if (get_team(i) == team) then
-			out[#out+1] = i;
-		end
+	for i in (people_in or piditer)(PID_BROADCAST_TEAM(team)) do
+		out[#out+1] = i;
 	end
 	return out;
 end

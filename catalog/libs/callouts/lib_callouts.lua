@@ -173,10 +173,8 @@ end
 -- ping everyone on a team, who can see it (global: modes call it)
 function callouts_ping_team(team, pos, reason)
 	if (not events_on()) then return; end
-	for i in piditer(PID_BROADCAST) do
-		if (get_team(i) == team) then
-			teamplay_ping(i, pos, {reason = reason, secs = callouts_event_secs});
-		end
+	for i in (people_in or piditer)(PID_BROADCAST_TEAM(team)) do
+		teamplay_ping(i, pos, {reason = reason, secs = callouts_event_secs});
 	end
 end
 
@@ -192,7 +190,7 @@ function mod.after.drop_intel(pid, pos)
 	pos = finite(pos) and pos or get_position(pid);
 	local carrier = get_team(pid);
 	local neutral = tostring(gamemode) == "onectf";
-	for i in piditer(PID_BROADCAST) do
+	for i in (people_in or piditer)(PID_BROADCAST) do
 		local t = get_team(i);
 		if (t == 1 or t == 2) then
 			teamplay_ping(i, pos, {secs = callouts_event_secs,
@@ -206,7 +204,7 @@ function mod.after.pickup_intel(pid)
 	if (not intel_mode()) then return; end
 	local carrier = get_team(pid);
 	local reason = tostring(gamemode) == "onectf" and HAS_THE or HAS_OUR;
-	for i in piditer(PID_BROADCAST) do
+	for i in (people_in or piditer)(PID_BROADCAST) do
 		local t = get_team(i);
 		if ((t == 1 or t == 2) and t ~= carrier) then
 			teamplay_mark(i, pid, TEAMPLAY_FOREVER,
@@ -217,13 +215,9 @@ end
 
 function mod.after.capture_intel(pid)
 	if (not intel_mode()) then return; end
-	for i in piditer(PID_BROADCAST) do
+	for i in (people_in or piditer)(PID_BROADCAST) do
 		teamplay_clear(i, pid);
 	end
-end
-
-local function is_person(i)
-	return not (bot_is_bot ~= nil and bot_is_bot(i));
 end
 
 
@@ -245,12 +239,9 @@ function cmd.func(pid, argv)
 	local everybody = set.global == true;
 
 	-- the player's own chat, team or global, in each reader's language
-	local line = l10n_msg(c.say);
-	for i in piditer(PID_BROADCAST) do
-		if (is_person(i) and (everybody or get_team(i) == team)) then
-			send_chat(i, line, everybody and 0 or 1, pid);
-		end
-	end
+	-- (one send to the group: lib_l10n makes it a send for each reader)
+	send_chat(everybody and PID_BROADCAST or PID_BROADCAST_TEAM(team),
+		l10n_msg(c.say), everybody and 0 or 1, pid);
 end
 register_command(cmd, mod);
 
