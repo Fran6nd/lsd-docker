@@ -499,7 +499,7 @@ struct bc_engine {
 	double now;
 	float world_dt;             /* thought time since the last new world */
 	float world_dt_last;        /* and what it came to for the world in hand */
-	double fresh_at;            /* the last think with a new world: whose turn came since (engine.c) */
+	double decided_at;          /* the last think that decided: whose turn came since (engine.c) */
 	bl_world w;                 /* the newest world, copied */
 	uint32_t last_tick;
 	int have_world;

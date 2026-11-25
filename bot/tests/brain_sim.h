@@ -341,7 +341,7 @@ static inline bs_sim *bs_new(int ground_z, int max_bots)
 	bc_cull_init(s->cull);
 	bc_rng_seed(&s->rng, 99, 7);
 	s->world_every = 2;
-	s->budget = 1500;
+	s->budget = 3000;
 	s->respawn = -1.0;
 	host.ctx = s;
 	host.log = bs_log;

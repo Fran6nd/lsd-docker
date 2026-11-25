@@ -42,8 +42,8 @@
  * of a think stays on the round's thread. The core takes in what the jobs
  * found in its own order, so the bots do the same whatever the number of
  * threads (tests/parallel_test.c). One thread is the default: measured
- * live at 100 and 200 bots (BRAIN-STATUS.md (c4)), with the planner spread
- * over every round and bounded (below) a round's p99 is under its period
+ * live at 100 and 200 bots (BRAIN-STATUS.md (c4)), with the planner
+ * bounded (below) a round's p99 is under its period
  * on one thread, and four bought no shorter rounds -- only more planning
  * in a round (a higher bound), for 5% of a core more. In the bench, sight
  * on four threads halves a think on a flat field of 230 bots; live it is
@@ -130,7 +130,7 @@ void botd_opts_default(botd_opts *o)
 	memset(o, 0, sizeof *o);
 	o->file = "/dev/shm/lsd-botlink";
 	o->hz = 60;
-	o->budget = 1500;
+	o->budget = 3000;
 	o->plan_rate = BC_PLAN_RATE;
 	o->plan_ms = 8;
 	o->max_bots = 255;

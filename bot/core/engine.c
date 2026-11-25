@@ -2546,34 +2546,32 @@ void bc_engine_plan_rate(bc_engine *e, int rate, int hz)
 	e->plan_per_bot = (rate + hz / 2) / hz;
 }
 
-/* THE THINK. The host thinks at 60 a second and the world comes at 30
- * (botlink_world_hz). Until 2026-11-25 a think without a new world did
- * nothing and one with a new world did everything -- every other round of
- * botd's carried all the work, and one long route search could take a
- * round's whole budget: botd's slow rounds (BRAIN-STATUS.md (c4)). Now:
+/* THE THINK, with a new world (a think without one leaves the intents as
+ * they stand: the world comes at 30 a second, botd thinks at 60):
  *
- *   WHOSE TURN  with a new world only: a bot decides on what it can see
- *               now, and a word that acts on the server (an edit, a
- *               grenade) is judged there by where the bot really is -- a
- *               decision on the world before last had its edits refused
- *               (build_test). Every bot decides DECIDE_PERIOD apart, at a
- *               phase of the period of its own (its slot's: turn_phase),
- *               so a think decides for an even share of the bots, about
- *               two thirds at 30 worlds a second. The phase is a time, not
- *               a count the bot keeps: a think that comes late (a stall, a
- *               map loading) has every bot decide once and the next is back
- *               to its share -- the old count reset to 0 after a stall,
- *               and the bots it reset decided together for good after.
+ *   WHOSE TURN  every bot decides DECIDE_PERIOD apart, at a phase of the
+ *               period of its own (its slot's: turn_phase), so a think
+ *               decides for an even share of the bots, about two thirds at
+ *               30 worlds a second. The phase is a time, not a count the
+ *               bot keeps: a think that comes late (a stall, a map
+ *               loading) has every bot decide once and the next is back to
+ *               its share. Until 2026-11-25 it was a count, by four phases,
+ *               reset to 0 after a late think -- and the bots it reset
+ *               decided together for good after (BRAIN-STATUS.md (c4)).
  *   LOOK        the rays of every bot whose turn it is, a job each (engine.h,
  *               THE THINK'S WORK AS JOBS): each writes only its own look
  *   DECIDE      bot after bot, in slot order: a death or a new life, what
  *               it saw taken in (the team's board written in that order),
  *               its tree
- *   PLAN        every think, the world new or not, with that think's budget
- *               (engine.h, THE PLANNER'S BUDGET; its bound): the planner's
- *               work spread over every round instead of every other
- *   ACT         with a new world only: the follower, the head, the
- *               trigger; between worlds the intents stand
+ *   PLAN        the route searches, with this think's budget -- no more
+ *               than the host's bound (engine.h, THE PLANNER'S BOUND: what
+ *               made botd's slow rounds was one long search spending a
+ *               think's whole share)
+ *   ACT         the follower, the head, the trigger
+ *
+ * (Planning in the thinks between worlds as well, at half the numbers,
+ * was tried: rounds as short, but ctf_test's six a side went from a
+ * capture in every one of 8 seeds to none in 2 -- (c4).)
  */
 static double turn_phase(int idx)
 {
@@ -2587,7 +2585,7 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
                      float dt, int budget)
 {
 	int i, fresh;
-	float dtw = 0.0f;
+	float dtw;
 
 	if (!(dt >= 0.0f)) dt = 0.0f;
 	if (dt > 0.25f) dt = 0.25f;
@@ -2597,16 +2595,18 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 
 	e->world_dt += dt;
 	fresh = !e->have_world || world->tick != e->last_tick;
-	if (fresh) {
-		memcpy(&e->w, world, sizeof e->w);
-		e->last_tick = world->tick;
-		e->have_world = 1;
-		bc_objective_world(e);
-		bc_leaders_think(e);
-		dtw = e->world_dt > 0.25f ? 0.25f : e->world_dt;
-		e->world_dt = 0.0f;
-		e->world_dt_last = dtw;
+	if (!fresh) {
+		/* nothing new is known: the same intents stand */
+		for (i = 0; i < e->max_bots; i++)
+			if (e->bots[i].used && (world->players[e->bots[i].pid].flags & BL_F_BOT))
+				intents[e->bots[i].pid] = e->bots[i].out;
+		return;
 	}
+	memcpy(&e->w, world, sizeof e->w);
+	e->last_tick = world->tick;
+	e->have_world = 1;
+	bc_objective_world(e);
+	bc_leaders_think(e);
 	{
 		/* engine.h, THE PLANNER'S BUDGET: the think's own, or every
 		 * bot's share, whichever is more; and no more than the bound */
@@ -2618,6 +2618,8 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 		if (e->plan_bound > 0 && e->budget_left > e->plan_bound)
 			e->budget_left = e->plan_bound;
 	}
+	dtw = e->world_dt > 0.25f ? 0.25f : e->world_dt;
+	e->world_dt = 0.0f;
 
 	/* WHOSE TURN */
 	for (i = 0; i < e->max_bots; i++) {
@@ -2629,15 +2631,14 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 		if (!b->used)
 			continue;
 		p = &e->w.players[b->pid];
-		b->decide_dt += dt;
+		b->decide_dt += dtw;
 		if (!living(e, p))
 			continue;
 		b->born = !b->alive || p->life != b->life;
 		ph = turn_phase(i);
-		b->due = fresh && floor((e->now + ph) / DECIDE_PERIOD) != floor((e->fresh_at + ph) / DECIDE_PERIOD);
+		b->due = floor((e->now + ph) / DECIDE_PERIOD) != floor((e->decided_at + ph) / DECIDE_PERIOD);
 	}
-	if (fresh)
-		e->fresh_at = e->now;
+	e->decided_at = e->now;
 
 	/* LOOK */
 	e->nturn = 0;
@@ -2674,10 +2675,10 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 	}
 
 	/* PLAN */
+	e->world_dt_last = dtw;
 	if (e->have_map) {
 		bc_movers_plan(e);
-		if (fresh)
-			bc_tactics_think(e);
+		bc_tactics_think(e);
 	}
 
 	/* ACT */
@@ -2686,7 +2687,7 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 
 		if (!b->used || !(e->w.players[b->pid].flags & BL_F_BOT))
 			continue;
-		if (fresh && b->alive)
+		if (b->alive)
 			act(e, b, dtw);
 		intents[b->pid] = b->out;
 	}
