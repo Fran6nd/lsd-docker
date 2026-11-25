@@ -46,7 +46,7 @@ for pid = 0, 3 do
 	players[pid] = {name = "Shooter" .. pid, team = 1, alive = true, pos = {x = 0, y = 0, z = 0}, gun = 0, hp = 100};
 end
 local mod;
-local bots, made, crouched, faced, teleports = {}, {}, {}, {}, {};
+local bots, made, stood, crouched, faced, teleports, ori = {}, {}, {}, {}, {}, {}, {};
 local seats = 100;
 function bot_is_bot(pid) return bots[pid] ~= nil; end
 function bot_get(pid) return bots[pid]; end
@@ -58,7 +58,7 @@ function bot_create(opts)
 	bots[pid] = {team = opts.team, name = opts.name, spawn_at = opts.spawn_at, silent = opts.silent,
 		think = opts.think, data = opts.data or {}};
 	players[pid] = {name = opts.name, team = opts.team, alive = false, pos = {x = 0, y = 0, z = 0}, gun = 0, hp = 100};
-	made[#made + 1] = pid;
+	if (opts.data.range_standin ~= nil) then stood[#stood + 1] = pid; else made[#made + 1] = pid; end
 	return pid;
 end
 function bot_destroy(pid)
@@ -70,7 +70,9 @@ end
 function bot_teleport(pid, pos) players[pid].pos = pos; teleports[#teleports + 1] = {pid = pid, pos = pos, at = now}; end
 function bot_crouch(pid) crouched[pid] = true; end
 function bot_stop(pid) crouched[pid] = nil; end
-function bot_look_at(pid, pos) faced[pid] = pos; end
+function bot_look_at(pid, pos) faced[pid] = pos; ori[pid] = {at = pos}; end
+function bot_look_toward(pid, dir) ori[pid] = dir; end
+function get_orientation(pid) return ori[pid]; end
 local linked = 0;
 function botlink_add() linked = linked + 1; end
 
@@ -213,7 +215,7 @@ check(W ~= nil and W.x0 == GW.x0 and W.x1 == GW.x1 and W.y0 == GW.y0 and W.z0 ==
 	and W.color.r == GW.color[1] and W.color.b == GW.color[3], "its start wall: the voxels and the colour");
 check(r.count.ipsc == 10 and r.count.lane1 == 8, "a run counts the targets, not the no-shoots (10 on the course)");
 local bad = {};
-mod.after.pyscrape_ext(scrape, "\nextensions = {\n    'range_version' : 2,\n    'range_spawn' : (1, 2, 50),\n    'range_targets' : (('lane9', 'plate', 'stand', 'static', 0, (1, 1, 50), (2, 2, 50)), ('lane1', 'plate', 'stand', 'rail', 0, (1, 1, 50), (2, 2, 50)), ('lane1', 'brick', 'stand', 'static', 0, (1, 1, 50), (2, 2, 50))),\n}\n", bad);
+mod.after.pyscrape_ext(scrape, "\nextensions = {\n    'range_version' : 3,\n    'range_cell' : (1, 1, 3, 3, 50),\n    'range_spawn' : (1, 2, 50),\n    'range_targets' : (('lane9', 'plate', 'stand', 'static', 0, (1, 1, 50), (2, 2, 50)), ('lane1', 'plate', 'stand', 'rail', 0, (1, 1, 50), (2, 2, 50)), ('lane1', 'brick', 'stand', 'static', 0, (1, 1, 50), (2, 2, 50))),\n}\n", bad);
 check(bad.range ~= nil and #bad.range.targets == 0, "a target of a lane the map lacks, a rail with no pace or a kind unknown is left out");
 local old = {};
 mod.after.pyscrape_ext(scrape, "\nextensions = {\n    'range_spawn' : (1, 2, 50),\n    'range_targets' : (('lane1', 'stand', 'static', 0, (1, 1, 50), (2, 2, 50)),),\n}\n", old);
@@ -223,13 +225,18 @@ check(old.range == nil and string.find(logged[#logged] or "", "older version") ~
 mod.after.finish_map_load();
 check(tent[1].x == range.spawn.x + 0.5 and intel[1].x == 0.5 and intel[2].x == 511.5, "the tent on the plaza, the intels in corners");
 
+local C = r.cell;
+local function in_cell(pid)
+	local p = players[pid].pos;
+	return p.x > C.x0 and p.x < C.x1 + 1 and p.y > C.y0 and p.y < C.y1 + 1 and p.z < C.z and p.z > C.z - 3;
+end
 print("\n2. the targets: one each, where the map says, hidden, no engine");
 seats = 20;
 tick(1000);
 check(#made == 20, "made while there are seats (20 here)");
 tick(1000.5);
 check(#made == 20, "and not tried again within the second");
-seats = 100;
+seats = 200;
 tick(1001);
 check(#made == #r.targets, "the rest a second later: " .. #r.targets .. " targets");
 local where, teams, hidden = true, true, true;
@@ -248,6 +255,21 @@ for _, pid in ipairs(made) do
 end
 check(where, "each on its point at once (no respawn wait), standing or crouched, facing its firing position");
 check(teams, "targets on team 2, the people's enemies; no-shoots on team 1, the people's own");
+check(#stood == 50 and r.cell ~= nil and r.cell.x0 == range.cell.x0, "a stand-in for each of the 40 plates and 10 poppers, none for a no-shoot: 50 more seats");
+local st_ok = true;
+for _, sp in ipairs(stood) do
+	local t = r.targets[bots[sp].data.range_standin];
+	local s = bots[sp].silent;
+	if (players[sp].team ~= 1 or t.kind == "noshoot" or not in_cell(sp) or bots[sp].think ~= nil
+	    or not (s.roster and s.presence and s.killfeed and s.stats)
+	    or (t.stance == "crouch") ~= (crouched[sp] == true)) then
+		st_ok = false;
+	end
+end
+check(st_ok, "the stand-ins: the shooters' team, silent, no think, crouched as the target is, waiting in the holding cell");
+local tin = true;
+for _, pid in ipairs(made) do if (in_cell(pid)) then tin = false; end end
+check(tin, "and the targets out on the range, not in the cell");
 check(hidden, "hidden from roster, presence, kill feed and stats; no think");
 check(linked == 0 and opened == 0, "no engine: nothing asked of lib_botlink, no file opened");
 check(bots[made[1]].name == "L1 5m" and bots[made[7]].name == "L1 rail" and bots[made[8]].name == "L1 blink"
@@ -265,6 +287,11 @@ local function pid_of(set, motion, n, kind)
 	end
 end
 local function noshoot(n) return pid_of("ipsc", nil, n, "noshoot"); end
+-- a target's stand-in, and where each is: out on the range, or in the holding cell
+local function standin_of(pid)
+	local k = bots[pid].data.range_target;
+	for _, sp in ipairs(stood) do if (bots[sp].data.range_standin == k) then return sp; end end
+end
 
 print("\n3. a hit: no death, a floating number, counted once");
 hooks, packets = {}, {};
@@ -489,15 +516,18 @@ print("\n6b. the run: targets go down, no-shoots cost");
 packets, hooks, kills = {}, {}, {};
 now = 5006;
 mod.damage_player_directional(p1, 49, {}, 0, 0);
-check(last(0) == "Hit: 1/10" and not players[p1].alive, "a hit: counted, and the target goes down");
-check(#kills == 1 and kills[1].pid == p1 and kills[1].killer == p1 and kills[1].type == 4,
-	"killed by nobody (a fall): no kill, no score, no reward for anybody");
-check(bots[p1].silent.killfeed and gamemode_rewards == false, "out of the kill feed (Silent Player), and rewards off");
+local sp1 = standin_of(p1);
+check(last(0) == "Hit: 1/10", "a hit: counted");
+check(#kills == 0 and players[p1].alive and gamemode_rewards == false,
+	"nothing is killed: no kill for anybody, no feed line, no reward, the target alive");
+check(in_cell(p1) and not in_cell(sp1) and players[sp1].team == 1,
+	"the popper is in the holding cell and a stand-in of the shooter's team has its place: it reads as down");
 check(#packets == 1 and packets[1].data == string.char(0x60, p1, 49), "the shooter is shown the hit");
 check(#hooks == 0, "the damage goes no further");
 tick(5007);
 tick(5010);
-check(not players[p1].alive and mod.get_spawn_time(p1) == 0, "it stays down: nothing respawns it, nor the engine");
+check(in_cell(p1) and not in_cell(sp1), "it stays down: swapped back by nothing but the end of the run");
+check(mod.get_spawn_time(p1) == 0 and mod.get_spawn_time(sp1) == 0, "nothing respawns either, nor the engine");
 check(#hooks == 0 and mod.get_spawn_time(0) == nil and hooks[1][1] == "get_spawn_time", "a person's respawn is the chain's");
 hooks, packets = {}, {};
 local ns2 = noshoot(2);
@@ -523,8 +553,8 @@ for n = 2, 9 do mod.damage_player_directional(pid_of("ipsc", "static", n), 49, {
 mod.damage_player_directional(pid_of("ipsc", "rail"), 49, {}, 1, 0);
 check(last(0) == "Every target hit: to the blue end box!", "every target hit: told to finish");
 local alive = 0;
-for n = 1, 9 do if (players[pid_of("ipsc", "static", n)].alive) then alive = alive + 1; end end
-check(alive == 0 and not players[pid_of("ipsc", "rail")].alive, "every one of them down");
+for n = 1, 9 do if (not in_cell(pid_of("ipsc", "static", n))) then alive = alive + 1; end end
+check(alive == 0 and in_cell(pid_of("ipsc", "rail")), "every one of them down: all ten swapped for a stand-in");
 stand(0, mid(I.finish), 1);
 writes, colors = {}, {};
 tick(5020.5);
@@ -544,7 +574,7 @@ tick(5024);
 check(last(1) == "Go!" and wall_gone(), "the course ready: down it comes");
 now = 5025;
 mod.damage_player_directional(p1, 49, {}, 0, 1);
-check(not players[p1].alive, "a target down");
+check(in_cell(p1), "a target down");
 players[1].alive = false;
 mod.after.kill(1, 0, 1);
 check(last(1) == "IPSC run abandoned: you died." and players[1].alive, "the shooter dies: abandoned, back on the plaza");
@@ -601,8 +631,136 @@ local found = false;
 for _, l in ipairs(b0) do if (l == "IPSC course:") then found = true; end end
 check(found, "the IPSC board");
 
+print("\n7b. a flip: the plate swapped for a stand-in, five seconds, and back")
+L.reset();
+local function at_place(pid, t, p)
+	p = p or t.points[1];
+	local q = players[pid].pos;
+	return q.x == p.x + 0.5 and q.y == p.y + 0.5 and q.z == p.z - (t.stance == "crouch" and 1.351 or 2.251);
+end
+check(range_flip_secs == 5, "five seconds, a setting (range_flip_secs)");
+for pid = 0, 3 do stand(pid, range.spawn, pid); end
+tick(7000);
+local fp, ft = pid_of("lane3", "static", 2);        -- crouched, 10 m
+local fs = standin_of(fp);
+check(ft.stance == "crouch" and crouched[fp] and crouched[fs], "a crouched plate, and its stand-in crouched as well");
+local was = ori[fp];
+now = 7000;
+packets, hooks, kills = {}, {}, {};
+mod.damage_player_directional(fp, 49, {}, 0, 0);
+check(in_cell(fp) and at_place(fs, ft) and players[fs].team == 1 and players[fp].team == 2,
+	"a hit: the plate is in the holding cell, a team 1 stand-in in its exact place");
+check(ori[fs] == was and #kills == 0 and players[fp].alive, "with its facing, and nothing killed");
+check(#packets == 1 and #hooks == 0, "the shooter is shown the hit; the damage goes no further");
+tick(7004.9);
+check(in_cell(fp) and at_place(fs, ft), "four and nine tenths seconds on: still flipped");
+tick(7005);
+check(at_place(fp, ft) and in_cell(fs) and ori[fp] == was, "five seconds: swapped back, same place, pose and facing");
+check(crouched[fp] and crouched[fs], "poses unchanged");
+
+-- the stand-in is not a target
+now = 7006;
+mod.damage_player_directional(fp, 49, {}, 0, 0);
+L.reset(); packets, hooks = {}, {};
+mod.damage_player_directional(fs, 49, {}, 0, 0);
+mod.damage_player(fs, 100, 1, 0);
+mod.late.on_hit(0, 0, fs);
+check(#packets == 0 and #texts(0) == 0 and #hooks == 1 and hooks[1][1] == "on_hit" and players[fs].hp == 100,
+	"a hit on a stand-in: no marker, no count, no penalty (not a no-shoot), nothing; the chain below sees only the core's own")
+check(at_place(fs, ft) and in_cell(fp), "and it does not flip back early");
+check(bots[fs].think == nil and mod.get_spawn_time(fs) == 0, "it never thinks or shoots: no think, a spade");
+tick(7011);
+local flipped_before = #teleports;
+
+-- a run: every plate flipped counts, none counts twice, a plate flips again
+L.reset();
+local lane3 = r.lanes[3];
+stand(0, mid(lane3));
+tick(7100);
+tick(7103);
+check(last(0) == "Go!", "a run on lane 3");
+now = 7104;
+for n = 1, 5 do mod.damage_player_directional(pid_of("lane3", "static", n), 49, {}, 0, 0); end
+mod.damage_player_directional(pid_of("lane3", "static", 6), 49, {}, 0, 0);
+mod.damage_player_directional(pid_of("lane3", "rail"), 49, {}, 0, 0);
+check(last(0) == "Hit: 7/8", "seven hit, seven flipped");
+local nt = #texts(0);
+mod.damage_player_directional(pid_of("lane3", "static", 1), 49, {}, 0, 0);
+check(#texts(0) == nt, "a flipped one cannot be hit: the stand-in has its place, and counts for nothing");
+now = 7106;
+mod.damage_player_directional(pid_of("lane3", "blink"), 49, {}, 0, 0);
+local t3 = texts(0);
+check(t3[#t3 - 1] == "Hit: 8/8", "the eighth: the run is complete although the first have flipped back");
+tick(7109.5);
+tick(7111);
+local back = true;
+for n = 1, 6 do local pid, t = pid_of("lane3", "static", n); if (not at_place(pid, t) or in_cell(pid)) then back = false; end end
+check(back, "five seconds on: they all stand again in their places");
+nt = #texts(0);
+local again = pid_of("lane3", "static", 3);
+mod.damage_player_directional(again, 49, {}, 0, 0);
+check(in_cell(again) and at_place(standin_of(again), r.targets[bots[again].data.range_target]) and #texts(0) == nt,
+	"shot again after it flipped back: it flips again (feedback), and does not count again");
+tick(7116.1);
+
+-- a rail plate's stand-in goes along the rail; a blink's follows the blink
+local rp2, rt2 = pid_of("lane4", "rail");
+local rs = standin_of(rp2);
+now = 7200;
+tick(7200);
+mod.damage_player_directional(rp2, 49, {}, 0, 0);
+local xs2, ok2 = {}, true;
+for k = 1, 8 do
+	tick(7200 + k * 0.125);
+	xs2[k] = players[rs].pos.x;
+end
+for k = 2, 8 do if (math.abs(math.abs(xs2[k] - xs2[k - 1]) - 0.3125) > 1e-6) then ok2 = false; end end
+check(ok2 and in_cell(rp2), "a rail plate flipped: its stand-in goes along the rail at the rail's pace, the plate waits in the cell")
+tick(7205.125);
+check(in_cell(rs) and not in_cell(rp2) and players[rp2].pos.y == rt2.points[1].y + 0.5, "and the plate is back on the rail when the time is up");
+local bp2, bt2 = pid_of("lane4", "blink");
+local bs = standin_of(bp2);
+tick(7300);
+mod.damage_player_directional(bp2, 49, {}, 0, 0);
+local seen, onpts = {}, true;
+for k = 0, 23 do
+	tick(7300 + k * 0.2);
+	local q = players[bs].pos;
+	local hit = false;
+	for _, p in ipairs(bt2.points) do if (q.x == p.x + 0.5 and q.y == p.y + 0.5) then hit = true; seen[p.x] = true; end end
+	if (not hit) then onpts = false; end
+end
+local nseen = 0;
+for _ in pairs(seen) do nseen = nseen + 1; end
+check(onpts and nseen >= 2 and faced[bs] ~= nil and faced[bs].y == bt2.face.y + 0.5,
+	"a blink plate flipped: its stand-in blinks from point to point, facing its line");
+
+-- no seat for a stand-in: the plate does not flip, the hit counts, the log says so
+local ap, at_ = pid_of("lane5", "static", 1);
+local as = standin_of(ap);
+seats = 0;
+bot_destroy(as);
+logged = {};
+packets = {};
+mod.damage_player_directional(ap, 49, {}, 0, 0);
+check(not in_cell(ap) and #packets == 1 and string.find(logged[1] or "", "no stand%-in") ~= nil,
+	"a stand-in missing (the server full): the plate stays, the marker is shown, a line in the log, no error");
+seats = 200;
+tick(7400);
+tick(7401);
+local made_again = false;
+for _, sp in ipairs(stood) do if (bots[sp] ~= nil and bots[sp].data.range_standin == bots[ap].data.range_target) then made_again = true; end end
+check(made_again, "and made again a second later");
+
+-- a popper hit outside a run does not flip: only the run's shooter's hit falls it
+local op = pid_of("ipsc", "static", 3);
+mod.damage_player_directional(op, 49, {}, 0, 0);
+check(not in_cell(op), "a popper hit by one who is not on the course: nothing happens to it");
+
 print("\n8. a new map: the same range keeps the times, another clears them");
-local count = #r.targets;   -- one seat each (one of them was made twice: its seat taken, then given back)
+local count = 0;   -- a seat each, and a stand-in's for the plates and poppers
+for _ in pairs(bots) do count = count + 1; end
+check(count == #r.targets + 50, "54 targets and 50 stand-ins: 104 seats");
 mod.after.finish_map_load();
 L.reset();
 commands.best.func(0);

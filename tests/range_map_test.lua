@@ -203,7 +203,7 @@ for _, t in ipairs(shoot) do if (t.kind ~= "popper") then poppers = false; end e
 for k = 1, R.LANES do
 	for _, t in ipairs(by["lane" .. k]) do if (t.kind ~= "plate") then poppers = false; end end
 end
-check(poppers, "the course's go down when hit (poppers), the lanes' never do (plates)");
+check(poppers, "the course's flip until the run is over (poppers), the lanes' for a few seconds (plates)");
 check(#noshoot >= 3, #noshoot .. " no-shoots on the course, none on the lanes");
 local ins = true;
 for _, t in ipairs(ipsc) do
@@ -315,10 +315,76 @@ end
 check(floored, "twenty seeds: every target stands on solid ground with room above it");
 check(sighted, "and its head and chest are in clear sight from its firing position");
 
+print("\n4b. the holding cell: sealed, and seen from nowhere")
+local cell = c.cell;
+check(cell ~= nil and cell.z == FLOOR, "the map has one, on the floor's level");
+-- the air voxels it holds: those of its box from the roof to the floor
+local inside_cell, n_air = {}, 0;
+for z = FLOOR - 3, FLOOR - 1 do
+	for y = cell.y0, cell.y1 do
+		for x = cell.x0, cell.x1 do
+			if (not R.solid(c, x, y, z)) then n_air = n_air + 1; end
+			inside_cell[(z * 512 + y) * 512 + x] = true;
+		end
+	end
+end
+check(n_air == 27, "3 x 3 and 3 high, air");
+-- flood it: every voxel reachable by air from inside it, a face at a time
+local seen, queue, escaped, reached = {}, {{cell.x0, cell.y0, FLOOR - 1}}, false, 0;
+seen[((FLOOR - 1) * 512 + cell.y0) * 512 + cell.x0] = true;
+while (#queue > 0 and not escaped) do
+	local v = table.remove(queue);
+	reached = reached + 1;
+	for _, d in ipairs({{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}) do
+		local x, y, z = v[1] + d[1], v[2] + d[2], v[3] + d[3];
+		if (x < 0 or x > 511 or y < 0 or y > 511 or z < 0) then
+			escaped = true;
+		elseif (not R.solid(c, x, y, z)) then
+			local key = (z * 512 + y) * 512 + x;
+			if (not seen[key]) then
+				seen[key] = true;
+				queue[#queue + 1] = {x, y, z};
+				if (not inside_cell[key]) then escaped = true; end
+			end
+		end
+	end
+end
+check(not escaped and reached == 27, "sealed: the air reachable from inside is the 27 voxels of it, nothing else (no door, no port, no way out)");
+-- and not seen: from the bays, the targets' firing positions, the plaza
+-- and the spawn, no clear line to any voxel of it
+local from = {};
+for _, b in ipairs(c.lanes) do from[#from + 1] = eye({x = (b.x0 + b.x1) / 2, y = b.y0 + 1, z = FLOOR}, "stand"); end
+from[#from + 1] = eye(c.spawn, "stand");
+for _, t in ipairs(c.targets) do from[#from + 1] = eye(t.face, "stand"); end
+local unseen = true;
+for _, f in ipairs(from) do
+	for z = FLOOR - 3, FLOOR - 1 do
+		for y = cell.y0, cell.y1 do
+			for x = cell.x0, cell.x1 do
+				if (clear(c, f, {x = x + 0.5, y = y + 0.5, z = z + 0.5})) then unseen = false; end
+			end
+		end
+	end
+end
+check(unseen, "out of every lane's, firing position's and the spawn's sight");
+local clash = false;
+for _, t in ipairs(c.targets) do
+	for _, p in ipairs(t.points) do
+		if (inside(cell, p)) then clash = true; end
+	end
+end
+check(not clash and not inside(c.ipsc.area, {x = cell.x0, y = cell.y0}), "and no target or course in it or on it");
+local same_cell = true;
+for seed = 1, 20 do
+	local k = R.generate(seed * 7919);
+	if (k.cell.x0 ~= cell.x0 or k.cell.y1 ~= cell.y1) then same_cell = false; end
+end
+check(same_cell, "the same place for every seed");
+
 print("\n5. the metadata");
 local meta = "\n" .. R.meta(c, "range");
 for _, key in ipairs({"range_spawn", "range_lanes", "range_ipsc", "range_ipsc_start", "range_ipsc_end",
-		"range_ipsc_wait", "range_ipsc_wall", "range_targets", "range_version"}) do
+		"range_ipsc_wait", "range_ipsc_wall", "range_cell", "range_targets", "range_version"}) do
 	check(string.find(meta, "\n%s*'" .. key .. "' : [%(%d].-,\n") ~= nil, key .. ", on one line");
 end
 check(string.find(meta, "'noshoot', 'stand', 'static'", 1, true) ~= nil and string.find(meta, "'popper'", 1, true) ~= nil,

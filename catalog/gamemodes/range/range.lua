@@ -49,27 +49,46 @@
 -- catalog/core/range_map.lua) and ONE CONTROLLER keeps all of them:
 -- creates what is missing (a seat at a time, again a second later if
 -- the server is full -- lib_bot gives a person a target's seat), puts
--- each where its motion says at this moment, stands up again what is
--- dead and not meant to be down, and nothing else. Motions: static (its
+-- each where its motion says at this moment, swaps back what has been
+-- flipped long enough, stands up again what is dead, and nothing else. Motions: static (its
 -- one point), rail (back and forth between two points at a steady pace)
 -- and blink (each point in turn, `param` seconds at each). Where a
 -- target is is a function of the time alone, so every client sees the
 -- same thing and a test can ask it.
 --
--- WHAT A HIT DOES is the target's KIND, and nothing else decides it:
+-- WHAT A HIT DOES is the target's KIND, and nothing else decides it.
+-- NOTHING HERE IS EVER KILLED. What a target does when it is hit is
+-- FLIP: it is moved to the map's holding cell (range_cell, a closed
+-- room nobody sees into) and a STAND-IN, a bot of the shooter's own
+-- team, stands in its exact place, pose and facing -- and follows its
+-- motion. The shooter sees the target change colour, and nothing more.
+-- Flipping back is the same swap the other way.
 --
---   plate    (the lanes) never falls: the hit counts, and that is all
---   popper   (the course) the hit that counts drops it -- killed for
---            real, so every client sees it fall -- and it stays down
---            until its set is made ready for the next run. Killed by
---            nobody, as a fall: no kill, no score, no reward, and out
---            of the kill feed where the client speaks Silent Player
+--   plate    (the lanes) every bullet flips it, for range_flip_secs
+--            seconds (5): the hit counts, once a run, and a plate shot
+--            again after it has flipped back flips again (the feedback)
+--            without counting again
+--   popper   (the course) the hit that counts flips it, until its set
+--            is made ready for the next run: it reads as down
 --   noshoot  (the course) one of the shooter's own team, standing among
 --            the targets: a hit adds range_noshoot_penalty seconds to
---            the run's time, told at once; it never falls
+--            the run's time, told at once; it never flips
 --
--- Every hit on a target stops in the damage hook: its health never
--- moves. What it did is told to the one who landed it through
+-- The stand-ins: one for each target that can flip (40 plates and 10
+-- poppers: 50 seats, on top of the 54 targets). A shared pool could not
+-- be smaller in the worst case, which is every one of them flipped at
+-- once (a plate flips for 5 s, eight a lane can be shot in that time
+-- at a rifle's pace, five lanes at once, and a whole course down), and
+-- it would need a rule for running dry. With one each there is none: a
+-- stand-in is its target's, made with it. It is not a target: a hit on
+-- it counts for nothing, costs nothing (it is no no-shoot) and does
+-- nothing, and it never shoots (no think, a spade). Where a seat for
+-- one is missing (the server is full) the target does not flip, the
+-- hit counts and shows its marker, and the log says so: never an error.
+--
+
+-- Every hit on a target or a stand-in stops in the damage hook: its
+-- health never moves. What it did is told to the one who landed it through
 -- lib_damage_markers' own API (damage_markers_show), with the number the
 -- hit was worth, as for a man: the floating number a Damage Markers
 -- client draws. (The extension's automatic marker reads a hit that
@@ -99,10 +118,16 @@ local SETTLE = 1;         -- after a teleport: the client's old position may sti
 local SPREAD = 2;         -- how far from the spawn's middle a person is put
 local LISTED = 5;         -- lines of /best, a board
 local TOPUP_SECS = 1;     -- how often missing targets are made again
-local VERSION = 2;        -- of the map's range metadata (range_map.lua's M.VERSION)
-local KILL_FALL = 4;      -- a death nobody is credited with
+local VERSION = 3;        -- of the map's range metadata (range_map.lua's M.VERSION)
 
 getcfg("range_noshoot_penalty", 10, "Seconds added to a run's time for each hit on a no-shoot.");
+getcfg("range_flip_secs", 5, "Seconds a lane's plate stays flipped (a stand-in of the shooter's team in its place) after a hit.");
+
+-- what a hit does to a target of each kind, from the data's `kind`: how
+-- long it flips. "secs": range_flip_secs. "run": until its set is made
+-- ready for the next run, and only for the run's own shooter. A kind
+-- not here (the no-shoot) never flips.
+local FLIP = {plate = "secs", popper = "run"};
 
 -- hidden everywhere a Silent Player client hides anything
 local SILENT = {roster = true, presence = true, killfeed = true, stats = true};
@@ -156,7 +181,8 @@ local best_none_msg = {en = "No times yet."};
 --    deadline =, settle =, at_end =}
 local runs = {};
 local held = {};     -- target index -> the bot's pid
-local down = {};     -- target index -> true: a popper down until its set is made ready
+local standin = {};  -- target index -> the pid of its stand-in
+local flips = {};    -- target index -> {untill = <when it swaps back; nil: when its set is made ready>}
 local queue = {};    -- pids, the first goes next
 local shooter = nil; -- who is on the IPSC course
 local on_pad = {};   -- pid -> standing on the waiting area at the last look
@@ -166,6 +192,7 @@ local record = {};                       -- board -> seconds
 local ran = nil;     -- the range the times were made on
 local next_topup = 0;
 local faults = 0;
+local degraded = 0;  -- hits on a target with no stand-in to flip to
 
 local function range()
 	return get_map_meta ~= nil and get_map_meta().range or nil;
@@ -260,7 +287,12 @@ function mod.after.pyscrape_ext(scrape, str, meta)
 		l10n_log(old_map_msg);
 		return;
 	end
-	local r = {seed = tonumber(scrape.get_ext(str, "range_seed")), spawn = spawn,
+	local cell = box(scrape.get_ext(str, "range_cell"));
+	if (cell == nil) then
+		l10n_log(old_map_msg);
+		return;
+	end
+	local r = {seed = tonumber(scrape.get_ext(str, "range_seed")), spawn = spawn, cell = cell,
 		lanes = {}, targets = {}, count = {}};
 	for _, s in ipairs(tuples(scrape, str, "range_lanes")) do r.lanes[#r.lanes + 1] = box(s); end
 	local area, start = box(scrape.get_ext(str, "range_ipsc")), box(scrape.get_ext(str, "range_ipsc_start"));
@@ -338,6 +370,12 @@ local function target_index(pid)
 	return b ~= nil and b.data.range_target or nil;
 end
 
+-- the target a stand-in stands in for
+local function standin_index(pid)
+	local b = bot_get ~= nil and bot_get(pid) or nil;
+	return b ~= nil and b.data.range_standin or nil;
+end
+
 local function face(pid, t)
 	local f = t.face;
 	local p = get_position(pid);
@@ -361,7 +399,46 @@ local function name_of(r, t, k)
 	return string.format("L%d %dm", lane, r.lanes[lane].y0 - t.points[1].y);
 end
 
--- the seat each target is in, made again if it is not
+-- the floor of the holding cell's middle, as a point of a target is
+local function cell_point(r)
+	local c = r.cell;
+	return {x = math.floor((c.x0 + c.x1) / 2), y = math.floor((c.y0 + c.y1) / 2), z = c.z};
+end
+
+-- Where the seat of a target (standin: false) or of its stand-in (true)
+-- belongs at `now`: out on the range, where the target's motion has it,
+-- when it is the one that shows -- the target while it is not flipped,
+-- the stand-in while it is -- and in the holding cell when it is not.
+local function station(r, k, is_standin, now)
+	local t = r.targets[k];
+	if ((flips[k] ~= nil) == is_standin) then
+		return stand_on(range_target_at(t, now));
+	end
+	return stand_on(cell_point(r));
+end
+
+-- a seat of a target of the map: its bot, made again if it is not there
+local function seat(r, k, t, is_standin)
+	return bot_create{
+		-- a no-shoot is one of the people's own, and so is a stand-in
+		team = (is_standin or t.kind == "noshoot") and 1 or 2,
+		-- the stand-in is the target's name: all that differs is the colour
+		name = name_of(r, t, k),
+		tool = "spade",
+		spawn_at = function(p)
+			local i = target_index(p) or standin_index(p);
+			local rr = range();
+			if (rr == nil or i == nil or rr.targets[i] == nil) then
+				return nil;
+			end
+			return station(rr, i, standin_index(p) ~= nil, get_time());
+		end,
+		silent = SILENT,
+		data = is_standin and {range_standin = k} or {range_target = k},
+	};
+end
+
+-- every seat the map's targets need, the targets first
 local function top_up(r, now)
 	if (now < next_topup) then
 		return;
@@ -369,57 +446,112 @@ local function top_up(r, now)
 	next_topup = now + TOPUP_SECS;
 	for k, t in ipairs(r.targets) do
 		if (held[k] == nil) then
-			local pid = bot_create{
-				-- a no-shoot is one of the people's own
-				team = t.kind == "noshoot" and 1 or 2,
-				name = name_of(r, t, k),
-				tool = "spade",
-				spawn_at = function(p)
-					local i = target_index(p);
-					local rr = range();
-					local tt = rr ~= nil and i ~= nil and rr.targets[i] or nil;
-					return tt ~= nil and stand_on(range_target_at(tt, get_time())) or nil;
-				end,
-				silent = SILENT,
-				data = {range_target = k},
-			};
-			if (pid == nil) then
+			held[k] = seat(r, k, t, false);
+			if (held[k] == nil) then
 				return;   -- no seat, or the map is loading: in a second
 			end
-			held[k] = pid;
+		end
+	end
+	for k, t in ipairs(r.targets) do
+		if (FLIP[t.kind] ~= nil and standin[k] == nil) then
+			standin[k] = seat(r, k, t, true);
+			if (standin[k] == nil) then
+				return;
+			end
+		end
+	end
+end
+
+-- The target and its stand-in change places: `to` (the stand-in when
+-- flipping, the target when flipping back) takes the exact place, pose
+-- and facing of `from`, which goes into the holding cell. The pose is
+-- the seat's own, a crouch is a crouch in either. A rail's or a blink's
+-- place is the one its motion has at this moment.
+local function swap(r, k, to_standin, now)
+	local t = r.targets[k];
+	local to, from = held[k], standin[k];
+	if (to_standin) then to, from = from, to; end
+	local p = range_target_at(t, now);
+	bot_teleport(to, body(t, p));
+	bot_look_toward(to, get_orientation(from));
+	bot_get(to).data.at = p;
+	bot_teleport(from, body(t, cell_point(r)));
+	bot_get(from).data.at = nil;
+end
+
+-- Can the pair swap now? Both made, joined and standing.
+local function can_swap(k)
+	local a, b = held[k], standin[k];
+	return a ~= nil and b ~= nil and is_joined(a) and is_joined(b) and is_alive(a) and is_alive(b);
+end
+
+local function flip(r, k, t, now)
+	if (flips[k] ~= nil) then
+		return;
+	end
+	if (not can_swap(k)) then
+		degraded = degraded + 1;
+		if (degraded <= 3) then log("range: no stand-in for %s: it does not flip", name_of(r, t, k)); end
+		return;
+	end
+	swap(r, k, true, now);
+	flips[k] = {untill = FLIP[t.kind] == "secs" and now + range_flip_secs or nil};
+end
+
+local function unflip(r, k, now)
+	if (flips[k] == nil) then
+		return;
+	end
+	if (can_swap(k)) then
+		swap(r, k, false, now);
+	end
+	flips[k] = nil;
+end
+
+-- one seat: stood up again if dead; out on the range it moves with its
+-- target's motion
+local function keep(r, k, pid, is_standin, now)
+	local t = r.targets[k];
+	if (t == nil or pid == nil or not is_joined(pid)) then
+		return;
+	end
+	if (not is_alive(pid)) then
+		-- at once, not after a respawn wait
+		spawn_player(pid, station(r, k, is_standin, now));
+	elseif ((flips[k] ~= nil) ~= is_standin) then
+		return;   -- in the cell
+	elseif (t.motion == "rail") then
+		-- a step along the track every tick: the steady pace
+		bot_teleport(pid, body(t, range_target_at(t, now)));
+	elseif (t.motion == "blink") then
+		-- from one point to the next, and facing the line again
+		local p = range_target_at(t, now);
+		local b = bot_get(pid);
+		if (b.data.at ~= p) then
+			bot_teleport(pid, body(t, p));
+			face(pid, t);
+			b.data.at = p;
 		end
 	end
 end
 
 local function keep_targets(r, now)
 	top_up(r, now);
-	for k, pid in pairs(held) do
-		local t = r.targets[k];
-		if (t ~= nil and is_joined(pid)) then
-			if (not is_alive(pid)) then
-				-- at once, not after a respawn wait; a popper down stays down
-				if (not down[k]) then
-					spawn_player(pid, stand_on(range_target_at(t, now)));
-				end
-			elseif (t.motion == "rail") then
-				-- a step along the track every tick: the steady pace
-				bot_teleport(pid, body(t, range_target_at(t, now)));
-			elseif (t.motion == "blink") then
-				-- from one point to the next, and facing the line again
-				local p = range_target_at(t, now);
-				local b = bot_get(pid);
-				if (b.data.at ~= p) then
-					bot_teleport(pid, body(t, p));
-					face(pid, t);
-					b.data.at = p;
-				end
-			end
+	for k, f in pairs(flips) do
+		if (f.untill ~= nil and now >= f.untill) then
+			unflip(r, k, now);
 		end
 	end
+	for k, pid in pairs(held) do keep(r, k, pid, false, now); end
+	for k, pid in pairs(standin) do keep(r, k, pid, true, now); end
 end
 
 function mod.after.spawn_player(pid)
 	local k = target_index(pid);
+	local is_standin = false;
+	if (k == nil) then
+		k, is_standin = standin_index(pid), true;
+	end
 	local r = range();
 	if (k == nil or r == nil or r.targets[k] == nil) then
 		return;
@@ -427,47 +559,38 @@ function mod.after.spawn_player(pid)
 	local t = r.targets[k];
 	bot_get(pid).data.at = nil;
 	if (t.stance == "crouch") then bot_crouch(pid); else bot_stop(pid); end
-	face(pid, t);
+	-- a stand-in takes the facing of what it stands in for when it swaps in
+	if (not is_standin) then face(pid, t); end
 end
 
 local function drop_targets(from)
-	for k, pid in pairs(held) do
-		if (k >= from) then
-			held[k] = nil;
-			bot_destroy(pid);
+	for _, seats in ipairs({held, standin}) do
+		for k, pid in pairs(seats) do
+			if (k >= from) then
+				seats[k] = nil;
+				flips[k] = nil;
+				bot_destroy(pid);
+			end
 		end
 	end
 end
 
--- The engine never respawns a target: the controller does (above), and
--- a popper that is down waits for its set to be made ready. 0 is the
--- documented "no respawn", and the only safe value: this clk is not in
--- seconds (see the_fall.lua).
+-- The engine never respawns a target or a stand-in: the controller does
+-- (above). 0 is the documented "no respawn", and the only safe value:
+-- this clk is not in seconds (see the_fall.lua).
 function mod.get_spawn_time(pid)
-	if (target_index(pid) ~= nil) then
+	if (target_index(pid) ~= nil or standin_index(pid) ~= nil) then
 		return 0;
 	end
 	return mod.next.get_spawn_time(pid);
 end
 
--- a popper hit: down, killed by nobody (a fall: no kill, no score)
-local function knock_down(k)
-	local pid = held[k];
-	if (pid ~= nil and is_alive(pid)) then
-		down[k] = true;
-		kill(pid, KILL_FALL, pid);
-	end
-end
-
--- a set's poppers stood up again, where their motion has them now
+-- a set's targets that were flipped for its run: back, where their
+-- motion has them now
 local function raise(r, set, now)
 	for k, t in ipairs(r.targets) do
-		if (t.set == set and down[k]) then
-			down[k] = nil;
-			local pid = held[k];
-			if (pid ~= nil and is_joined(pid) and not is_alive(pid)) then
-				spawn_player(pid, stand_on(range_target_at(t, now)));
-			end
+		if (t.set == set and flips[k] ~= nil and flips[k].untill == nil) then
+			unflip(r, k, now);
 		end
 	end
 end
@@ -548,7 +671,7 @@ local function penalize(pid, t)
 	end
 end
 
--- a target hit: counted once a run, and a popper goes down with it
+-- a target hit: counted once a run
 local function count(pid, k, t)
 	local r = running(pid, t);
 	if (r == nil or r.hits[k]) then
@@ -556,9 +679,6 @@ local function count(pid, k, t)
 	end
 	r.hits[k] = true;
 	r.n = r.n + 1;
-	if (t.kind == "popper") then
-		knock_down(k);
-	end
 	tell(pid, hit_msg, {n = r.n, total = r.total});
 	if (r.n == r.total) then
 		if (r.kind == "lane") then
@@ -572,6 +692,9 @@ end
 -- A target's damage stops here. The one who hit it is shown what the
 -- hit was worth, and a bullet does what the target's kind says.
 local function struck(pid, hp, type, damager)
+	if (standin_index(pid) ~= nil) then
+		return true;   -- not a target: nothing, and no no-shoot's penalty
+	end
 	local k = target_index(pid);
 	if (k == nil) then
 		return false;
@@ -587,6 +710,12 @@ local function struck(pid, hp, type, damager)
 			if (t.kind == "noshoot") then
 				penalize(damager, t);
 			else
+				-- the kind says whether it flips; a popper falls only to
+				-- the run's own shooter, and every bullet flips a plate
+				local how = FLIP[t.kind];
+				if (how == "secs" or (how == "run" and running(damager, t) ~= nil)) then
+					flip(r, k, t, get_time());
+				end
 				count(damager, k, t);
 			end
 		end
@@ -784,12 +913,12 @@ local function look_lane(pid, r, pos, now)
 end
 
 -- The course is ready for a run: every target of the set standing (none
--- missing, none down), and nobody on it but the shooter.
+-- missing, none flipped), and nobody on it but the shooter.
 local function ready(r, set)
 	for k, t in ipairs(r.targets) do
 		if (t.set == set) then
 			local pid = held[k];
-			if (pid == nil or not is_joined(pid) or not is_alive(pid)) then
+			if (pid == nil or not is_joined(pid) or not is_alive(pid) or flips[k] ~= nil) then
 				return false;
 			end
 		end
@@ -906,7 +1035,7 @@ end
 -- controller's: keep_targets)
 function mod.after.kill(pid)
 	if (range() == nil or not is_connected(pid) or not is_joined(pid) or is_alive(pid)
-	    or target_index(pid) ~= nil) then
+	    or target_index(pid) ~= nil or standin_index(pid) ~= nil) then
 		return;
 	end
 	local run = runs[pid];
@@ -927,8 +1056,10 @@ function mod.after.on_disconnect(pid)
 	end_run(pid);
 	on_pad[pid], told_taken[pid] = nil, nil;
 	unqueue(pid);
-	for k, p in pairs(held) do
-		if (p == pid) then held[k], down[k] = nil, nil; end
+	for _, seats in ipairs({held, standin}) do
+		for k, p in pairs(seats) do
+			if (p == pid) then seats[k] = nil; flips[k] = nil; end
+		end
 	end
 end
 
@@ -1051,11 +1182,11 @@ local function signature(r)
 end
 
 -- a new map: every run starts over and the queue empties; the targets
--- stay in their seats (lib_bot brings them back from the map change)
+-- and their stand-ins stay in their seats (lib_bot brings them back from the map change)
 -- and go to their new places; the best times stay while the range is
 -- the same one
 function mod.after.finish_map_load()
-	runs, queue, shooter, on_pad, told_taken, down = {}, {}, nil, {}, {}, {};
+	runs, queue, shooter, on_pad, told_taken, flips = {}, {}, nil, {}, {}, {};
 	next_topup = 0;
 	local r = range();
 	drop_targets(r ~= nil and #r.targets + 1 or 1);
@@ -1072,7 +1203,7 @@ end
 local function sweep()
 	local doomed = {};
 	for pid in piditer(PID_BROADCAST) do
-		if (target_index(pid) ~= nil) then doomed[#doomed + 1] = pid; end
+		if (target_index(pid) ~= nil or standin_index(pid) ~= nil) then doomed[#doomed + 1] = pid; end
 	end
 	for _, pid in ipairs(doomed) do bot_destroy(pid); end
 end

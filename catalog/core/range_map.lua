@@ -35,11 +35,12 @@
 --
 --   set      "lane1".."lane5" or "ipsc"
 --   kind     what a hit does to it:
---            "plate": nothing -- it never falls; the hit counts
---            "popper": the hit that counts drops it, and it stays down
---                    until its set is made ready for the next run
+--            "plate": it never falls; the hit counts, and it flips for
+--                    a few seconds (see THE HOLDING CELL)
+--            "popper": the hit that counts flips it, and it stays
+--                    flipped until its set is made ready for the next run
 --            "noshoot": one of the shooter's own team; a hit is a
---                    penalty, and it never falls
+--                    penalty, and it never flips
 --   stance   "stand" or "crouch"
 --   motion   "static": points[1]
 --            "rail": back and forth from points[1] to points[2] at
@@ -55,13 +56,20 @@
 -- again as it was. It stands in the map; the gamemode brings it down for
 -- a run and builds it again after.
 --
+-- THE HOLDING CELL is data too: a closed room, 3 x 3 and 3 high, cut into
+-- the solid mass west of the lanes -- no door, no port, walls and a roof
+-- of solid voxels all round -- as {x0, y0, x1, y1, z} like a box. When a
+-- target is hit the gamemode never kills it: it moves it in here, and a
+-- stand-in of the shooter's team takes its place out on the range; to
+-- swap them back is to move them again. Nothing out there can see in.
+--
 -- Every lane has the same targets at the same distances (a time on one
 -- lane is a time on any), shifted across; the seed varies the IPSC
 -- course's targets within their rooms (the no-shoots go with the target
 -- they stand by) and the lanes' offsets.
 local M = {};
 
-M.VERSION = 2;         -- of the metadata: a range written before is generated again
+M.VERSION = 3;         -- of the metadata: a range written before is generated again
 
 M.SIZE = 512;
 M.FLOOR = 50;          -- the z of the floor voxel
@@ -247,6 +255,18 @@ local function static_range(c, r)
 	end
 end
 
+--=========================== THE HOLDING CELL =======================--
+-- In the solid mass between the facility's west wall and lane 1 (x 200):
+-- the columns keep their top (the wall's, 5 high: the roof is 2 voxels)
+-- and have a 3-high pocket of air in them, over their own floor voxel.
+M.CELL = {x0 = 190, y0 = 270, x1 = 192, y1 = 272};
+
+local function holding_cell(c)
+	local b = M.CELL;
+	port(c, b.x0, b.y0, b.x1, b.y1, FLOOR - 3, FLOOR - 1);
+	c.cell = {x0 = b.x0, y0 = b.y0, x1 = b.x1, y1 = b.y1, z = FLOOR};
+end
+
 --============================ THE IPSC COURSE =======================--
 -- In the course's own frame: u across (x = IX + u), v from the door
 -- inward (y = IY - v). Rooms are v 0..9, 11..19, 21..29, 31..39; walls
@@ -371,6 +391,7 @@ function M.generate(seed)
 	paint(c, c.spawn.x - 2, c.spawn.y - 2, c.spawn.x + 2, c.spawn.y + 2, COLORS.spawn);
 	static_range(c, r);
 	ipsc(c, r);
+	holding_cell(c);
 	return c;
 end
 
@@ -492,6 +513,7 @@ function M.meta(c, name)
 		"    'range_ipsc_end' : " .. boxt(c.ipsc.finish) .. ",",
 		"    'range_ipsc_wait' : " .. boxt(c.ipsc.wait) .. ",",
 		"    'range_ipsc_wall' : " .. M.wall_tuple(c.ipsc.wall) .. ",",
+		"    'range_cell' : " .. boxt(c.cell) .. ",",
 		"    'range_targets' : " .. list(targets) .. ",",
 		"}",
 		"",
