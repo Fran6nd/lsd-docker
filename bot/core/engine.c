@@ -936,7 +936,8 @@ static void ev_bot(bc_engine *e, int pid, const bl_ev_bot *ev)
 		for (i = 0; i < e->max_bots && e->bots[i].used; i++)
 			;
 		if (i == e->max_bots) {
-			bc_engine_log(e, 2, "bot #%d: no room (%d bots)", pid, e->max_bots);
+			bc_engine_log(e, 2, "bot #%d: no room: the engine is sized for %d bots (botd --bots); "
+			              "this one will stand still", pid, e->max_bots);
 			return;
 		}
 		b = &e->bots[i];

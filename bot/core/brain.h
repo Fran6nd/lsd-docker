@@ -57,7 +57,8 @@ enum {
 	BC_COVER_QUEUE = 660,
 	BC_VISIT_N = 32,            /* the visit grid: 32 x 32 cells of 16 columns */
 	BC_AVOID_MAX = 3,           /* enemies a carrier's route keeps away from */
-	BC_LEADERS_MAX = 8          /* a team's leaders */
+	BC_LEADERS_MAX = 52         /* a team's leaders: one for every 5 of 255 (it was 8,
+	                               which 115 a side outgrew without a word) */
 };
 
 /* BC_COVER_VIEW: HIDE, but only cells within a cone toward the threat

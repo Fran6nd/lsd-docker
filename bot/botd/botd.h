@@ -15,7 +15,7 @@ typedef struct botd_opts {
 	const char *user_trees; /* the operator's own *.bt, over those; NULL: $LSD_DATA/trees (LSD_DATA: /data) */
 	int hz;                 /* rounds a second (default 60) */
 	int budget;             /* planner expansions a think may spend (default 3000) */
-	int max_bots;           /* bots the engine is sized for (default 64) */
+	int max_bots;           /* bots the engine is sized for (default 255: every seat) */
 	int once;               /* 1: do not wait for a file, exit 1 if there is none */
 	int poll_ms;            /* wait between attach tries (default 1000) */
 	int stale_ms;           /* server beat unmoved this long: it is gone (default 5000) */

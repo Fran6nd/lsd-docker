@@ -111,7 +111,7 @@ void botd_opts_default(botd_opts *o)
 	o->file = "/dev/shm/lsd-botlink";
 	o->hz = 60;
 	o->budget = 3000;
-	o->max_bots = 64;
+	o->max_bots = 255;
 	o->poll_ms = 1000;
 	o->stale_ms = 5000;
 	o->health_s = 60;

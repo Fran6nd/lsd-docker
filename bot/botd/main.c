@@ -17,7 +17,7 @@ static void usage(FILE *f)
 	      "                files (bttree --watch; default $LSD_DATA/rw/botdebug; `none`: nowhere)\n"
 	      "  --hz N        rounds a second (default 60)\n"
 	      "  --budget N    planner expansions one think may spend (default 3000)\n"
-	      "  --bots N      bots the engine is sized for (default 64)\n"
+	      "  --bots N      bots the engine is sized for (default 255: every seat)\n"
 	      "  --once        do not wait for the file: exit 1 if it is not there now\n"
 	      "Waits quietly for the file, serves it until the server closes it or\n"
 	      "goes silent, then exits 0.\n", f);
