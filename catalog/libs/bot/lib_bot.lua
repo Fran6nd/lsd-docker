@@ -28,6 +28,16 @@
 --   people_in(set)                   -- piditer(set) without the bots: every
 --                                       loop that sends, builds or walks for
 --                                       a client's sake uses it (THE PEOPLE)
+--   broadcast(set, data [, unreliable]) -- one raw packet to a group, handed
+--                                       to the core once; nothing is sent
+--                                       if no person is in it. NEVER loop
+--                                       over the players to send: this, a
+--                                       typed send_*(set, ...) or, when the
+--                                       packet differs per recipient,
+--   broadcast_each(set, fn)          -- fn(pid) for each PERSON of the set
+--   bot_guard_drops() -> n, by_name, engine -- the sends a script made at a
+--                                       bot (dropped, and logged once a
+--                                       minute if any: a bug to fix)
 --   bot_seats_free()                 -- the seats a bot may still take (one
 --                                       is the server's own: GIVE WAY)
 --   bot_walk(pid, {forward=, back=, left=, right=, jump=, crouch=,
@@ -1016,6 +1026,7 @@ mod.xearly.after.on_disconnect = function(pid)
 end;
 mod.xearly.after.disconnect_now = advertise_humans;
 
+local report_drops;    -- the send guard's, in THE BROADCASTER below
 local next_advertise = 0;
 
 function mod.after.tick()
@@ -1027,6 +1038,7 @@ function mod.after.tick()
 		next_advertise = now + 1;
 		advertise_humans();
 	end
+	report_drops(now);
 
 	if (not ready) then
 		return;
@@ -1175,28 +1187,182 @@ function people_in(set)
 	end
 end
 
--- THE SEND GUARD. Every packet addressed to a bot alone, or to a group
--- with only bots in it, would never be sent and never be freed.
+--========================== THE BROADCASTER ==========================--
+-- A packet is made for a bot never. A script that has a packet for a
+-- group hands it to the core ONCE, addressed to the group: the core makes
+-- it once and gives it to the peers that match, bots having none. What a
+-- script must not do is walk the players and send one to each -- a bot is
+-- a player, so that is a call, a packet made and a packet dropped for
+-- each of them, 230 times a message.
 --
--- send_packet_flags (lsd/src/funcs_send.c) creates the ENet packet and
--- then hands it to the peers that match, and ENet frees a packet only
--- once a peer has taken it. A group send (team, all-but-one) with no
--- member that has a peer is therefore created and never freed. A
--- single peerless pid used to leak the same way -- fifty guards each
--- sent a WorldUpdate per tick was ~175MB a minute, and it ran the
--- machine out of memory -- and upstream 2cd8e5b fixed that case by
--- returning before the packet is made; the group case is still open.
--- A plain PID_BROADCAST never leaked: enet_host_broadcast destroys a
--- packet nobody took.
+--   broadcast(set, data [, unreliable])  one raw packet to a group (a
+--        PID_BROADCAST... set), or to one person; one call into the core,
+--        and none at all if nobody with a client is in it
+--   broadcast_each(set, fn)              fn(pid) for each PERSON in the
+--        group, for what differs from one recipient to the next (a
+--        language, a team's colour, a viewer's own view); people_in is
+--        the same walk as an iterator
 --
--- Dropping the send here, before C, costs nothing anyone could see: the
--- core would have sent these nowhere anyway. The single-pid branch is
--- kept because it is free and saves the trip into C.
+-- Both go through the whole send chain from its top, as send_packet does.
+-- The typed sends (send_chat, send_fog, send_block_action...) take a
+-- group as they take a pid: send_fog(PID_BROADCAST, c) is already one.
+--
+-- THE SEND GUARD is what is left under that, for the day a script does
+-- not. Every send addressed to a bot, or to a group with only bots in it,
+-- is dropped here, and the ones addressed to a bot COUNTED (bot_guard_drops), and reported in
+-- the log once a minute when there were any, with the first place each
+-- came from: it is a script to fix, not a normal event.
+--
+-- It is also a leak stopped. send_packet_flags (lsd/src/funcs_send.c)
+-- creates the ENet packet and then hands it to the peers that match, and
+-- ENet frees a packet only once a peer has taken it. A group send (team,
+-- all-but-one) with no member that has a peer is created and never
+-- freed. A single peerless pid used to leak the same way -- fifty guards
+-- each sent a WorldUpdate per tick was ~175MB a minute -- and upstream
+-- 2cd8e5b fixed that case by returning before the packet is made; the
+-- group case is still open. A plain PID_BROADCAST never leaked:
+-- enet_host_broadcast destroys a packet nobody took.
 local function only_bots(pid)
 	if (pid >= MAX_PLAYERS and pid < SET) then
 		return false;    -- a handle of the server's own (the console)
 	end
 	return people_in(pid)() == nil;
+end
+
+local drops, drops_total = {}, 0;     -- since the last report: by name
+local drops_ever = {};                -- since the load: by name
+local drops_from = {};                -- name -> where the first came from
+local engine_asks = {};               -- name -> count, see ENGINE below
+local REPORT_EVERY = 60;
+local next_report;
+
+-- Who sent it: the first frame outside this file and the core's chain.
+local function whence()
+	for level = 3, 14 do
+		local info = debug.getinfo(level, "Sl");
+		if (info == nil) then break; end
+		local src = info.short_src or "?";
+		if (not src:find("lib_bot", 1, true) and not src:find("core.lua", 1, true)
+		    and src ~= "[C]") then
+			return string.format("%s:%d", src, info.currentline or 0);
+		end
+	end
+	return "the core";
+end
+
+local function drop(name)
+	drops[name] = (drops[name] or 0) + 1;
+	drops_ever[name] = (drops_ever[name] or 0) + 1;
+	drops_total = drops_total + 1;
+	if (drops_from[name] == nil) then
+		drops_from[name] = whence();
+	end
+end
+
+-- What the core itself sends to the player an event is about, a bot as
+-- much as a person: a map when it connects (send_map, and send_state for
+-- each slot of a group sent a map), the restock and reload of a spawn, a
+-- position, the quirks, a block action for each slot that matches. They
+-- are answered here at once, before any packet is made, and are not a
+-- script's doing: counted apart (the third result of bot_guard_drops),
+-- never reported. The one remedy is the core's: the loops that walk every
+-- slot that matches, the slots with no peer left out.
+local ENGINE = {send_map = true, send_state = true, send_block_action = true,
+	send_restock = true, send_reload = true, send_position = true,
+	send_orientation = true, send_quirks = true, send_quirks_off = true};
+
+-- bot_guard_drops() -> n, by_name, engine_by_name, first_from_by_name: the
+-- sends a script made at a bot since the load, then the core's own (ENGINE
+-- below), then where the first of each came from
+function bot_guard_drops()
+	local by, n = {}, 0;
+	for name, k in pairs(drops_ever) do
+		by[name] = k;
+		n = n + k;
+	end
+	local eng = {};
+	for name, k in pairs(engine_asks) do eng[name] = k; end
+	local from = {};
+	for name, at in pairs(drops_from) do from[name] = at; end
+	return n, by, eng, from;
+end
+
+report_drops = function(now)
+	if (next_report == nil) then
+		next_report = now + REPORT_EVERY;
+		return;
+	end
+	if (now < next_report) then return; end
+	next_report = now + REPORT_EVERY;
+	if (drops_total == 0) then return; end
+	local parts = {};
+	for name, k in pairs(drops) do
+		parts[#parts + 1] = string.format("%s %d (first from %s)", name, k, drops_from[name]);
+	end
+	table.sort(parts);
+	log("lib_bot: %d packets addressed to bots were dropped in the last minute: %s"
+		.. " -- a script sends one to each player; it should use broadcast() or people_in()",
+		drops_total, table.concat(parts, ", "));
+	drops, drops_total = {}, 0;
+end
+
+function broadcast(set, data, unreliable)
+	if (set >= SET and people_in(set)() == nil) then
+		return 0;
+	elseif (set < MAX_PLAYERS and bots[set] ~= nil) then
+		return 0;
+	end
+	if (unreliable) then
+		return send_packet_unreliable(set, data);
+	end
+	return send_packet(set, data);
+end
+
+function broadcast_each(set, fn)
+	for i in people_in(set) do
+		fn(i);
+	end
+end
+
+-- The typed sends, guarded at the top of the chain: one made at a bot
+-- (a pid, not a group) is dropped here before any other script's hook
+-- has had its turn, and before the core makes a packet.
+local TYPED = {"server_msg", "send_chat", "send_state", "send_state_ctf",
+	"send_state_tc", "send_connected_players", "send_quirks", "send_quirks_off",
+	"send_block_action", "send_block_line", "send_set_block_color",
+	"send_set_tool", "send_orientation", "send_position", "send_reload",
+	"send_intel_capture", "send_intel_pickup", "send_intel_drop",
+	"send_restock", "send_disconnect", "send_move_object", "send_map_start",
+	"send_fog", "send_existing_player", "send_move_input", "send_mouse_input",
+	"send_kill", "send_grenade", "send_spawn_player", "send_map"};
+for _, name in ipairs(TYPED) do
+	mod.xearly[name] = function(pid, ...)
+		if (pid < MAX_PLAYERS and bots[pid] ~= nil) then
+			if (ENGINE[name]) then
+				engine_asks[name] = (engine_asks[name] or 0) + 1;
+			else
+				drop(name);
+			end
+			return;
+		end
+		return mod.xearly.next[name](pid, ...);
+	end
+end
+
+-- send_spawn_player is the one the core takes apart itself: for a group
+-- it walks every slot that matches (a bot too), asks has_quirk of it and
+-- makes a send of it (funcs_send.c). Handed a group here it is handed to
+-- the core a person at a time instead: the core's walk is then over one
+-- id, and a bot is not in it.
+local spawn_whole = mod.xearly.send_spawn_player;
+function mod.xearly.send_spawn_player(pid, ...)
+	if (pid >= SET) then
+		for i in people_in(pid) do
+			spawn_whole(i, ...);
+		end
+		return;
+	end
+	return spawn_whole(pid, ...);
 end
 
 -- AND NO WORLD UPDATE IS BUILT FOR A BOT. The core builds one per
@@ -1207,21 +1373,32 @@ end
 -- caller's split ends here.
 function mod.late.send_player_update(pid)
 	if (pid < MAX_PLAYERS and bots[pid] ~= nil) then
+		drop("send_player_update");
 		return;
 	end
 	return mod.late.next.send_player_update(pid);
 end
 
+-- A group with only bots in it (a team of bots told something) is a
+-- normal thing for the core to send and is dropped without a word; a bot
+-- addressed by itself is a script that walked the players: counted.
+local function refuse(name, pid)
+	if (pid < MAX_PLAYERS) then
+		drop(name);
+	end
+	return 0;
+end
+
 function mod.send_packet(pid, data)
 	if (only_bots(pid)) then
-		return 0;
+		return refuse("send_packet", pid);
 	end
 	return mod.next.send_packet(pid, data);
 end
 
 function mod.send_packet_unreliable(pid, data)
 	if (only_bots(pid)) then
-		return 0;
+		return refuse("send_packet_unreliable", pid);
 	end
 	return mod.next.send_packet_unreliable(pid, data);
 end

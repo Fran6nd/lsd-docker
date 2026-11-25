@@ -34,12 +34,22 @@ Upstream LSd modules, patched. Copied over upstream's at every start.
                fall: keidoro's at z 0): the floor under it instead.
                Report upstream.
 
+  purgatory.lua, command_ignore.lua, command_secspec.lua, command_ups.lua
+               Upstream split every packet a script sent to a group
+               (a broadcast, a team) into one send for each id of it,
+               bots too: 230 calls and 230 packets for each packet.
+               A group goes whole, once, unless someone in it needs a
+               different one (a player in purgatory, one who ignores the
+               sender, the spectator who is spoken of); then only the
+               people of it (lib_bot's people_in) are walked. The rule
+               is lib_bot's THE BROADCASTER; tests/bot_sends_test.lua.
+
 Each one is a whole file, so it can drift from upstream silently. A
 change that can be made from outside -- a hook on the chain, in the
-module that owns the rule -- is made there instead: the World Update
-built for each bot is dropped under command_ups by lib_bot's late
-send_player_update hook, and command_ups stays upstream's. What is
-left here could not be (a local function changed, a parse inside).
+module that owns the rule -- is made there instead (the World Update the
+core builds for a bot is dropped by lib_bot's late send_player_update).
+What is left here could not be (a local function changed, a loop inside
+the module that has to be a different loop).
 
 So each file's second line names the upstream file it was made from,
 by a checksum (-- upstream: lsd/scripts/<file> fnv1a32 ...), and each

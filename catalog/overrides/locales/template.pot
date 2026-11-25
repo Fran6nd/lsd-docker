@@ -47,6 +47,34 @@ msgctxt "command"
 msgid "Display the invocation and description of a command."
 msgstr ""
 
+#: catalog/overrides/command_ignore.lua
+#: lsd/scripts/command_ignore.lua
+msgctxt "command"
+msgid "Silence a player."
+msgstr ""
+
+#: catalog/overrides/command_secspec.lua
+#: lsd/scripts/command_secspec.lua
+msgctxt "command"
+msgid "Stick yourself into spectator without anybody else knowing."
+msgstr ""
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgid "%(arg) should be one of {%(freqs)} (Hz)"
+msgstr ""
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgid "Current update rate: %(freq) Hz"
+msgstr ""
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgctxt "command"
+msgid "Get/set the rate your client receives player position/orientation."
+msgstr ""
+
 #: catalog/overrides/lib_l10n.lua
 msgid "usage: %(cmd)"
 msgstr ""
@@ -809,11 +837,6 @@ msgctxt "command"
 msgid "Get or set the fog color."
 msgstr ""
 
-#: lsd/scripts/command_ignore.lua
-msgctxt "command"
-msgid "Silence a player."
-msgstr ""
-
 #: lsd/scripts/command_ip.lua
 msgid "%(name): %(addr)"
 msgstr ""
@@ -924,11 +947,6 @@ msgctxt "command"
 msgid "Send a message to all players, as if you sent it. Does not parse arguments."
 msgstr ""
 
-#: lsd/scripts/command_secspec.lua
-msgctxt "command"
-msgid "Stick yourself into spectator without anybody else knowing."
-msgstr ""
-
 #: lsd/scripts/command_server.lua
 msgid "Unknown address"
 msgstr ""
@@ -954,19 +972,6 @@ msgstr ""
 #: lsd/scripts/command_tp.lua
 msgctxt "command"
 msgid "Teleport one player (or you) to a different player."
-msgstr ""
-
-#: lsd/scripts/command_ups.lua
-msgid "%(arg) should be one of {%(freqs)} (Hz)"
-msgstr ""
-
-#: lsd/scripts/command_ups.lua
-msgid "Current update rate: %(freq) Hz"
-msgstr ""
-
-#: lsd/scripts/command_ups.lua
-msgctxt "command"
-msgid "Get/set the rate your client receives player position/orientation."
 msgstr ""
 
 #: lsd/scripts/command_version.lua

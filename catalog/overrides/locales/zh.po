@@ -49,6 +49,34 @@ msgctxt "command"
 msgid "Display the invocation and description of a command."
 msgstr "显示命令的用法和说明。"
 
+#: catalog/overrides/command_ignore.lua
+#: lsd/scripts/command_ignore.lua
+msgctxt "command"
+msgid "Silence a player."
+msgstr "禁言一名玩家。"
+
+#: catalog/overrides/command_secspec.lua
+#: lsd/scripts/command_secspec.lua
+msgctxt "command"
+msgid "Stick yourself into spectator without anybody else knowing."
+msgstr "悄悄进入观战，不让任何人知道。"
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgid "%(arg) should be one of {%(freqs)} (Hz)"
+msgstr "%(arg) 必须是 {%(freqs)} 之一（Hz）"
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgid "Current update rate: %(freq) Hz"
+msgstr "当前更新频率：%(freq) Hz"
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgctxt "command"
+msgid "Get/set the rate your client receives player position/orientation."
+msgstr "获取/设置你的客户端接收玩家位置/朝向的频率。"
+
 #: catalog/overrides/lib_l10n.lua
 msgid "usage: %(cmd)"
 msgstr "用法：%(cmd)"
@@ -811,11 +839,6 @@ msgctxt "command"
 msgid "Get or set the fog color."
 msgstr "获取或设置雾的颜色。"
 
-#: lsd/scripts/command_ignore.lua
-msgctxt "command"
-msgid "Silence a player."
-msgstr "禁言一名玩家。"
-
 #: lsd/scripts/command_ip.lua
 msgid "%(name): %(addr)"
 msgstr "%(name)：%(addr)"
@@ -926,11 +949,6 @@ msgctxt "command"
 msgid "Send a message to all players, as if you sent it. Does not parse arguments."
 msgstr "以你的名义向所有玩家发送消息。不解析参数。"
 
-#: lsd/scripts/command_secspec.lua
-msgctxt "command"
-msgid "Stick yourself into spectator without anybody else knowing."
-msgstr "悄悄进入观战，不让任何人知道。"
-
 #: lsd/scripts/command_server.lua
 msgid "Unknown address"
 msgstr "未知地址"
@@ -957,19 +975,6 @@ msgstr "你成功地哪儿也没去。"
 msgctxt "command"
 msgid "Teleport one player (or you) to a different player."
 msgstr "将一名玩家（或你）传送到另一名玩家处。"
-
-#: lsd/scripts/command_ups.lua
-msgid "%(arg) should be one of {%(freqs)} (Hz)"
-msgstr "%(arg) 必须是 {%(freqs)} 之一（Hz）"
-
-#: lsd/scripts/command_ups.lua
-msgid "Current update rate: %(freq) Hz"
-msgstr "当前更新频率：%(freq) Hz"
-
-#: lsd/scripts/command_ups.lua
-msgctxt "command"
-msgid "Get/set the rate your client receives player position/orientation."
-msgstr "获取/设置你的客户端接收玩家位置/朝向的频率。"
 
 #: lsd/scripts/command_version.lua
 msgid "Running %(server_name) commit %(commit)"

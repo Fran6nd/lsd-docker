@@ -49,6 +49,34 @@ msgctxt "command"
 msgid "Display the invocation and description of a command."
 msgstr "Показать синтаксис и описание команды."
 
+#: catalog/overrides/command_ignore.lua
+#: lsd/scripts/command_ignore.lua
+msgctxt "command"
+msgid "Silence a player."
+msgstr "Заглушить игрока."
+
+#: catalog/overrides/command_secspec.lua
+#: lsd/scripts/command_secspec.lua
+msgctxt "command"
+msgid "Stick yourself into spectator without anybody else knowing."
+msgstr "Незаметно для всех перейти в наблюдатели."
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgid "%(arg) should be one of {%(freqs)} (Hz)"
+msgstr "%(arg) должен быть одним из {%(freqs)} (Hz)"
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgid "Current update rate: %(freq) Hz"
+msgstr "Текущая частота обновления: %(freq) Hz"
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgctxt "command"
+msgid "Get/set the rate your client receives player position/orientation."
+msgstr "Узнать/задать частоту, с которой клиент получает позиции/направления игроков."
+
 #: catalog/overrides/lib_l10n.lua
 msgid "usage: %(cmd)"
 msgstr "использование: %(cmd)"
@@ -811,11 +839,6 @@ msgctxt "command"
 msgid "Get or set the fog color."
 msgstr "Узнать или задать цвет тумана."
 
-#: lsd/scripts/command_ignore.lua
-msgctxt "command"
-msgid "Silence a player."
-msgstr "Заглушить игрока."
-
 #: lsd/scripts/command_ip.lua
 msgid "%(name): %(addr)"
 msgstr "%(name): %(addr)"
@@ -926,11 +949,6 @@ msgctxt "command"
 msgid "Send a message to all players, as if you sent it. Does not parse arguments."
 msgstr "Отправить сообщение всем игрокам, будто его написал ты. Аргументы не разбираются."
 
-#: lsd/scripts/command_secspec.lua
-msgctxt "command"
-msgid "Stick yourself into spectator without anybody else knowing."
-msgstr "Незаметно для всех перейти в наблюдатели."
-
 #: lsd/scripts/command_server.lua
 msgid "Unknown address"
 msgstr "Неизвестный адрес"
@@ -957,19 +975,6 @@ msgstr "Ты успешно никуда не переместился."
 msgctxt "command"
 msgid "Teleport one player (or you) to a different player."
 msgstr "Телепортировать игрока (или себя) к другому игроку."
-
-#: lsd/scripts/command_ups.lua
-msgid "%(arg) should be one of {%(freqs)} (Hz)"
-msgstr "%(arg) должен быть одним из {%(freqs)} (Hz)"
-
-#: lsd/scripts/command_ups.lua
-msgid "Current update rate: %(freq) Hz"
-msgstr "Текущая частота обновления: %(freq) Hz"
-
-#: lsd/scripts/command_ups.lua
-msgctxt "command"
-msgid "Get/set the rate your client receives player position/orientation."
-msgstr "Узнать/задать частоту, с которой клиент получает позиции/направления игроков."
 
 #: lsd/scripts/command_version.lua
 msgid "Running %(server_name) commit %(commit)"
