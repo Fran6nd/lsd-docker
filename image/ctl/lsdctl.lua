@@ -1921,8 +1921,24 @@ end
 
 local bots_sub = {};
 
+-- The kinds of bot the engine has: the built-in file, then the
+-- operator's over it -- the order botd reads them in.
+local function archetypes_args()
+	local args = {};
+	for _, dir in ipairs({TREES_BUILTIN, TREES_USER}) do
+		local f = dir .. "/archetypes.txt";
+		local fh = io.open(f, "r");
+		if (fh ~= nil) then
+			fh:close();
+			args[#args + 1] = "--archetypes " .. sh_quote(f);
+		end
+	end
+	return table.concat(args, " ");
+end
+
 bots_sub.schema = function(words, flags)
-	local out, code = bttree("--schema");
+	local kinds = archetypes_args();
+	local out, code = bttree(kinds == "" and "--schema" or "--schema " .. kinds);
 	if (code ~= 0) then bots_fail(flags, "bttree --schema failed"); end
 	io.write(out);
 end
