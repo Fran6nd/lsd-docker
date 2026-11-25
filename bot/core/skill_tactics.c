@@ -47,6 +47,7 @@
  *    there is no way is run once, not once a bot.
  */
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "brain.h"
@@ -904,4 +905,50 @@ void bc_do_tactics_stop(void *bot, const bt_args *a)
 	 * kept (its claim runs out by itself) */
 	b->flank.phase = 0;
 	bc_move_stop(b);
+}
+
+/* --- claims ---------------------------------------------------------------- */
+
+int bc_claim(bc_bot *b, const char *name, int n, int take)
+{
+	bc_engine *e = b->e;
+	int i, before = 0, mine;
+	const double keep = 2.0;
+
+	mine = !strcmp(b->slot.name, name) && e->now - b->slot.at <= keep;
+	for (i = 0; i < e->max_bots; i++) {
+		const bc_bot *o = &e->bots[i];
+
+		if (!o->used || o == b || e->w.players[o->pid].team != bc_me(b)->team ||
+		    strcmp(o->slot.name, name) || e->now - o->slot.at > keep)
+			continue;
+		if (!mine || o->slot.since < b->slot.since || (o->slot.since == b->slot.since && o->pid < b->pid))
+			before++;
+	}
+	if (before >= n)
+		return 0;
+	if (take) {
+		if (!mine) {
+			snprintf(b->slot.name, sizeof b->slot.name, "%s", name);
+			b->slot.since = e->now;
+		}
+		b->slot.at = e->now;
+	}
+	return 1;
+}
+
+bc_blueprint *bc_blueprint_for(bc_bot *b, const char *name)
+{
+	bc_engine *e = b->e;
+	char tn[BC_BLUEPRINT_NAME + 4];
+	bc_blueprint *bp = NULL;
+	int team = bc_me(b)->team;
+
+	if (!e->blueprints)
+		return NULL;
+	if (team == 1 || team == 2) {
+		snprintf(tn, sizeof tn, "%s@%d", name, team);
+		bp = bc_blueprint_get(e->blueprints, tn);
+	}
+	return bp ? bp : bc_blueprint_get(e->blueprints, name);
 }

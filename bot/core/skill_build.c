@@ -28,6 +28,8 @@
  *                       allowed, no way near, or 15 s without it going.
  */
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "brain.h"
@@ -123,9 +125,13 @@ static int edit_stand(bc_bot *b, int x, int y, int z, int build)
  * edit_stand chose (b->bld.from) by an exact route, then the tool out, the
  * head on the voxel, and the edit sent when the bot's own eye sees it as
  * the server will judge it. RUNNING till then; SUCCESS when the voxel is
- * as wanted; FAILURE no way to the stand, or past b->bld.until. The
- * caller starts b->bld (started, until, from). */
-static bt_status edit_voxel(bc_bot *b, int x, int y, int z, int build)
+ * as wanted; FAILURE no way to the stand, or past b->bld.until -- `secs`
+ * at the stand: on the way there it is pushed on (the way is the route's
+ * to fail, as build_at's is; a builder from across the map is no slower
+ * a builder). The caller starts b->bld (started, until, from). */
+static const double EDIT_SECS = 15.0;   /* at the stand, and the edit not made: given up */
+
+static bt_status edit_voxel(bc_bot *b, int x, int y, int z, int build, double secs)
 {
 	bc_engine *e = b->e;
 	const bl_player *me = bc_me(b);
@@ -143,15 +149,29 @@ static bt_status edit_voxel(bc_bot *b, int x, int y, int z, int build)
 	bc_fire_at_will(b);
 	if (st == BC_MV_FAILED)
 		return BT_FAILURE;
-	if (st != BC_MV_ARRIVED)
+	if (st != BC_MV_ARRIVED) {
+		b->bld.until = e->now + secs;
 		return BT_RUNNING;
+	}
 	b->wish.move = BC_MOVE_NONE;
 	b->wish.tool = build ? BL_TOOL_BLOCK : BL_TOOL_SPADE;
 	b->wish.look = BC_LOOK_POINT;
 	b->wish.look_at.x = (float)x + 0.5f; b->wish.look_at.y = (float)y + 0.5f; b->wish.look_at.z = (float)z + 0.5f;
 	eye[0] = me->pos.x; eye[1] = me->pos.y; eye[2] = me->pos.z;
-	if (me->tool == (build ? BL_TOOL_BLOCK : BL_TOOL_SPADE) && e->now >= b->bld.edit_at &&
-	    bc_nav_sees_edit_from(e->map, b->bld.from, eye, x, y, z, build)) {
+	if (!bc_nav_sees_edit_from(e->map, b->bld.from, eye, x, y, z, build)) {
+		/* not from here. From the stand's middle no more either (a block
+		 * put since, a team-mate's, between): another stand, or none;
+		 * from its middle still: there, as the follower stands for an
+		 * edit (the body is a little off it) */
+		float cx = (float)b->bld.from.x + 0.5f - me->pos.x, cy = (float)b->bld.from.y + 0.5f - me->pos.y;
+
+		if (!bc_nav_sees_edit(e->map, b->bld.from, x, y, z, build))
+			return edit_stand(b, x, y, z, build) ? BT_RUNNING : BT_FAILURE;
+		b->wish.move = BC_MOVE_FREE;
+		b->wish.mx = cx; b->wish.my = cy;
+		return BT_RUNNING;
+	}
+	if (me->tool == (build ? BL_TOOL_BLOCK : BL_TOOL_SPADE) && e->now >= b->bld.edit_at) {
 		bl_ac_block ac;
 
 		memset(&ac, 0, sizeof ac);
@@ -187,9 +207,9 @@ bt_status bc_do_dig_at(void *bot, const bt_args *a, float dt)
 		if (zoned(b, x, y, 1) || !edit_stand(b, x, y, z, 0))
 			return BT_FAILURE;
 		b->bld.started = 1;
-		b->bld.until = e->now + 15.0;
+		b->bld.until = e->now + EDIT_SECS;
 	}
-	r = edit_voxel(b, x, y, z, 0);
+	r = edit_voxel(b, x, y, z, 0, EDIT_SECS);
 	if (r != BT_RUNNING)
 		b->bld.started = 0;
 	return r;
@@ -358,7 +378,7 @@ bt_status bc_do_dig_weakest(void *bot, const bt_args *a, float dt)
 		b->bld.started = 1;
 		b->bld.dx = -1;             /* which voxel of the cut it stands for: none yet */
 		b->bld.blast = 0;
-		b->bld.until = e->now + 15.0;
+		b->bld.until = e->now + EDIT_SECS;
 	}
 	for (k = 0; k < b->bld.n_cut; k++) {
 		const bc_nav_node *v = &b->bld.cut[k];
@@ -410,7 +430,7 @@ bt_status bc_do_dig_weakest(void *bot, const bt_args *a, float dt)
 			}
 			b->bld.dx = (int8_t)k;
 		}
-		r = edit_voxel(b, v->x, v->y, v->z, 0);
+		r = edit_voxel(b, v->x, v->y, v->z, 0, EDIT_SECS);
 		break;
 	}
 	if (r == BT_RUNNING)
@@ -493,7 +513,7 @@ bt_status bc_do_build_cover(void *bot, const bt_args *a, float dt)
 			b->bld.started = 0;
 			return BT_FAILURE;
 		}
-		r = edit_voxel(b, x, y, z, 1);
+		r = edit_voxel(b, x, y, z, 1, 8.0);
 		if (r == BT_FAILURE) {
 			if (k < 2) { b->bld.started = 0; return BT_FAILURE; }
 			continue;
@@ -505,6 +525,284 @@ bt_status bc_do_build_cover(void *bot, const bt_args *a, float dt)
 	}
 	b->bld.started = 0;
 	return BT_SUCCESS;
+}
+
+/* --- build_part <blueprint> -------------------------------------------------
+ *
+ * Builds a blueprint (blueprint.h) with the rest of its team, a PART at a
+ * time: the first voxel of the list not yet solid that can be put now (a
+ * solid face to go against, and no earlier part still to come under it in
+ * its column: the list is in the order things rest on one another), with
+ * nobody in it, nobody else's, not marked; it goes there and, within
+ * reach of it, CLAIMS it (bc_claim: a part is a duty for one), builds it
+ * (part_start says how) and takes the next. A part it could not make is
+ * marked for everybody for 30 s (as the team's no-way memory keeps a
+ * goal). RUNNING while it works; SUCCESS the blueprint is whole; FAILURE
+ * no such blueprint, building not allowed, no block, or no part free for
+ * it (all built, claimed, waiting or marked). */
+
+static const double PART_MARK = 30.0;
+
+static void part_name(const bc_blueprint *bp, int i, char *out, size_t n)
+{
+	snprintf(out, n, "%s#%d", bp->name, i);
+}
+
+static int face_neighbour(const bc_map *m, int x, int y, int z)
+{
+	return bc_map_solid(m, x + 1, y, z) || bc_map_solid(m, x - 1, y, z) || bc_map_solid(m, x, y + 1, z) ||
+	       bc_map_solid(m, x, y - 1, z) || bc_map_solid(m, x, y, z + 1) || (z > 0 && bc_map_solid(m, x, y, z - 1));
+}
+
+/* a body (anybody's, alive) in the voxel: a block cannot go there now --
+ * not a part nobody can make, one somebody is standing in */
+static int body_in(const bc_engine *e, const bc_bot *self, int x, int y, int z)
+{
+	int i;
+
+	for (i = 0; i < BL_MAX_PLAYERS; i++) {
+		const bl_player *p = &e->w.players[i];
+
+		if (p->state != BL_ALIVE || i == self->pid)
+			continue;
+		if (p->pos.x + 0.45f > (float)x && p->pos.x - 0.45f < (float)x + 1.0f &&
+		    p->pos.y + 0.45f > (float)y && p->pos.y - 0.45f < (float)y + 1.0f &&
+		    (float)z + 1.0f > p->pos.z - 0.5f && (float)z < p->pos.z + 2.25f)
+			return 1;
+	}
+	return 0;
+}
+
+/* an earlier part of the list, not built yet, under this one in its
+ * column: the list's order is what rests on what, and a block put over
+ * one that is still to come would cover it from every eye (a riser under
+ * a step already laid) */
+static int waits_on_below(const bc_engine *e, const bc_blueprint *bp, int i)
+{
+	const bc_bp_cell *c = &bp->cells[i];
+	int j;
+
+	for (j = 0; j < i; j++) {
+		const bc_bp_cell *u = &bp->cells[j];
+
+		if (u->x == c->x && u->y == c->y && u->z > c->z && !bc_map_solid(e->map, u->x, u->y, u->z))
+			return 1;
+	}
+	return 0;
+}
+
+/* the part of bp this bot works at -- holds, or is on its way to (named
+ * in its slot, not claimed yet: slot.since kept fresh, slot.at not) --,
+ * or -1 */
+static int held_part(const bc_bot *b, const bc_blueprint *bp)
+{
+	size_t l = strlen(bp->name);
+
+	if ((b->e->now - b->slot.at > 2.0 && b->e->now - b->slot.since > 2.0) || strncmp(b->slot.name, bp->name, l) ||
+	    b->slot.name[l] != '#')
+		return -1;
+	return atoi(b->slot.name + l + 1);
+}
+
+/* within the server's reach of it (5 of the eye to the voxel's middle:
+ * bc_nav_sees_edit's): where a part is claimed. On the way it is not --
+ * a builder held up on the way, or gone a long way round, keeps it from
+ * nobody: whoever gets there first makes it, the others the next */
+static int part_near(const bc_bot *b, const bc_bp_cell *c)
+{
+	const bl_player *me = bc_me(b);
+	float dx = (float)c->x + 0.5f - me->pos.x, dy = (float)c->y + 0.5f - me->pos.y, dz = (float)c->z + 0.5f - me->pos.z;
+
+	return dx * dx + dy * dy + dz * dz <= 5.0f * 5.0f;
+}
+
+static void part_let_go(bc_bot *b)
+{
+	b->slot.name[0] = 0;
+	b->bld.started = 0;
+}
+
+/* the body standing in a part still to come (on any of the cells over
+ * the floor it stands on) */
+static int body_in_parts(const bc_engine *e, const bc_blueprint *bp, bc_nav_node floor)
+{
+	int i;
+
+	for (i = 0; i < bp->n; i++) {
+		const bc_bp_cell *c = &bp->cells[i];
+
+		if (c->x == floor.x && c->y == floor.y && c->z < floor.z && c->z >= floor.z - 3 &&
+		    !bc_map_solid(e->map, c->x, c->y, c->z))
+			return 1;
+	}
+	return 0;
+}
+
+/* NO PART FOR IT, and standing where one goes: off it, to the nearest
+ * floor round it that is in no part's way (a builder with nothing to put
+ * does not stand where another would put: two waiting in one part kept
+ * it from each other for good). 1 on its way, 0 not in the way (or
+ * nowhere better). */
+static int step_off_parts(bc_bot *b, const bc_blueprint *bp)
+{
+	bc_engine *e = b->e;
+	const bl_player *me = bc_me(b);
+	bc_nav_node here, best;
+	float bd = 1e30f;
+	int sx, sy, mv, x0 = (int)floorf(me->pos.x), y0 = (int)floorf(me->pos.y);
+	bl_vec3 p;
+
+	here.x = (int16_t)x0; here.y = (int16_t)y0; here.z = (int16_t)floorf(me->pos.z + 2.25f + 0.5f);
+	if (!body_in_parts(e, bp, here))
+		return 0;
+	for (sy = y0 - 2; sy <= y0 + 2; sy++)
+		for (sx = x0 - 2; sx <= x0 + 2; sx++) {
+			uint64_t st = bc_map_stand_bits(bc_map_col(e->map, sx, sy));
+
+			for (; st; st &= st - 1) {
+				bc_nav_node n;
+				float dx, dy, dz, d;
+
+				n.x = (int16_t)sx; n.y = (int16_t)sy; n.z = (int16_t)bc_ctz64(st);
+				if (n.z >= BC_MAP_WATER_Z || body_in_parts(e, bp, n))
+					continue;
+				dx = (float)sx + 0.5f - me->pos.x; dy = (float)sy + 0.5f - me->pos.y;
+				dz = (float)n.z - 2.25f - me->pos.z;
+				d = dx * dx + dy * dy + dz * dz;
+				if (d < bd) { bd = d; best = n; }
+			}
+		}
+	if (bd > 1e29f)
+		return 0;
+	p.x = (float)best.x + 0.5f; p.y = (float)best.y + 0.5f; p.z = (float)best.z - 2.25f;
+	mv = bc_move_to_raw(b, p, 0.0f);
+	return mv == BC_MV_PLANNING || mv == BC_MV_FOLLOWING;
+}
+
+/* Start part i. The FIRST part left -- the structure's edge, that
+ * nothing before it will make a floor for -- when it can be a floor (air
+ * for a body over it) is made as build_at makes one: stood on, the route
+ * building it as it climbs, the quickest way up a stair. Any other part
+ * is put from a floor that sees a face for it (edit_stand); the first too
+ * when it cannot be a floor, or the way onto it was not found last time.
+ * A later part no floor sees waits for the parts before it (not looked at
+ * again till the map changes); the first that cannot be made either way
+ * is marked. 1 started (b->bld), 0 not. */
+static int part_start(bc_bot *b, bc_blueprint *bp, int i, int first)
+{
+	bc_engine *e = b->e;
+	bc_bp_cell *c = &bp->cells[i];
+
+	b->bld.until = e->now + EDIT_SECS;
+	if (first && !c->climb_failed && !bc_map_solid(e->map, c->x, c->y, c->z - 1) &&
+	    !bc_map_solid(e->map, c->x, c->y, c->z - 2)) {
+		b->bld.started = 2;
+		return 1;
+	}
+	if (c->unseen == e->map->rev + 1u && !first)
+		return 0;
+	if (edit_stand(b, c->x, c->y, c->z, 1)) {
+		c->unseen = 0;
+		b->bld.started = 1;
+		return 1;
+	}
+	c->unseen = e->map->rev + 1u;
+	if (first) {
+		c->climb_failed = 0;
+		bc_engine_log(e, 1, "bot #%d: %s part %d %d %d: no floor sees it, none to stand on: left %.0f s",
+		              b->pid, bp->name, c->x, c->y, c->z, PART_MARK);
+		c->bad_until = e->now + PART_MARK;
+	}
+	return 0;
+}
+
+bt_status bc_do_build_part(void *bot, const bt_args *a, float dt)
+{
+	bc_bot *b = bot;
+	bc_engine *e = b->e;
+	bc_blueprint *bp;
+	char name[48];
+	int i, cur, first = -1, left = 0;
+
+	(void)dt;
+	if (a->count < 1 || !(bp = bc_blueprint_for(b, a->text[0])) || !e->have_map || !may_edit(b, 0) ||
+	    bc_me(b)->blocks == 0)
+		return BT_FAILURE;
+	cur = held_part(b, bp);
+	if (cur >= bp->n || (cur >= 0 && (bc_map_solid(e->map, bp->cells[cur].x, bp->cells[cur].y, bp->cells[cur].z) ||
+	                                  e->now < bp->cells[cur].bad_until || !b->bld.started))) {
+		part_let_go(b);
+		cur = -1;
+	}
+	if (cur < 0) {
+		b->bld.started = 0;
+		for (i = 0; i < bp->n; i++) {
+			const bc_bp_cell *c = &bp->cells[i];
+
+			if (bc_map_solid(e->map, c->x, c->y, c->z))
+				continue;
+			left++;
+			if (cur >= 0 || e->now < c->bad_until)
+				continue;
+			if (first < 0)
+				first = i;
+			if (!face_neighbour(e->map, c->x, c->y, c->z) || zoned(b, c->x, c->y, 0) ||
+			    body_in(e, b, c->x, c->y, c->z) || waits_on_below(e, bp, i))
+				continue;
+			part_name(bp, i, name, sizeof name);
+			if (bc_claim(b, name, 1, 0) && part_start(b, bp, i, i == first))
+				cur = i;
+		}
+		if (cur < 0)
+			return !left ? BT_SUCCESS : step_off_parts(b, bp) ? BT_RUNNING : BT_FAILURE;
+	}
+	part_name(bp, cur, name, sizeof name);
+	{
+		const bc_bp_cell *c = &bp->cells[cur];
+		int claimed = !strcmp(b->slot.name, name) && e->now - b->slot.at <= 2.0;
+		bt_status r;
+
+		/* claimed there (and kept); on the way, only named -- and let go
+		 * as soon as somebody there has claimed it */
+		if (!bc_claim(b, name, 1, claimed || part_near(b, c))) {
+			part_let_go(b);
+			return BT_RUNNING;
+		}
+		if (!claimed && !part_near(b, c)) {
+			snprintf(b->slot.name, sizeof b->slot.name, "%s", name);
+			b->slot.since = e->now;
+		}
+
+		/* somebody else standing in it: another part meanwhile, this one
+		 * not marked */
+		if (body_in(e, b, c->x, c->y, c->z)) {
+			part_let_go(b);
+			return BT_RUNNING;
+		}
+		if (b->bld.started == 1) {
+			r = edit_voxel(b, c->x, c->y, c->z, 1, EDIT_SECS);
+		} else {
+			bl_vec3 eye;
+			int st;
+
+			eye.x = (float)c->x + 0.5f; eye.y = (float)c->y + 0.5f; eye.z = (float)c->z - 2.25f;
+			st = bc_move_to_raw(b, eye, 0.0f);
+			bc_fire_at_will(b);
+			r = st == BC_MV_ARRIVED || bc_map_solid(e->map, c->x, c->y, c->z) ? BT_SUCCESS
+			  : st == BC_MV_FAILED ? BT_FAILURE : BT_RUNNING;
+		}
+		if (r == BT_FAILURE && b->bld.started == 2) {
+			bp->cells[cur].climb_failed = 1;        /* no way onto it: put from beside it, next */
+		} else if (r == BT_FAILURE) {
+			bc_engine_log(e, 1, "bot #%d: %s part %d %d %d: %s: left %.0f s", b->pid, bp->name, c->x, c->y, c->z,
+			              e->now >= b->bld.until ? "not put in 15 s" : "no way to where it is put from", PART_MARK);
+			bp->cells[cur].bad_until = e->now + PART_MARK;
+			bp->cells[cur].climb_failed = 0;
+		}
+		if (r != BT_RUNNING)
+			part_let_go(b);         /* the next, at the next tick */
+		return BT_RUNNING;
+	}
 }
 
 /* --- put_at <place> -------------------------------------------------------
@@ -541,9 +839,9 @@ bt_status bc_do_put_at(void *bot, const bt_args *a, float dt)
 		if (bc_me(b)->blocks == 0 || zoned(b, x, y, 0) || !edit_stand(b, x, y, z, 1))
 			return BT_FAILURE;
 		b->bld.started = 1;
-		b->bld.until = e->now + 15.0;
+		b->bld.until = e->now + EDIT_SECS;
 	}
-	r = edit_voxel(b, x, y, z, 1);
+	r = edit_voxel(b, x, y, z, 1, EDIT_SECS);
 	if (r != BT_RUNNING)
 		b->bld.started = 0;
 	return r;

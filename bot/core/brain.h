@@ -33,6 +33,7 @@
 #include "body.h"
 #include "bt.h"
 #include "cull.h"
+#include "blueprint.h"
 #include "engine.h"
 #include "map.h"
 #include "nav.h"
@@ -299,7 +300,7 @@ typedef struct bc_bot {
 	struct { uint8_t started, pad_[7]; double until; bl_vec3 spot, place; } guard;
 	struct { double stand_since; } fetch;
 	struct { double since, at; } esc;    /* escorting: since when, the last tick (skill_objective.c) */
-	struct { char name[16]; double since, at; } slot;   /* a duty for a few of the team it holds (vocab.c `slot`) */
+	struct { char name[32]; double since, at; } slot;   /* the claim it holds: a duty for a few, a blueprint's part (bc_claim) */
 	struct { int16_t leader; uint8_t pad_[6]; double eval_at, still_since, off_until; bl_vec3 still_at; } squad;
 	uint32_t kills;         /* this life's */
 	double born_at;         /* when this life began */
@@ -474,6 +475,7 @@ struct bc_engine {
 	char *base_text, *custom_text;      /* the trees as given, for recompiling */
 	bc_fact facts[BC_FACTS_MAX];        /* the world's (THE BRIDGE) */
 	bc_splace places[BC_SPLACES_MAX];
+	bc_blueprints *blueprints;      /* structures to build (blueprint.h) */
 	/* a setting too long for one record, arriving in pieces (engine.c,
 	 * SETTINGS: "+key#total=..."): what has come so far */
 	struct {
@@ -660,6 +662,13 @@ int bc_obj_ours(const bc_engine *e, int team);
 /* a mate carries their intel, is going somewhere, and fewer than two
  * escort him (or this bot is one of them): skill_objective.c */
 int bc_escort_open(bc_bot *b);
+/* THE ONE CLAIM: a named duty held by at most n of a team -- babel's
+ * platform (n 3), a blueprint's part (n 1). Asked with take, and free (or
+ * this bot's already), it is this bot's: 1. A claim lapses 2 s after it
+ * was last asked for; the first to come keep it. skill_tactics.c */
+int bc_claim(bc_bot *b, const char *name, int n, int take);
+/* the blueprint `name` for this bot: its team's ("name@1"), else the world's */
+bc_blueprint *bc_blueprint_for(bc_bot *b, const char *name);
 int bc_carrying(const bc_bot *b);
 /* "thief" (who carries this team's), "carrier" (the team-mate who carries
  * the other's), "intercept" (where to cut the thief off) */

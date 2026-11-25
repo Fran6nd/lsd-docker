@@ -1331,6 +1331,7 @@ comment, SETTINGS, has the detail):
 | `item.<name>.tree`, `.guide` | | 4 above |
 | `extra.<name>.tree` | | 3 above |
 | `fact.<name>` *, `place.<name>` * | | 8 and 9 below |
+| `blueprint.<name>` | `x y z; x y z; ...` (empty: forgotten) | a structure for the team to build, a part each (`build_part`, [VOCAB.md](VOCAB.md)): its voxels in the order they rest on each other, team-scoped as places are (`blueprint.stair@1`); 16, of 8192 voxels at most. The same text again changes nothing (who holds which part, what is left alone, stand) |
 | anything else | any text | kept, for a tree's `if setting <key> [value]`: how a mode's tree reads the mode's own rules |
 
 *Tested: `engine_test.c` ("settings", "traits"), `botlink_test.lua`

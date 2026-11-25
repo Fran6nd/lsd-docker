@@ -28,8 +28,12 @@
 --   zone=<platform> both; <each team's tower area> nodig for it and
 --                               nobuild for the other (babel_protect)
 --                               (babel refuses them there)
---   place.stair, place.stair_top, place.stair_foot, place.widen,
---   place.prop, place.breach    each team's, as the world's "<name>@<team>"
+--   blueprint.stair, blueprint.widen, blueprint.prop   each team's
+--                               structures, voxel by voxel from the ground
+--                               up: the bots share them out a part each
+--                               (`build_part`); said again only changed
+--   place.stair_top, place.stair_foot, place.breach   each team's, as the
+--                               world's "<name>@<team>"
 --   fact.stair_done, fact.stair_high, fact.widen, fact.prop, fact.breach
 --   place.intel, place.intel_home  for everybody (who carries it the engine
 --                               reads from the world: `carrying_intel`)
@@ -268,26 +272,36 @@ end
 -- voxel under it (its riser), face to face with the next column's. Dug
 -- anywhere it holds only by its foot, and all above the cut falls (the
 -- server's cull). Two ways to make it hold:
---   WIDEN: the same band on the row beside it, a block at a time (put_at),
---     bottom first: a block dug from one row leaves the other holding it.
+--   WIDEN: the same band on the row beside it, bottom first: a block dug
+--     from one row leaves the other holding it.
 --   PROP: a pillar from the ground beside a column, up to its step's
---     level (where it meets the step face to face), built standing on it
---     as it rises (build_at on its next block): a cut drops no more than
---     the stretch up to the next prop. The next prop goes under the
+--     level (where it meets the step face to face): a cut drops no more
+--     than the stretch up to the next prop. The next prop goes under the
 --     middle of the longest stretch with none -- a cut's worst, halved.
+-- Each is a BLUEPRINT for the team's bots (the stair's band too): its
+-- voxels in the order they rest on each other, which the bots share out
+-- a part each, so that the team spreads over it instead of chasing one
+-- next block together.
 -- The other team's stair is broken where it is weakest: in the middle of
 -- its longest stretch without a prop (the engine's dig_weakest picks the
 -- block there whose removal drops the most).
 
--- one row's band, bottom first: {x, y, z} cells under the ground left out
+-- one row's band, bottom first: {x, y, z} cells under the ground left out.
+-- Laid out once, on the ground as the stair was laid on (what the team
+-- builds on the ground would be ground to ground_at, and the band would
+-- shrink under the builders' hands as they build it)
 local function band(st, y)
-	local cells = {};
-	for _, p in ipairs(st.steps) do
-		local g = ground_at(p.x, y);
-		if (p.z + 1 < g) then cells[#cells + 1] = {x = p.x, y = y, z = p.z + 1}; end
-		if (p.z < g) then cells[#cells + 1] = {x = p.x, y = y, z = p.z}; end
+	st.bands = st.bands or {};
+	if (st.bands[y] == nil) then
+		local cells = {};
+		for _, p in ipairs(st.steps) do
+			local g = ground_at(p.x, y);
+			if (p.z + 1 < g) then cells[#cells + 1] = {x = p.x, y = y, z = p.z + 1}; end
+			if (p.z < g) then cells[#cells + 1] = {x = p.x, y = y, z = p.z}; end
+		end
+		st.bands[y] = cells;
 	end
-	return cells;
+	return st.bands[y];
 end
 
 local function first_missing(cells)
@@ -296,13 +310,18 @@ local function first_missing(cells)
 	end
 end
 
--- a prop's cells beside the step p, from the ground up to the step's level
+-- a prop's cells beside the step p, from the ground up to the step's
+-- level; laid out once, as the band is (its own blocks are no ground)
 local function prop_cells(st, p)
-	local cells = {};
-	for z = ground_at(p.x, st.prop_y) - 1, p.z, -1 do
-		cells[#cells + 1] = {x = p.x, y = st.prop_y, z = z};
+	st.props = st.props or {};
+	if (st.props[p.x] == nil) then
+		local cells = {};
+		for z = ground_at(p.x, st.prop_y) - 1, p.z, -1 do
+			cells[#cells + 1] = {x = p.x, y = st.prop_y, z = z};
+		end
+		st.props[p.x] = cells;
 	end
-	return cells;
+	return st.props[p.x];
 end
 
 -- the step in the middle of the longest stretch of the stair as built
@@ -329,6 +348,19 @@ end
 -- the end, which a bot reads under the bare name (bot/TREES.md section 13)
 local function tell_team(team, key, value)
 	botlink_set(key .. "@" .. team, value);
+end
+
+-- a blueprint, "x y z; x y z; ...", said when it changed (a stair's band
+-- is a kilobyte and more: not again every second for nothing)
+local told_blueprint = {};
+local function tell_blueprint(team, name, cells)
+	local parts = {};
+	for i, c in ipairs(cells) do parts[i] = string.format("%d %d %d", c.x, c.y, c.z); end
+	local key, text = "blueprint." .. name .. "@" .. team, table.concat(parts, "; ");
+	if (told_blueprint[key] ~= text) then
+		told_blueprint[key] = text;
+		botlink_set(key, text);
+	end
 end
 
 local function tell_bots()
@@ -364,19 +396,19 @@ local function tell_bots()
 	botlink_set("place.intel_home", point(256.5, 256.5, babel_z - 2.25));
 	for team = 1, 2 do
 		local me, them, st = s[team], s[other(team)], stairs[team];
-		tell_team(team, "place.stair", me.nextp and eye(me.nextp) or eye(st.steps[#st.steps]));
+		tell_blueprint(team, "stair", band(st, st.steps[1].y));
 		tell_team(team, "place.stair_top", me.top and eye(me.top) or eye(st.foot));
 		tell_team(team, "place.stair_foot", eye(st.foot));
 		tell_team(team, "fact.stair_done", me.nextp == nil and 1 or 0);
 		tell_team(team, "fact.stair_high", me.total > 0 and me.n / me.total or 0);
-		-- ours: the next block of the second row, and of the next prop
-		local w = first_missing(band(st, st.wide_y));
-		tell_team(team, "place.widen", w and block(w) or "");
-		tell_team(team, "fact.widen", w and 1 or 0);
+		-- ours: the second row, and the next prop
+		local wide = band(st, st.wide_y);
+		tell_blueprint(team, "widen", wide);
+		tell_team(team, "fact.widen", first_missing(wide) and 1 or 0);
 		local weak = weakest_stretch(st);
-		local pc = weak and first_missing(prop_cells(st, weak)) or nil;
-		tell_team(team, "place.prop", pc and eye(pc) or "");
-		tell_team(team, "fact.prop", pc and 1 or 0);
+		local prop = weak and prop_cells(st, weak) or {};
+		tell_blueprint(team, "prop", prop);
+		tell_team(team, "fact.prop", first_missing(prop) and 1 or 0);
 		-- theirs: where it is weakest (its foot, if every stretch is held)
 		local ts = stairs[other(team)];
 		local at = weakest_stretch(ts) or ts.steps[1];
@@ -530,6 +562,7 @@ function mod.before.finish_map_load()
 	watch = {};
 	next_check = 0;
 	stairs, bots_next = {}, 0;     -- laid out again on the new map, when bots ask
+	told_blueprint = {};
 end
 
 function mod.on_load()

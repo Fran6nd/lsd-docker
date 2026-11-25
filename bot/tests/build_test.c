@@ -606,6 +606,74 @@ static void test_platform_men(void)
 	bs_free(s);
 }
 
+/* A BLUEPRINT, built by several: the second row of a stair (the band, from
+ * the ground up), said as a blueprint; N builders on `build_part`. No two
+ * ever hold the same part; more finish sooner than one. */
+static void blueprint_pass(int builders, double *secs, int *made, int *total, int *twice, int *refused)
+{
+	bs_sim *s = tower_field();
+	int i, k, c, x, z, pid, len = 0;
+	char *text = calloc(1, 1 << 16), *msg;
+
+	lay_band(s, SY);
+	*total = 0;
+	for (k = base_k(); k >= 0; k--)
+		for (c = 1; c >= 0; c--) {
+			band_cells(k, c, &x, &z);
+			if (z >= G) continue;
+			len += snprintf(text + len, (1 << 16) - (size_t)len, "%s%d %d %d", *total ? "; " : "", x, SY + 1, z);
+			(*total)++;
+		}
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "edit=all");
+	bs_set(s, BL_NO_PLAYER, "leaders.per=0");
+	msg = malloc((size_t)len + 32);
+	sprintf(msg, "blueprint.row2@1=%s", text);
+	bs_set(s, BL_NO_PLAYER, msg);
+	free(msg); free(text);
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tdo build_part row2\n\twait 1\n");
+	for (pid = 0; pid < builders; pid++)
+		bs_add(s, pid, 1, 1, 6, BL_GUN_RIFLE, 500u + (uint32_t)pid * 13u, (float)(SX0 - base_k()) - 4.5f + (float)pid,
+		       (float)SY + 4.5f, 1, 0);
+	*twice = 0;
+	for (i = 0; i < 60 * 300 && band_solid(s, SY + 1) < *total; i++) {
+		for (pid = 0; pid < builders; pid++)
+			s->p[pid].blocks = 50;          /* refilled, as babel's infinite blocks do */
+		bs_step(s);
+		for (pid = 0; pid < builders; pid++) {
+			const bc_bot *a = bc_engine_bot(s->e, pid);
+
+			if (!a || !a->slot.name[0] || s->e->now - a->slot.at > 2.0) continue;
+			for (k = pid + 1; k < builders; k++) {
+				const bc_bot *o = bc_engine_bot(s->e, k);
+
+				if (o && !strcmp(o->slot.name, a->slot.name) && s->e->now - o->slot.at <= 2.0)
+					(*twice)++;
+			}
+		}
+	}
+	*made = band_solid(s, SY + 1);
+	*secs = i / 60.0;
+	*refused = s->vis_refused;
+	bs_free(s);
+}
+
+static void test_blueprint(void)
+{
+	double one, six;
+	int made1, made6, total, twice1, twice6, ref1, ref6;
+
+	printf("a blueprint built by the team, a part each\n");
+	blueprint_pass(1, &one, &made1, &total, &twice1, &ref1);
+	blueprint_pass(6, &six, &made6, &total, &twice6, &ref6);
+	printf("  %d blocks: one builder %d in %.0f s; six %d in %.0f s; a part held by two at once: %d; refused for sight: %d\n",
+	       total, made1, one, made6, six, twice6, ref1 + ref6);
+	CHECK(made1 == total && made6 == total);
+	CHECK(twice6 == 0);
+	CHECK(six < one);
+	CHECK(ref1 + ref6 == 0);
+}
+
 /* Ours cut in the middle by the other team: what stood above fell. The
  * script names the next missing step from the ground, as babel_plus does,
  * and the builders lay it again. */
@@ -654,6 +722,7 @@ int main(void)
 	test_pillar();
 	test_prop_face();
 	test_platform_men();
+	test_blueprint();
 	test_repair();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;

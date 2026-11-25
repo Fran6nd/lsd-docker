@@ -255,25 +255,32 @@ do
 	eq(sets_of("zone"), 1, "said once");
 	-- team 1's stair: step k at (205 - k, 240, 2 + k), down to the ground at 50
 	-- each team's, once for the team: the world's "<name>@<team>"
-	eq(last("place.stair@1", nil), "158.50 255.50 46.75", "team 1's stair's lowest step, first (on the platform's middle row, clear)");
-	eq(last("place.stair@2", nil), "353.50 255.50 46.75", "team 2's: the mirror of it");
+	-- a stair is a blueprint: each step and the voxel under it, from the
+	-- ground up (the lowest step's riser is the ground)
+	eq(string.sub(last("blueprint.stair@1", nil), 1, 41), "158 255 49; 159 255 49; 159 255 48; 160 2",
+		"team 1's stair, from its lowest step (on the platform's middle row, clear)");
+	eq(string.sub(last("blueprint.stair@2", nil), 1, 23), "353 255 49; 352 255 49;", "team 2's: the mirror of it");
+	eq(select(2, string.gsub(last("blueprint.stair@1", nil), ";", "")), 2 * 48 - 2, "48 steps, each with its riser but the lowest");
 	eq(last("fact.stair_done@1", nil), "0", "not done");
 	eq(last("place.intel", nil), "256.00 256.00 -1.25", "the intel where it lies, for everybody");
-	eq(last("place.stair", 0), nil, "nothing for one bot: a bot reads its team's");
-	eq(last("place.widen@1", nil), "158.50 256.50 49.50", "the second row's lowest block, beside the first (the row up: as clear)");
+	eq(last("blueprint.stair", 0), nil, "nothing for one bot: a bot reads its team's");
+	eq(string.sub(last("blueprint.widen@1", nil), 1, 11), "158 256 49;", "the second row, beside the first, from its lowest block (the row up: as clear)");
+	eq(last("fact.widen@1", nil), "1", "a second row to build");
+	eq(last("blueprint.prop@1", nil), "", "nothing built: nothing to prop");
 	eq(last("fact.prop@1", nil), "0", "nothing built: nothing to prop");
 	eq(last("fact.breach@2", nil), "0", "nothing of team 1's to break");
 	-- team 1 builds its three lowest steps
 	BUILT[k3(158, 255, 49)], BUILT[k3(159, 255, 48)], BUILT[k3(160, 255, 47)] = true, true, true;
 	run(16);
-	eq(last("place.stair@1", nil), "161.50 255.50 43.75", "the next step up");
+	eq(sets_of("blueprint.stair@1"), 1, "the stair, as it was: not said again");
 	eq(last("place.stair_top@1", nil), "160.50 255.50 44.75", "the top of what is built");
 	eq(last("fact.breach@2", nil), "1", "team 2 is told team 1's stair is worth breaking");
 	eq(last("place.breach@2", nil), "160.50 255.50 47.50",
 		"where it is weakest: the step held by nothing but the stair (the two under it stand on the ground)");
 	eq(last("fact.breach@1", nil), "0", "team 1: nothing of team 2's to break");
 	eq(last("fact.prop@1", nil), "1", "team 1: a step to prop");
-	eq(last("place.prop@1", nil), "160.50 254.50 46.75", "its prop's first block, from the ground, on the other side from the second row");
+	eq(last("blueprint.prop@1", nil), "160 254 49; 160 254 48; 160 254 47",
+		"its prop, from the ground up to the step, on the other side from the second row");
 	-- the prop stands: nothing left held by the stair alone
 	BUILT[k3(160, 254, 49)], BUILT[k3(160, 254, 48)], BUILT[k3(160, 254, 47)] = true, true, true;
 	run(17);
@@ -292,8 +299,8 @@ do
 	BUILT[k3(180, 255, 25)] = true;          -- over the step at (180, 255, 27)
 	mod.before.finish_map_load();
 	run(20);
-	eq(last("place.stair@1", nil), "158.50 254.50 46.75", "a tree on the middle row: the stair on the next row out, clear");
-	eq(last("place.stair@2", nil), "353.50 255.50 46.75", "team 2's row is clear: its own as it was");
+	eq(string.sub(last("blueprint.stair@1", nil), 1, 11), "158 254 49;", "a tree on the middle row: the stair on the next row out, clear");
+	eq(string.sub(last("blueprint.stair@2", nil), 1, 11), "353 255 49;", "team 2's row is clear: its own as it was");
 	-- a bot builds: its blocks are given back (infinite_blocks refills
 	-- players behind the botlink's count)
 	local restocked = {};

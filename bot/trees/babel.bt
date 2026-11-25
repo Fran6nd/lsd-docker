@@ -6,22 +6,21 @@
 # babel/babel_plus.lua) lays each team's stair out and tells each team,
 # through the bridge (bot/TREES.md section 13; the world's "<name>@<team>",
 # which a bot reads under the bare name):
-#   @stair       the next step of its team's stair to build (build_at):
-#                from the ground up, so a stair cut is built again from
-#                the cut
+#   blueprint stair  its team's stair: each step and the voxel under it,
+#                from the ground up (build_part: a part each, so the team
+#                spreads over it; a stair cut is built again from the cut)
+#   blueprint widen  the second row beside it, from the ground up
+#   blueprint prop   a pillar beside its weakest stretch, from the ground
+#                up to the step it meets face to face
 #   @stair_top   the highest step built, to stand on and watch from
 #   @stair_foot  the ground at the stair's foot
-#   @widen       the next block of the second row beside it (put_at)
-#   @prop        the next block of a pillar beside its weakest stretch,
-#                from the ground up to the step (build_at: stood on as it
-#                rises)
 #   @breach      the OTHER team's stair where it is weakest (dig_weakest:
 #                the block there whose removal drops the most)
 #   @intel       the intel: where it lies, or the man who carries it
 #   @intel_home  where the intel is put back (a capture, a carrier down)
 #   fact stair_done  1 when its team's stair reaches the platform
 #   fact stair_high  how far up its team's stair is, 0 to 1
-#   fact widen, fact prop   1 while there is such a block to put
+#   fact widen, fact prop   1 while there is a part of it to put
 #   fact breach      1 when the other team's stair is worth breaking
 # and sends edit=all (a tower is built), and these only when engine bots
 # are playing. Who carries the intel the engine reads from the world:
@@ -81,18 +80,34 @@ tree babel_peace_duty:
 select
 	seq
 		unless fact stair_done
-		do build_at @stair
+		tree babel_stair_up
 	pick every=10 sticky=0.5 noise=0.1
 		option none their_intel_home x3       # the way is there: the intel
 			do fetch
 		option none their_intel_dropped x4
 			do fetch
-		option none fact widen x2             # the second row, a block at a time
-			do put_at @widen
+		option none fact widen x2             # the second row, a part at a time
+			do build_part widen
 		option none fact prop                 # a prop, from the ground up
-			do build_at @prop
+			do build_part prop
 		option none always x0.1               # all done: watch from the top
 			do hold @stair_top 30
+
+# The stair up, a part each (build_part: a part is one bot's, so the
+# team spreads over the stair instead of chasing its next step together).
+# No part of it free for this one -- the rest held, or not yet in sight of
+# a floor -- a part of the second row or of a prop, which stand beside
+# it; none either: at its top, ready for the next.
+tree babel_stair_up:
+select
+	do build_part stair
+	seq
+		if fact widen
+		do build_part widen
+	seq
+		if fact prop
+		do build_part prop
+	do guard @stair_top 5
 
 # A role for good, by character: most build (the builder trait, which
 # nothing else used) -- the stair, then making it hold --, the careful
@@ -121,7 +136,7 @@ tree babel_builder:
 select
 	seq
 		unless fact stair_done
-		do build_at @stair
+		tree babel_stair_up
 	pick every=10 sticky=0.5 noise=0.1
 		option objective their_intel_home x0.8    # the way is there: the intel
 			do fetch
@@ -137,12 +152,12 @@ tree babel_mason:
 select
 	seq
 		unless fact stair_done
-		do build_at @stair
+		tree babel_stair_up
 	pick every=10 sticky=0.5 noise=0.1
-		option none fact widen x2                 # the second row, a block at a time
-			do put_at @widen
+		option none fact widen x2                 # the second row, a part at a time
+			do build_part widen
 		option none fact prop                     # a prop, from the ground up
-			do build_at @prop
+			do build_part prop
 		option none always x0.1                   # all done: watch from the top
 			do guard @stair_top 30
 
@@ -150,7 +165,7 @@ tree babel_runner:
 select
 	seq
 		unless fact stair_done
-		do build_at @stair
+		tree babel_stair_up
 	pick every=5 sticky=0.5 noise=0.1
 		option none their_intel_home x3           # the way is there: the intel
 			do fetch
@@ -249,7 +264,7 @@ seq
 		option caution pressed x0.6           # hurt AND outnumbered, or no round left: back, from cover to cover, facing them
 			do fall_back_by_cover
 		option builder always x0.4            # a builder goes on building under fire
-			do build_at @stair
+			tree babel_stair_up
 
 # An enemy in sight.
 tree babel_contact:
@@ -261,7 +276,7 @@ pick every=1.5 sticky=0.3 noise=0.15
 	option marksman standoff x1.1             # in reach and far enough: stand and shoot
 		do hold self 4
 	option builder enemy_far 60 x0.8          # far off: the stair matters more
-		do build_at @stair
+		tree babel_stair_up
 	option greed grenade_worth x0.8
 		do throw_grenade
 	option none enemy_visible 3 x0.5          # he has just gone behind something: here, watching for him

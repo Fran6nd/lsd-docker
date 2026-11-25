@@ -49,6 +49,8 @@
  *                            is said), for everybody or for team N's bots;
  *                            each set the whole list; zone=clear
  *   protect=x y z            a voxel the server will refuse to change
+ *   blueprint.<name>=x y z; ...   a structure the team builds a part each
+ *                            (blueprint.h; name@team for a team's)
  *   leaders.per=<n>          one leader for every n of a team (5; 0: none)
  *   leaders.human=<weight>   a person's weight in the draw, a bot's being
  *                            about 1 (2): skill_squad.c
@@ -650,6 +652,7 @@ bc_engine *bc_engine_new(const bc_engine_host *host, int max_bots)
 	e->turn = calloc((size_t)max_bots, sizeof *e->turn);
 	e->map = malloc(sizeof *e->map);
 	e->cull = malloc(sizeof *e->cull);
+	e->blueprints = calloc(1, sizeof *e->blueprints);
 	e->moves = malloc(sizeof *e->moves);
 	e->vocab = bt_vocab_new();
 	e->nsearch = max_bots / 8;
@@ -739,6 +742,10 @@ void bc_engine_free(bc_engine *e)
 	free(e->turn);
 	free(e->map);
 	free(e->cull);
+	if (e->blueprints) {
+		bc_blueprints_free(e->blueprints);
+		free(e->blueprints);
+	}
 	free(e->moves);
 	free(e);
 }
@@ -1463,6 +1470,14 @@ static void ev_set(bc_engine *e, int pid, const char *text)
 	}
 	if (!strncmp(key, "place.", 6)) {
 		set_splace(e, b, key + 6, val);
+		return;
+	}
+	if (!strncmp(key, "blueprint.", 10) && !b) {
+		/* a structure to build (blueprint.h): the world's, or a team's */
+		char err[120];
+
+		if (!e->blueprints || !bc_blueprint_set(e->blueprints, key + 10, val, err, sizeof err))
+			bc_engine_log(e, 2, "blueprint.%.30s: %s: ignored", key + 10, e->blueprints ? err : "no memory");
 		return;
 	}
 	if (!strcmp(key, "tree")) {

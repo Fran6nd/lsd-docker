@@ -734,3 +734,34 @@ DONE (commit), BLOCKED (on what).
   the bot's own mistake. Open: a few rounds a minute still over the
   period (the bound is a moving mean of a cost that varies); a loaded
   host starves both processes whatever botd does.
+- 2026-11-25 (brain agent): BLUEPRINTS WITH CLAIMS (the owner: "bots
+  are trying to build the same stair... find structural solution"). A
+  BLUEPRINT is a structure as data: `blueprint.<name>=x y z; ...` (team-
+  scoped as places: blueprint.stair@1), its voxels in the order they rest
+  on each other (bot/core/blueprint.[ch]; the same text again changes
+  nothing). The word `build_part <name>`: the first part not solid, free,
+  with nothing of the list still to come under it in its column and
+  nobody in it; claimed with the engine's ONE claim (bc_claim, the `slot`
+  word's: a part is a duty for one, "name#i") -- and claimed where it is
+  made, within the edit reach, not when set off for (a builder held up
+  or gone the long way round keeps it from nobody). The first part left,
+  if it can be a floor, is made climbing (as build_at: the quickest way
+  up a stair); the others put from a floor that sees a face (put_at's
+  rule); a later part no floor sees waits for those before it; one that
+  cannot be made is left by everybody 30 s; a builder with nothing to
+  put steps off any part it stands in (two waiting in one part had kept
+  it from each other for good). The 15 s an edit has now count at its
+  stand (edit_voxel), the way there being the route's to fail. Babel:
+  babel_plus sends the stair's band, the second row and the next prop as
+  blueprints (laid out once: what is built on the ground was becoming
+  ground and shrinking the list under the builders); babel.bt builds
+  them with build_part (babel_stair_up: the stair, else the second row,
+  a prop, else ready at its top); place.stair/widen/prop are gone.
+  build_test: 75 blocks, 6 builders never hold one part at once and end
+  in 31 s against one builder's 53; 0 refused. Harness, 3 seeds x 10 min
+  (blueresortbabel, 10 a side), before -> after: two on the same block
+  1112/1083/1025 -> 0/0/0 bot-seconds; same-team pairs within a voxel
+  2661/1396/617 -> 268/430/373; idle 2484/1581/206 -> 2087/1411/207;
+  stairs whole at 61+59/90+64/219+260 s -> 82+75/87+135/214+297 (a
+  little slower: the mob at the frontier was the redundancy the edge
+  needs); captures 2-0/2-2/2-1 -> 4-1/1-3/2-1.

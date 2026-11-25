@@ -734,36 +734,11 @@ static float s_their_intel_dropped(void *bot, const bt_args *a) { return (float)
 static float s_their_intel_carried(void *bot, const bt_args *a) { return (float)c_their_intel_carried(bot, a); }
 /* A DUTY FOR A FEW OF THE TEAM: `slot <name> <n>` holds while this bot
  * holds it, or while fewer than n team-mates do -- and asking it, with
- * that answer, is holding it (for 2 s: a pick that keeps choosing the
- * branch asks it every second). The first to have come keep it; a branch
- * the bot is in no more lets it go by itself. Like escorts' two a
- * carrier, for whatever a tree wants a few of (babel's platform). */
+ * that answer, is holding it (bc_claim: the engine's one claim, a
+ * blueprint's part being one for one bot). */
 static int c_slot(void *bot, const bt_args *a)
 {
-	bc_bot *b = bot;
-	bc_engine *e = b->e;
-	const char *name = a->count > 0 ? a->text[0] : "";
-	int n = a->count > 1 ? (int)(a->num[1] + 0.5f) : 1, i, before = 0, mine;
-	double keep = 2.0;
-
-	mine = !strcmp(b->slot.name, name) && e->now - b->slot.at <= keep;
-	for (i = 0; i < e->max_bots; i++) {
-		const bc_bot *o = &e->bots[i];
-
-		if (!o->used || o == b || e->w.players[o->pid].team != bc_me(b)->team ||
-		    strcmp(o->slot.name, name) || e->now - o->slot.at > keep)
-			continue;
-		if (!mine || o->slot.since < b->slot.since || (o->slot.since == b->slot.since && o->pid < b->pid))
-			before++;
-	}
-	if (before >= n)
-		return 0;
-	if (!mine) {
-		snprintf(b->slot.name, sizeof b->slot.name, "%s", name);
-		b->slot.since = e->now;
-	}
-	b->slot.at = e->now;
-	return 1;
+	return bc_claim(bot, a->count > 0 ? a->text[0] : "", a->count > 1 ? (int)(a->num[1] + 0.5f) : 1, 1);
 }
 static float s_slot(void *bot, const bt_args *a) { return (float)c_slot(bot, a); }
 
@@ -1079,6 +1054,7 @@ static const word WORDS[] = {
 	{ VK_A, "build_at", 1, { PLACE }, "stand on the floor under the place -- that very voxel, not the nearest floor there is -- BUILDING it if it is not there, and the way to it: up a stair and one step more, a bridge -- only what a player could build from where it stands (a face it sees) (the setting edit must allow building). For a structure a script lays out, a block at a time (`@<name>`). SUCCESS standing there; FAILURE no such place, building not allowed, no way", NULL, NULL, bc_do_build_at, bc_do_build_stop },
 	{ VK_A, "build_perch", 1, { PLACE_OPT("enemy_base") }, "a bot up where it cannot get down makes its height a vantage: a LEVEL walkway from where it stands toward the place (default enemy_base), along the axis nearest the way to it, a block a step as a player bridges, until it sees the place within its gun's reach, its blocks run out (nothing is restocked up there), or something or the map's edge is in the way. SUCCESS there (then `camp`); FAILURE building not allowed, no block in hand, no such place, no way", NULL, NULL, bc_do_build_perch, bc_do_build_stop },
 	{ VK_A, "dig_at", 1, { PLACE }, "take away the block at the place (a script names a block: x y z): near enough to reach it, spade out, the head on it, dug at its cadence (the setting edit must allow digging). SUCCESS gone (or was); FAILURE no such place, digging not allowed, no way near, 15 s and still there", NULL, NULL, bc_do_dig_at, bc_do_build_stop },
+	{ VK_A, "build_part", 1, { TEXT("blueprint") }, "build a blueprint (a structure a script or a leader set out: blueprint.<name>, its team's or everybody's) with the rest of the team, a part at a time: the nearest block of it not yet there that can be put now, that nobody else has taken -- taken, put (from a floor that sees a face for it, else as a floor stood on, as build_at), and the next. A block nobody could put is left for 30 s. RUNNING while it builds; SUCCESS it is whole; FAILURE no such blueprint, building not allowed, no block, or nothing left for it", NULL, NULL, bc_do_build_part, bc_do_build_stop },
 	{ VK_A, "build_cover", NOARGS, "shot at with no cover in view: a wall two high put up where it stands, in the column beside it toward the man who shot it -- the middle, then a column either side while it has the blocks (one to three wide): enough to hide it crouched. Each block as a player puts it, from where it stands (the setting edit must allow building; not where a zone forbids it). SUCCESS the middle stands; FAILURE nobody shot at it, fewer than 2 blocks, building not allowed, or the middle cannot be put there", NULL, NULL, bc_do_build_cover, bc_do_build_stop },
 	{ VK_A, "put_at", 1, { PLACE }, "put a block at the voxel at the place (a script names a block: x y z) as a player places one: against a solid neighbour's face it sees, within reach, standing on the nearest floor round it from which that is so -- for a block that is not a floor to stand on (a pillar under a stair, a second row beside one; build_at makes floors). The setting edit must allow building. SUCCESS there (or was); FAILURE no such place, building not allowed, no block in hand, nowhere to place it from, no way there, 15 s", NULL, NULL, bc_do_put_at, bc_do_build_stop },
 	{ VK_A, "dig_weakest", 3, { PLACE, NNOTE("voxels", "6: what is dug standing about the place -- the server's reach of 5, and a step"), TEXT_OPT("item", "none: its grenades, else the spade") }, "break a structure where it falls most: of the blocks within that of the place it could cut (a face open to the air -- in its sight, with a grenade or the item in hand; else one a floor in reach digs), the one whose removal drops the most of what stands on it -- the server's own collapse, run on the bot's map; with no such block (two wide, propped) a cut a block wide, it and one beside it. Chosen when it starts. Cut by the cheapest it has: the item named (a rocket...: `inv <item> x y z`), a grenade landing on it (the server's 3x3x3), from where it stands and clear of the blast; else the spade, as dig_at digs (the setting edit must allow digging). SUCCESS the cut made; FAILURE nothing there falls, digging not allowed, no way near, 15 s", NULL, NULL, bc_do_dig_weakest, bc_do_build_stop },
