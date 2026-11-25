@@ -1,0 +1,115 @@
+diff --git a/scripts/auth.lua b/scripts/auth.lua
+index 557ab34..09e8f6e 100644
+--- a/scripts/auth.lua
++++ b/scripts/auth.lua
+@@ -42,6 +42,18 @@ local no_user_msg = {
+ 	en="User not found."
+ };
+ 
++local account_created_msg = {
++	en="Account %(name) created."
++};
++
++local account_deleted_msg = {
++	en="Account %(name) deleted."
++};
++
++local password_set_msg = {
++	en="Password of %(name) changed."
++};
++
+ local login_ratelimit_msg = {
+ 	en="Try logging in again in %(timeleft) s."
+ };
+@@ -72,7 +84,7 @@ local totpverify_bad_totp_msg = {
+ 
+ -- TODO: need to associate account name with fakepid's
+ 
+-local useradd, getpasswd, setpasswd, settotp, rmtotp, setcaps;
++local useradd, getpasswd, setpasswd, settotp, rmtotp, setcaps, userdel, userlist;
+ function mod.on_load()
+ 	-- TODO: use base32 for totp?
+ 	db = ldb.open(auth_db);
+@@ -127,6 +139,8 @@ DROP TABLE Users;
+ 	settotp   = ldb.prepare_0ret(db, "settotp",   "UPDATE "..tbl.." SET totp_key = ?, totp_algorithm = ?, totp_period = ?, totp_digits = ? WHERE name = ?;");
+ 	rmtotp    = ldb.prepare_0ret(db, "rmtotp",    "UPDATE "..tbl.." SET totp_key = NULL, totp_algorithm = NULL, totp_period = NULL, totp_digits = NULL WHERE name = ?;");
+ 	setcaps   = ldb.prepare_0ret(db, "setcaps",   "UPDATE "..tbl.." SET caps = ? WHERE name = ?;");
++	userdel   = ldb.prepare_0ret(db, "userdel",   "DELETE FROM "..tbl.." WHERE name = ?;");
++	userlist  = ldb.prepare_xret(db, "userlist",  "SELECT name, caps FROM "..tbl.." ORDER BY name;");
+ end
+ 
+ function mod.on_unload()
+@@ -281,6 +295,73 @@ function cmd.func(pid, argv)
+ end
+ register_command(cmd, mod);
+ 
++-- Accounts administered by someone else: an admin, or the server's own
++-- console, creates, resets and deletes them without the player present.
++-- TODO: a deleted or reset account stays logged in where it is until logout
++
++local cmd = {name="useradd", caps="useradd", fakepid=true, sensitive=true, usage="name password [caps...]", desc="Create an account, with its capabilities."};
++function cmd.func(pid, argv)
++	cmd_assert(pid, cmd, #argv >= 2);
++
++	local name = argv[1];
++	if (getpasswd(name) ~= nil) then
++		l10n_send_chat(pid, name_taken_msg);
++		return;
++	end
++
++	assert(useradd(name, hash_pass(pid, name, argv[2])) == 1, "useradd: rows inserted != 1");
++	if (#argv > 2) then
++		setcaps(table.concat(argv, " ", 3), name);
++	end
++	l10n_send_chat(pid, account_created_msg, {name=name});
++end
++register_command(cmd, mod);
++
++local cmd = {name="userpasswd", caps="userpasswd", fakepid=true, sensitive=true, usage="name password", desc="Set an account's password."};
++function cmd.func(pid, argv)
++	cmd_assert(pid, cmd, #argv == 2);
++
++	local name = argv[1];
++	if (getpasswd(name) == nil) then
++		l10n_send_chat(pid, no_user_msg);
++		return;
++	end
++
++	assert(setpasswd(hash_pass(pid, name, argv[2]), name) == 1, "userpasswd: rows updated != 1");
++	l10n_send_chat(pid, password_set_msg, {name=name});
++end
++register_command(cmd, mod);
++
++local cmd = {name="userdel", caps="userdel", fakepid=true, usage="name", desc="Delete an account."};
++function cmd.func(pid, argv)
++	cmd_assert(pid, cmd, #argv == 1);
++
++	if (userdel(argv[1]) ~= 1) then
++		l10n_send_chat(pid, no_user_msg);
++		return;
++	end
++	l10n_send_chat(pid, account_deleted_msg, {name=argv[1]});
++end
++register_command(cmd, mod);
++
++-- An account's name and capabilities, or nil.
++function mod.impl.auth_account(name)
++	local vals = getpasswd(name);
++	if (vals == nil) then
++		return nil;
++	end
++	return {name=vals[1], caps=vals[2]};
++end
++
++-- Every account, by name: {name=, caps=}.
++function mod.impl.auth_accounts()
++	local list = {};
++	for name, caps in userlist() do
++		list[#list+1] = {name=name, caps=caps};
++	end
++	return list;
++end
++
+ -- TODO: varargs?
+ local cmd = {name="chpasswd", caps="login", fakepid=true, sensitive=true, usage="password", desc="Change your account's password."};
+ function cmd.func(pid, argv)

@@ -1,5 +1,5 @@
-Our changes to LSd's C source, applied onto upstream's at image build
-time (Dockerfile). The lsd submodule itself stays upstream's: make a
+Our changes to LSd's source -- its C, and a few of its stock scripts --
+applied onto upstream's at image build time (Dockerfile). The lsd submodule itself stays upstream's: make a
 change in lsd/, `git -C lsd diff > patches/lsd/NNNN-name.patch`, then
 `git -C lsd checkout -- .`. dev/bump-lsd.sh checks every patch still
 applies to the new upstream.
@@ -22,3 +22,20 @@ applies to the new upstream.
                           culls, finish_map_load) walk recipients, so a
                           server of bots no longer calls into Lua for each
                           of them on a block edit or a map change.
+
+  0003-accounts.patch     auth.lua: accounts administered by someone else --
+                          useradd <name> <password> [caps...], userpasswd,
+                          userdel (passwords redacted from the log, as
+                          /register's are) -- and auth_account(name),
+                          auth_accounts() to read them. Before, an account
+                          could only be made by its player, in game.
+                          lsdctl account drives these. Worth offering
+                          upstream.
+
+  0004-console-redact.patch  command_log_text(): a command line as it may be
+                          logged, a sensitive command's arguments replaced.
+                          The socket, websocket and IRC consoles logged each
+                          line raw before running it, so a /register or
+                          /login typed there put the password in the log.
+                          Worth offering upstream.
+

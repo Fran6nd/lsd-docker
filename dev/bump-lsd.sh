@@ -17,7 +17,7 @@ if [ "$old" = "$new" ]; then
 fi
 
 echo "lsd: $old -> $new"
-# our C patches must still apply to the new upstream
+# our patches must still apply to the new upstream
 for p in patches/lsd/*.patch; do
 	git -C lsd apply --check "../$p" || { echo "$p no longer applies to lsd $new: rebase it" >&2; exit 1; }
 done

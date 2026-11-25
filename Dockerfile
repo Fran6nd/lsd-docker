@@ -52,7 +52,7 @@ RUN wget -q -O lsqlite3.zip 'https://lua.sqlite.org/home/zip/lsqlite3_fsl09y.zip
 COPY lsd/ /build
 WORKDIR /build
 
-# Our changes to LSd's C, applied onto upstream's source (patches/lsd/README):
+# Our changes to LSd's C and stock scripts, applied onto upstream's source (patches/lsd/README):
 # the build stops here if upstream moved under one.
 COPY patches/lsd/ /patches/
 RUN for p in /patches/*.patch; do patch -p1 --forward < "$p" || exit 1; done

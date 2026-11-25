@@ -1,0 +1,79 @@
+diff --git a/scripts/commands.lua b/scripts/commands.lua
+index ae54eb0..0c92e20 100644
+--- a/scripts/commands.lua
++++ b/scripts/commands.lua
+@@ -412,6 +412,17 @@ end
+ -- TODO: log
+ -- TODO: /mute
+ -- TODO: redact certain args?
++-- A command line as it may be logged: a sensitive command's arguments
++-- (passwords) replaced. Consoles that log a line themselves log this.
++function command_log_text(msg)
++	local argv = unquote_to_table(msg);
++	local cmd = argv[0] and commands[string.lower(argv[0])];
++	if (cmd and cmd.sensitive) then
++		return argv[0].." [REDACTED]";
++	end
++	return msg;
++end
++
+ function handle_command(pid, msg, nolog)
+ 	local i = 0;
+ 	local argv = unquote_to_table(msg);
+@@ -422,12 +433,9 @@ function handle_command(pid, msg, nolog)
+ 	end
+ 
+ 	if (not nolog) then
+-		if (cmd and cmd.sensitive) then
+-			msg = argv[0].." [REDACTED]";
+-		end
+-
+-		server_msg(pid, "> /"..msg);
+-		log("%s: /%s", get_name(pid), msg);
++		local text = command_log_text(msg);
++		server_msg(pid, "> /"..text);
++		log("%s: /%s", get_name(pid), text);
+ 	end
+ 
+ 	if (cmd == nil) then
+diff --git a/scripts/irc_console.lua b/scripts/irc_console.lua
+index 20db943..5f7c6a7 100644
+--- a/scripts/irc_console.lua
++++ b/scripts/irc_console.lua
+@@ -93,7 +93,7 @@ local function cmd_tostr(cmd)
+ end
+ 
+ local function run_cmd(pid, line)
+-	log("irc_console: %s (#%u): /%s", get_name(pid), pid, line);
++	log("irc_console: %s (#%u): /%s", get_name(pid), pid, command_log_text(line));
+ 	handle_command(pid, line, true);
+ end
+ 
+diff --git a/scripts/lib_sock.lua b/scripts/lib_sock.lua
+index 0ad47b6..f968b47 100644
+--- a/scripts/lib_sock.lua
++++ b/scripts/lib_sock.lua
+@@ -235,7 +235,7 @@ end
+ -- Default line handler runs a command
+ local function on_line(sock, pid, line)
+ 	if (#line ~= 0) then
+-		log("lib_sock: %s (#%u): /%s", get_name(pid), pid, line);
++		log("lib_sock: %s (#%u): /%s", get_name(pid), pid, command_log_text(line));
+ 		handle_command(pid, line, true);
+ 	end
+ end
+diff --git a/scripts/websock_console.lua b/scripts/websock_console.lua
+index 4667be2..6838cda 100644
+--- a/scripts/websock_console.lua
++++ b/scripts/websock_console.lua
+@@ -48,8 +48,8 @@ end
+ local function on_ws_recv(sock, pid)
+ 	local line = sock.cons[pid].wsbuf:get();
+ 	if (#line ~= 0) then
+-		l10n_log(cmd_log_msg, {name=get_name(pid), pid=pid, cmd=line});
+-		websock_send_con(sock.cons[pid], "> "..line.."\n");
++		l10n_log(cmd_log_msg, {name=get_name(pid), pid=pid, cmd=command_log_text(line)});
++		websock_send_con(sock.cons[pid], "> "..command_log_text(line).."\n");
+ 		handle_command(pid, line, true);
+ 	end
+ end

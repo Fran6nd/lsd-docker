@@ -2192,6 +2192,166 @@ command("say", "say <message>", "a message to everybody in game",
 		end
 	end);
 
+--============================== ACCOUNTS ============================--
+
+-- Accounts are the server's (auth.lua, its database in /data/rw): lsdctl
+-- drives its admin commands through the console -- useradd, userpasswd,
+-- userdel, authcaps (patches/lsd/0003-accounts.patch) -- and reads the
+-- result back from auth_account(), not from the replies' wording. The
+-- password commands are logged redacted, so a password reaches neither
+-- the server's log nor this command line: it is asked for, or read from
+-- standard input.
+
+-- One argument of a console command: the console groups "..." and reads
+-- "" inside as one quote. A line break would end the command.
+local function console_arg(s)
+	if (string.find(s, "[\r\n]")) then die("a line break cannot be sent to the server"); end
+	return '"' .. string.gsub(s, '"', '""') .. '"';
+end
+
+local function account_name(s)
+	if (s == nil) then die("which account?"); end
+	if (string.find(s, '[%s%c"]') or s == "") then
+		die("%q: an account name has no spaces, quotes or control characters", s);
+	end
+	return s;
+end
+
+local function caps_arg(words, from)
+	local caps = {};
+	for i = from, #words do
+		for c in string.gmatch(words[i], "[^%s,]+") do caps[#caps+1] = c; end
+	end
+	return caps;
+end
+
+-- The console lines that print every account named, or all of them: a
+-- line "LSDCTL-ACC|<name>|<caps>" for each, then "LSDCTL-ACC-END|".
+local function accounts_query(name)
+	local each = name == nil
+		and 'for _, a in ipairs(auth_accounts()) do'
+		or  string.format('for _, a in ipairs({auth_account(%q)}) do', name);
+	return 'exec if auth_accounts == nil then log("%s", "LSDCTL" .. "-ACC-NONE|") else '
+		.. each .. ' log("%s", "LSDCTL" .. "-ACC|" .. a.name .. "|" .. (a.caps or "")) end'
+		.. ' log("%s", "LSDCTL" .. "-ACC-END|") end';
+end
+
+-- Sends `lines`, then asks for the accounts: a table name -> caps, read
+-- after the lines took effect (the console runs them in order).
+local function accounts_after(lines, name, wait)
+	lines[#lines+1] = accounts_query(name);
+	local out = console(lines, wait or 1);
+	if (out == nil) then die("the server is not running"); end
+	if (#replies(out, "LSDCTL-ACC-NONE|") > 0) then
+		die("this server has no account commands (auth.lua is not loaded)");
+	end
+	if (#replies(out, "LSDCTL-ACC-END|") == 0) then
+		die("the server did not answer");
+	end
+	local got, order = {}, {};
+	for _, r in ipairs(replies(out, "LSDCTL-ACC|")) do
+		local n, caps = string.match(r, "^(.-)|(.*)$");
+		got[n] = caps;
+		order[#order+1] = n;
+	end
+	return got, order;
+end
+
+-- A password: asked twice without echo on a terminal, else the first
+-- line of standard input.
+local function read_password(name)
+	local pwd;
+	if (run("test -t 0")) then
+		io.stderr:write("password for " .. name .. ": ");
+		os.execute("stty -echo");
+		pwd = io.read("*l");
+		io.stderr:write("\nagain: ");
+		local again = io.read("*l");
+		os.execute("stty echo");
+		io.stderr:write("\n");
+		if (pwd ~= again) then die("the two passwords differ"); end
+	else
+		pwd = io.read("*l");
+	end
+	if (pwd == nil or pwd == "") then die("no password given"); end
+	return pwd;
+end
+
+local account_cmds = {};
+
+function account_cmds.list(words, flags)
+	local got, order = accounts_after({}, nil);
+	if (flags.json) then
+		local rows = list();
+		for _, n in ipairs(order) do rows[#rows+1] = {name = n, caps = got[n]}; end
+		print(json(rows));
+		return;
+	end
+	if (#order == 0) then say("no accounts"); return; end
+	for _, n in ipairs(order) do
+		say("%-20s %s", n, got[n] ~= "" and got[n] or "-");
+	end
+end
+
+function account_cmds.add(words)
+	local name = account_name(words[2]);
+	local caps = caps_arg(words, 3);
+	if (accounts_after({}, name)[name] ~= nil) then
+		die("an account called %s already exists (lsdctl account passwd|caps)", name);
+	end
+	local line = "useradd " .. console_arg(name) .. " " .. console_arg(read_password(name));
+	for _, c in ipairs(caps) do line = line .. " " .. console_arg(c); end
+	local got = accounts_after({line}, name, 2);
+	if (got[name] == nil) then
+		die("the server refused the password: too short or easy to guess"
+			.. " (auth_rate_passwords), or over 128 characters");
+	end
+	say("account %s created%s", name, #caps > 0 and (", caps: " .. got[name]) or "");
+end
+
+function account_cmds.caps(words)
+	local name = account_name(words[2]);
+	local caps = caps_arg(words, 3);
+	local line = "authcaps " .. console_arg(name);
+	for _, c in ipairs(caps) do line = line .. " " .. console_arg(c); end
+	local got = accounts_after({line}, name);
+	if (got[name] == nil) then die("no account called %s", name); end
+	say("%s: %s", name, got[name] ~= "" and got[name] or "no caps");
+	say("(someone logged in as %s keeps the old caps until they log in again)", name);
+end
+
+function account_cmds.passwd(words)
+	local name = account_name(words[2]);
+	if (accounts_after({}, name)[name] == nil) then die("no account called %s", name); end
+	local out = console({
+		"userpasswd " .. console_arg(name) .. " " .. console_arg(read_password(name))}, 2);
+	if (out == nil) then die("the server is not running"); end
+	-- A password leaves no trace auth_account() shows: the proof is the
+	-- reply the patch sends this console connection alone, in English.
+	if (not string.find(out, "Password of " .. name .. " changed.", 1, true)) then
+		die("the server refused the password: too short or easy to guess"
+			.. " (auth_rate_passwords), or over 128 characters");
+	end
+	say("password of %s changed", name);
+end
+
+function account_cmds.rm(words)
+	local name = account_name(words[2]);
+	if (accounts_after({}, name)[name] == nil) then die("no account called %s", name); end
+	local got = accounts_after({"userdel " .. console_arg(name)}, name);
+	if (got[name] ~= nil) then die("the server did not delete %s", name); end
+	say("account %s deleted", name);
+end
+
+command("account", "account list [--json] | add <name> [caps...] | caps <name> [caps...] | passwd <name> | rm <name>",
+	"the server's accounts: who may /login, with which caps (admin: everything)",
+	function(args)
+		local words, flags = parse_args(args, {});
+		local fn = account_cmds[words[1] or "list"];
+		if (fn == nil) then die("account %s? (list, add, caps, passwd, rm)", words[1]); end
+		fn(words, flags);
+	end);
+
 command("exec", "exec <console command>", "send one admin console command and print the reply",
 	function(args)
 		local out = console({table.concat(args, " ")}, 2);

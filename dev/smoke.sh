@@ -123,6 +123,20 @@ docker exec "$NAME" lsdctl set map_random False --no-restart >/dev/null
 docker exec "$NAME" lsdctl map rm Copy >/dev/null || fail "map rm"
 echo "ok: map list points at aos.party; map add takes a map and refuses a non-map; random maps"
 
+# accounts: an admin made from the host, its caps changed, its password
+# reset, a weak password refused, and no password in the server's log
+pw='correct horse battery staple'
+echo "$pw" | docker exec -i "$NAME" lsdctl account add smoke admin >/dev/null || fail "account add"
+docker exec "$NAME" lsdctl account list | grep -Eq '^smoke +admin$' || fail "account list does not show smoke as admin"
+echo short | docker exec -i "$NAME" lsdctl account add weak >/dev/null 2>&1 && fail "a weak password was taken"
+docker exec "$NAME" lsdctl account caps smoke mod >/dev/null || fail "account caps"
+docker exec "$NAME" lsdctl account list --json | grep -q '"caps": "mod"' || fail "account caps not set"
+echo 'another random phrase' | docker exec -i "$NAME" lsdctl account passwd smoke >/dev/null || fail "account passwd"
+docker exec "$NAME" lsdctl account rm smoke >/dev/null || fail "account rm"
+docker exec "$NAME" lsdctl account list | grep -q smoke && fail "account rm left it"
+docker logs "$NAME" 2>&1 | grep -q -e "$pw" -e 'random phrase' && fail "a password is in the server log"
+echo "ok: accounts added, changed, reset and removed from the host; passwords kept out of the log"
+
 docker exec "$NAME" lsdctl status
 docker exec "$NAME" lsdctl available >/dev/null
 docker exec "$NAME" lsdctl install night --preset disco --policy required --yes --now \
