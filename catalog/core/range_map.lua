@@ -26,13 +26,20 @@
 --   y 303..332   the plaza: the spawn, and the IPSC waiting area
 --   x 262..285,  the IPSC course, walled 5 high: a hall, three rooms one
 --   y 260..299   behind the other, each wall with a door and a port (a
---                window at eye height); the start box at its door, the
---                end box in the last room
+--                window at eye height); the start box at its door, shut
+--                off from the hall by the start wall; the end box in the
+--                last room
 --
 -- THE TARGETS are data, the same for the generator, the metadata and
--- the gamemode: {set, stance, motion, param, face, points}
+-- the gamemode: {set, kind, stance, motion, param, face, points}
 --
 --   set      "lane1".."lane5" or "ipsc"
+--   kind     what a hit does to it:
+--            "plate": nothing -- it never falls; the hit counts
+--            "popper": the hit that counts drops it, and it stays down
+--                    until its set is made ready for the next run
+--            "noshoot": one of the shooter's own team; a hit is a
+--                    penalty, and it never falls
 --   stance   "stand" or "crouch"
 --   motion   "static": points[1]
 --            "rail": back and forth from points[1] to points[2] at
@@ -42,10 +49,19 @@
 --            (a lane's firing position, an IPSC shooting position)
 --   points   {x, y, z}: the column, and the z of the voxel it stands on
 --
+-- THE START WALL is data too: the voxels of a wall one block thick
+-- ({x0, y0, z0, x1, y1, z1}, z0 its top) and the colour it is built in,
+-- every voxel of it painted that one colour so the server can build it
+-- again as it was. It stands in the map; the gamemode brings it down for
+-- a run and builds it again after.
+--
 -- Every lane has the same targets at the same distances (a time on one
 -- lane is a time on any), shifted across; the seed varies the IPSC
--- course's targets within their rooms and the lanes' offsets.
+-- course's targets within their rooms (the no-shoots go with the target
+-- they stand by) and the lanes' offsets.
 local M = {};
+
+M.VERSION = 2;         -- of the metadata: a range written before is generated again
 
 M.SIZE = 512;
 M.FLOOR = 50;          -- the z of the floor voxel
@@ -79,6 +95,7 @@ local COLORS = {
 	cwall = {225, 225, 220},
 	start = {70, 190, 90},
 	finish = {70, 120, 235},
+	swall = {96, 104, 122},
 	position = {245, 215, 60},
 	lanes = {
 		{120, 150, 200}, {130, 190, 130}, {215, 200, 120}, {175, 140, 205}, {120, 195, 195},
@@ -217,15 +234,15 @@ local function static_range(c, r)
 		local set = "lane" .. k;
 		local function across(o) return cx + math.max(-3, math.min(3, o + shift)); end
 		for _, t in ipairs(M.LANE_TARGETS) do
-			c.targets[#c.targets + 1] = {set = set, stance = t.stance, motion = "static", param = 0,
-				face = face, points = {plinth(c, across(t.o), LINE - t.d, t.h)}};
+			c.targets[#c.targets + 1] = {set = set, kind = "plate", stance = t.stance, motion = "static",
+				param = 0, face = face, points = {plinth(c, across(t.o), LINE - t.d, t.h)}};
 		end
 		paint(c, cx + M.RAIL.from, LINE - M.RAIL.d, cx + M.RAIL.to, LINE - M.RAIL.d, COLORS.rail);
-		c.targets[#c.targets + 1] = {set = set, stance = M.RAIL.stance, motion = "rail", param = M.RAIL.speed,
-			face = face, points = {pt(cx + M.RAIL.from, LINE - M.RAIL.d), pt(cx + M.RAIL.to, LINE - M.RAIL.d)}};
+		c.targets[#c.targets + 1] = {set = set, kind = "plate", stance = M.RAIL.stance, motion = "rail",
+			param = M.RAIL.speed, face = face, points = {pt(cx + M.RAIL.from, LINE - M.RAIL.d), pt(cx + M.RAIL.to, LINE - M.RAIL.d)}};
 		local at = {};
 		for j, p in ipairs(M.BLINK.at) do at[j] = pt(across(p.o), LINE - p.d); end
-		c.targets[#c.targets + 1] = {set = set, stance = M.BLINK.stance, motion = "blink",
+		c.targets[#c.targets + 1] = {set = set, kind = "plate", stance = M.BLINK.stance, motion = "blink",
 			param = M.BLINK.period, face = face, points = at};
 	end
 end
@@ -261,6 +278,17 @@ M.IPSC_TARGETS = {
 	{u = 2, v = 32, stance = "crouch", h = 0, from = 4, ru = 0, rv = 0},
 };
 M.IPSC_RAIL = {v = 27, from = 8, to = 16, speed = 3, stance = "stand", from_pos = 3};
+-- the no-shoots: each by one of the targets above (its index there), du
+-- and dv from where the seed put it, shot at from the same position --
+-- standing behind a crouched one, beside one by a door, half behind one
+M.IPSC_NOSHOOTS = {
+	{near = 2, du = -1, dv = 1, stance = "stand"},    -- behind, by the door to the second room
+	{near = 4, du = 1, dv = 0, stance = "stand"},     -- beside, by the door to the third
+	{near = 5, du = 1, dv = -1, stance = "stand"},    -- half behind
+	{near = 9, du = -1, dv = 0, stance = "stand"},    -- behind, by the door in
+};
+-- the start wall: across the hall, between the start box and the rest
+M.START_WALL_V = 4;
 
 local function box(u0, v0, u1, v1)
 	return {x0 = cx_(math.min(u0, u1)), y0 = cy_(math.max(v0, v1)),
@@ -300,15 +328,34 @@ local function ipsc(c, r)
 		c.ipsc.positions[k] = pt(cx_(p.u), cy_(p.v));
 		paint(c, cx_(p.u - 1), cy_(p.v + 1), cx_(p.u + 1), cy_(p.v - 1), COLORS.position);
 	end
-	for _, t in ipairs(M.IPSC_TARGETS) do
+	local placed = {};
+	for k, t in ipairs(M.IPSC_TARGETS) do
 		local u, v = t.u + r(-t.ru, t.ru), t.v + r(-t.rv, t.rv);
-		c.targets[#c.targets + 1] = {set = "ipsc", stance = t.stance, motion = "static", param = 0,
-			face = c.ipsc.positions[t.from], points = {plinth(c, cx_(u), cy_(v), t.h)}};
+		placed[k] = {u = u, v = v};
+		c.targets[#c.targets + 1] = {set = "ipsc", kind = "popper", stance = t.stance, motion = "static",
+			param = 0, face = c.ipsc.positions[t.from], points = {plinth(c, cx_(u), cy_(v), t.h)}};
 	end
 	local R = M.IPSC_RAIL;
 	paint(c, cx_(R.from), cy_(R.v), cx_(R.to), cy_(R.v), COLORS.rail);
-	c.targets[#c.targets + 1] = {set = "ipsc", stance = R.stance, motion = "rail", param = R.speed,
-		face = c.ipsc.positions[R.from_pos], points = {pt(cx_(R.from), cy_(R.v)), pt(cx_(R.to), cy_(R.v))}};
+	c.targets[#c.targets + 1] = {set = "ipsc", kind = "popper", stance = R.stance, motion = "rail",
+		param = R.speed, face = c.ipsc.positions[R.from_pos],
+		points = {pt(cx_(R.from), cy_(R.v)), pt(cx_(R.to), cy_(R.v))}};
+	for _, n in ipairs(M.IPSC_NOSHOOTS) do
+		local at, t = placed[n.near], M.IPSC_TARGETS[n.near];
+		c.targets[#c.targets + 1] = {set = "ipsc", kind = "noshoot", stance = n.stance, motion = "static",
+			param = 0, face = c.ipsc.positions[t.from], points = {pt(cx_(at.u + n.du), cy_(at.v + n.dv))}};
+	end
+
+	-- the start wall, as high as the course's: the hall's whole width
+	local y = cy_(M.START_WALL_V);
+	c.ipsc.wall = {x0 = cx_(0), y0 = y, z0 = FLOOR - M.WALL, x1 = cx_(W - 1), y1 = y, z1 = FLOOR - 1,
+		color = COLORS.swall};
+	fill(c, cx_(0), y, cx_(W - 1), y, M.WALL, COLORS.course);
+	for x = cx_(0), cx_(W - 1) do
+		local i = idx(x, y);
+		c.paint[i] = c.paint[i] or {};
+		for z = FLOOR - M.WALL, FLOOR - 1 do c.paint[i][z] = COLORS.swall; end
+	end
 end
 
 --============================== THE RANGE ===========================--
@@ -367,8 +414,10 @@ local function column(c, i, light)
 			local p = pnt ~= nil and pnt[z];
 			if (p) then
 				out[#out + 1] = shade(p, 1);
-			elseif (z < FLOOR or z == top) then
-				out[#out + 1] = shade(rgb, z == top and light or 0.85 * light);
+			elseif (z <= FLOOR) then
+				-- the floor voxel is lit like a top even under a wall: it
+				-- is one when the start wall comes down
+				out[#out + 1] = shade(rgb, (z == top or z == FLOOR) and light or 0.85 * light);
 			else
 				out[#out + 1] = shade(COLORS.ground, 0.7 - 0.3 * (z - FLOOR) / (63 - FLOOR));
 			end
@@ -410,12 +459,18 @@ local function list(items)
 	return "(" .. table.concat(items, ", ") .. (#items == 1 and "," or "") .. ")";
 end
 
--- A target as one tuple: ('lane1', 'stand', 'rail', 2.5, face, p1, p2)
+-- A target as one tuple: ('lane1', 'plate', 'stand', 'rail', 2.5, face, p1, p2)
 function M.target_tuple(t)
 	local pts = {};
 	for k, p in ipairs(t.points) do pts[k] = tuple(p); end
-	return string.format("('%s', '%s', '%s', %s, %s, %s)", t.set, t.stance, t.motion,
+	return string.format("('%s', '%s', '%s', '%s', %s, %s, %s)", t.set, t.kind, t.stance, t.motion,
 		tostring(t.param), tuple(t.face), table.concat(pts, ", "));
+end
+
+-- The wall as ((x0, y0, z0), (x1, y1, z1), (r, g, b))
+function M.wall_tuple(w)
+	return string.format("((%d, %d, %d), (%d, %d, %d), (%d, %d, %d))", w.x0, w.y0, w.z0, w.x1, w.y1, w.z1,
+		w.color[1], w.color[2], w.color[3]);
 end
 
 function M.meta(c, name)
@@ -428,6 +483,7 @@ function M.meta(c, name)
 		"author = 'lsdctl'",
 		"description = 'A generated shooting range, seed " .. c.seed .. ".'",
 		"extensions = {",
+		"    'range_version' : " .. M.VERSION .. ",",
 		"    'range_seed' : " .. c.seed .. ",",
 		"    'range_spawn' : " .. tuple(c.spawn) .. ",",
 		"    'range_lanes' : " .. list(lanes) .. ",",
@@ -435,6 +491,7 @@ function M.meta(c, name)
 		"    'range_ipsc_start' : " .. boxt(c.ipsc.start) .. ",",
 		"    'range_ipsc_end' : " .. boxt(c.ipsc.finish) .. ",",
 		"    'range_ipsc_wait' : " .. boxt(c.ipsc.wait) .. ",",
+		"    'range_ipsc_wall' : " .. M.wall_tuple(c.ipsc.wall) .. ",",
 		"    'range_targets' : " .. list(targets) .. ",",
 		"}",
 		"",

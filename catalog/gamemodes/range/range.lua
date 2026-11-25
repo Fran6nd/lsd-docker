@@ -19,50 +19,74 @@
 --
 --   THE IPSC COURSE, one shooter at a time. /ipsc joins the queue, as
 --   does stepping onto the orange waiting area; the first in it is put
---   in the green start box when the course is free. The clock starts
---   when the shooter leaves the start box and stops in the blue end box
---   once every target of the course is hit (in the end box with targets
---   standing, the shooter is told how many and the clock runs on). Dead,
---   gone, out of the course or over IPSC_LIMIT seconds: the run is
---   abandoned and the next in the queue goes. Anybody else found inside
---   is sent to the waiting area, and so joins the queue.
+--   in the green start box, behind the start wall, when the course is
+--   free. The wall comes down -- the server takes its supports away and
+--   every client sees it collapse -- once the course is READY: every
+--   target of it standing in its place, nobody else inside, and
+--   COUNTDOWN seconds given to the shooter. The clock starts as it falls
+--   and stops in the blue end box once every target is down (in the end
+--   box with targets standing, the shooter is told how many and the
+--   clock runs on). Dead, gone, out of the course or over IPSC_LIMIT
+--   seconds: the run is abandoned. Either way the course is made ready
+--   for the next one at once -- its targets stood up again where they
+--   were, the wall built again -- and then the next in the queue goes
+--   in. Anybody else found inside is sent to the waiting area, and so
+--   joins the queue.
 --
 -- A hit is a bullet that strikes a target (a body shot or a head shot;
 -- not a spade or a grenade), counted once a run, and only for the run
 -- the target belongs to. Times are told, each person's best is kept and
 -- a record announced. /best lists them. Health and ammunition are made
 -- full at the start of every run and after it. There is no score, no
--- winner and no end.
+-- winner and no end, and no rewards (gamemode_rewards, which lib_rewards
+-- reads: nothing shot here is a kill).
 --
--- THE TARGETS are lib_bot bots on team 2 that never die and never move
--- of themselves: no think, no keys but the crouch of a crouched one, and
--- no part in the bot engine (nothing here asks lib_botlink for
--- anything). A target is data from the map (range_targets: its set, its
--- stance, its motion, the point it faces and its points; see
+-- THE TARGETS are lib_bot bots that never move of themselves: no think,
+-- no keys but the crouch of a crouched one, and no part in the bot
+-- engine (nothing here asks lib_botlink for anything). A target is data
+-- from the map (range_targets: its set, its kind, its stance, its
+-- motion, the point it faces and its points; see
 -- catalog/core/range_map.lua) and ONE CONTROLLER keeps all of them:
 -- creates what is missing (a seat at a time, again a second later if
 -- the server is full -- lib_bot gives a person a target's seat), puts
--- each where its motion says at this moment, and nothing else. Motions:
--- static (its one point), rail (back and forth between two points at a
--- steady pace) and blink (each point in turn, `param` seconds at each).
--- Where a target is is a function of the time alone, so every client
--- sees the same thing and a test can ask it.
+-- each where its motion says at this moment, stands up again what is
+-- dead and not meant to be down, and nothing else. Motions: static (its
+-- one point), rail (back and forth between two points at a steady pace)
+-- and blink (each point in turn, `param` seconds at each). Where a
+-- target is is a function of the time alone, so every client sees the
+-- same thing and a test can ask it.
 --
--- IMMORTAL BY THE DAMAGE HOOK: a damage_player on a target is taken
--- here and goes no further -- its health never moves, it never dies or
--- falls. What a hit did is told to the one who landed it through
+-- WHAT A HIT DOES is the target's KIND, and nothing else decides it:
+--
+--   plate    (the lanes) never falls: the hit counts, and that is all
+--   popper   (the course) the hit that counts drops it -- killed for
+--            real, so every client sees it fall -- and it stays down
+--            until its set is made ready for the next run. Killed by
+--            nobody, as a fall: no kill, no score, no reward, and out
+--            of the kill feed where the client speaks Silent Player
+--   noshoot  (the course) one of the shooter's own team, standing among
+--            the targets: a hit adds range_noshoot_penalty seconds to
+--            the run's time, told at once; it never falls
+--
+-- Every hit on a target stops in the damage hook: its health never
+-- moves. What it did is told to the one who landed it through
 -- lib_damage_markers' own API (damage_markers_show), with the number the
 -- hit was worth, as for a man: the floating number a Damage Markers
 -- client draws. (The extension's automatic marker reads a hit that
 -- applied nothing as no hit, which is right for every other veto, so
--- the mode says it itself.)
+-- the mode says it itself.) A no-shoot is on the shooter's team, whose
+-- hits the core drops before any damage: the late on_hit, the last word
+-- before the core, sends those on to the damage hook as the core sends
+-- an enemy's.
 --
 -- Targets are hidden from the score, the roster and the kill feed where
 -- the client speaks Silent Player (lib_bot's silent options), spawn on
--- their own points and take no person's spawn.
+-- their own points and take no person's spawn; the engine never
+-- respawns one (the controller does).
 --
 -- NOBODY BUILDS OR DIGS, and grenades make no craters: the range is the
--- map's.
+-- map's, the start wall with it. An edit refused is put back on the
+-- client that made it.
 --
 -- THE BEST TIMES are kept by name while the server runs -- through every
 -- map restart, not a restart of the server -- and start over on another
@@ -75,6 +99,10 @@ local SETTLE = 1;         -- after a teleport: the client's old position may sti
 local SPREAD = 2;         -- how far from the spawn's middle a person is put
 local LISTED = 5;         -- lines of /best, a board
 local TOPUP_SECS = 1;     -- how often missing targets are made again
+local VERSION = 2;        -- of the map's range metadata (range_map.lua's M.VERSION)
+local KILL_FALL = 4;      -- a death nobody is credited with
+
+getcfg("range_noshoot_penalty", 10, "Seconds added to a run's time for each hit on a no-shoot.");
 
 -- hidden everywhere a Silent Player client hides anything
 local SILENT = {roster = true, presence = true, killfeed = true, stats = true};
@@ -99,9 +127,12 @@ local unqueued_msg = {en = "You left the IPSC queue."};
 local on_course_msg = {en = "You are on the IPSC course."};
 local busy_msg = {en = "The IPSC course is in use: you are number %(n) in the queue."};
 local turn_msg = {
-	en = "Your turn on the IPSC course: the clock starts when you leave the green start box and stops in the blue end box once every target is hit. %(limit) s at most.",
+	en = "Your turn on the IPSC course: the wall in front of you comes down when the course is ready, and the clock starts then. Every target down, then to the blue end box; each hit on a no-shoot (your own team) costs %(penalty) s. %(limit) s at most.",
 };
 local all_down_msg = {en = "Every target hit: to the blue end box!"};
+local noshoot_msg = {en = "No-shoot hit: +%(penalty) s"};
+local penalty_total_msg = {en = "%(raw) s + %(penalty) s penalty = %(time) s"};
+local old_map_msg = {en = "range: this map's range was generated by an older version; lsdctl map course generates a new one."};
 local standing_msg = {en = "Targets still standing: %(n)"};
 local left_course_msg = {en = "IPSC run abandoned: you left the course."};
 local too_long_msg = {en = "IPSC run abandoned: over %(limit) s."};
@@ -118,11 +149,14 @@ local best_none_msg = {en = "No times yet."};
 
 -- pid -> the run in hand:
 --   {kind = "lane"|"ipsc", set =, lane =, total =, n =, hits = {k = true},
---    go = <the clock's start, for a lane>, since = <when the clock started>,
+--    noshoots = <hits on no-shoots>,
+--    go = <the clock's start for a lane, its earliest for the course>,
+--    since = <when the clock started>,
 --    done = <a lane's, finished: held until the bay is left>,
 --    deadline =, settle =, at_end =}
 local runs = {};
 local held = {};     -- target index -> the bot's pid
+local down = {};     -- target index -> true: a popper down until its set is made ready
 local queue = {};    -- pids, the first goes next
 local shooter = nil; -- who is on the IPSC course
 local on_pad = {};   -- pid -> standing on the waiting area at the last look
@@ -151,6 +185,11 @@ local function secs(t)
 	return string.format("%.2f", t);
 end
 
+-- a penalty as it was set: 10, not 10.00
+local function amount(t)
+	return string.format("%g", t);
+end
+
 --============================== THE MAP =============================--
 
 local function point(str)
@@ -168,14 +207,15 @@ local function box(str)
 	end
 end
 
+local KINDS = {plate = true, popper = true, noshoot = true};
 local STANCES = {stand = true, crouch = true};
 local MOTIONS = {static = 1, rail = 2, blink = 1};   -- the points each needs at least
 
--- ('lane1', 'stand', 'rail', 2.5, (face), (p1), (p2)); nil if not one
+-- ('lane1', 'plate', 'stand', 'rail', 2.5, (face), (p1), (p2)); nil if not one
 local function target(str)
-	local set, stance, motion, param, rest = string.match(str,
-		"^%(%s*'([%w_]+)'%s*,%s*'(%a+)'%s*,%s*'(%a+)'%s*,%s*([%d%.]+)%s*,(.*)%)$");
-	if (set == nil or not STANCES[stance] or MOTIONS[motion] == nil) then
+	local set, kind, stance, motion, param, rest = string.match(str,
+		"^%(%s*'([%w_]+)'%s*,%s*'(%a+)'%s*,%s*'(%a+)'%s*,%s*'(%a+)'%s*,%s*([%d%.]+)%s*,(.*)%)$");
+	if (set == nil or not KINDS[kind] or not STANCES[stance] or MOTIONS[motion] == nil) then
 		return nil;
 	end
 	local pts = {};
@@ -185,7 +225,21 @@ local function target(str)
 	if (face == nil or #pts < MOTIONS[motion] or (motion ~= "static" and not (param > 0))) then
 		return nil;
 	end
-	return {set = set, stance = stance, motion = motion, param = param, face = face, points = pts};
+	return {set = set, kind = kind, stance = stance, motion = motion, param = param, face = face, points = pts};
+end
+
+-- ((x0, y0, z0), (x1, y1, z1), (r, g, b)): the start wall's voxels and
+-- colour; nil if not one
+local function wall(str)
+	local pts = {};
+	for p in string.gmatch(string.match(str or "", "^%((.*)%)$") or "", "%b()") do pts[#pts + 1] = point(p); end
+	local a, b, c = pts[1], pts[2], pts[3];
+	if (#pts ~= 3 or c.x > 255 or c.y > 255 or c.z > 255) then
+		return nil;
+	end
+	return {x0 = math.min(a.x, b.x), y0 = math.min(a.y, b.y), z0 = math.min(a.z, b.z),
+		x1 = math.max(a.x, b.x), y1 = math.max(a.y, b.y), z1 = math.max(a.z, b.z),
+		color = {r = c.x, g = c.y, b = c.z}};
 end
 
 local function tuples(scrape, str, name)
@@ -202,13 +256,19 @@ function mod.after.pyscrape_ext(scrape, str, meta)
 	if (spawn == nil) then
 		return;
 	end
+	if (tonumber(scrape.get_ext(str, "range_version")) ~= VERSION) then
+		l10n_log(old_map_msg);
+		return;
+	end
 	local r = {seed = tonumber(scrape.get_ext(str, "range_seed")), spawn = spawn,
 		lanes = {}, targets = {}, count = {}};
 	for _, s in ipairs(tuples(scrape, str, "range_lanes")) do r.lanes[#r.lanes + 1] = box(s); end
 	local area, start = box(scrape.get_ext(str, "range_ipsc")), box(scrape.get_ext(str, "range_ipsc_start"));
 	local finish, wait = box(scrape.get_ext(str, "range_ipsc_end")), box(scrape.get_ext(str, "range_ipsc_wait"));
 	if (area and start and finish and wait) then
-		r.ipsc = {area = area, start = start, finish = finish, wait = wait};
+		-- the wall, if the map has one
+		r.ipsc = {area = area, start = start, finish = finish, wait = wait,
+			wall = wall(scrape.get_ext(str, "range_ipsc_wall"))};
 	end
 	for _, s in ipairs(tuples(scrape, str, "range_targets")) do
 		local t = target(s);
@@ -216,7 +276,9 @@ function mod.after.pyscrape_ext(scrape, str, meta)
 		-- a target of a set the map has: one of its lanes, or its course
 		if (t ~= nil and ((lane ~= nil and r.lanes[lane] ~= nil) or (t.set == "ipsc" and r.ipsc ~= nil))) then
 			r.targets[#r.targets + 1] = t;
-			r.count[t.set] = (r.count[t.set] or 0) + 1;
+			if (t.kind ~= "noshoot") then
+				r.count[t.set] = (r.count[t.set] or 0) + 1;
+			end
 		end
 	end
 	meta.range = r;
@@ -285,12 +347,13 @@ end
 local function name_of(r, t, k)
 	local lane = tonumber(string.match(t.set, "^lane(%d+)$"));
 	if (lane == nil) then
-		-- its number on the course
+		-- its number on the course, the no-shoots apart
 		local n = 0;
 		for i = 1, k do
-			if (r.targets[i].set == t.set) then n = n + 1; end
+			local u = r.targets[i];
+			if (u.set == t.set and (u.kind == "noshoot") == (t.kind == "noshoot")) then n = n + 1; end
 		end
-		return "IPSC " .. n;
+		return (t.kind == "noshoot" and "No-shoot " or "IPSC ") .. n;
 	end
 	if (t.motion ~= "static") then
 		return "L" .. lane .. " " .. t.motion;
@@ -307,7 +370,8 @@ local function top_up(r, now)
 	for k, t in ipairs(r.targets) do
 		if (held[k] == nil) then
 			local pid = bot_create{
-				team = 2,
+				-- a no-shoot is one of the people's own
+				team = t.kind == "noshoot" and 1 or 2,
 				name = name_of(r, t, k),
 				tool = "spade",
 				spawn_at = function(p)
@@ -333,8 +397,10 @@ local function keep_targets(r, now)
 		local t = r.targets[k];
 		if (t ~= nil and is_joined(pid)) then
 			if (not is_alive(pid)) then
-				-- at once, not after a respawn wait
-				spawn_player(pid, stand_on(range_target_at(t, now)));
+				-- at once, not after a respawn wait; a popper down stays down
+				if (not down[k]) then
+					spawn_player(pid, stand_on(range_target_at(t, now)));
+				end
 			elseif (t.motion == "rail") then
 				-- a step along the track every tick: the steady pace
 				bot_teleport(pid, body(t, range_target_at(t, now)));
@@ -373,19 +439,126 @@ local function drop_targets(from)
 	end
 end
 
+-- The engine never respawns a target: the controller does (above), and
+-- a popper that is down waits for its set to be made ready. 0 is the
+-- documented "no respawn", and the only safe value: this clk is not in
+-- seconds (see the_fall.lua).
+function mod.get_spawn_time(pid)
+	if (target_index(pid) ~= nil) then
+		return 0;
+	end
+	return mod.next.get_spawn_time(pid);
+end
+
+-- a popper hit: down, killed by nobody (a fall: no kill, no score)
+local function knock_down(k)
+	local pid = held[k];
+	if (pid ~= nil and is_alive(pid)) then
+		down[k] = true;
+		kill(pid, KILL_FALL, pid);
+	end
+end
+
+-- a set's poppers stood up again, where their motion has them now
+local function raise(r, set, now)
+	for k, t in ipairs(r.targets) do
+		if (t.set == set and down[k]) then
+			down[k] = nil;
+			local pid = held[k];
+			if (pid ~= nil and is_joined(pid) and not is_alive(pid)) then
+				spawn_player(pid, stand_on(range_target_at(t, now)));
+			end
+		end
+	end
+end
+
+--=========================== THE START WALL =========================--
+-- Built and brought down by the server a block at a time, through the
+-- block_action a player's edit takes, so the server's map and every
+-- client's agree after each block (the batched path culls once at the
+-- end and leaves clients' links stale: map_layout/blocks.lua).
+
+local function each_voxel(w, f)
+	for z = w.z1, w.z0, -1 do   -- the bottom layer first
+		for y = w.y0, w.y1 do
+			for x = w.x0, w.x1 do f(x, y, z); end
+		end
+	end
+end
+
+-- every voxel of it that is missing, bottom up, in its colour
+local function build_wall(w)
+	local anon = get_anon_pid();
+	set_block_color(anon, w.color);
+	each_voxel(w, function(x, y, z)
+		local p = {x = x, y = y, z = z};
+		if (not is_solid(p)) then block_action(p, 0, anon); end
+	end);
+end
+
+-- Its supports go first: both ends, then the bottom row from the ends
+-- inward. With the last of them the rest hangs on nothing: the server
+-- culls it, and every client drops it as falling debris -- the wall
+-- collapses. Whatever might still stand (a wall that touches something
+-- else) is taken after.
+local function collapse_wall(w)
+	local anon = get_anon_pid();
+	local function take(x, y, z)
+		local p = {x = x, y = y, z = z};
+		if (is_solid(p)) then block_action(p, 1, anon); end
+	end
+	local along_x = w.x1 - w.x0 >= w.y1 - w.y0;
+	for z = w.z0, w.z1 do
+		for t = (along_x and w.y0 or w.x0), (along_x and w.y1 or w.x1) do
+			if (along_x) then take(w.x0, t, z); take(w.x1, t, z);
+			else take(t, w.y0, z); take(t, w.y1, z); end
+		end
+	end
+	local lo, hi = (along_x and w.x0 or w.y0) + 1, (along_x and w.x1 or w.y1) - 1;
+	while (lo <= hi) do
+		for _, a in ipairs(lo == hi and {lo} or {lo, hi}) do
+			for t = (along_x and w.y0 or w.x0), (along_x and w.y1 or w.x1) do
+				if (along_x) then take(a, t, w.z1); else take(t, a, w.z1); end
+			end
+		end
+		lo, hi = lo + 1, hi - 1;
+	end
+	each_voxel(w, take);
+end
+
 --============================== HITS ================================--
 
 local finish;
 
-local function count(pid, k)
+-- pid's run that a hit on target t is part of, while its clock runs
+local function running(pid, t)
 	local r = runs[pid];
-	local c = range();
-	local t = c ~= nil and c.targets[k] or nil;
-	if (r == nil or t == nil or r.since == nil or r.done or t.set ~= r.set or r.hits[k]) then
+	if (r == nil or r.since == nil or r.done or t.set ~= r.set) then
+		return nil;
+	end
+	return r;
+end
+
+-- a no-shoot hit: the penalty, every hit
+local function penalize(pid, t)
+	local r = running(pid, t);
+	if (r ~= nil) then
+		r.noshoots = r.noshoots + 1;
+		tell(pid, noshoot_msg, {penalty = amount(range_noshoot_penalty)});
+	end
+end
+
+-- a target hit: counted once a run, and a popper goes down with it
+local function count(pid, k, t)
+	local r = running(pid, t);
+	if (r == nil or r.hits[k]) then
 		return;
 	end
 	r.hits[k] = true;
 	r.n = r.n + 1;
+	if (t.kind == "popper") then
+		knock_down(k);
+	end
 	tell(pid, hit_msg, {n = r.n, total = r.total});
 	if (r.n == r.total) then
 		if (r.kind == "lane") then
@@ -397,19 +570,25 @@ local function count(pid, k)
 end
 
 -- A target's damage stops here. The one who hit it is shown what the
--- hit was worth, and a bullet counts toward his run.
+-- hit was worth, and a bullet does what the target's kind says.
 local function struck(pid, hp, type, damager)
 	local k = target_index(pid);
 	if (k == nil) then
 		return false;
 	end
-	if (hp > 0 and damager ~= nil and damager ~= pid and damager >= 0 and damager < MAX_PLAYERS
-	    and not is_bot(damager)) then
+	local r = range();
+	local t = r ~= nil and r.targets[k] or nil;
+	if (t ~= nil and hp > 0 and damager ~= nil and damager ~= pid and damager >= 0
+	    and damager < MAX_PLAYERS and not is_bot(damager)) then
 		if (damage_markers_show ~= nil) then
 			damage_markers_show(damager, pid, hp);
 		end
 		if (type == 0 or type == 1) then   -- KillTypeWeapon, KillTypeHeadshot
-			count(damager, k);
+			if (t.kind == "noshoot") then
+				penalize(damager, t);
+			else
+				count(damager, k, t);
+			end
 		end
 	end
 	return true;
@@ -429,6 +608,21 @@ function mod.damage_player_directional(pid, hp, pos, type, damager)
 	return mod.next.damage_player_directional(pid, hp, pos, type, damager);
 end
 
+-- A hit on a target of the shooter's own team (a no-shoot) is one the
+-- core drops on its team test before any damage. Here in the late chain
+-- -- after every script that replaces what a bullet does, the last word
+-- before the core -- it is sent on to the damage hook above as the core
+-- sends an enemy's (ffa.lua's mapping of the hit type), so every hit on
+-- a target is decided in that one place. Still chained: the core drops
+-- it, and anything below still sees the hit.
+function mod.late.on_hit(pid, type, hitPlayer)
+	if (target_index(hitPlayer) ~= nil and get_team(pid) == get_team(hitPlayer)) then
+		damage_player_directional(hitPlayer, get_hit_damage(pid, type), get_position(pid),
+			type == 4 and 2 or (type == 1 and 1 or 0), pid);
+	end
+	return mod.late.next.on_hit(pid, type, hitPlayer);
+end
+
 --=============================== RUNS ===============================--
 
 local function refill(pid)
@@ -442,12 +636,37 @@ local function send_out(pid)
 	end
 end
 
+-- A run is over, however it ended: its set's poppers stand again, and
+-- if it was the course's, the wall is built again -- the course ready
+-- for the next shooter before he is let in.
+local function end_run(pid)
+	local run = runs[pid];
+	runs[pid] = nil;
+	local r = range();
+	if (run ~= nil and r ~= nil) then
+		raise(r, run.set, get_time());
+	end
+	if (shooter == pid) then
+		shooter = nil;
+		if (r ~= nil and r.ipsc ~= nil and r.ipsc.wall ~= nil) then
+			build_wall(r.ipsc.wall);
+		end
+	end
+end
+
+-- the time is the clock's and the penalties', and both boards rank by it
 function finish(pid, r, now)
-	local time = now - r.since;
+	local raw = now - r.since;
+	local penalty = r.noshoots * range_noshoot_penalty;
+	local time = raw + penalty;
 	local name = get_name(pid);
 	local board = r.kind == "lane" and "static" or "ipsc";
 	local old = best[board][name];
-	log("range: %s, %s in %s s", name, board, secs(time));
+	log("range: %s, %s in %s s (%d no-shoot hits)", name, board, secs(time), r.noshoots);
+
+	if (penalty > 0) then
+		tell(pid, penalty_total_msg, {raw = secs(raw), penalty = amount(penalty), time = secs(time)});
+	end
 
 	if (old == nil or time < old) then
 		best[board][name] = time;
@@ -465,8 +684,8 @@ function finish(pid, r, now)
 	if (r.kind == "lane") then
 		r.done = true;
 	else
-		runs[pid], shooter = nil, nil;
 		send_out(pid);
+		end_run(pid);
 	end
 end
 
@@ -499,10 +718,7 @@ end
 
 local function abandon(pid, msg, args)
 	tell(pid, msg, args);
-	runs[pid] = nil;
-	if (shooter == pid) then
-		shooter = nil;
-	end
+	end_run(pid);
 end
 
 -- the first in the queue who can go, onto the course
@@ -517,10 +733,10 @@ local function let_in(r, now)
 			table.remove(queue, 1);
 			shooter = pid;
 			runs[pid] = {kind = "ipsc", set = "ipsc", total = r.count.ipsc or 0, n = 0, hits = {},
-				deadline = now + IPSC_LIMIT, settle = now + SETTLE};
+				noshoots = 0, go = now + COUNTDOWN, settle = now + SETTLE};
 			set_position(pid, middle(r.ipsc.start));
 			refill(pid);
-			tell(pid, turn_msg, {limit = IPSC_LIMIT});
+			tell(pid, turn_msg, {limit = IPSC_LIMIT, penalty = amount(range_noshoot_penalty)});
 		end
 	end
 end
@@ -543,7 +759,7 @@ local function look_lane(pid, r, pos, now)
 	if (run ~= nil and run.kind == "lane") then
 		if (k ~= run.lane) then
 			if (not run.done) then tell(pid, void_line_msg); end
-			runs[pid] = nil;
+			end_run(pid);
 			run = nil;
 		elseif (run.since == nil and now >= run.go) then
 			run.since = run.go;
@@ -556,7 +772,7 @@ local function look_lane(pid, r, pos, now)
 		if (lane_holder(k) == nil) then
 			local set = "lane" .. k;
 			runs[pid] = {kind = "lane", set = set, lane = k, total = r.count[set] or 0, n = 0, hits = {},
-				go = now + COUNTDOWN};
+				noshoots = 0, go = now + COUNTDOWN};
 			told_taken[pid] = nil;
 			refill(pid);
 			tell(pid, lane_ready_msg, {lane = k, total = r.count[set] or 0, secs = COUNTDOWN});
@@ -567,6 +783,26 @@ local function look_lane(pid, r, pos, now)
 	end
 end
 
+-- The course is ready for a run: every target of the set standing (none
+-- missing, none down), and nobody on it but the shooter.
+local function ready(r, set)
+	for k, t in ipairs(r.targets) do
+		if (t.set == set) then
+			local pid = held[k];
+			if (pid == nil or not is_joined(pid) or not is_alive(pid)) then
+				return false;
+			end
+		end
+	end
+	for pid in piditer(PID_BROADCAST) do
+		if (pid ~= shooter and not is_bot(pid) and is_joined(pid) and is_alive(pid)
+		    and over(r.ipsc.area, get_position(pid))) then
+			return false;
+		end
+	end
+	return true;
+end
+
 local function look_ipsc(pid, r, pos, now)
 	local I = r.ipsc;
 	local run = runs[pid];
@@ -575,11 +811,16 @@ local function look_ipsc(pid, r, pos, now)
 			return;
 		elseif (not over(I.area, pos)) then
 			abandon(pid, left_course_msg);
-		elseif (now > run.deadline) then
-			abandon(pid, too_long_msg, {limit = IPSC_LIMIT});
-			send_out(pid);
 		elseif (run.since == nil) then
-			if (not in_box(I.start, pos)) then run.since = now; end
+			-- behind the wall: it falls, and the clock starts, when all is ready
+			if (now >= run.go and ready(r, run.set)) then
+				if (I.wall ~= nil) then collapse_wall(I.wall); end
+				run.since, run.deadline = now, now + IPSC_LIMIT;
+				tell(pid, go_msg);
+			end
+		elseif (now > run.deadline) then
+			send_out(pid);
+			abandon(pid, too_long_msg, {limit = IPSC_LIMIT});
 		elseif (in_box(I.finish, pos)) then
 			if (run.n >= run.total) then
 				finish(pid, run, now);
@@ -661,10 +902,11 @@ function mod.after.on_join(pid)
 	end
 end
 
--- dead, of anything: the run is over, and back at once (a target too,
--- should anything kill one)
+-- dead, of anything: the run is over, and back at once (a target is the
+-- controller's: keep_targets)
 function mod.after.kill(pid)
-	if (range() == nil or not is_connected(pid) or not is_joined(pid) or is_alive(pid)) then
+	if (range() == nil or not is_connected(pid) or not is_joined(pid) or is_alive(pid)
+	    or target_index(pid) ~= nil) then
 		return;
 	end
 	local run = runs[pid];
@@ -672,8 +914,8 @@ function mod.after.kill(pid)
 		if (run.kind == "ipsc") then
 			abandon(pid, died_course_msg);
 		else
-			runs[pid] = nil;
 			if (not run.done) then tell(pid, void_died_msg); end
+			end_run(pid);
 		end
 	end
 	if (get_next_team(pid) ~= SPECTATOR) then
@@ -682,13 +924,11 @@ function mod.after.kill(pid)
 end
 
 function mod.after.on_disconnect(pid)
-	runs[pid], on_pad[pid], told_taken[pid] = nil, nil, nil;
+	end_run(pid);
+	on_pad[pid], told_taken[pid] = nil, nil;
 	unqueue(pid);
-	if (shooter == pid) then
-		shooter = nil;
-	end
 	for k, p in pairs(held) do
-		if (p == pid) then held[k] = nil; end
+		if (p == pid) then held[k], down[k] = nil, nil; end
 	end
 end
 
@@ -718,11 +958,18 @@ end
 
 --=========================== NO BUILDING ============================--
 
-function mod.on_block_action(pid, pos, type)
+-- In the late chain, as map_layout's guard is: every observer above it
+-- (lib_shot_detect's proof of a shot) still sees the edit. What the
+-- client did of it already is put back on that client.
+function mod.late.on_block_action(pid, pos, type)
+	map_layout.revert_action(pid, pos, type);
 	l10n_send_chat(pid, no_build_msg);
 end
 
-function mod.on_block_line(pid, start, stop)
+function mod.late.on_block_line(pid, start, stop)
+	for p in iter_block_line(start, stop) do
+		map_layout.revert(pid, p, 0);
+	end
 	l10n_send_chat(pid, no_build_msg);
 end
 
@@ -808,7 +1055,7 @@ end
 -- and go to their new places; the best times stay while the range is
 -- the same one
 function mod.after.finish_map_load()
-	runs, queue, shooter, on_pad, told_taken = {}, {}, nil, {}, {};
+	runs, queue, shooter, on_pad, told_taken, down = {}, {}, nil, {}, {}, {};
 	next_topup = 0;
 	local r = range();
 	drop_targets(r ~= nil and #r.targets + 1 or 1);
@@ -841,12 +1088,24 @@ function mod.on_load()
 	team_balance_max_diff = math.huge;
 	-- and one map: vote_map, in random mode, would fetch another from the web
 	map_web_random = false;
+	-- nothing shot here is a kill or a capture: lib_rewards gives nothing
+	gamemode_rewards = false;
 	sweep();
 	place();
+	-- loaded onto a range whose wall an earlier life of this left down
+	local r = range();
+	if (r ~= nil and r.ipsc ~= nil and r.ipsc.wall ~= nil) then
+		build_wall(r.ipsc.wall);
+	end
 end
 
 function mod.on_unload()
+	local r = range();
+	if (r ~= nil and r.ipsc ~= nil and r.ipsc.wall ~= nil) then
+		build_wall(r.ipsc.wall);
+	end
 	drop_targets(1);
+	gamemode_rewards = nil;
 end
 
 return mod;

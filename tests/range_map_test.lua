@@ -103,8 +103,9 @@ local function inside(b, p)
 end
 
 -- the columns a body can walk to from `from`: floor at FLOOR, three
--- voxels of air above it; `shut` are columns taken as walls
-local function walk(c, from, shut)
+-- voxels of air above it; `shut` are columns taken as walls, `open`
+-- columns whose voxels above the floor are taken as air (a wall down)
+local function walk(c, from, shut, open)
 	local seen, queue, head = {}, {from.y * 512 + from.x}, 1;
 	seen[queue[1]] = true;
 	while (head <= #queue) do
@@ -115,8 +116,8 @@ local function walk(c, from, shut)
 			local nx, ny = x + d[1], y + d[2];
 			local j = ny * 512 + nx;
 			if (not seen[j] and not (shut and shut[j]) and R.solid(c, nx, ny, FLOOR)
-			    and not R.solid(c, nx, ny, FLOOR - 1) and not R.solid(c, nx, ny, FLOOR - 2)
-			    and not R.solid(c, nx, ny, FLOOR - 3)) then
+			    and ((open and open[j]) or (not R.solid(c, nx, ny, FLOOR - 1)
+			    and not R.solid(c, nx, ny, FLOOR - 2) and not R.solid(c, nx, ny, FLOOR - 3)))) then
 				seen[j] = true;
 				queue[#queue + 1] = j;
 			end
@@ -192,7 +193,18 @@ check(far, "each target in its own lane, the firing position within 3 m of its d
 print("\n3. the IPSC course");
 local I = c.ipsc;
 local ipsc = by.ipsc or {};
-check(#ipsc >= 8, #ipsc .. " IPSC targets");
+local shoot, noshoot = {}, {};
+for _, t in ipairs(ipsc) do
+	if (t.kind == "noshoot") then noshoot[#noshoot + 1] = t; else shoot[#shoot + 1] = t; end
+end
+check(#shoot >= 8, #shoot .. " IPSC targets");
+local poppers = true;
+for _, t in ipairs(shoot) do if (t.kind ~= "popper") then poppers = false; end end
+for k = 1, R.LANES do
+	for _, t in ipairs(by["lane" .. k]) do if (t.kind ~= "plate") then poppers = false; end end
+end
+check(poppers, "the course's go down when hit (poppers), the lanes' never do (plates)");
+check(#noshoot >= 3, #noshoot .. " no-shoots on the course, none on the lanes");
 local ins = true;
 for _, t in ipairs(ipsc) do
 	for _, p in ipairs(t.points) do if (not inside(I.area, p)) then ins = false; end end
@@ -209,16 +221,43 @@ check(bays, "and every lane's firing position");
 local downrange = false;
 for _, t in ipairs(by.lane1) do if (from_spawn[at(t.points[1])]) then downrange = true; end end
 check(downrange, "downrange too: nothing but the rule keeps a shooter on the line");
--- the door shut: nothing in the course reaches out
+-- the start wall: one block thick, across the hall from wall to wall,
+-- every voxel of it solid and painted its one colour
+local W = I.wall;
+local whole, painted = W ~= nil and W.y0 == W.y1 and W.z1 == FLOOR - 1 and W.z0 < W.z1, true;
+for x = W.x0, W.x1 do
+	for z = W.z0, W.z1 do
+		if (not R.solid(c, x, W.y0, z)) then whole = false; end
+		local p = c.paint[at({x = x, y = W.y0})];
+		if (p == nil or p[z] ~= W.color) then painted = false; end
+	end
+end
+for z = W.z0, W.z1 do
+	if (not R.solid(c, W.x0 - 1, W.y0, z) or not R.solid(c, W.x1 + 1, W.y0, z)) then whole = false; end
+end
+check(whole and painted and W.z1 - W.z0 + 1 >= 4,
+	"the start wall: " .. (W.z1 - W.z0 + 1) .. " high, one thick, from wall to wall, every voxel its colour");
+local down = {};
+for x = W.x0, W.x1 do down[at({x = x, y = W.y0})] = true; end
+-- the door in shut: nothing in the course reaches out
 local shut = {};
 for x = I.area.x0, I.area.x1 do shut[(I.area.y1 + 1) * 512 + x] = true; end
-local inner = walk(c, mid(I.start), shut);
+local behind = walk(c, mid(I.start), shut);
+local boxed, n_behind = true, 0;
+for i in pairs(behind) do
+	n_behind = n_behind + 1;
+	local p = {x = i % 512, y = math.floor(i / 512)};
+	if (not inside(I.area, p) or p.y <= W.y0) then boxed = false; end
+end
+check(boxed and inside(I.area, mid(I.start)) and mid(I.start).y > W.y0,
+	"standing, it shuts the start box off from the course (" .. n_behind .. " columns behind it)");
+local inner = walk(c, mid(I.start), shut, down);
 local closed, cells = true, 0;
 for i in pairs(inner) do
 	cells = cells + 1;
 	if (not inside(I.area, {x = i % 512, y = math.floor(i / 512)})) then closed = false; end
 end
-check(closed and cells > 400, "closed: with its door shut, nobody leaves it (" .. cells .. " columns inside)");
+check(closed and cells > 400, "down: the course, closed with its door shut, nobody leaves it (" .. cells .. " columns inside)");
 check(inner[at(mid(I.finish))], "and the end box is reached from the start box");
 local seen_from = {};
 for k, p in ipairs(I.positions) do
@@ -226,7 +265,35 @@ for k, p in ipairs(I.positions) do
 end
 check(next(seen_from) == nil, "every shooting position is reached");
 
-print("\n4. every target: on a floor, room for its body, in sight from where it is shot");
+-- a no-shoot among the targets: by one shot at from the same position,
+-- a column or two from it, never on a column a target can be on
+local among = true;
+for seed = 1, 20 do
+	local k = R.generate(seed * 7919);
+	local taken = {};
+	for _, t in ipairs(k.targets) do
+		if (t.kind ~= "noshoot") then
+			for _, p in ipairs(places(t)) do taken[at({x = math.floor(p.x), y = p.y})] = true; end
+		end
+	end
+	for _, t in ipairs(k.targets) do
+		if (t.kind == "noshoot") then
+			local p = t.points[1];
+			local near = false;
+			for _, u in ipairs(k.targets) do
+				local q = u.points[1];
+				if (u.kind == "popper" and u.motion == "static" and u.face == t.face
+				    and math.max(math.abs(q.x - p.x), math.abs(q.y - p.y)) <= 1) then
+					near = true;
+				end
+			end
+			if (taken[at(p)] or not near or not inside(k.ipsc.area, p)) then among = false; end
+		end
+	end
+end
+check(among, "twenty seeds: each no-shoot stands by a target shot from the same position, on a column of its own");
+
+print("\n4. every target and no-shoot: on a floor, room for its body, in sight from where it is shot");
 local floored, sighted = true, true;
 for seed = 1, 20 do
 	local k = R.generate(seed * 7919);
@@ -251,9 +318,11 @@ check(sighted, "and its head and chest are in clear sight from its firing positi
 print("\n5. the metadata");
 local meta = "\n" .. R.meta(c, "range");
 for _, key in ipairs({"range_spawn", "range_lanes", "range_ipsc", "range_ipsc_start", "range_ipsc_end",
-		"range_ipsc_wait", "range_targets"}) do
-	check(string.find(meta, "\n%s*'" .. key .. "' : %(.-%),\n") ~= nil, key .. ", on one line");
+		"range_ipsc_wait", "range_ipsc_wall", "range_targets", "range_version"}) do
+	check(string.find(meta, "\n%s*'" .. key .. "' : [%(%d].-,\n") ~= nil, key .. ", on one line");
 end
+check(string.find(meta, "'noshoot', 'stand', 'static'", 1, true) ~= nil and string.find(meta, "'popper'", 1, true) ~= nil,
+	"each target with its kind");
 
 print(string.format("\n%d passed, %d failed", passed, failed));
 os.exit(failed == 0 and 0 or 1);

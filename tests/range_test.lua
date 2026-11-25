@@ -1,4 +1,4 @@
--- range_test.lua -- the range gamemode: its targets, a lane's run, the IPSC queue
+-- range_test.lua -- the range gamemode: its targets, a lane's run, the IPSC course
 -- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 --   luajit tests/range_test.lua      (from the repository root)
@@ -36,6 +36,8 @@ function log(fmt, ...) logged[#logged + 1] = string.format(fmt, ...); end
 
 local L = dofile("tests/support/l10n_env.lua").load{};
 L.pids = {0, 1, 2, 3};
+-- what the mode logs through lib_l10n, in English, with the rest
+function l10n_log(m, a) logged[#logged + 1] = m.en; end
 function is_fakepid(pid) return pid >= MAX_PLAYERS and pid < PID_BROADCAST; end
 
 -- people are 0..3; the bots lib_bot would make take 10 and up
@@ -100,6 +102,41 @@ local refilled = {};
 function restock(pid) refilled[pid] = (refilled[pid] or 0) + 1; end
 function set_hp(pid, hp) players[pid].hp = hp; end
 
+-- the map's voxels: the generated range's, and what the server wrote over them
+local R = require "range_map";
+local range = R.generate(1);
+local written, writes, colors = {}, {}, {};
+local function vkey(p) return (p.z * 512 + p.y) * 512 + p.x; end
+function is_solid(p)
+	local w = written[vkey(p)];
+	if (w ~= nil) then return w; end
+	return R.solid(range, p.x, p.y, p.z);
+end
+function get_anon_pid() return 63; end
+function set_block_color(pid, c) colors[#colors + 1] = {pid = pid, c = c}; end
+function block_action(p, type, from)
+	written[vkey(p)] = type == 0;
+	writes[#writes + 1] = {x = p.x, y = p.y, z = p.z, type = type, from = from};
+end
+local reverted = {};
+map_layout = {
+	revert_action = function(pid, pos, type) reverted[#reverted + 1] = {pid = pid, pos = pos, type = type}; end,
+	revert = function(pid, pos, type) reverted[#reverted + 1] = {pid = pid, pos = pos, type = type}; end,
+};
+function iter_block_line(a, b)
+	local list, k = {a, b}, 0;
+	return function() k = k + 1; return list[k]; end
+end
+
+-- a death: the core's kill(), and the hooks after it
+local kills = {};
+function kill(pid, type, killer)
+	players[pid].alive = false;
+	kills[#kills + 1] = {pid = pid, type = type, killer = killer};
+	mod.after.kill(pid, type, killer);
+end
+function get_hit_damage(pid, type) return type == 1 and 100 or 49; end
+
 local intel, tent = {}, {};
 function objgrav(p) return {x = p.x, y = p.y, z = 40}; end
 function drop_move_intel(team, pos) intel[team] = pos; end
@@ -122,9 +159,6 @@ local scrape = dofile("lsd/scripts/lib_pyscrape.lua");
 local meta = {};
 function get_map_meta() return meta; end
 
-local R = require "range_map";
-local range = R.generate(1);
-
 -- nothing the mode does opens a file (the bot engine's link is one)
 local real_open, opened = io.open, 0;
 io.open = function(...) opened = opened + 1; return real_open(...); end
@@ -145,6 +179,8 @@ local function last(pid) local t = texts(pid); return t[#t]; end
 print("\n1. loading, and a map that names a range");
 map_web_random = true;
 mod = dofile("catalog/gamemodes/range/range.lua");
+-- the chain as the core runs it: a hit packet first, then the damage
+function damage_player_directional(...) return mod.damage_player_directional(...); end
 function get_spawn_position(pid)
 	local b = bots[pid];
 	if (b ~= nil) then return b.spawn_at(pid); end
@@ -154,6 +190,8 @@ mod.on_load();
 check(listed == "range", "listed as range");
 check(team_balance_max_diff == math.huge and map_web_random == false, "team_balance and vote_map are told");
 check(commands.best ~= nil and commands.ipsc ~= nil, "/best and /ipsc are registered");
+check(gamemode_rewards == false, "it gives no rewards: says so to lib_rewards (gamemode_rewards)");
+check(range_noshoot_penalty == 10, "a no-shoot hit costs 10 s, a setting (range_noshoot_penalty)");
 
 mod.after.pyscrape_ext(scrape, "\n" .. R.meta(range, "range") .. "\n", meta);
 local r = meta.range;
@@ -161,17 +199,26 @@ check(r ~= nil and #r.lanes == R.LANES and #r.targets == #range.targets, #range.
 local same = r ~= nil;
 for k, t in ipairs(range.targets) do
 	local u = r and r.targets[k];
-	if (u == nil or u.set ~= t.set or u.stance ~= t.stance or u.motion ~= t.motion or u.param ~= t.param
+	if (u == nil or u.set ~= t.set or u.kind ~= t.kind or u.stance ~= t.stance or u.motion ~= t.motion or u.param ~= t.param
 	    or #u.points ~= #t.points or u.points[#u.points].x ~= t.points[#t.points].x or u.face.y ~= t.face.y) then
 		same = false;
 	end
 end
-check(same, "each one as the generator made it: set, stance, motion, pace, face and points");
+check(same, "each one as the generator made it: set, kind, stance, motion, pace, face and points");
 check(r ~= nil and r.ipsc ~= nil and r.ipsc.start.x0 == range.ipsc.start.x0 and r.ipsc.wait.y1 == range.ipsc.wait.y1,
 	"the IPSC course, its start, end and waiting area");
+local W = r.ipsc.wall;
+local GW = range.ipsc.wall;
+check(W ~= nil and W.x0 == GW.x0 and W.x1 == GW.x1 and W.y0 == GW.y0 and W.z0 == GW.z0 and W.z1 == GW.z1
+	and W.color.r == GW.color[1] and W.color.b == GW.color[3], "its start wall: the voxels and the colour");
+check(r.count.ipsc == 10 and r.count.lane1 == 8, "a run counts the targets, not the no-shoots (10 on the course)");
 local bad = {};
-mod.after.pyscrape_ext(scrape, "\nextensions = {\n    'range_spawn' : (1, 2, 50),\n    'range_targets' : (('lane9', 'stand', 'static', 0, (1, 1, 50), (2, 2, 50)), ('lane1', 'stand', 'rail', 0, (1, 1, 50), (2, 2, 50))),\n}\n", bad);
-check(bad.range ~= nil and #bad.range.targets == 0, "a target of a lane the map lacks, or a rail with no pace, is left out");
+mod.after.pyscrape_ext(scrape, "\nextensions = {\n    'range_version' : 2,\n    'range_spawn' : (1, 2, 50),\n    'range_targets' : (('lane9', 'plate', 'stand', 'static', 0, (1, 1, 50), (2, 2, 50)), ('lane1', 'plate', 'stand', 'rail', 0, (1, 1, 50), (2, 2, 50)), ('lane1', 'brick', 'stand', 'static', 0, (1, 1, 50), (2, 2, 50))),\n}\n", bad);
+check(bad.range ~= nil and #bad.range.targets == 0, "a target of a lane the map lacks, a rail with no pace or a kind unknown is left out");
+local old = {};
+mod.after.pyscrape_ext(scrape, "\nextensions = {\n    'range_spawn' : (1, 2, 50),\n    'range_targets' : (('lane1', 'stand', 'static', 0, (1, 1, 50), (2, 2, 50)),),\n}\n", old);
+check(old.range == nil and string.find(logged[#logged] or "", "older version") ~= nil,
+	"a range of an older generator: none, and the log says to generate another");
 
 mod.after.finish_map_load();
 check(tent[1].x == range.spawn.x + 0.5 and intel[1].x == 0.5 and intel[2].x == 511.5, "the tent on the plaza, the intels in corners");
@@ -185,7 +232,7 @@ check(#made == 20, "and not tried again within the second");
 seats = 100;
 tick(1001);
 check(#made == #r.targets, "the rest a second later: " .. #r.targets .. " targets");
-local where, team2, hidden = true, true, true;
+local where, teams, hidden = true, true, true;
 for _, pid in ipairs(made) do
 	local k = bots[pid].data.range_target;
 	local t = r.targets[k];
@@ -195,27 +242,29 @@ for _, pid in ipairs(made) do
 	end
 	if ((t.stance == "crouch") ~= (crouched[pid] == true)) then where = false; end
 	if (faced[pid] == nil or faced[pid].x ~= t.face.x + 0.5) then where = false; end
-	if (players[pid].team ~= 2) then team2 = false; end
+	if (players[pid].team ~= (t.kind == "noshoot" and 1 or 2)) then teams = false; end
 	local s = bots[pid].silent;
 	if (not (s.roster and s.presence and s.killfeed and s.stats) or bots[pid].think ~= nil) then hidden = false; end
 end
 check(where, "each on its point at once (no respawn wait), standing or crouched, facing its firing position");
-check(team2, "on team 2: the people's enemies, the only ones");
+check(teams, "targets on team 2, the people's enemies; no-shoots on team 1, the people's own");
 check(hidden, "hidden from roster, presence, kill feed and stats; no think");
 check(linked == 0 and opened == 0, "no engine: nothing asked of lib_botlink, no file opened");
 check(bots[made[1]].name == "L1 5m" and bots[made[7]].name == "L1 rail" and bots[made[8]].name == "L1 blink"
-	and bots[made[#made]].name == "IPSC 10", "named for what they are: " .. bots[made[1]].name .. ", " .. bots[made[7]].name);
+	and bots[made[#made - 4]].name == "IPSC 10" and bots[made[#made]].name == "No-shoot 4",
+	"named for what they are: " .. bots[made[1]].name .. ", " .. bots[made[7]].name .. ", " .. bots[made[#made]].name);
 
-local function pid_of(set, motion, n)
+local function pid_of(set, motion, n, kind)
 	local i = 0;
 	for _, pid in ipairs(made) do
 		local t = r.targets[bots[pid].data.range_target];
-		if (t.set == set and (motion == nil or t.motion == motion)) then
+		if (t.set == set and (motion == nil or t.motion == motion) and (t.kind == "noshoot") == (kind == "noshoot")) then
 			i = i + 1;
 			if (i == (n or 1)) then return pid, t; end
 		end
 	end
 end
+local function noshoot(n) return pid_of("ipsc", nil, n, "noshoot"); end
 
 print("\n3. a hit: no death, a floating number, counted once");
 hooks, packets = {}, {};
@@ -270,7 +319,12 @@ check(t0[#t0 - 1] == "Hit: 8/8" and t0[#t0] == "Every target down in 12.25 s: yo
 	"the eighth: every target down in 12.25 s, from go");
 check(L.chat[#L.chat].to == PID_BROADCAST and L.chat[#L.chat].text == "Shooter0 holds the static range record: 12.25 s",
 	"the record, to everybody");
-check(logged[1] == "range: Shooter0, static in 12.25 s", "and the log");
+check(logged[1] == "range: Shooter0, static in 12.25 s (0 no-shoot hits)", "and the log");
+local standing = true;
+for _, motion in ipairs({"static", "rail", "blink"}) do
+	if (not players[pid_of("lane1", motion)].alive) then standing = false; end
+end
+check(standing and #kills == 0, "plates: every one hit, every one standing");
 tick(2016);
 check(#texts(0) == #t0, "standing on in the bay after a run: nothing more");
 stand(1, mid(r.lanes[2]));
@@ -339,16 +393,51 @@ for _, e in ipairs(teleports) do
 end
 check(still, "the static ones never move");
 
-print("\n6. the IPSC course: a queue, one inside");
+print("\n6. the IPSC course: a queue, one inside, behind the start wall");
 L.reset();
+local function wall_voxels(f)
+	for z = W.z0, W.z1 do
+		for y = W.y0, W.y1 do
+			for x = W.x0, W.x1 do f({x = x, y = y, z = z}); end
+		end
+	end
+end
+local function wall_standing()
+	local all = true;
+	wall_voxels(function(p) if (not is_solid(p)) then all = false; end end);
+	return all;
+end
+local function wall_gone()
+	local none = true;
+	wall_voxels(function(p) if (is_solid(p)) then none = false; end end);
+	return none;
+end
+local function course_up()
+	local up = true;
+	for k, t in ipairs(r.targets) do
+		if (t.set == "ipsc") then
+			local pid;
+			for p, b in pairs(bots) do if (b.data.range_target == k) then pid = p; end end
+			local at = pid and players[pid].pos;
+			if (pid == nil or not players[pid].alive or faced[pid] == nil or faced[pid].x ~= t.face.x + 0.5
+			    or (t.motion == "static" and (at.x ~= t.points[1].x + 0.5 or at.y ~= t.points[1].y + 0.5))) then
+				up = false;
+			end
+		end
+	end
+	return up;
+end
+
 for pid = 0, 3 do stand(pid, range.spawn, pid); end
 tick(5000);
+check(wall_standing(), "the start wall stands, as the map has it");
 commands.ipsc.func(0);
 tick(5000);
 local I = r.ipsc;
 local s = mid(I.start);
-check(players[0].pos.x == s.x + 0.5 and players[0].pos.y == s.y + 0.5, "the first in the queue is put in the start box");
-check(last(0) == "Your turn on the IPSC course: the clock starts when you leave the green start box and stops in the blue end box once every target is hit. 120 s at most.",
+check(players[0].pos.x == s.x + 0.5 and players[0].pos.y == s.y + 0.5 and s.y > W.y0,
+	"the first in the queue is put in the start box, behind the wall");
+check(last(0) == "Your turn on the IPSC course: the wall in front of you comes down when the course is ready, and the clock starts then. Every target down, then to the blue end box; each hit on a no-shoot (your own team) costs 10 s. 120 s at most.",
 	"and told how it goes");
 commands.ipsc.func(1);
 check(last(1) == "You are number 1 in the IPSC queue.", "the second waits, first in the queue");
@@ -362,65 +451,162 @@ check(players[3].pos.x == w.x + 0.5 and players[3].pos.y == w.y + 0.5 and last(3
 	"an intruder is sent to the waiting area, and queued");
 commands.ipsc.func(3);
 check(last(3) == "You left the IPSC queue." and #texts(3) == 2, "/ipsc again leaves the queue");
-stand(0, mid(I.start), 0, -3);
-tick(5001.5);
-mod.damage_player_directional(pid_of("ipsc", "static", 1), 49, {}, 0, 0);
-check(last(0) == "Hit: 1/10", "out of the start box: the clock runs, hits count");
-stand(0, mid(I.finish));
+local p1 = pid_of("ipsc", "static", 1);
+mod.damage_player_directional(p1, 49, {}, 0, 0);
+tick(5002);
+check(string.find(last(0), "^Your turn") ~= nil and players[p1].alive and wall_standing(),
+	"before the wall falls: a hit counts for nothing, nothing falls, the wall stands");
+
+-- somebody else on the course: not ready
+stand(3, mid(I.finish));
+tick(5003);
+check(wall_standing() and string.find(last(0), "^Your turn") ~= nil, "somebody else on the course: the wall waits");
+commands.ipsc.func(3);
+-- a target missing (its seat taken): not ready
+local ns1 = noshoot(1);
+seats = 0;
+bot_destroy(ns1);
+tick(5003.5);
+check(wall_standing(), "a target of the course missing: the wall waits");
+seats = 100;
+writes = {};
+tick(5005);
+check(players[ns1] ~= nil and players[ns1].alive and wall_gone() and last(0) == "Go!",
+	"made again, and all ready: the wall comes down, go");
+local first, ends = writes[1], true;
+local n_ends = (W.z1 - W.z0 + 1) * 2;
+for k = 1, n_ends do
+	local e = writes[k];
+	if (e.type ~= 1 or (e.x ~= W.x0 and e.x ~= W.x1) or e.from ~= 63) then ends = false; end
+end
+local bottom = true;
+for k = n_ends + 1, n_ends + (W.x1 - W.x0 - 1) do
+	if (writes[k].z ~= W.z1 or writes[k].type ~= 1) then bottom = false; end
+end
+check(first ~= nil and ends and bottom, "by the server, a block at a time: both ends first, then the bottom row (the rest falls)");
+
+print("\n6b. the run: targets go down, no-shoots cost");
+packets, hooks, kills = {}, {}, {};
+now = 5006;
+mod.damage_player_directional(p1, 49, {}, 0, 0);
+check(last(0) == "Hit: 1/10" and not players[p1].alive, "a hit: counted, and the target goes down");
+check(#kills == 1 and kills[1].pid == p1 and kills[1].killer == p1 and kills[1].type == 4,
+	"killed by nobody (a fall): no kill, no score, no reward for anybody");
+check(bots[p1].silent.killfeed and gamemode_rewards == false, "out of the kill feed (Silent Player), and rewards off");
+check(#packets == 1 and packets[1].data == string.char(0x60, p1, 49), "the shooter is shown the hit");
+check(#hooks == 0, "the damage goes no further");
+tick(5007);
 tick(5010);
+check(not players[p1].alive and mod.get_spawn_time(p1) == 0, "it stays down: nothing respawns it, nor the engine");
+check(#hooks == 0 and mod.get_spawn_time(0) == nil and hooks[1][1] == "get_spawn_time", "a person's respawn is the chain's");
+hooks, packets = {}, {};
+local ns2 = noshoot(2);
+check(players[ns2].team == 1, "a no-shoot is on the shooter's team");
+mod.late.on_hit(0, 0, ns2);
+check(last(0) == "No-shoot hit: +10 s" and players[ns2].alive, "a no-shoot hit: told at once, and it stands");
+check(#packets == 1 and packets[1].data == string.char(0x60, ns2, 49), "a marker over it");
+check(#hooks == 1 and hooks[1][1] == "on_hit", "the hit goes on to the core, which drops a team's own");
+mod.late.on_hit(0, 1, ns2);
+local t = texts(0);
+check(t[#t] == "No-shoot hit: +10 s" and t[#t - 1] == "No-shoot hit: +10 s", "every hit is one more");
+hooks = {};
+local p2 = pid_of("ipsc", "static", 2);
+mod.late.on_hit(0, 0, p2);
+check(players[p2].alive and #hooks == 1 and last(0) == "No-shoot hit: +10 s",
+	"an enemy target's hit is the core's to send on: nothing done twice");
+stand(0, mid(I.finish));
+tick(5012);
 check(last(0) == "Targets still standing: 9", "in the end box with targets standing: told how many");
-tick(5011);
+tick(5013);
 check(last(0) == "Targets still standing: 9", "once");
 for n = 2, 9 do mod.damage_player_directional(pid_of("ipsc", "static", n), 49, {}, 0, 0); end
 mod.damage_player_directional(pid_of("ipsc", "rail"), 49, {}, 1, 0);
 check(last(0) == "Every target hit: to the blue end box!", "every target hit: told to finish");
+local alive = 0;
+for n = 1, 9 do if (players[pid_of("ipsc", "static", n)].alive) then alive = alive + 1; end end
+check(alive == 0 and not players[pid_of("ipsc", "rail")].alive, "every one of them down");
 stand(0, mid(I.finish), 1);
-tick(5021.5);
-local t = texts(0);
-check(t[#t] == "IPSC course in 20.00 s: your best!", "in the end box: 20 s from leaving the start box");
+writes, colors = {}, {};
+tick(5020.5);
+t = texts(0);
+check(t[#t - 1] == "15.50 s + 20 s penalty = 35.50 s" and t[#t] == "IPSC course in 35.50 s: your best!",
+	"in the end box: 15.5 s on the clock from the wall's fall, 20 s of penalty, 35.5 s");
+check(L.chat[#L.chat].to == PID_BROADCAST and L.chat[#L.chat].text == "Shooter0 holds the IPSC record: 35.50 s",
+	"the boards rank by the whole of it");
 check(math.abs(players[0].pos.x - range.spawn.x - 0.5) <= 2, "and back on the plaza");
-tick(5022);
-check(players[1].pos.x == s.x + 0.5 and string.find(last(1), "^Your turn") ~= nil, "the next in the queue goes in");
+check(course_up(), "the course made ready at once: every target standing in its place, facing its position");
+check(wall_standing() and #colors >= 1 and colors[1].c == W.color and writes[1].type == 0 and writes[1].z == W.z1,
+	"and the wall built again, in its colour, from the bottom up");
+tick(5021);
+check(players[1].pos.x == s.x + 0.5 and string.find(last(1), "^Your turn") ~= nil and wall_standing(),
+	"the next in the queue goes in, behind the wall");
+tick(5024);
+check(last(1) == "Go!" and wall_gone(), "the course ready: down it comes");
+now = 5025;
+mod.damage_player_directional(p1, 49, {}, 0, 1);
+check(not players[p1].alive, "a target down");
 players[1].alive = false;
 mod.after.kill(1, 0, 1);
 check(last(1) == "IPSC run abandoned: you died." and players[1].alive, "the shooter dies: abandoned, back on the plaza");
-tick(5023);
+check(course_up() and wall_standing(), "the course ready again: the target up, the wall built");
+tick(5026);
 check(players[2].pos.x == s.x + 0.5, "and the next goes in");
 stand(2, mid(I.wait));
-tick(5025);
-check(last(2) == "IPSC run abandoned: you left the course.", "the shooter walks out: abandoned");
-tick(5026);
+tick(5028);
+check(last(2) == "IPSC run abandoned: you left the course." and wall_standing(), "the shooter walks out: abandoned");
+tick(5029);
 commands.ipsc.func(0);
 tick(5030);
 check(players[0].pos.x == s.x + 0.5, "the course free, the next one in at once");
-tick(5151);
-check(last(0) == "IPSC run abandoned: over 120 s." and math.abs(players[0].pos.y - range.spawn.y - 0.5) <= 2,
-	"over two minutes: abandoned, and sent out");
+tick(5033);
+check(last(0) == "Go!", "go");
+tick(5153);
+check(last(0) == "Go!", "two minutes from the wall's fall: still on");
+tick(5153.5);
+check(last(0) == "IPSC run abandoned: over 120 s." and math.abs(players[0].pos.y - range.spawn.y - 0.5) <= 2
+	and wall_standing(), "over two minutes: abandoned, sent out, the wall built again");
 commands.ipsc.func(1);
-tick(5152);
+tick(5154);
 mod.after.on_disconnect(1);
 players[1] = nil;
+check(wall_standing(), "a shooter who leaves the server: the course made ready");
 commands.ipsc.func(2);
-tick(5153);
-check(players[2].pos.x == s.x + 0.5, "a shooter who leaves the server frees the course");
+tick(5155);
+check(players[2].pos.x == s.x + 0.5, "and free for the next");
+mod.after.on_disconnect(2);
+players[2] = {name = "Shooter2", team = 1, alive = true, pos = {x = 0, y = 0, z = 0}, gun = 0, hp = 100};
 players[1] = {name = "Shooter1", team = 1, alive = true, pos = {x = 0, y = 0, z = 0}, gun = 0, hp = 100};
+
+print("\n6c. nothing a player has breaks the wall, or anything");
+reverted, hooks, writes = {}, {}, {};
+L.reset();
+local wp = {x = W.x0 + 5, y = W.y0, z = W.z1};
+mod.late.on_block_action(0, wp, 1);
+check(#reverted == 1 and reverted[1].pos == wp and #hooks == 0 and is_solid(wp) and last(0) == "No building or digging on the range.",
+	"a bullet's or a spade's: refused, put back on the client");
+mod.late.on_block_line(0, {x = 1, y = 1, z = 40}, {x = 2, y = 1, z = 40});
+check(#reverted == 3 and reverted[3].type == 0 and #hooks == 0, "a line of blocks: every one taken back");
+mod.block_action(wp, 3, 0);
+check(#hooks == 0 and is_solid(wp), "a grenade: no crater");
+mod.block_action(wp, 1, 63);
+check(#hooks == 1 and hooks[1][1] == "block_action", "the server's own writes go through");
 
 print("\n7. /best");
 L.reset();
 commands.best.func(0);
 local b0 = texts(0);
 check(b0[1] == "Static range:" and string.find(b0[2] or "", "^1%. ") ~= nil and b0[#b0 - 1] == "Your best on the static range: 12.25 s"
-	and b0[#b0] == "Your best on the IPSC course: 20.00 s", "both boards, and the asker's own");
+	and b0[#b0] == "Your best on the IPSC course: 35.50 s", "both boards, and the asker's own");
 local found = false;
 for _, l in ipairs(b0) do if (l == "IPSC course:") then found = true; end end
 check(found, "the IPSC board");
 
 print("\n8. a new map: the same range keeps the times, another clears them");
-local count = #made;
+local count = #r.targets;   -- one seat each (one of them was made twice: its seat taken, then given back)
 mod.after.finish_map_load();
 L.reset();
 commands.best.func(0);
-check(last(0) == "Your best on the IPSC course: 20.00 s", "the same range: the times stay");
+check(last(0) == "Your best on the IPSC course: 35.50 s", "the same range: the times stay");
 local n = 0;
 for _ in pairs(bots) do n = n + 1; end
 check(n == count, "the targets keep their seats");
@@ -438,6 +624,8 @@ for _ in pairs(bots) do n = n + 1; end
 check(n == 0 and string.find(logged[#logged] or "", "names no range") ~= nil, "a map with no range: the targets go, the log says why");
 tick(6000);
 check(true, "and the tick does nothing");
+mod.on_unload();
+check(gamemode_rewards == nil, "unloaded: rewards are the setting's again");
 
 L.clean(check);
 io.open = real_open;
