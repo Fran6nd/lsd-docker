@@ -1,10 +1,11 @@
-/* parallel_test.c -- the planner's units on threads change nothing: the
- * same seed is the same intents, think for think, whether the core runs
- * the units itself or botd's pool (botd/pool.h) runs them on 1, 2, 3 or 4
- * threads (core/engine.h, THE PLANNER'S WORK AS UNITS). A game of 20 a
- * side on a field of walls, the route board on and off, with the budget
- * the planner shares out and with one too thin to share (the units handed
- * over one at a time). On the simulated server of brain_sim.h. */
+/* parallel_test.c -- the think's jobs on threads change nothing: the same
+ * seed is the same intents, think for think, whether the core runs its
+ * jobs itself or botd's pool (botd/pool.h) runs them on 1 to 8 threads
+ * (core/engine.h, THE THINK'S WORK AS JOBS) -- the bots' sight, a job a bot
+ * whose turn it is, and the route searches. A game of 20 a side on a
+ * field of walls, the route board on and off, with the budget the planner
+ * shares out and with one too thin to share (the searches handed over one
+ * at a time). On the simulated server of brain_sim.h. */
 #include "brain_sim.h"
 #include "../botd/pool.h"
 
@@ -13,18 +14,18 @@ static int checks, failed;
 
 enum { G = 40 };
 
-static long batches, together;
+static long batches, together, sights, sight_jobs;
 
-static void unit_job(void *ctx, int i)
+static void run_jobs(void *pool, int kind, bc_job job, void *arg, int n)
 {
-	bc_plan_unit_run(&((bc_plan_unit *)ctx)[i]);
-}
-
-static void run_units(void *pool, bc_plan_unit *u, int n)
-{
-	batches++;
-	together += n > 1;
-	botd_pool_run(pool, unit_job, u, n);
+	if (kind == BC_WORK_PLAN) {
+		batches++;
+		together += n > 1;
+	} else {
+		sights++;
+		sight_jobs += n;
+	}
+	botd_pool_run(pool, job, arg, n);
 }
 
 /* FNV-1a over everything the bots said */
@@ -59,7 +60,7 @@ static outcome game(int threads, int share, int thin)
 	}
 	bs_start(s);
 	if (pool)
-		bc_engine_plan_runner(s->e, run_units, pool);
+		bc_engine_runner(s->e, run_jobs, pool);
 	if (thin) {
 		/* a budget too thin to share: the units one at a time */
 		s->budget = 90;
@@ -97,17 +98,19 @@ static void same_whatever_the_threads(int share, int thin)
 	       share ? "on" : "off", thin ? "a thin" : "the shared", base.plans, base.expansions, base.joins, base.kills,
 	       (unsigned long long)base.intents);
 	CHECK(base.plans > 50);
-	for (t = 1; t <= 4; t++) {
+	for (t = 1; t <= 8; t++) {
 		outcome o;
 
-		batches = together = 0;
+		batches = together = sights = sight_jobs = 0;
 		o = game(t, share, thin);
-		printf("  %d thread%s: %s (%ld batches, %ld of several units)\n", t, t == 1 ? " " : "s",
+		printf("  %d thread%s: %s (planner: %ld batches, %ld of several searches; sight: %ld batches, %.1f bots each)\n",
+		       t, t == 1 ? " " : "s",
 		       o.intents == base.intents && o.plans == base.plans && o.expansions == base.expansions ? "the same" : "DIFFERENT",
-		       batches, together);
+		       batches, together, sights, sights ? (double)sight_jobs / (double)sights : 0.0);
 		CHECK(o.intents == base.intents);
 		CHECK(o.plans == base.plans && o.expansions == base.expansions && o.joins == base.joins && o.kills == base.kills);
 		CHECK(batches > 0);
+		CHECK(sights > 0 && sight_jobs > sights);
 		if (thin) CHECK(together == 0);
 		else CHECK(together > 0);
 	}

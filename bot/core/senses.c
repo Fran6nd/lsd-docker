@@ -232,24 +232,85 @@ static void set_alert(bc_senses *s, const bc_sense_cfg *c, double now)
 		s->alert = BC_ALERT_CALM;
 }
 
-void bc_senses_see(bc_senses *s, const bc_sense_cfg *c, const bc_map *m,
-                   const bl_world *w, int self, int night_vision, double now, bc_board *board)
+/* Who an enemy is to this bot before any ray: in its field of view or
+ * noticed and in range, close by, lit -- BC_SEE_* bits; 0: nobody it
+ * could see. `seen_at`: when this bot last saw him. */
+static int candidate(const bc_sense_cfg *c, const bl_world *w, int self, int i, double seen_at,
+                     int night_vision, double now)
 {
-	const bl_player *me = &w->players[self];
+	const bl_player *me = &w->players[self], *p = &w->players[i];
 	float fl = sqrtf(me->ori.x * me->ori.x + me->ori.y * me->ori.y);
 	float cos_fov = cosf(c->fov_deg * 0.5f * 3.14159265f / 180.0f);
 	float cos_lamp = cosf(c->lamp_cone_deg * 0.5f * 3.14159265f / 180.0f);
-	int my_lamp = (me->flags & BL_F_LAMP) != 0;
+	float dx, dy, dz, flat, d3, cosv, speed, notice;
+	int in_view, noticed, loud, how = 0, night = w->night && c->night_sight;
+
+	dx = p->pos.x - me->pos.x;
+	dy = p->pos.y - me->pos.y;
+	dz = p->pos.z - me->pos.z;
+	flat = sqrtf(dx * dx + dy * dy);
+	d3 = sqrtf(dx * dx + dy * dy + dz * dz);
+
+	/* cheap tests first, the rays last */
+	cosv = (fl < 1e-3f || flat < 1e-3f) ? 1.0f
+	       : (dx * me->ori.x + dy * me->ori.y) / (flat * fl);
+	in_view = cosv >= cos_fov - 1e-3f;
+	noticed = now - seen_at < (double)NOTICE_MEMORY_SECS;
+	speed = sqrtf(p->vel.x * p->vel.x + p->vel.y * p->vel.y) * 32.0f;
+	loud = speed > 2.0f && !(p->flags & BL_F_CROUCH) && !(p->keys & BL_K_SNEAK);
+	/* a sprinter's feet carry: half as far again (2026-11-25: a bot
+	 * whose head is on its heading is not walked up on at a run) */
+	notice = !loud ? c->notice * 0.5f : (p->flags & BL_F_SPRINT) ? c->notice * 1.5f : c->notice;
+
+	if (!night || night_vision) {
+		if (d3 <= notice)
+			how |= BC_SEE_CLOSE;
+		if (flat <= c->sight && (in_view || noticed))
+			how |= BC_SEE_VIEW;
+		/* night vision: a lit lamp shows from farther than day */
+		if (night && (p->flags & BL_F_LAMP) && flat <= c->lit_range && (in_view || noticed))
+			how |= BC_SEE_LIT;
+	} else if (me->flags & BL_F_LAMP) {
+		/* only what its own light falls on */
+		if (d3 <= c->lamp_range && d3 > 1e-3f &&
+		    (dx * me->ori.x + dy * me->ori.y + dz * me->ori.z) / d3 >= cos_lamp)
+			how |= BC_SEE_LAMP;
+	}
+	return how;
+}
+
+void bc_senses_look(const bc_senses *s, const bc_sense_cfg *c, const bc_map *m,
+                    const bl_world *w, int self, int night_vision, double now, bc_look *out)
+{
+	const bl_player *me = &w->players[self];
+	int i;
+
+	for (i = 0; i < BL_MAX_PLAYERS; i++) {
+		const bl_player *p = &w->players[i];
+		int how;
+
+		out->how[i] = 0;
+		if (!is_enemy(w, self, i))
+			continue;
+		how = candidate(c, w, self, i, s ? s->k[i].seen_at : -1e9, night_vision, now);
+		if (how && bc_sight_body(m, me->pos, p->pos, (p->flags & BL_F_CROUCH) != 0))
+			out->how[i] = (uint8_t)how;
+	}
+}
+
+void bc_senses_take(bc_senses *s, const bc_sense_cfg *c, const bl_world *w, int self,
+                    double now, const bc_look *look, bc_board *board)
+{
+	const bl_player *me = &w->players[self];
 	float best = 1e30f, best_known = 1e30f;
-	int i, team = me->team, night = w->night && c->night_sight;
+	int i, team = me->team;
 
 	s->n_visible = 0;
 	s->nearest = s->nearest_known = -1;
 	for (i = 0; i < BL_MAX_PLAYERS; i++) {
 		const bl_player *p = &w->players[i];
 		bc_known *k = &s->k[i];
-		float dx, dy, dz, flat, d3, cosv, speed, notice;
-		int was = k->visible, in_view, noticed, loud, cand, how = 0;
+		int was = k->visible;
 
 		k->visible = 0;
 		k->how = 0;
@@ -259,50 +320,11 @@ void bc_senses_see(bc_senses *s, const bc_sense_cfg *c, const bc_map *m,
 				k->seen_at = k->told_at = -1e9;
 			continue;
 		}
-		dx = p->pos.x - me->pos.x;
-		dy = p->pos.y - me->pos.y;
-		dz = p->pos.z - me->pos.z;
-		flat = sqrtf(dx * dx + dy * dy);
-		d3 = sqrtf(dx * dx + dy * dy + dz * dz);
+		if (look->how[i]) {
+			float d3 = dist3(p->pos, me->pos);
 
-		/* cheap tests first, the rays last */
-		cosv = (fl < 1e-3f || flat < 1e-3f) ? 1.0f
-		       : (dx * me->ori.x + dy * me->ori.y) / (flat * fl);
-		in_view = cosv >= cos_fov - 1e-3f;
-		noticed = now - k->seen_at < (double)NOTICE_MEMORY_SECS;
-		speed = sqrtf(p->vel.x * p->vel.x + p->vel.y * p->vel.y) * 32.0f;
-		loud = speed > 2.0f && !(p->flags & BL_F_CROUCH) && !(p->keys & BL_K_SNEAK);
-		/* a sprinter's feet carry: half as far again (2026-11-25: a bot
-		 * whose head is on its heading is not walked up on at a run) */
-		notice = !loud ? c->notice * 0.5f : (p->flags & BL_F_SPRINT) ? c->notice * 1.5f : c->notice;
-
-		cand = 0;
-		if (!night || night_vision) {
-			if (d3 <= notice) {
-				cand = 1;
-				how |= BC_SEE_CLOSE;
-			}
-			if (flat <= c->sight && (in_view || noticed)) {
-				cand = 1;
-				how |= BC_SEE_VIEW;
-			}
-			/* night vision: a lit lamp shows from farther than day */
-			if (night && (p->flags & BL_F_LAMP) && flat <= c->lit_range &&
-			    (in_view || noticed)) {
-				cand = 1;
-				how |= BC_SEE_LIT;
-			}
-		} else if (my_lamp) {
-			/* only what its own light falls on */
-			if (d3 <= c->lamp_range && d3 > 1e-3f &&
-			    (dx * me->ori.x + dy * me->ori.y + dz * me->ori.z) / d3 >= cos_lamp) {
-				cand = 1;
-				how |= BC_SEE_LAMP;
-			}
-		}
-		if (cand && bc_sight_body(m, me->pos, p->pos, (p->flags & BL_F_CROUCH) != 0)) {
 			k->visible = 1;
-			k->how = (uint8_t)how;
+			k->how = look->how[i];
 			k->pos = p->pos;
 			k->vel = p->vel;
 			k->seen_at = now;
@@ -365,6 +387,15 @@ void bc_senses_see(bc_senses *s, const bc_sense_cfg *c, const bc_map *m,
 			s->noise.valid = 0;
 	}
 	set_alert(s, c, now);
+}
+
+void bc_senses_see(bc_senses *s, const bc_sense_cfg *c, const bc_map *m,
+                   const bl_world *w, int self, int night_vision, double now, bc_board *board)
+{
+	bc_look look;
+
+	bc_senses_look(s, c, m, w, self, night_vision, now, &look);
+	bc_senses_take(s, c, w, self, now, &look, board);
 }
 
 int bc_senses_hear(bc_senses *s, const bc_sense_cfg *c, const bl_world *w, int self,

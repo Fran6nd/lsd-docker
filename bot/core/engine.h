@@ -109,42 +109,40 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 #define BC_PLAN_RATE 4500
 void bc_engine_plan_rate(bc_engine *e, int rate, int hz);
 
-/* THE PLANNER'S WORK AS UNITS, for a host with threads. The core has none
- * (README.md); what it can offer is its work cut so that a host's threads
- * could do it at once. Route searches can: each search is the state of
- * one bot's plan, private to it, and advancing it reads only what nothing
- * writes while the think plans -- the map, the move table, the bot's
- * policy and the engine's memories it points to.
+/* THE THINK'S WORK AS JOBS, for a host with threads. The core has none
+ * (README.md); what it can offer is its heavy work cut so that a host's
+ * threads could do it at once: a BATCH of jobs, each of which writes only
+ * what is its own and reads only what nothing writes while the batch
+ * runs. What the jobs found is taken in by the core afterwards, in its own
+ * order, so the outcome is the same whoever ran them, in whatever order,
+ * on however many threads (tests/parallel_test.c proves it, intent for
+ * intent). Two kinds of work are handed over so:
  *
- * So the planner (skill_move.c, bc_movers_plan) hands the host, a few at a
- * time, UNITS: a search and the expansions it may take. Each pass of the
- * planner's budget gives every search under way an equal share, fixed
- * before any of them runs; the units of such a pass are independent, and
- * are handed over together. When the budget is too thin to share (under
- * 64 expansions a search) the first takes all there is and the next what
- * it leaves: those units depend on each other and are handed over one at
- * a time. Whatever comes back is applied by the core afterwards, in its
- * own order -- the search slots' bots, longest waiting first -- so the
- * outcome is the same whoever ran the units, in whatever order, on however
- * many threads (tests/parallel_test.c proves it, intent for intent).
+ * SIGHT (BC_WORK_SIGHT): the rays of every bot whose turn it is to decide,
+ * a job a bot (senses.h, SIGHT IN TWO HALVES). A job reads the map, the
+ * world and its own bot's memory, and writes its own bot's look; the
+ * memories, the team's board and the alertness are then taken in bot
+ * after bot, in the bots' order, as if each had looked alone.
  *
- * A runner must run every unit it is given (bc_plan_unit_run) before it
- * returns, and touch nothing else of the engine's. With none
- * (bc_engine_plan_runner(e, NULL, NULL), the default) the core runs them
- * itself, one after the other. */
-typedef struct bc_plan_unit {
-	struct bc_nav_search *search;   /* the unit's own: no other unit has it */
-	int32_t budget;                 /* expansions it may take */
-	int32_t status;                 /* out: nav.h bc_nav_plan_status */
-	uint32_t used;                  /* out: expansions it took */
-} bc_plan_unit;
-
-/* Advance one unit's search by its budget. Writes the unit and its search,
- * nothing else; reads what the planner keeps still while units run. */
-void bc_plan_unit_run(bc_plan_unit *u);
-
-typedef void (*bc_plan_runner)(void *ctx, bc_plan_unit *units, int n);
-void bc_engine_plan_runner(bc_engine *e, bc_plan_runner run, void *ctx);
+ * ROUTE SEARCHES (BC_WORK_PLAN; skill_move.c, bc_movers_plan): each search
+ * is the state of one bot's plan, private to it, and advancing it reads
+ * only what nothing writes while the think plans -- the map, the move
+ * table, the bot's policy and the engine's memories it points to. Each
+ * pass of the planner's budget gives every search under way an equal
+ * share, fixed before any of them runs; the searches of such a pass are a
+ * batch. When the budget is too thin to share (under 64 expansions a
+ * search) the first takes all there is and the next what it leaves: those
+ * depend on each other and are handed over one at a time. What they found
+ * is applied in the search slots' bots' order, longest waiting first.
+ *
+ * A runner must call job(arg, i) for every i in 0 .. n-1 before it returns,
+ * and touch nothing else of the engine's; `kind` is for a host that keeps
+ * count of what it ran. With none (bc_engine_runner(e, NULL, NULL), the
+ * default) the core runs the jobs itself, one after the other. */
+enum bc_work { BC_WORK_SIGHT = 0, BC_WORK_PLAN = 1 };
+typedef void (*bc_job)(void *arg, int i);
+typedef void (*bc_runner)(void *ctx, int kind, bc_job job, void *arg, int n);
+void bc_engine_runner(bc_engine *e, bc_runner run, void *ctx);
 
 /* How many bots it holds. */
 int bc_engine_bots(const bc_engine *e);

@@ -258,8 +258,11 @@ typedef struct bc_bot {
 
 	double decide_acc;      /* seconds since its last decision */
 	float decide_dt;
+	uint8_t due;            /* it decides in this think (engine.c, THE THINK) */
+	uint8_t born;           /* ... and begins a new life first */
 
 	bc_senses senses;
+	bc_look look;           /* what its eyes found this think, before it takes it in */
 	bc_aim aim;
 	bc_aim_out aim_out;
 	bc_wish wish;
@@ -439,8 +442,10 @@ struct bc_engine {
 	bc_route_key search_key[BC_SEARCH_MAX];
 	bc_route_board routes;
 	uint8_t plan_share;         /* plan.share: the route board is used (1) */
-	bc_plan_runner plan_run;    /* the host's, for the planner's units (engine.h); NULL: none */
-	void *plan_run_ctx;
+	bc_runner run;              /* the host's, for the think's jobs (engine.h); NULL: none */
+	void *run_ctx;
+	int16_t *turn;              /* the bots whose turn it is to decide, this think, in order */
+	int nturn;
 
 	bt_vocab *vocab;
 	bt_forest *builtin, *custom, *fallback;
@@ -520,6 +525,9 @@ const char *bc_engine_setting(const bc_engine *e, const char *key);
 void bc_engine_log(bc_engine *e, int level, const char *fmt, ...);
 /* the search a bot was lent goes back */
 void bc_engine_search_release(bc_engine *e, bc_bot *b);
+/* A batch of jobs (engine.h, THE THINK'S WORK AS JOBS): to the host's
+ * runner, or run here one after the other */
+void bc_engine_run(bc_engine *e, int kind, bc_job job, void *arg, int n);
 
 static inline const bl_player *bc_me(const bc_bot *b) { return &b->e->w.players[b->pid]; }
 static inline float bc_frand(bc_bot *b) { return bc_rng_float(&b->rng); }

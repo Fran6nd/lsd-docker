@@ -214,6 +214,29 @@ void bc_senses_reset(bc_senses *s);
 void bc_senses_see(bc_senses *s, const bc_sense_cfg *c, const bc_map *m,
                    const bl_world *w, int self, int night_vision, double now, bc_board *board);
 
+/* SIGHT IN TWO HALVES. bc_senses_see is the two below, one after the
+ * other. The rays are what sight costs (98% of a look on a flat field),
+ * and they depend on nothing another bot's sight writes: the map, the
+ * world, and this bot's own memory of when it last saw each man. What
+ * follows from them -- the memory, the team's board, the alertness --
+ * is shared with the team and depends on the order the bots look in.
+ * So a host with threads may LOOK for many bots at once (each writes only
+ * its own bc_look) and then TAKE what they saw one bot after another, in
+ * a fixed order: the same as if each had seen alone, in that order
+ * (engine.c, THE THINK; tests/parallel_test.c).
+ *
+ * bc_senses_look: `s` is read only (NULL: a bot that remembers nobody, as
+ * just born); `out` gets, for each man, how he is seen (BC_SEE_*), 0 for
+ * not seen. bc_senses_take: the rest of bc_senses_see, from `look`. */
+typedef struct bc_look {
+	uint8_t how[BL_MAX_PLAYERS];
+} bc_look;
+
+void bc_senses_look(const bc_senses *s, const bc_sense_cfg *c, const bc_map *m,
+                    const bl_world *w, int self, int night_vision, double now, bc_look *out);
+void bc_senses_take(bc_senses *s, const bc_sense_cfg *c, const bl_world *w, int self,
+                    double now, const bc_look *look, bc_board *board);
+
 /* A noise was made at `pos` by `by` (or BL_NO_PLAYER). 1 if this bot
  * heard it and now holds it. */
 int bc_senses_hear(bc_senses *s, const bc_sense_cfg *c, const bl_world *w, int self,

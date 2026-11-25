@@ -35,12 +35,13 @@
  * pid in engine_pid (a remade file says 0); and SIGBUS itself is caught
  * and turned into a re-attach.
  *
- * THREADS. The core has none; what it offers is its planner's work cut
- * into units that may run at once (engine.h, THE PLANNER'S WORK AS
- * UNITS), and botd runs them on a pool of --threads (pool.h), the round's
- * own thread among them. Everything else of a think stays on the round's
- * thread. The core applies what the units found in its own order, so the
- * bots do the same whatever the number of threads (tests/parallel_test.c).
+ * THREADS. The core has none; what it offers is its heavy work cut into
+ * jobs that may run at once -- the bots' sight and the route searches
+ * (engine.h, THE THINK'S WORK AS JOBS) -- and botd runs them on a pool of
+ * --threads (pool.h), the round's own thread among them. Everything else
+ * of a think stays on the round's thread. The core takes in what the jobs
+ * found in its own order, so the bots do the same whatever the number of
+ * threads (tests/parallel_test.c).
  * Measured (BRAIN-STATUS.md (c3)): the planner is about half of a think
  * at 230 bots on a real map once routes are shared, and four threads take
  * a think's planning time down by about 40% in the bench; live, at 100 and
@@ -171,15 +172,11 @@ static void host_action(void *ctx, uint8_t type, uint8_t pid, const void *payloa
 	else s->drops++;
 }
 
-/* The planner's units, on the pool (THREADS, above). */
-static void unit_job(void *ctx, int i)
+/* The think's jobs, on the pool (THREADS, above). */
+static void run_jobs(void *pool, int kind, bc_job job, void *arg, int n)
 {
-	bc_plan_unit_run(&((bc_plan_unit *)ctx)[i]);
-}
-
-static void run_units(void *pool, bc_plan_unit *units, int n)
-{
-	botd_pool_run(pool, unit_job, units, n);
+	(void)kind;
+	botd_pool_run(pool, job, arg, n);
 }
 
 int botd_threads_auto(void)
@@ -711,7 +708,7 @@ static int session_main(session *s)
 		return END_GONE;
 	}
 	bc_engine_plan_rate(s->e, s->o->plan_rate, s->o->hz);
-	bc_engine_plan_runner(s->e, run_units, pool);
+	bc_engine_runner(s->e, run_jobs, pool);
 	s->user_trees = load_trees(s->e, s->o->trees, s->o->user_trees);
 	{
 		char dir[512];
@@ -749,7 +746,7 @@ int botd_run(const botd_opts *o)
 	if (!pool) {
 		pool = botd_pool_new(opts.threads);
 		if (!pool) { say("cannot make %d threads", opts.threads); return 1; }
-		say("the planner on %d thread%s", botd_pool_threads(pool), botd_pool_threads(pool) == 1 ? "" : "s");
+		say("sight and the planner on %d thread%s", botd_pool_threads(pool), botd_pool_threads(pool) == 1 ? "" : "s");
 	}
 
 	int said_waiting = 0;

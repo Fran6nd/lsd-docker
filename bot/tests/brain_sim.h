@@ -41,7 +41,7 @@
 #include "lsd_core.h"
 #include "vocab.h"
 
-enum { BS_EV_BYTES = 1 << 16, BS_AC_MAX = 256, BS_NADES = 16 };
+enum { BS_EV_BYTES = 1 << 16, BS_AC_MAX = 256, BS_NADES = 16, BS_THINK_HIST = 1000 };
 
 typedef struct bs_player {
 	int used, bot, team, gun, level, alive, hp, mag, reserve, blocks, grenades, tool, lamp;
@@ -107,9 +107,11 @@ typedef struct bs_sim {
 	int log2_n, log1_n;
 	void (*on_command)(struct bs_sim *s, int pid, const char *text);
 
-	/* think cost */
+	/* think cost; think_hist: thinks by tenths of a millisecond (the last
+	 * holds the longer ones) */
 	double think_us, think_max_us;
 	long thinks;
+	uint32_t think_hist[BS_THINK_HIST];
 	uint32_t exp_max;
 
 	/* recording, for the replay test */
@@ -975,6 +977,7 @@ static inline void bs_think(bs_sim *s)
 	t0 = bs_now_us() - t0;
 	s->think_us += t0;
 	if (t0 > s->think_max_us) s->think_max_us = t0;
+	s->think_hist[t0 < 100.0 * (BS_THINK_HIST - 1) ? (int)(t0 / 100.0) : BS_THINK_HIST - 1]++;
 	s->thinks++;
 	ex = bc_engine_stats_get(s->e)->last_expansions;
 	if (ex > s->exp_max) s->exp_max = ex;

@@ -511,30 +511,23 @@ static void plan_done(bc_bot *b, int st)
 	}
 }
 
-void bc_plan_unit_run(bc_plan_unit *u)
+/* A search and the expansions it may take: one job of the planner's
+ * (engine.h, THE THINK'S WORK AS JOBS). Written by the job: the search,
+ * status and used, nothing else. */
+typedef struct plan_unit {
+	bc_nav_search *search;
+	int32_t budget;
+	int32_t status;                 /* nav.h bc_nav_plan_status */
+	uint32_t used;
+} plan_unit;
+
+static void unit_job(void *arg, int i)
 {
+	plan_unit *u = &((plan_unit *)arg)[i];
 	uint32_t before = bc_nav_plan_expansions(u->search);
 
 	u->status = bc_nav_plan_step(u->search, u->budget);
 	u->used = bc_nav_plan_expansions(u->search) - before;
-}
-
-static void run_units(bc_engine *e, bc_plan_unit *u, int n)
-{
-	int i;
-
-	if (e->plan_run) {
-		e->plan_run(e->plan_run_ctx, u, n);
-		return;
-	}
-	for (i = 0; i < n; i++)
-		bc_plan_unit_run(&u[i]);
-}
-
-void bc_engine_plan_runner(bc_engine *e, bc_plan_runner run, void *ctx)
-{
-	e->plan_run = run;
-	e->plan_run_ctx = ctx;
 }
 
 /* A team-mate's search under way for the same question, set off from
@@ -674,13 +667,13 @@ void bc_movers_plan(bc_engine *e)
 	}
 	/* share the budget: an even share each, longest wait first; what the
 	 * quick ones leave goes round again. A pass's searches are units
-	 * (engine.h, THE PLANNER'S WORK AS UNITS): with an even share each
+	 * (engine.h, THE THINK'S WORK AS JOBS): with an even share each
 	 * fixed before any runs, they are handed to the runner together; with
 	 * too thin a budget to share, the first takes all there is and the
 	 * next what it leaves, one unit at a time. What they found is applied
 	 * afterwards, in this order. */
 	for (pass = 0; pass < 2 && active > 0 && e->budget_left > 0; pass++) {
-		bc_plan_unit unit[BC_SEARCH_MAX];
+		plan_unit unit[BC_SEARCH_MAX];
 		int who[BC_SEARCH_MAX], k = 0, share = e->budget_left / active, thin = share < 64;
 
 		for (i = 0; i < n; i++) {
@@ -694,7 +687,7 @@ void bc_movers_plan(bc_engine *e)
 			k++;
 		}
 		if (!thin)
-			run_units(e, unit, k);
+			bc_engine_run(e, BC_WORK_PLAN, unit_job, unit, k);
 		for (j = 0; j < k && e->budget_left > 0; j++) {
 			bc_bot *b = &e->bots[who[j]];
 			bc_mover *mv = &b->mv;
@@ -702,7 +695,7 @@ void bc_movers_plan(bc_engine *e)
 
 			if (thin) {
 				unit[j].budget = e->budget_left;
-				run_units(e, &unit[j], 1);
+				bc_engine_run(e, BC_WORK_PLAN, unit_job, &unit[j], 1);
 			}
 			used = unit[j].used ? unit[j].used : 1;
 			mv->expansions += used;

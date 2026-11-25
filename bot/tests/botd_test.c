@@ -136,8 +136,7 @@ void bc_engine_think(bc_engine *e, const bl_world *w, bl_intent *intents, float 
 }
 
 void bc_engine_plan_rate(bc_engine *e, int rate, int hz) { (void)e; (void)rate; (void)hz; }
-void bc_engine_plan_runner(bc_engine *e, bc_plan_runner run, void *ctx) { (void)e; (void)run; (void)ctx; }
-void bc_plan_unit_run(bc_plan_unit *u) { (void)u; }
+void bc_engine_runner(bc_engine *e, bc_runner run, void *ctx) { (void)e; (void)run; (void)ctx; }
 int bc_engine_bots(const bc_engine *e) { (void)e; return atomic_load(&fake.bots); }
 size_t bc_engine_describe(const bc_engine *e, int pid, char *out, size_t n)
 { (void)e; (void)pid; (void)out; (void)n; return 0; }

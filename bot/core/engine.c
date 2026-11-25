@@ -647,6 +647,7 @@ bc_engine *bc_engine_new(const bc_engine_host *host, int max_bots)
 	if (host) e->host = *host;
 	e->max_bots = max_bots;
 	e->bots = calloc((size_t)max_bots, sizeof *e->bots);
+	e->turn = calloc((size_t)max_bots, sizeof *e->turn);
 	e->map = malloc(sizeof *e->map);
 	e->cull = malloc(sizeof *e->cull);
 	e->moves = malloc(sizeof *e->moves);
@@ -658,7 +659,7 @@ bc_engine *bc_engine_new(const bc_engine_host *host, int max_bots)
 		e->search_mem[i] = malloc(bc_nav_search_size(SEARCH_NODES));
 		e->search_owner[i] = -1;
 	}
-	if (!e->bots || !e->map || !e->cull || !e->moves || !e->vocab) {
+	if (!e->bots || !e->turn || !e->map || !e->cull || !e->moves || !e->vocab) {
 		bc_engine_free(e);
 		return NULL;
 	}
@@ -735,6 +736,7 @@ void bc_engine_free(bc_engine *e)
 	free(e->base_text);
 	free(e->custom_text);
 	free(e->bots);
+	free(e->turn);
 	free(e->map);
 	free(e->cull);
 	free(e->moves);
@@ -1901,12 +1903,52 @@ void bc_engine_event(bc_engine *e, const bl_record *rec)
 /* ====================================================================== */
 /* the think                                                              */
 
+/* A bot that thinks this time: alive in the world, on the map the engine
+ * has. The rest think nothing. */
+static int living(const bc_engine *e, const bl_player *p)
+{
+	return (p->flags & BL_F_BOT) && p->state == BL_ALIVE && e->have_map && e->w.map_seq == e->map_seq;
+}
+
+/* Its eyes (senses.h, SIGHT IN TWO HALVES): the rays, into its own look.
+ * A bot about to begin a new life looks as one that remembers nobody. */
+static void look(const bc_engine *e, bc_bot *b)
+{
+	bc_senses_look(b->born ? NULL : &b->senses, &e->sense, e->map, &e->w, b->pid, b->night_vision,
+	               e->now, &b->look);
+}
+
+static void look_job(void *arg, int i)
+{
+	bc_engine *e = arg;
+
+	look(e, &e->bots[e->turn[i]]);
+}
+
+void bc_engine_runner(bc_engine *e, bc_runner run, void *ctx)
+{
+	e->run = run;
+	e->run_ctx = ctx;
+}
+
+void bc_engine_run(bc_engine *e, int kind, bc_job job, void *arg, int n)
+{
+	int i;
+
+	if (e->run && n > 0) {
+		e->run(e->run_ctx, kind, job, arg, n);
+		return;
+	}
+	for (i = 0; i < n; i++)
+		job(arg, i);
+}
+
 static void decide(bc_engine *e, bc_bot *b, float dt)
 {
 	const bl_player *me = bc_me(b);
 	bt_ctx c;
 
-	bc_senses_see(&b->senses, &e->sense, e->map, &e->w, b->pid, b->night_vision, e->now, &e->board);
+	bc_senses_take(&b->senses, &e->sense, &e->w, b->pid, e->now, &b->look, &e->board);
 	if (b->senses.nearest >= 0 && me->team >= 1 && me->team <= 2) {
 		e->hot[me->team - 1] = b->senses.k[b->senses.nearest].pos;
 		e->hot_at[me->team - 1] = e->now;
@@ -2535,6 +2577,35 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 	dtw = e->world_dt > 0.25f ? 0.25f : e->world_dt;
 	e->world_dt = 0.0f;
 
+	/* WHOSE TURN */
+	for (i = 0; i < e->max_bots; i++) {
+		bc_bot *b = &e->bots[i];
+		const bl_player *p = &e->w.players[b->pid];
+
+		b->due = 0;
+		if (!b->used)
+			continue;
+		b->decide_dt += dtw;
+		if (!living(e, p))
+			continue;
+		b->born = !b->alive || p->life != b->life;
+		b->decide_acc += (double)dtw;
+		if (b->decide_acc >= DECIDE_PERIOD) {
+			b->decide_acc -= DECIDE_PERIOD;
+			if (b->decide_acc > DECIDE_PERIOD)
+				b->decide_acc = 0.0;
+			b->due = 1;
+		}
+	}
+
+	/* LOOK: the rays of every bot whose turn it is, a job each (engine.h,
+	 * THE THINK'S WORK AS JOBS); each writes only its own look */
+	e->nturn = 0;
+	for (i = 0; i < e->max_bots; i++)
+		if (e->bots[i].due)
+			e->turn[e->nturn++] = (int16_t)i;
+	bc_engine_run(e, BC_WORK_SIGHT, look_job, e, e->nturn);
+
 	/* DECIDE */
 	for (i = 0; i < e->max_bots; i++) {
 		bc_bot *b = &e->bots[i];
@@ -2543,9 +2614,7 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 		if (!b->used)
 			continue;
 		p = &e->w.players[b->pid];
-		b->decide_dt += dtw;
-		if (!(p->flags & BL_F_BOT) || p->state != BL_ALIVE || !e->have_map ||
-		    e->w.map_seq != e->map_seq) {
+		if (!living(e, p)) {
 			/* dead, in limbo, or no map: it thinks nothing */
 			if (b->alive)
 				bot_died(b);
@@ -2558,14 +2627,8 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 		}
 		if (!b->alive || p->life != b->life)
 			bot_new_life(b, p);
-		b->decide_acc += (double)dtw;
-		if (b->decide_acc >= DECIDE_PERIOD) {
-			b->decide_acc -= DECIDE_PERIOD;
-			if (b->decide_acc > DECIDE_PERIOD)
-				b->decide_acc = 0.0;
-		} else {
+		if (!b->due)
 			continue;
-		}
 		decide(e, b, b->decide_dt);
 		b->decide_dt = 0.0f;
 	}

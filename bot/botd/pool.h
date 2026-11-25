@@ -7,9 +7,10 @@
  * and returns when every job has run. Which thread runs which job, and in
  * what order, is not said: a batch must be jobs that are independent of
  * each other (each writes only what is its own, reads only what no job
- * writes). The planner's units are such jobs (core/engine.h, THE PLANNER'S
- * WORK AS UNITS), and the core applies their results itself afterwards, in
- * its own order, so the outcome does not depend on the pool at all.
+ * writes). The core's sight and route searches are such jobs (core/engine.h,
+ * THE THINK'S WORK AS JOBS), and the core takes in their results itself
+ * afterwards, in its own order, so the outcome does not depend on the pool
+ * at all.
  *
  * The workers sleep between batches (a condition variable, not a spin): a
  * think hands over a batch or two, and 60 thinks a second must not keep
