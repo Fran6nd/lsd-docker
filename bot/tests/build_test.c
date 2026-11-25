@@ -634,8 +634,8 @@ static void test_repair(void)
 		}
 		bs_step(s);
 	}
-	printf("  %d blocks, %d left after the cut; every step there again after %.0f s; refused for sight: %d\n",
-	       whole, cut, repaired / 60.0, s->vis_refused);
+	printf("  %d blocks, %d left after the cut; every step there again after %.0f s; refused for sight: %d "
+	       "(and %d where a team-mate's edit came between)\n", whole, cut, repaired / 60.0, s->vis_refused, s->vis_raced);
 	CHECK(cut < whole / 2 + 2);                /* the cull took what was above the cut */
 	CHECK(repaired > 0);
 	CHECK(s->vis_refused == 0);

@@ -101,7 +101,10 @@ typedef struct bs_sim {
 	bs_nade nade[BS_NADES];
 
 	int pings, ping_by[BL_MAX_PLAYERS], refused, edits, lines, kills[3], nades_thrown;
-	int vis_refused;            /* edits refused: no face of it in the eye's sight (lib_botlink's rule) */
+	int vis_refused;            /* edits refused: no face of it in the eye's sight (lib_botlink's rule),
+	                               where the bot's own map said so too */
+	int vis_raced;              /* ... where its map said there was a face: an edit of somebody
+	                               else's, made meanwhile, came between (not the bot's fault) */
 	char last_ping[64];
 	char log2[400];             /* the last level-2 line */
 	int log2_n, log1_n;
@@ -338,7 +341,7 @@ static inline bs_sim *bs_new(int ground_z, int max_bots)
 	bc_cull_init(s->cull);
 	bc_rng_seed(&s->rng, 99, 7);
 	s->world_every = 2;
-	s->budget = 3000;
+	s->budget = 1500;
 	s->respawn = -1.0;
 	host.ctx = s;
 	host.log = bs_log;
@@ -655,6 +658,17 @@ static inline int bs_sees(const bc_map *m, bc_v3 e, int x, int y, int z, int bui
 	return 0;
 }
 
+/* An edit the server refuses for sight: the bot's fault, or a race with
+ * an edit it could not know of yet (its map, from where the world put it). */
+static inline void bs_refused_sight(bs_sim *s, int pid, int x, int y, int z, int build)
+{
+	bc_v3 at;
+
+	at.x = s->w.players[pid].pos.x; at.y = s->w.players[pid].pos.y; at.z = s->w.players[pid].pos.z;
+	if (bs_sees(s->e->map, at, x, y, z, build)) s->vis_raced++;
+	else s->vis_refused++;
+}
+
 static inline int bs_do_action(bs_sim *s, const bs_action *a)
 {
 	bs_player *p = &s->p[a->pid];
@@ -668,7 +682,7 @@ static inline int bs_do_action(bs_sim *s, const bs_action *a)
 		if (!bs_in(b.x, b.y, b.z) || b.action > 2 || s->time < p->block_at || !bs_reach(p, b.x, b.y, b.z))
 			return 0;
 		if (!bs_sees(s->truth, p->body.pos, b.x, b.y, b.z, b.action == BL_B_BUILD)) {
-			s->vis_refused++;
+			bs_refused_sight(s, a->pid, b.x, b.y, b.z, b.action == BL_B_BUILD);
 			return 0;
 		}
 		if (b.action == BL_B_BUILD) {
@@ -699,7 +713,7 @@ static inline int bs_do_action(bs_sim *s, const bs_action *a)
 			return 0;
 		n = 1 + abs(l.x2 - l.x1) + abs(l.y2 - l.y1) + abs(l.z2 - l.z1);
 		if (!bs_sees(s->truth, p->body.pos, l.x1, l.y1, l.z1, 1)) {
-			s->vis_refused++;
+			bs_refused_sight(s, a->pid, l.x1, l.y1, l.z1, 1);
 			return 0;
 		}
 		if (n > p->blocks || !bs_reach(p, l.x1, l.y1, l.z1) || !bs_neigh(s->truth, l.x1, l.y1, l.z1) ||

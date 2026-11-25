@@ -118,7 +118,7 @@ void botd_opts_default(botd_opts *o)
 	memset(o, 0, sizeof *o);
 	o->file = "/dev/shm/lsd-botlink";
 	o->hz = 60;
-	o->budget = 3000;
+	o->budget = 1500;
 	o->plan_rate = BC_PLAN_RATE;
 	o->max_bots = 255;
 	o->threads = 1;     /* BRAIN-STATUS.md (c3): live, more bought nothing yet */

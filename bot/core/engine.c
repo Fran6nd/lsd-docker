@@ -1011,7 +1011,6 @@ static void ev_bot(bc_engine *e, int pid, const bl_ev_bot *ev)
 	{
 		bt_state *bt = b->bt;
 		size_t bt_size = b->bt_size;
-		int idx = (int)(b - e->bots);
 
 		memset(b, 0, sizeof *b);
 		b->bt = bt;
@@ -1027,8 +1026,6 @@ static void ev_bot(bc_engine *e, int pid, const bl_ev_bot *ev)
 		b->fight.target = -1;
 		b->follow.leader = -1;
 		b->camp.perch = b->camp.avoid = -1;
-		/* decisions staggered across the bots */
-		b->decide_acc = DECIDE_PERIOD * (double)(idx % 4) / 4.0;
 	}
 	bc_rng_seed(&b->rng, b->seed, 0x62726169);
 	roll_persona(e, b);
@@ -2539,11 +2536,48 @@ void bc_engine_plan_rate(bc_engine *e, int rate, int hz)
 	e->plan_per_bot = (rate + hz / 2) / hz;
 }
 
+/* THE THINK. The host thinks at 60 a second and the world comes at 30
+ * (botlink_world_hz). Until 2026-11-25 a think without a new world did
+ * nothing and one with a new world did everything -- every other round of
+ * botd's carried all the work, and one long route search could take a
+ * round's whole budget: botd's slow rounds (BRAIN-STATUS.md (c4)). Now:
+ *
+ *   WHOSE TURN  with a new world only: a bot decides on what it can see
+ *               now, and a word that acts on the server (an edit, a
+ *               grenade) is judged there by where the bot really is -- a
+ *               decision on the world before last had its edits refused
+ *               (build_test). Every bot decides DECIDE_PERIOD apart, at a
+ *               phase of the period of its own (its slot's: turn_phase),
+ *               so a think decides for an even share of the bots, about
+ *               two thirds at 30 worlds a second. The phase is a time, not
+ *               a count the bot keeps: a think that comes late (a stall, a
+ *               map loading) has every bot decide once and the next is back
+ *               to its share -- the old count reset to 0 after a stall,
+ *               and the bots it reset decided together for good after.
+ *   LOOK        the rays of every bot whose turn it is, a job each (engine.h,
+ *               THE THINK'S WORK AS JOBS): each writes only its own look
+ *   DECIDE      bot after bot, in slot order: a death or a new life, what
+ *               it saw taken in (the team's board written in that order),
+ *               its tree
+ *   PLAN        every think, the world new or not, with that think's budget
+ *               (engine.h, THE PLANNER'S BUDGET; its bound): the planner's
+ *               work spread over every round instead of every other
+ *   ACT         with a new world only: the follower, the head, the
+ *               trigger; between worlds the intents stand
+ */
+static double turn_phase(int idx)
+{
+	/* the golden ratio's sequence: any number of slots spread evenly */
+	double f = (double)idx * 0.6180339887498949;
+
+	return DECIDE_PERIOD * (f - floor(f));
+}
+
 void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
                      float dt, int budget)
 {
 	int i, fresh;
-	float dtw;
+	float dtw = 0.0f;
 
 	if (!(dt >= 0.0f)) dt = 0.0f;
 	if (dt > 0.25f) dt = 0.25f;
@@ -2553,18 +2587,16 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 
 	e->world_dt += dt;
 	fresh = !e->have_world || world->tick != e->last_tick;
-	if (!fresh) {
-		/* nothing new is known: the same intents stand */
-		for (i = 0; i < e->max_bots; i++)
-			if (e->bots[i].used && (world->players[e->bots[i].pid].flags & BL_F_BOT))
-				intents[e->bots[i].pid] = e->bots[i].out;
-		return;
+	if (fresh) {
+		memcpy(&e->w, world, sizeof e->w);
+		e->last_tick = world->tick;
+		e->have_world = 1;
+		bc_objective_world(e);
+		bc_leaders_think(e);
+		dtw = e->world_dt > 0.25f ? 0.25f : e->world_dt;
+		e->world_dt = 0.0f;
+		e->world_dt_last = dtw;
 	}
-	memcpy(&e->w, world, sizeof e->w);
-	e->last_tick = world->tick;
-	e->have_world = 1;
-	bc_objective_world(e);
-	bc_leaders_think(e);
 	{
 		/* engine.h, THE PLANNER'S BUDGET: the think's own, or every
 		 * bot's share, whichever is more */
@@ -2574,32 +2606,28 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 		if (budget > 0 && share > e->budget_left)
 			e->budget_left = share > INT32_MAX ? INT32_MAX : (int)share;
 	}
-	dtw = e->world_dt > 0.25f ? 0.25f : e->world_dt;
-	e->world_dt = 0.0f;
 
 	/* WHOSE TURN */
 	for (i = 0; i < e->max_bots; i++) {
 		bc_bot *b = &e->bots[i];
-		const bl_player *p = &e->w.players[b->pid];
+		const bl_player *p;
+		double ph;
 
 		b->due = 0;
 		if (!b->used)
 			continue;
-		b->decide_dt += dtw;
+		p = &e->w.players[b->pid];
+		b->decide_dt += dt;
 		if (!living(e, p))
 			continue;
 		b->born = !b->alive || p->life != b->life;
-		b->decide_acc += (double)dtw;
-		if (b->decide_acc >= DECIDE_PERIOD) {
-			b->decide_acc -= DECIDE_PERIOD;
-			if (b->decide_acc > DECIDE_PERIOD)
-				b->decide_acc = 0.0;
-			b->due = 1;
-		}
+		ph = turn_phase(i);
+		b->due = fresh && floor((e->now + ph) / DECIDE_PERIOD) != floor((e->fresh_at + ph) / DECIDE_PERIOD);
 	}
+	if (fresh)
+		e->fresh_at = e->now;
 
-	/* LOOK: the rays of every bot whose turn it is, a job each (engine.h,
-	 * THE THINK'S WORK AS JOBS); each writes only its own look */
+	/* LOOK */
 	e->nturn = 0;
 	for (i = 0; i < e->max_bots; i++)
 		if (e->bots[i].due)
@@ -2634,10 +2662,10 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 	}
 
 	/* PLAN */
-	e->world_dt_last = dtw;
 	if (e->have_map) {
 		bc_movers_plan(e);
-		bc_tactics_think(e);
+		if (fresh)
+			bc_tactics_think(e);
 	}
 
 	/* ACT */
@@ -2646,7 +2674,7 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 
 		if (!b->used || !(e->w.players[b->pid].flags & BL_F_BOT))
 			continue;
-		if (b->alive)
+		if (fresh && b->alive)
 			act(e, b, dtw);
 		intents[b->pid] = b->out;
 	}
