@@ -180,7 +180,7 @@
 #include "vocab.h"
 
 static const double DECIDE_PERIOD = 0.05;       /* about 20 a second */
-enum { SEARCH_NODES = 131072 };
+enum { SEARCH_NODES = 131072, BUDGET_BOTS = 40 };
 
 static const char FALLBACK_TREES[] =
 	"tree default:\n"
@@ -2389,6 +2389,14 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 	bc_objective_world(e);
 	bc_leaders_think(e);
 	e->budget_left = budget > 0 ? budget : 0;
+	{
+		/* the budget is for BUDGET_BOTS bots: a fleet beyond gets more in
+		 * proportion, or most of 230 bots stood waiting for a route */
+		int n = bc_engine_bots(e);
+
+		if (n > BUDGET_BOTS && budget > 0)
+			e->budget_left = (int)((long long)budget * n / BUDGET_BOTS);
+	}
 	dtw = e->world_dt > 0.25f ? 0.25f : e->world_dt;
 	e->world_dt = 0.0f;
 

@@ -23,7 +23,10 @@
  * planner expansions (nav.h), shared out among the bots that need a
  * route this call, so a think never runs long because thirty bots lost
  * their way at once. What does not fit waits for the next call, and the
- * bot keeps doing what it was doing meanwhile.
+ * bot keeps doing what it was doing meanwhile. The budget is what forty
+ * bots get: with more, it grows in proportion (230 bots: 5.75 times), as
+ * a fixed one left most of 230 waiting for routes (2026-11-25, the bench's
+ * map230: 31% of their time; 1.5% now, a think at most 10 ms).
  *
  * ORDER, each time round: bc_engine_event for every record the server
  * queued (in order), then bc_engine_think with the newest world.
