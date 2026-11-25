@@ -1156,12 +1156,19 @@ static void set_tree(bc_engine *e, bc_bot *b, const char *val)
 
 /* ---- THE BRIDGE: what a server script tells the trees ----------------- */
 
-static int bridge_name_ok(const char *name)
+/* A name: letters, digits, _. For the world's facts and places it may end
+ * in a TEAM SCOPE, "@1" or "@2": the bots of that team read it under the
+ * name before the "@" (bc_fact_get, bc_splace_get) -- what a mode with
+ * one of a thing for each team (a stair, a base of its own) tells once
+ * for the team, not once for every bot (a bot holds few of its own). */
+static int bridge_name_ok(const char *name, int world)
 {
 	size_t i, n = strlen(name);
 
 	if (n == 0 || n >= BC_BRIDGE_NAME)
 		return 0;
+	if (world && n > 2 && name[n - 2] == '@' && (name[n - 1] == '1' || name[n - 1] == '2'))
+		n -= 2;
 	for (i = 0; i < n; i++) {
 		char c = name[i];
 
@@ -1179,8 +1186,8 @@ static void set_fact(bc_engine *e, bc_bot *b, const char *name, const char *val)
 	char *end;
 	double v;
 
-	if (!bridge_name_ok(name)) {
-		bc_engine_log(e, 2, "fact.%.40s=: not a name (letters, digits, _; %d at most): ignored", name, BC_BRIDGE_NAME - 1);
+	if (!bridge_name_ok(name, b == NULL)) {
+		bc_engine_log(e, 2, "fact.%.40s=: not a name (letters, digits, _, for the world @1 or @2 at the end; %d at most): ignored", name, BC_BRIDGE_NAME - 1);
 		return;
 	}
 	for (i = 0; i < n; i++) {
@@ -1211,8 +1218,8 @@ static void set_splace(bc_engine *e, bc_bot *b, const char *name, const char *va
 	int n = b ? BC_BOT_SPLACES_MAX : BC_SPLACES_MAX, i, pid = -1;
 	float x, y, z;
 
-	if (!bridge_name_ok(name)) {
-		bc_engine_log(e, 2, "place.%.40s=: not a name (letters, digits, _; %d at most): ignored", name, BC_BRIDGE_NAME - 1);
+	if (!bridge_name_ok(name, b == NULL)) {
+		bc_engine_log(e, 2, "place.%.40s=: not a name (letters, digits, _, for the world @1 or @2 at the end; %d at most): ignored", name, BC_BRIDGE_NAME - 1);
 		return;
 	}
 	for (i = 0; i < n; i++) {
@@ -1242,15 +1249,29 @@ static void set_splace(bc_engine *e, bc_bot *b, const char *name, const char *va
 	else { slot->pos.x = x; slot->pos.y = y; slot->pos.z = z; }
 }
 
+/* "<name>@<its team>": the world's name for a team's own (bridge_name_ok) */
+static void team_name(const bc_bot *b, const char *name, char out[BC_BRIDGE_NAME + 2])
+{
+	int team = bc_me(b)->team;
+
+	out[0] = 0;
+	if ((team == 1 || team == 2) && strlen(name) + 2 < BC_BRIDGE_NAME)
+		snprintf(out, BC_BRIDGE_NAME + 2, "%s@%d", name, team);
+}
+
+/* its own, its team's, the world's */
 int bc_fact_get(const bc_bot *b, const char *name, float *out)
 {
 	const bc_engine *e = b->e;
-	int i;
+	char tn[BC_BRIDGE_NAME + 2];
+	int i, pass;
 
 	for (i = 0; i < BC_BOT_FACTS_MAX; i++)
 		if (b->facts[i].name[0] && !strcmp(b->facts[i].name, name)) { *out = b->facts[i].value; return 1; }
-	for (i = 0; i < BC_FACTS_MAX; i++)
-		if (e->facts[i].name[0] && !strcmp(e->facts[i].name, name)) { *out = e->facts[i].value; return 1; }
+	team_name(b, name, tn);
+	for (pass = 0; pass < 2; pass++)
+		for (i = 0; i < BC_FACTS_MAX; i++)
+			if (e->facts[i].name[0] && !strcmp(e->facts[i].name, pass ? name : tn)) { *out = e->facts[i].value; return 1; }
 	return 0;
 }
 
@@ -1258,12 +1279,15 @@ int bc_splace_get(const bc_bot *b, const char *name, bl_vec3 *out)
 {
 	const bc_engine *e = b->e;
 	const bc_splace *p = NULL;
-	int i;
+	char tn[BC_BRIDGE_NAME + 2];
+	int i, pass;
 
 	for (i = 0; i < BC_BOT_SPLACES_MAX && !p; i++)
 		if (b->places[i].name[0] && !strcmp(b->places[i].name, name)) p = &b->places[i];
-	for (i = 0; i < BC_SPLACES_MAX && !p; i++)
-		if (e->places[i].name[0] && !strcmp(e->places[i].name, name)) p = &e->places[i];
+	team_name(b, name, tn);
+	for (pass = 0; pass < 2 && !p; pass++)
+		for (i = 0; i < BC_SPLACES_MAX && !p; i++)
+			if (e->places[i].name[0] && !strcmp(e->places[i].name, pass ? name : tn)) p = &e->places[i];
 	if (!p)
 		return 0;
 	if (p->follows) {

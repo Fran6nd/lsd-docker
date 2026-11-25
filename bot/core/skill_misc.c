@@ -263,8 +263,8 @@ int bc_place_of(bc_bot *b, const char *name, bl_vec3 *out)
 		return 1;
 	case PL_ENEMY_BASE: o = &e->w.tent[other - 1]; break;
 	case PL_OWN_BASE: o = &e->w.tent[team - 1]; break;
-	case PL_ENEMY_INTEL: o = &e->w.intel[other - 1]; break;
-	case PL_OWN_INTEL: o = &e->w.intel[team - 1]; break;
+	case PL_ENEMY_INTEL: i = bc_obj_theirs(e, team); o = i >= 0 ? &e->w.intel[i] : NULL; break;
+	case PL_OWN_INTEL: i = bc_obj_ours(e, team); o = i >= 0 ? &e->w.intel[i] : NULL; break;
 	default: break;
 	}
 	if (!o || !o->present) return 0;

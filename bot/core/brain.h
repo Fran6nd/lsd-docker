@@ -273,8 +273,8 @@ typedef struct bc_bot {
 	/* looking, cover, and what a bot does with nothing known (skill_look.c,
 	 * skill_cover.c, skill_tactics.c) */
 	bc_gaze gaze;
-	struct { double until, edit_at; uint8_t started; int8_t dx, dy; uint8_t pad_[5];
-	         bc_nav_node from; } bld;    /* build_at, dig_at, build_perch (skill_build.c) */
+	struct { double until, edit_at; uint8_t started; int8_t dx, dy; uint8_t n_cut; uint8_t pad_[4];
+	         bc_nav_node from; bc_nav_node cut[2]; } bld;    /* build_at, dig_at, build_perch, dig_weakest (skill_build.c) */
 	bc_cover_q cq;
 	struct { uint8_t phase, crouch, tries, peeking, has_peek, view, pad_[2];
 	         double until, peek_at, peek_until, seen_since, go_since, asked_at; bl_vec3 goal, peek; } tc;
@@ -618,6 +618,10 @@ int bc_flank_open(bc_bot *b);
 void bc_objective_world(bc_engine *e);
 /* 0 home, 1 carried, 2 dropped, -1 none: `own` this bot's team's or the other's */
 int bc_obj_state(const bc_bot *b, int own);
+/* the object (bl_world.intel index) a team goes for, and the one it keeps
+ * (skill_objective.c: two, or one that is both); -1 none */
+int bc_obj_theirs(const bc_engine *e, int team);
+int bc_obj_ours(const bc_engine *e, int team);
 int bc_carrying(const bc_bot *b);
 /* "thief" (who carries this team's), "carrier" (the team-mate who carries
  * the other's), "intercept" (where to cut the thief off) */

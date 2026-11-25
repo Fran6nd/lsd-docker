@@ -55,14 +55,106 @@ bt_status bc_do_build_at(void *bot, const bt_args *a, float dt)
 	return st == BC_MV_ARRIVED ? BT_SUCCESS : st == BC_MV_FAILED ? BT_FAILURE : BT_RUNNING;
 }
 
+/* WHERE TO STAND for an edit of (x, y, z): the nearest floor (to the bot)
+ * within the server's reach of it from which a player could make it --
+ * a build against a solid neighbour's face on the voxel's side, a dig of
+ * a face open to the air, in clear sight (bc_nav_sees_edit: lib_botlink's
+ * rule) -- and, for a build, not where the body would stand in its way.
+ * Into b->bld.from; 0 for none. */
+static int edit_stand(bc_bot *b, int x, int y, int z, int build)
+{
+	bc_engine *e = b->e;
+	const bl_player *me = bc_me(b);
+	float best = 1e30f;
+	int sx, sy, found = 0;
+
+	/* the columns within the server's reach of 5 (bc_nav_sees_edit says
+	 * which of their floors are near enough, and see a face) */
+	for (sy = y - 5; sy <= y + 5; sy++)
+		for (sx = x - 5; sx <= x + 5; sx++) {
+			uint64_t st = bc_map_stand_bits(bc_map_col(e->map, sx, sy));
+
+			for (; st; st &= st - 1) {
+				bc_nav_node n;
+				float dx, dy, dz, d;
+
+				n.x = (int16_t)sx; n.y = (int16_t)sy; n.z = (int16_t)bc_ctz64(st);
+				if (n.z >= BC_MAP_WATER_Z)
+					continue;
+				/* the body (the three cells over the floor) is not the voxel */
+				if (sx == x && sy == y && z < n.z && z >= n.z - 3)
+					continue;
+				/* nor, for a dig, the floor it stands on */
+				if (!build && sx == x && sy == y && z == n.z)
+					continue;
+				if (!bc_nav_sees_edit(e->map, n, x, y, z, build))
+					continue;
+				dx = (float)sx + 0.5f - me->pos.x; dy = (float)sy + 0.5f - me->pos.y;
+				dz = (float)n.z - 2.25f - me->pos.z;
+				d = dx * dx + dy * dy + dz * dz;
+				if (d < best) {
+					best = d;
+					b->bld.from = n;
+					found = 1;
+				}
+			}
+		}
+	return found;
+}
+
+/* The edit of (x, y, z) made, as a player makes it: to the stand
+ * edit_stand chose (b->bld.from) by an exact route, then the tool out, the
+ * head on the voxel, and the edit sent when the bot's own eye sees it as
+ * the server will judge it. RUNNING till then; SUCCESS when the voxel is
+ * as wanted; FAILURE no way to the stand, or past b->bld.until. The
+ * caller starts b->bld (started, until, from). */
+static bt_status edit_voxel(bc_bot *b, int x, int y, int z, int build)
+{
+	bc_engine *e = b->e;
+	const bl_player *me = bc_me(b);
+	bl_vec3 stand;
+	float eye[3];
+	int st;
+
+	if (bc_map_solid(e->map, x, y, z) == build)
+		return BT_SUCCESS;
+	if (e->now >= b->bld.until)
+		return BT_FAILURE;
+	stand.x = (float)b->bld.from.x + 0.5f; stand.y = (float)b->bld.from.y + 0.5f;
+	stand.z = (float)b->bld.from.z - 2.25f;
+	st = bc_move_to_raw(b, stand, 0.0f);
+	bc_fire_at_will(b);
+	if (st == BC_MV_FAILED)
+		return BT_FAILURE;
+	if (st != BC_MV_ARRIVED)
+		return BT_RUNNING;
+	b->wish.move = BC_MOVE_NONE;
+	b->wish.tool = build ? BL_TOOL_BLOCK : BL_TOOL_SPADE;
+	b->wish.look = BC_LOOK_POINT;
+	b->wish.look_at.x = (float)x + 0.5f; b->wish.look_at.y = (float)y + 0.5f; b->wish.look_at.z = (float)z + 0.5f;
+	eye[0] = me->pos.x; eye[1] = me->pos.y; eye[2] = me->pos.z;
+	if (me->tool == (build ? BL_TOOL_BLOCK : BL_TOOL_SPADE) && e->now >= b->bld.edit_at &&
+	    bc_nav_sees_edit_from(e->map, b->bld.from, eye, x, y, z, build)) {
+		bl_ac_block ac;
+
+		memset(&ac, 0, sizeof ac);
+		ac.x = (int16_t)x; ac.y = (int16_t)y; ac.z = (int16_t)z;
+		ac.action = build ? BL_B_BUILD : BL_B_DESTROY;
+		if (e->host.action)
+			e->host.action(e->host.ctx, BL_AC_BLOCK, b->pid, &ac, sizeof ac);
+		e->stats.edits++;
+		b->bld.edit_at = e->now + (build ? 0.5 : 0.4);
+	}
+	return BT_RUNNING;
+}
+
 bt_status bc_do_dig_at(void *bot, const bt_args *a, float dt)
 {
 	bc_bot *b = bot;
 	bc_engine *e = b->e;
-	const bl_player *me = bc_me(b);
-	bl_vec3 p, c;
+	bl_vec3 p;
+	bt_status r;
 	int x, y, z;
-	float dx, dy, dz;
 
 	(void)dt;
 	if (a->count < 1 || !bc_place_of(b, a->text[0], &p) || !e->have_map || !may_edit(b, 1)) {
@@ -75,46 +167,157 @@ bt_status bc_do_dig_at(void *bot, const bt_args *a, float dt)
 		return BT_SUCCESS;
 	}
 	if (!b->bld.started) {
+		if (!edit_stand(b, x, y, z, 0))
+			return BT_FAILURE;
 		b->bld.started = 1;
 		b->bld.until = e->now + 15.0;
 	}
-	if (e->now >= b->bld.until) {
+	r = edit_voxel(b, x, y, z, 0);
+	if (r != BT_RUNNING)
+		b->bld.started = 0;
+	return r;
+}
+
+/* --- dig_weakest <place> [voxels] ----------------------------------------
+ *
+ * Breaking a structure where it falls most. Of the solid voxels within
+ * `voxels` of the place that a player could dig (from a floor in reach
+ * that sees a face of it open to the air: edit_stand; not the map's
+ * ground), the one whose removal the server's cull answers
+ * with the most voxels dropped (bc_cull_would_drop: the engine floods its
+ * map as the server floods its own). A structure with no such block -- two
+ * wide, propped -- is cut a block wide: the voxel and one beside it, the
+ * pair that drops the most. Chosen once, when it starts; dug as dig_at
+ * digs, one voxel and then the other. SUCCESS when the cut is made (or the
+ * blocks went otherwise); FAILURE nothing there drops anything, digging not
+ * allowed, no way near, 15 s on one voxel. */
+
+static int open_face(const bc_map *m, int x, int y, int z)
+{
+	return !bc_map_solid(m, x + 1, y, z) || !bc_map_solid(m, x - 1, y, z) ||
+	       !bc_map_solid(m, x, y + 1, z) || !bc_map_solid(m, x, y - 1, z) ||
+	       !bc_map_solid(m, x, y, z + 1) || !bc_map_solid(m, x, y, z - 1);
+}
+
+static int choose_cut(bc_bot *b, bl_vec3 at, int r)
+{
+	static const int8_t d[6][3] = { {1,0,0}, {-1,0,0}, {0,1,0}, {0,-1,0}, {0,0,1}, {0,0,-1} };
+	bc_engine *e = b->e;
+	int ax = (int)floorf(at.x), ay = (int)floorf(at.y), az = (int)floorf(at.z);
+	int x, y, z, i, pass, best = 0;
+
+	b->bld.n_cut = 0;
+	for (pass = 0; pass < 2 && best == 0; pass++)
+		for (z = az - r; z <= az + r; z++)
+			for (y = ay - r; y <= ay + r; y++)
+				for (x = ax - r; x <= ax + r; x++) {
+					if ((x - ax) * (x - ax) + (y - ay) * (y - ay) + (z - az) * (z - az) > r * r ||
+					    z < 0 || z >= BC_MAP_GROUND_Z || !bc_map_solid(e->map, x, y, z) ||
+					    !open_face(e->map, x, y, z))
+						continue;
+					for (i = pass ? 0 : 5; i < 6; i++) {
+						int wx = x + d[i][0], wy = y + d[i][1], wz = z + d[i][2], n;
+
+						if (pass && (wz >= BC_MAP_GROUND_Z || !bc_map_solid(e->map, wx, wy, wz)))
+							continue;
+						n = pass ? bc_cull_would_drop(e->map, e->cull, x, y, z, wx, wy, wz)
+						         : bc_cull_would_drop(e->map, e->cull, x, y, z, -1, -1, -1);
+						/* only a cut a player could make: each block of it
+						 * dug from a floor that sees a face of it */
+						if (n > best && edit_stand(b, x, y, z, 0) &&
+						    (!pass || edit_stand(b, wx, wy, wz, 0))) {
+							best = n;
+							b->bld.cut[0].x = (int16_t)x; b->bld.cut[0].y = (int16_t)y; b->bld.cut[0].z = (int16_t)z;
+							b->bld.cut[1].x = (int16_t)wx; b->bld.cut[1].y = (int16_t)wy; b->bld.cut[1].z = (int16_t)wz;
+							b->bld.n_cut = (uint8_t)(pass ? 2 : 1);
+						}
+					}
+				}
+	return best;
+}
+
+bt_status bc_do_dig_weakest(void *bot, const bt_args *a, float dt)
+{
+	bc_bot *b = bot;
+	bc_engine *e = b->e;
+	bl_vec3 p;
+	bt_status r = BT_SUCCESS;
+	int k;
+
+	(void)dt;
+	if (a->count < 1 || !bc_place_of(b, a->text[0], &p) || !e->have_map || !e->cull || !may_edit(b, 1)) {
 		b->bld.started = 0;
 		return BT_FAILURE;
 	}
-	c.x = (float)x + 0.5f; c.y = (float)y + 0.5f; c.z = (float)z + 0.5f;
-	dx = c.x - me->pos.x; dy = c.y - me->pos.y; dz = c.z - me->pos.z;
-	if (dx * dx + dy * dy + dz * dz > 4.0f * 4.0f) {
-		/* near it first: a floor beside it, within reach */
-		int st = bc_move_to(b, p, 2.0f);
-
-		bc_fire_at_will(b);
-		if (st == BC_MV_FAILED) {
-			b->bld.started = 0;
+	if (!b->bld.started) {
+		if (choose_cut(b, p, a->count > 1 && a->num[1] > 0.0f ? (int)(a->num[1] + 0.5f) : 6) == 0)
 			return BT_FAILURE;
-		}
-		return BT_RUNNING;
+		b->bld.started = 1;
+		b->bld.dx = -1;             /* which voxel of the cut it stands for: none yet */
 	}
-	b->wish.move = BC_MOVE_NONE;
-	b->wish.tool = BL_TOOL_SPADE;
-	b->wish.look = BC_LOOK_POINT;
-	b->wish.look_at = c;
-	if (me->tool == BL_TOOL_SPADE && e->now >= b->bld.edit_at) {
-		float l = sqrtf(dx * dx + dy * dy + dz * dz);
+	for (k = 0; k < b->bld.n_cut; k++) {
+		const bc_nav_node *v = &b->bld.cut[k];
 
-		if (l < 1e-3f || (dx * me->ori.x + dy * me->ori.y + dz * me->ori.z) / l > 0.8f) {
-			bl_ac_block ac;
-
-			memset(&ac, 0, sizeof ac);
-			ac.x = (int16_t)x; ac.y = (int16_t)y; ac.z = (int16_t)z;
-			ac.action = BL_B_DESTROY;
-			if (e->host.action)
-				e->host.action(e->host.ctx, BL_AC_BLOCK, b->pid, &ac, sizeof ac);
-			e->stats.edits++;
-			b->bld.edit_at = e->now + 0.4;
+		if (!bc_map_solid(e->map, v->x, v->y, v->z))
+			continue;
+		if (b->bld.dx != k) {
+			/* this voxel's own stand, and its own 15 s */
+			if (!edit_stand(b, v->x, v->y, v->z, 0)) {
+				r = BT_FAILURE;
+				break;
+			}
+			b->bld.dx = (int8_t)k;
+			b->bld.until = e->now + 15.0;
 		}
+		r = edit_voxel(b, v->x, v->y, v->z, 0);
+		break;
 	}
-	return BT_RUNNING;
+	if (r == BT_RUNNING)
+		return r;
+	b->bld.started = 0;
+	return r;
+}
+
+/* --- put_at <place> -------------------------------------------------------
+ *
+ * A block at a voxel a script names ("x y z"), placed as a player places
+ * one: against a solid neighbour's face that it sees, within reach
+ * (bc_nav_sees_edit, lib_botlink's rule). Where to stand is the nearest
+ * floor round the voxel from which the placement is legal -- not in the
+ * voxel's way -- gone to by an exact route (one that may build its own
+ * way). For what build_at cannot do: a block that is not a floor to stand
+ * on (a pillar under a stair, a second row beside one). SUCCESS when the
+ * voxel is solid (or was); FAILURE no such place, building not allowed,
+ * no block in hand, nowhere it can be placed from, no way there, 15 s. */
+
+bt_status bc_do_put_at(void *bot, const bt_args *a, float dt)
+{
+	bc_bot *b = bot;
+	bc_engine *e = b->e;
+	bl_vec3 p;
+	bt_status r;
+	int x, y, z;
+
+	(void)dt;
+	if (a->count < 1 || !bc_place_of(b, a->text[0], &p) || !e->have_map || !may_edit(b, 0)) {
+		b->bld.started = 0;
+		return BT_FAILURE;
+	}
+	x = (int)floorf(p.x); y = (int)floorf(p.y); z = (int)floorf(p.z);
+	if (!bc_map_in(x, y, z) || bc_map_solid(e->map, x, y, z)) {
+		b->bld.started = 0;
+		return bc_map_in(x, y, z) ? BT_SUCCESS : BT_FAILURE;
+	}
+	if (!b->bld.started) {
+		if (bc_me(b)->blocks == 0 || !edit_stand(b, x, y, z, 1))
+			return BT_FAILURE;
+		b->bld.started = 1;
+		b->bld.until = e->now + 15.0;
+	}
+	r = edit_voxel(b, x, y, z, 1);
+	if (r != BT_RUNNING)
+		b->bld.started = 0;
+	return r;
 }
 
 void bc_do_build_stop(void *bot, const bt_args *a)

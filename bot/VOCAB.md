@@ -256,6 +256,11 @@ For `do`. Each says what it answers: RUNNING while it goes on, SUCCESS or FAILUR
   - `place`: a [place](#places); left out: `enemy_base`
 - **`dig_at <place>`** -- take away the block at the place (a script names a block: x y z): near enough to reach it, spade out, the head on it, dug at its cadence (the setting edit must allow digging). SUCCESS gone (or was); FAILURE no such place, digging not allowed, no way near, 15 s and still there
   - `place`: a [place](#places); must be given
+- **`put_at <place>`** -- put a block at the voxel at the place (a script names a block: x y z) as a player places one: against a solid neighbour's face it sees, within reach, standing on the nearest floor round it from which that is so -- for a block that is not a floor to stand on (a pillar under a stair, a second row beside one; build_at makes floors). The setting edit must allow building. SUCCESS there (or was); FAILURE no such place, building not allowed, no block in hand, nowhere to place it from, no way there, 15 s
+  - `place`: a [place](#places); must be given
+- **`dig_weakest <place> [voxels]`** -- break a structure where it falls most: of the blocks within that of the place a player could dig (a face open to the air), the one whose removal drops the most of what stands on it -- the server's own collapse, run on the bot's map; with no such block (two wide, propped) a cut a block wide, it and one beside it. Chosen when it starts, dug as dig_at digs (the setting edit must allow digging). SUCCESS the cut made; FAILURE nothing there falls, digging not allowed, no way near, 15 s on a block
+  - `place`: a [place](#places); must be given
+  - `voxels`: a number; left out: 6: what is dug standing about the place -- the server's reach of 5, and a step
 - **`reload`** -- reload now if the magazine is not full. SUCCESS asked, FAILURE nothing to do
 
 ## Traits

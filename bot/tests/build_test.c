@@ -171,11 +171,262 @@ static void test_perch(void)
 	}
 }
 
+/* ---------------------------------------------------------------------- */
+/* TOWER WORK: the stair as bots build it -- a band two voxels deep, each   */
+/* column's step and the voxel under it (its riser), face to face with the  */
+/* next -- one row wide. Dug anywhere, what is above falls (the cull).       */
+
+static void band_cells(int k, int cell, int *x, int *z)
+{
+	*x = SX0 - k;
+	*z = step_z(k) + cell;          /* cell 0: the step; 1: under it */
+}
+
+static void lay_band(bs_sim *s, int y)
+{
+	int k, c, x, z;
+
+	for (k = 0; k <= base_k(); k++)
+		for (c = 0; c < 2; c++) {
+			band_cells(k, c, &x, &z);
+			if (z < G)
+				bs_box(s, x, y, z, x, y, z, 1);
+		}
+}
+
+static int band_solid(const bs_sim *s, int y)
+{
+	int k, c, x, z, n = 0;
+
+	for (k = 0; k <= base_k(); k++)
+		for (c = 0; c < 2; c++) {
+			band_cells(k, c, &x, &z);
+			n += z < G && bc_map_solid(s->truth, x, y, z);
+		}
+	return n;
+}
+
+static bs_sim *tower_field(void)
+{
+	bs_sim *s = bs_new(G, 8);
+
+	s->have_tents = 1;
+	s->tent[0].x = 160.5f; s->tent[0].y = 240.5f; s->tent[0].z = (float)G - 2.25f;
+	s->tent[1].x = 320.5f; s->tent[1].y = 240.5f; s->tent[1].z = (float)G - 2.25f;
+	platform(s);
+	return s;
+}
+
+/* The other team's stair, propped by a pillar from the ground under its
+ * middle: its foot no longer brings it down. The raider is told only
+ * where the stair is; it digs where the most falls -- found by the
+ * server's own collapse, run on its map -- and the most falls. */
+static void test_dig_weakest(void)
+{
+	bs_sim *s = tower_field();
+	int P = base_k() / 2, px = SX0 - P, i, k, c, x, z, best = 0, foot, before, after, pz = step_z(P) + 2;
+	char t[96];
+
+	printf("dig_weakest: their stair, propped in the middle, broken where most of it falls\n");
+	lay_band(s, SY);
+	bs_box(s, px, SY, pz, px, SY, G - 1, 1);           /* the pillar */
+	/* what a cut of one block would drop, each step of the stair round the
+	 * place: its top face is what a player on the stair sees (a riser's
+	 * faces -- its sides on a stair one row wide, its bottom high over the
+	 * ground -- are seen from nowhere one can stand) */
+	for (k = 0; k <= base_k(); k++)
+		for (c = 0; c < 1; c++) {
+			band_cells(k, c, &x, &z);
+			if (z < G && (x - px) * (x - px) + (z - pz) * (z - pz) <= 36) {
+				int n = bc_cull_would_drop(s->truth, s->cull, x, SY, z, -1, -1, -1);
+
+				if (n > best) best = n;
+			}
+		}
+	band_cells(base_k(), 0, &x, &z);          /* the lowest step, on the ground */
+	foot = bc_cull_would_drop(s->truth, s->cull, x, SY, z, -1, -1, -1);
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "edit=dig");
+	snprintf(t, sizeof t, "place.breach=%d.5 %d.5 %d.5", px, SY, pz);
+	bs_set(s, BL_NO_PLAYER, t);
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tdo dig_weakest @breach\n\twait 60\n");
+	bs_add(s, 0, 1, 2, 6, BL_GUN_RIFLE, 41, (float)px - 6.5f, (float)SY + 3.5f, 1, 0);
+	before = band_solid(s, SY);
+	for (i = 0; i < 60 * 40 && band_solid(s, SY) == before; i++)
+		bs_step(s);
+	after = band_solid(s, SY);
+	printf("  a cut at its foot would drop %d; the most a step round the place drops is %d; it dug, and %d fell (after %.1f s); refused for sight: %d\n",
+	       foot, best, before - after - 1, i / 60.0, s->vis_refused);
+	CHECK(foot == 0);                          /* the pillar holds it: the foot is no weak point */
+	CHECK(best > 10);
+	CHECK(before - after - 1 == best);         /* it found the weakest block, and the server dropped the rest */
+	CHECK(s->vis_refused == 0);
+	bs_free(s);
+}
+
+/* Their stair one row wide: dug at the foot, it all falls. Widened -- a
+ * second band beside it, put a block at a time as a player puts them
+ * (put_at) -- the same dig takes one block, and the stair stands. */
+static void test_widen(void)
+{
+	bs_sim *s = tower_field();
+	int i, k, c, x, z, pid, alone, widened, before, foot_x = 0, foot_z = 0, total = 0, made;
+	char t[96];
+
+	printf("put_at: a stair widened by a second row, a block at a time; then dug at its foot\n");
+	lay_band(s, SY);
+	/* its weak point: the block a cut at which drops the most (low down,
+	 * where the band leaves the ground) */
+	alone = 0;
+	for (k = 0; k <= base_k(); k++)
+		for (c = 0; c < 2; c++) {
+			int n;
+
+			band_cells(k, c, &x, &z);
+			if (z < G && (n = bc_cull_would_drop(s->truth, s->cull, x, SY, z, -1, -1, -1)) > alone) {
+				alone = n; foot_x = x; foot_z = z;
+			}
+		}
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "edit=all");
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tdo put_at @widen\n\twait 1\n");
+	for (pid = 0; pid < 3; pid++)
+		bs_add(s, pid, 1, 1, 6, BL_GUN_RIFLE, 500u + (uint32_t)pid * 13u, (float)(SX0 - base_k()) - 4.5f + (float)pid,
+		       (float)SY + 4.5f, 1, 0);
+	for (k = 0; k <= base_k(); k++)
+		for (c = 0; c < 2; c++) {
+			band_cells(k, c, &x, &z);
+			total += z < G;
+		}
+	for (i = 0; i < 60 * 300; i++) {
+		if (i % 30 == 0) {
+			/* the script: the lowest cell of the second band not yet there */
+			int nx = -1, nz = -1;
+
+			for (k = base_k(); k >= 0 && nx < 0; k--)
+				for (c = 1; c >= 0 && nx < 0; c--) {
+					band_cells(k, c, &x, &z);
+					if (z < G && !bc_map_solid(s->truth, x, SY + 1, z)) { nx = x; nz = z; }
+				}
+			if (nx < 0)
+				break;
+			snprintf(t, sizeof t, "place.widen=%d.5 %d.5 %d.5", nx, SY + 1, nz);
+			bs_set(s, BL_NO_PLAYER, t);
+		}
+		bs_step(s);
+	}
+	made = band_solid(s, SY + 1);
+	widened = bc_cull_would_drop(s->truth, s->cull, foot_x, SY, foot_z, -1, -1, -1);
+	printf("  the second row: %d of %d blocks after %.0f s, refused for sight: %d\n", made, total, i / 60.0, s->vis_refused);
+	printf("  a dig at the first row's weak point would drop %d one row wide, %d widened\n", alone, widened);
+	CHECK(made == total);
+	CHECK(s->vis_refused == 0);
+	CHECK(alone > 2 * base_k() - 4);           /* all of it */
+	CHECK(widened == 0);
+	/* and dug: one block goes, the stair stands */
+	before = band_solid(s, SY);
+	bs_block(s, 100, foot_x, SY, foot_z, BL_B_DESTROY);
+	CHECK(band_solid(s, SY) == before - 1);
+	bs_free(s);
+}
+
+/* Ours propped: a pillar from the ground beside its middle step, up to
+ * the step's own level, where it meets the stair face to face -- built as
+ * a player builds a pillar, standing on it as it rises (build_at on the
+ * next block up). A cut at the weak point low down no longer drops what
+ * is above the pillar. */
+static void test_pillar(void)
+{
+	bs_sim *s = tower_field();
+	int P = base_k() / 2, px = SX0 - P, top = step_z(P), py = SY - 1, i, z, pid, before_drop, after_drop, made = 0, fx = 0, fz = 0, n, k;
+	char t[96];
+
+	printf("a pillar from the ground beside the stair's middle step, up to it\n");
+	lay_band(s, SY);
+	before_drop = 0;
+	for (k = 0; k <= base_k(); k++) {
+		int x;
+
+		band_cells(k, 0, &x, &z);
+		if (z < G && (n = bc_cull_would_drop(s->truth, s->cull, x, SY, z, -1, -1, -1)) > before_drop) {
+			before_drop = n; fx = x; fz = z;
+		}
+	}
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "edit=all");
+	bs_set(s, BL_NO_PLAYER, "leaders.per=0");
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tdo build_at @prop\n\twait 1\n");
+	for (pid = 0; pid < 2; pid++)
+		bs_add(s, pid, 1, 1, 6, BL_GUN_RIFLE, 900u + (uint32_t)pid * 11u, (float)px - 3.5f + (float)pid, (float)py - 3.5f, 1, 0);
+	for (i = 0; i < 60 * 200; i++) {
+		if (i % 30 == 0) {
+			int nz = -1;
+
+			for (z = G - 1; z >= top && nz < 0; z--)
+				if (!bc_map_solid(s->truth, px, py, z)) nz = z;
+			if (nz < 0)
+				break;
+			say_place(s, "prop", (float)px + 0.5f, (float)py + 0.5f, (float)nz - 2.25f);
+		}
+		bs_step(s);
+	}
+	for (z = top; z < G; z++)
+		made += bc_map_solid(s->truth, px, py, z);
+	after_drop = bc_cull_would_drop(s->truth, s->cull, fx, SY, fz, -1, -1, -1);
+	printf("  %d of %d blocks of the pillar after %.0f s, refused for sight: %d; a cut at the weak point would drop %d before, %d after\n",
+	       made, G - top, i / 60.0, s->vis_refused, before_drop, after_drop);
+	(void)t;
+	CHECK(made == G - top);
+	CHECK(s->vis_refused == 0);
+	CHECK(after_drop < before_drop / 2);
+	bs_free(s);
+}
+
+/* Ours cut in the middle by the other team: what stood above fell. The
+ * script names the next missing step from the ground, as babel_plus does,
+ * and the builders lay it again. */
+static void test_repair(void)
+{
+	bs_sim *s = tower_field();
+	int i, k, pid, whole, cut, x, z, repaired = -1;
+
+	printf("a stair cut in the middle, built again\n");
+	lay_band(s, SY);
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "edit=all");
+	bs_set(s, BL_NO_PLAYER, "leaders.per=0");
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tdo build_at @stair\n\twait 1\n");
+	for (pid = 0; pid < 3; pid++)
+		bs_add(s, pid, 1, 1, 6, BL_GUN_RIFLE, 700u + (uint32_t)pid * 7u, 170.5f + (float)pid * 2.0f, 244.5f, 1, 0);
+	whole = band_solid(s, SY);
+	band_cells(base_k() / 2, 1, &x, &z);
+	bs_block(s, 100, x, SY, z, BL_B_DESTROY);
+	cut = band_solid(s, SY);
+	for (i = 0; i < 60 * 180 && repaired < 0; i++) {
+		if (i % 30 == 0) {
+			k = next_step(s);
+			if (k < 0) { repaired = i; break; }
+			say_place(s, "stair", (float)(SX0 - k) + 0.5f, (float)SY + 0.5f, (float)step_z(k) - 2.25f);
+		}
+		bs_step(s);
+	}
+	printf("  %d blocks, %d left after the cut; every step there again after %.0f s; refused for sight: %d\n",
+	       whole, cut, repaired / 60.0, s->vis_refused);
+	CHECK(cut < whole / 2 + 2);                /* the cull took what was above the cut */
+	CHECK(repaired > 0);
+	CHECK(s->vis_refused == 0);
+	bs_free(s);
+}
+
 int main(void)
 {
 	test_dig_at();
 	test_stair();
 	test_perch();
+	test_dig_weakest();
+	test_widen();
+	test_pillar();
+	test_repair();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;
 }

@@ -1342,6 +1342,18 @@ script has said where it is. Until it is set (and while the player it
 follows is dead) `knows @name` is false and going there fails, as for
 any place there is none of. 32 for the world, 4 a bot.
 
+**A team's own.** A mode with one of a thing for each team (a stair, a
+gate) tells it once for the team, not once for every bot: a world fact
+or place whose name ends in `@1` or `@2` is read by that team's bots
+under the bare name. A bot looks for its own first, then its team's,
+then the world's:
+
+```lua
+botlink_set("place.stair@1", "158.5 255.5 46.8");   -- team 1's bots: `@stair`
+botlink_set("place.stair@2", "353.5 255.5 46.8");   -- team 2's: the same name, their own
+botlink_set("fact.stair_done@1", 0);                -- `if fact stair_done`
+```
+
 ### 10. A word a tree says back: `do tell`
 
 ```lua

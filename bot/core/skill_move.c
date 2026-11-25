@@ -147,7 +147,11 @@ static int move_to(bc_bot *b, bl_vec3 pos, float radius, int raw)
 		const bl_player *me = bc_me(b);
 		float dx = pos.x - me->pos.x, dy = pos.y - me->pos.y;
 
-		if (dx * dx + dy * dy <= (radius + 0.75f) * (radius + 0.75f) && fabsf(pos.z - me->pos.z) < 1.5f &&
+		/* an exact goal (raw) is that floor, not one a voxel off it: a
+		 * pillar's next block is one up from where the body stands */
+		if (dx * dx + dy * dy <= (radius + 0.75f) * (radius + 0.75f) &&
+		    (raw ? (int)floorf(pos.z + 2.25f + 0.5f) == (int)floorf(me->pos.z + 2.25f + 0.5f)
+		         : fabsf(pos.z - me->pos.z) < 1.5f) &&
 		    !(mv->goal_set && mv->state == BC_MV_FOLLOWING))
 			return BC_MV_ARRIVED;
 		/* shut in: no search over the map. A goal within the reach of one

@@ -567,6 +567,23 @@ static int sees_edit(const bc_map *m, bc_nav_node from, const bc_nav_node *vox, 
 	return 0;
 }
 
+int bc_nav_sees_edit_from(const bc_map *m, bc_nav_node stand, const float eye[3], int x, int y, int z, int build)
+{
+	bc_nav_node vox;
+	uint8_t op = (uint8_t)(build ? BC_BLOCK_BUILD : BC_BLOCK_DESTROY);
+
+	vox.x = (int16_t)x; vox.y = (int16_t)y; vox.z = (int16_t)z;
+	return sees_edit(m, stand, &vox, &op, 0, eye);
+}
+
+int bc_nav_sees_edit(const bc_map *m, bc_nav_node stand, int x, int y, int z, int build)
+{
+	float e[3];
+
+	e[0] = (float)stand.x + 0.5f; e[1] = (float)stand.y + 0.5f; e[2] = (float)stand.z - 2.25f;
+	return bc_nav_sees_edit_from(m, stand, e, x, y, z, build);
+}
+
 /* What a voxel of height costs by edits where the body stands: the
  * PILLAR move (a jump and a block under the feet) up, the DIG DOWN move
  * (the floor dug, a fall of one) down -- the prices try_edit gives those
@@ -744,9 +761,15 @@ static float heur(const bc_nav_search *s, bc_nav_node n)
 	       (up > 0.0f && s->pol->ascent_secs > 0.0f ? up * s->pol->ascent_secs : 0.0f);
 }
 
+/* Within `radius` of the goal: a distance, as a script means it (ctf
+ * counts a carrier in at 3 from the tent, round) -- not a square, whose
+ * corners are 1.4 times as far (radius 2 took a carrier to 2.9 from its
+ * tent's column, and 3.1 from the tent: no capture, for ever). */
 static int is_goal(const bc_nav_search *s, bc_nav_node n)
 {
-	return abs(n.x - s->goal.x) <= s->radius && abs(n.y - s->goal.y) <= s->radius &&
+	int dx = n.x - s->goal.x, dy = n.y - s->goal.y;
+
+	return dx * dx + dy * dy <= s->radius * s->radius &&
 	       (s->pol->goal_exact_z ? n.z == s->goal.z : abs(n.z - s->goal.z) <= 1);
 }
 

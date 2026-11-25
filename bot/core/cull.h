@@ -51,6 +51,15 @@ void bc_cull_init(bc_cull *c);
  * outside the map). Each is noted in `chg` if that is not NULL. */
 int bc_cull_voxel(bc_map *m, bc_cull *c, int x, int y, int z, bc_map_change *chg);
 
+/* WHAT A CUT WOULD DROP: how many voxels the server's flood would remove
+ * if the voxel (x, y, z) -- and, when it is solid too, (also_x, also_y,
+ * also_z): a cut two blocks wide -- were dug out, the cut not counted.
+ * The map is the same after as before (the cut and the masses are taken
+ * out for the floods and put back; rev does not move), and so is the
+ * scratch. 0 for a voxel that is not solid or is the map's ground. For a
+ * mind choosing where to break a structure (skill_build.c, dig_weakest). */
+int bc_cull_would_drop(bc_map *m, bc_cull *c, int x, int y, int z, int also_x, int also_y, int also_z);
+
 /* The action is over: forget what was proven grounded. */
 void bc_cull_end(bc_cull *c);
 

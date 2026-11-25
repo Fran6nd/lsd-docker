@@ -64,6 +64,46 @@ static float clampf(float v, float lo, float hi)
 	return v < lo ? lo : v > hi ? hi : v;
 }
 
+/* WHICH OBJECT IS WHOSE. Two in the world (ctf): a team goes for the
+ * other's and keeps its own. ONE (babel: one intel in the sky that either
+ * team carries home): it is the one each goes for and the one each keeps
+ * from the other. An object the server keeps out of the map (babel puts
+ * its second at infinity) is none. */
+static int obj_here(const bc_engine *e, int t)
+{
+	const bl_object *o = &e->w.intel[t];
+
+	return o->present && o->pos.x >= 0.0f && o->pos.x < (float)BC_MAP_X &&
+	       o->pos.y >= 0.0f && o->pos.y < (float)BC_MAP_Y;
+}
+
+static int obj_alone(const bc_engine *e)
+{
+	return obj_here(e, 0) != obj_here(e, 1);
+}
+
+int bc_obj_theirs(const bc_engine *e, int team)
+{
+	if (team < 1 || team > 2) return -1;
+	if (obj_here(e, 2 - team)) return 2 - team;
+	return obj_alone(e) ? team - 1 : -1;
+}
+
+int bc_obj_ours(const bc_engine *e, int team)
+{
+	if (team < 1 || team > 2) return -1;
+	if (obj_here(e, team - 1)) return team - 1;
+	return obj_alone(e) ? 2 - team : -1;
+}
+
+/* the team of whoever holds object t, 0 for nobody */
+static int holder_team(const bc_engine *e, int t)
+{
+	int h = e->w.intel[t].holder;
+
+	return h == BL_NO_PLAYER ? 0 : e->w.players[h].team;
+}
+
 void bc_objective_world(bc_engine *e)
 {
 	int t, i, news = 0;
@@ -73,7 +113,7 @@ void bc_objective_world(bc_engine *e)
 		bc_objstate *st = &e->obj[t];
 		int state = st->state;
 
-		if (!o->present) {
+		if (!obj_here(e, t)) {
 			st->state = BC_OBJ_HOME;
 			st->holder = BL_NO_PLAYER;
 			continue;
@@ -113,20 +153,28 @@ void bc_objective_world(bc_engine *e)
 int bc_obj_state(const bc_bot *b, int own)
 {
 	const bc_engine *e = b->e;
-	int team = bc_me(b)->team, t;
+	int team = bc_me(b)->team, t = own ? bc_obj_ours(e, team) : bc_obj_theirs(e, team), st;
 
-	if (team < 1 || team > 2)
+	if (t < 0)
 		return -1;
-	t = own ? team - 1 : 2 - team;
-	return e->w.intel[t].present ? e->obj[t].state : -1;
+	st = e->obj[t].state;
+	/* the one object of a game with one: lying, it is theirs to fetch and
+	 * nothing of ours to guard; carried, theirs carried by a mate, ours
+	 * taken by an enemy */
+	if (obj_alone(e)) {
+		if (st != BC_OBJ_CARRIED)
+			return own ? -1 : st;
+		return (holder_team(e, t) == team) == !own ? st : -1;
+	}
+	return st;
 }
 
 int bc_carrying(const bc_bot *b)
 {
 	const bc_engine *e = b->e;
-	int team = bc_me(b)->team;
+	int t = bc_obj_theirs(e, bc_me(b)->team);
 
-	return team >= 1 && team <= 2 && e->w.intel[2 - team].present && e->w.intel[2 - team].holder == b->pid;
+	return t >= 0 && e->w.intel[t].holder == b->pid;
 }
 
 int bc_objective_place(bc_bot *b, const char *name, bl_vec3 *out)
@@ -138,21 +186,24 @@ int bc_objective_place(bc_bot *b, const char *name, bl_vec3 *out)
 	if (team < 1 || team > 2)
 		return 0;
 	if (!strcmp(name, "carrier")) {
-		const bl_object *o = &e->w.intel[other - 1];
+		int t = bc_obj_theirs(e, team);
+		const bl_object *o = t >= 0 ? &e->w.intel[t] : NULL;
 
-		if (!o->present || o->holder == BL_NO_PLAYER || o->holder == b->pid ||
+		if (!o || o->holder == BL_NO_PLAYER || o->holder == b->pid || holder_team(e, t) != team ||
 		    e->w.players[o->holder].state != BL_ALIVE)
 			return 0;
 		*out = e->w.players[o->holder].pos;
 		return 1;
 	}
 	if (!strcmp(name, "thief") || !strcmp(name, "intercept")) {
-		const bl_object *o = &e->w.intel[team - 1];
+		int ot = bc_obj_ours(e, team);
+		const bl_object *o = ot >= 0 ? &e->w.intel[ot] : NULL;
 		const bl_player *th;
 		bl_vec3 base, p;
 		float dx, dy, l2, t;
 
-		if (!o->present || o->holder == BL_NO_PLAYER || e->w.players[o->holder].state != BL_ALIVE)
+		if (!o || o->holder == BL_NO_PLAYER || holder_team(e, ot) != other ||
+		    e->w.players[o->holder].state != BL_ALIVE)
 			return 0;
 		th = &e->w.players[o->holder];
 		*out = th->pos;
@@ -202,13 +253,15 @@ bt_status bc_do_fetch(void *bot, const bt_args *a, float dt)
 	(void)a; (void)dt;
 	if (team < 1 || team > 2)
 		return BT_FAILURE;
-	o = &e->w.intel[2 - team];
+	if (bc_obj_theirs(e, team) < 0)
+		return BT_FAILURE;
+	o = &e->w.intel[bc_obj_theirs(e, team)];
 	if (bc_carrying(b)) {
 		b->fetch.stand_since = 0.0;
 		return BT_SUCCESS;
 	}
-	if (!o->present || o->holder != BL_NO_PLAYER)
-		return BT_FAILURE;      /* none, or somebody has it */
+	if (o->holder != BL_NO_PLAYER)
+		return BT_FAILURE;      /* somebody has it */
 	st = bc_move_to(b, o->pos, 1.0f);
 	bc_fire_at_will(b);
 	if (st == BC_MV_FAILED)
@@ -340,7 +393,7 @@ bt_status bc_do_intercept(void *bot, const bt_args *a, float dt)
 
 	if (team < 1 || team > 2 || !bc_objective_place(b, "intercept", &p))
 		return BT_FAILURE;      /* nobody has it (any more) */
-	thief = e->w.intel[team - 1].holder;
+	thief = e->w.intel[bc_obj_ours(e, team)].holder;   /* (there is one: intercept found him) */
 	if (b->senses.k[thief].visible) {
 		bt_status r;
 

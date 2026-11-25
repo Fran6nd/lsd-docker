@@ -27,10 +27,11 @@
 --   edit=all                    a tower is built (sent once)
 --   zone=<platform> both        no route edits under or round the platform
 --                               (babel refuses them there)
---   place.stair, place.stair_top, place.stair_foot, place.breach
---                               for each bot, its own team's
---   place.intel                 for everybody
---   fact.stair_done, fact.stair_high, fact.breach, fact.carrying
+--   place.stair, place.stair_top, place.stair_foot, place.widen,
+--   place.prop, place.breach    each team's, as the world's "<name>@<team>"
+--   fact.stair_done, fact.stair_high, fact.widen, fact.prop, fact.breach
+--   place.intel                 for everybody (who carries it the engine
+--                               reads from the world: `carrying_intel`)
 -- The stair runs from the platform's corner side outward and down, one
 -- column and one voxel a step, along the platform's near edge row: team 1
 -- west of it, team 2 east -- inside each team's protected area, where
@@ -225,12 +226,26 @@ local function lay_stairs()
 				if (blocked == 0) then break; end
 			end
 		end
+		-- beside it, a second row to WIDEN it (the side with less in its
+		-- way, inside the rows a stair may take) and, on the other side,
+		-- the row its PROPS rise on
+		local y = best.steps[1].y;
+		local up = y + 1 <= y1 and select(2, stair_on_row(team, y + 1)) or math.huge;
+		local down = y - 1 >= y0 and select(2, stair_on_row(team, y - 1)) or math.huge;
+		best.wide_y = up <= down and y + 1 or y - 1;
+		best.prop_y = 2 * y - best.wide_y;
 		stairs[team] = best;
 	end
 end
 
-local function eye(p) return string.format("%.1f %.1f %.1f", p.x + 0.5, p.y + 0.5, p.z - 2.25); end
-local function block(p) return string.format("%.1f %.1f %.1f", p.x + 0.5, p.y + 0.5, p.z + 0.5); end
+-- A point for the bridge, written exactly: what is sent here is a voxel's
+-- middle or an eye 2.25 over a floor, multiples of a quarter, which two
+-- decimals write exactly -- one decimal would round a half, and LuaJIT
+-- builds round a half differently (to even on one, away from zero on
+-- another: the same server would tell the bots two places)
+local function point(x, y, z) return string.format("%.2f %.2f %.2f", x, y, z); end
+local function eye(p) return point(p.x + 0.5, p.y + 0.5, p.z - 2.25); end
+local function block(p) return point(p.x + 0.5, p.y + 0.5, p.z + 0.5); end
 
 -- what a stair is now: the next step to build (nil: whole), the highest
 -- built from the bottom, how many built
@@ -248,6 +263,73 @@ local function stair_state(team)
 	return nextp, top, n;
 end
 
+-- THE STAIR AS BOTS BUILD IT is a band two voxels deep: each step and the
+-- voxel under it (its riser), face to face with the next column's. Dug
+-- anywhere it holds only by its foot, and all above the cut falls (the
+-- server's cull). Two ways to make it hold:
+--   WIDEN: the same band on the row beside it, a block at a time (put_at),
+--     bottom first: a block dug from one row leaves the other holding it.
+--   PROP: a pillar from the ground beside a column, up to its step's
+--     level (where it meets the step face to face), built standing on it
+--     as it rises (build_at on its next block): a cut drops no more than
+--     the stretch up to the next prop. The next prop goes under the
+--     middle of the longest stretch with none -- a cut's worst, halved.
+-- The other team's stair is broken where it is weakest: in the middle of
+-- its longest stretch without a prop (the engine's dig_weakest picks the
+-- block there whose removal drops the most).
+
+-- one row's band, bottom first: {x, y, z} cells under the ground left out
+local function band(st, y)
+	local cells = {};
+	for _, p in ipairs(st.steps) do
+		local g = ground_at(p.x, y);
+		if (p.z + 1 < g) then cells[#cells + 1] = {x = p.x, y = y, z = p.z + 1}; end
+		if (p.z < g) then cells[#cells + 1] = {x = p.x, y = y, z = p.z}; end
+	end
+	return cells;
+end
+
+local function first_missing(cells)
+	for _, c in ipairs(cells) do
+		if (not is_solid(c)) then return c; end
+	end
+end
+
+-- a prop's cells beside the step p, from the ground up to the step's level
+local function prop_cells(st, p)
+	local cells = {};
+	for z = ground_at(p.x, st.prop_y) - 1, p.z, -1 do
+		cells[#cells + 1] = {x = p.x, y = st.prop_y, z = z};
+	end
+	return cells;
+end
+
+-- the step in the middle of the longest stretch of the stair as built
+-- that is held by nothing but the stair below it (a step is held when its
+-- riser stands on the ground, or a whole prop stands beside it; one not
+-- built yet is no part of it); nil when there is none
+local function weakest_stretch(st)
+	local best, run, from = 0, 0, nil;
+	local mid = nil;
+	for i, p in ipairs(st.steps) do
+		local held = not is_solid(p) or p.z + 2 >= ground_at(p.x, p.y) or first_missing(prop_cells(st, p)) == nil;
+		if (held) then
+			run = 0;
+		else
+			if (run == 0) then from = i; end
+			run = run + 1;
+			if (run > best) then best, mid = run, st.steps[math.floor((from + i) / 2)]; end
+		end
+	end
+	return mid;
+end
+
+-- for the bots of a team: the world's facts and places with "@<team>" at
+-- the end, which a bot reads under the bare name (bot/TREES.md section 13)
+local function tell_team(team, key, value)
+	botlink_set(key .. "@" .. team, value);
+end
+
 local function tell_bots()
 	if (not bots_told) then
 		bots_told = true;
@@ -263,25 +345,28 @@ local function tell_bots()
 	end
 	local il = get_1intel_loc ~= nil and get_1intel_loc() or nil;
 	local intel = type(il) == "number" and ("pid " .. il)
-		or type(il) == "table" and string.format("%.1f %.1f %.1f", il.x, il.y, il.z - 2.25) or "";
-	-- the intel is the same for everybody: the world's place (a bot has
-	-- room for 4 of its own, and the stair's take them)
+		or type(il) == "table" and point(il.x, il.y, il.z - 2.25) or "";
 	botlink_set("place.intel", intel);
-	for pid in piditer(PID_BROADCAST) do
-		local team = get_team(pid);
-		if (engine_bot(pid) and (team == 1 or team == 2)) then
-			local me, them, st = s[team], s[other(team)], stairs[team];
-			botlink_set("place.stair", me.nextp and eye(me.nextp) or eye(st.steps[#st.steps]), pid);
-			botlink_set("place.stair_top", me.top and eye(me.top) or eye(st.foot), pid);
-			botlink_set("place.stair_foot", eye(st.foot), pid);
-			botlink_set("fact.stair_done", me.nextp == nil and 1 or 0, pid);
-			botlink_set("fact.stair_high", me.total > 0 and me.n / me.total or 0, pid);
-			-- their stair, broken at its foot, falls whole
-			local foot = stairs[other(team)].steps[1];
-			botlink_set("place.breach", block(foot), pid);
-			botlink_set("fact.breach", (them.n >= 3 and is_solid(foot)) and 1 or 0, pid);
-			botlink_set("fact.carrying", il == pid and 1 or 0, pid);
-		end
+	for team = 1, 2 do
+		local me, them, st = s[team], s[other(team)], stairs[team];
+		tell_team(team, "place.stair", me.nextp and eye(me.nextp) or eye(st.steps[#st.steps]));
+		tell_team(team, "place.stair_top", me.top and eye(me.top) or eye(st.foot));
+		tell_team(team, "place.stair_foot", eye(st.foot));
+		tell_team(team, "fact.stair_done", me.nextp == nil and 1 or 0);
+		tell_team(team, "fact.stair_high", me.total > 0 and me.n / me.total or 0);
+		-- ours: the next block of the second row, and of the next prop
+		local w = first_missing(band(st, st.wide_y));
+		tell_team(team, "place.widen", w and block(w) or "");
+		tell_team(team, "fact.widen", w and 1 or 0);
+		local weak = weakest_stretch(st);
+		local pc = weak and first_missing(prop_cells(st, weak)) or nil;
+		tell_team(team, "place.prop", pc and eye(pc) or "");
+		tell_team(team, "fact.prop", pc and 1 or 0);
+		-- theirs: where it is weakest (its foot, if every stretch is held)
+		local ts = stairs[other(team)];
+		local at = weakest_stretch(ts) or ts.steps[1];
+		tell_team(team, "place.breach", block(at));
+		tell_team(team, "fact.breach", them.n >= 3 and 1 or 0);
 	end
 end
 

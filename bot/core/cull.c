@@ -26,6 +26,15 @@ static int clz64(uint64_t v)
 	return n;
 }
 
+static int popcount64(uint64_t v)
+{
+	int n = 0;
+
+	for (; v; v &= v - 1)
+		n++;
+	return n;
+}
+
 static uint64_t low_bits(int len)
 {
 	return len >= 64 ? ~(uint64_t)0 : (((uint64_t)1 << len) - 1);
@@ -96,9 +105,9 @@ static int unwind_floating(bc_map *m, bc_cull *c, int32_t trvr_ptr, bc_map_chang
 	return removed;
 }
 
-static void unwind_grounded(bc_cull *c, int32_t trvr_ptr)
+static void unwind_grounded(bc_cull *c, int32_t base, int32_t trvr_ptr)
 {
-	while (trvr_ptr-- > 0) {
+	while (trvr_ptr-- > base) {
 		int32_t xy = c->traversed_xy[trvr_ptr];
 
 		c->visiting[xy / 8] = 0;
@@ -144,25 +153,20 @@ static int visitf(bc_cull *c, const bc_map *m, uint64_t col, int32_t xy,
 	return 0;
 }
 
-int bc_cull_voxel(bc_map *m, bc_cull *c, int x, int y, int z, bc_map_change *chg)
+/* The flood from a solid voxel (in the map), its runs noted in
+ * traversed[] at traversed_xy[*trvr_ptr] on. 1: it reached the ground (what
+ * it walked is unwound into grounded[], *trvr_ptr back where it was); 0:
+ * the mass floats, and is left in traversed[] (*trvr_ptr past it). */
+static int flood(const bc_map *m, bc_cull *c, int x, int y, int z, int32_t *trvr_ptr)
 {
+	int32_t base = *trvr_ptr;
 	int32_t grnd_ptr = c->grnd_ptr;
-	int32_t trvr_ptr = 0;
 	int32_t tovi_ptr = 0;
-	int32_t xy;
-	uint64_t col;
-
-	if (!bc_map_in(x, y, z))
-		return 0;
-	xy = y * BC_MAP_X + x;
-
-	col = m->col[xy];
-	if (!(col & ((uint64_t)1 << z)))
-		return 0;
-	col = isolate_col(col, z);
+	int32_t xy = y * BC_MAP_X + x;
+	uint64_t col = isolate_col(m->col[xy], z);
 
 	c->traversed[xy] = col;
-	c->traversed_xy[trvr_ptr++] = xy;
+	c->traversed_xy[(*trvr_ptr)++] = xy;
 	if (c->grounded[xy] == 0)
 		c->grounded_xy[grnd_ptr++] = xy;
 	if (col & Z_BOTTOM_BITS)
@@ -170,16 +174,16 @@ int bc_cull_voxel(bc_map *m, bc_cull *c, int x, int y, int z, bc_map_change *chg
 
 	for (;;) {
 		if (xy % BC_MAP_X > 0 &&
-		    visitf(c, m, col, xy - 1, &tovi_ptr, &trvr_ptr, &grnd_ptr))
+		    visitf(c, m, col, xy - 1, &tovi_ptr, trvr_ptr, &grnd_ptr))
 			goto grounded;
 		if (xy % BC_MAP_X < BC_MAP_X - 1 &&
-		    visitf(c, m, col, xy + 1, &tovi_ptr, &trvr_ptr, &grnd_ptr))
+		    visitf(c, m, col, xy + 1, &tovi_ptr, trvr_ptr, &grnd_ptr))
 			goto grounded;
 		if (xy >= BC_MAP_X &&
-		    visitf(c, m, col, xy - BC_MAP_X, &tovi_ptr, &trvr_ptr, &grnd_ptr))
+		    visitf(c, m, col, xy - BC_MAP_X, &tovi_ptr, trvr_ptr, &grnd_ptr))
 			goto grounded;
 		if (xy < BC_MAP_XY - BC_MAP_X &&
-		    visitf(c, m, col, xy + BC_MAP_X, &tovi_ptr, &trvr_ptr, &grnd_ptr))
+		    visitf(c, m, col, xy + BC_MAP_X, &tovi_ptr, trvr_ptr, &grnd_ptr))
 			goto grounded;
 
 		if (tovi_ptr == 0)
@@ -189,11 +193,72 @@ int bc_cull_voxel(bc_map *m, bc_cull *c, int x, int y, int z, bc_map_change *chg
 		col = c->traversed[xy];
 		c->visiting[xy / 8] &= (uint8_t)~(1 << (xy & 7));
 	}
-
-	return unwind_floating(m, c, trvr_ptr, chg);
+	return 0;
 
 grounded:
 	c->grnd_ptr = grnd_ptr;
-	unwind_grounded(c, trvr_ptr);
-	return 0;
+	unwind_grounded(c, base, *trvr_ptr);
+	*trvr_ptr = base;
+	return 1;
+}
+
+int bc_cull_voxel(bc_map *m, bc_cull *c, int x, int y, int z, bc_map_change *chg)
+{
+	int32_t trvr_ptr = 0;
+
+	if (!bc_map_in(x, y, z) || !(m->col[y * BC_MAP_X + x] & ((uint64_t)1 << z)))
+		return 0;
+	if (flood(m, c, x, y, z, &trvr_ptr))
+		return 0;
+	return unwind_floating(m, c, trvr_ptr, chg);
+}
+
+int bc_cull_would_drop(bc_map *m, bc_cull *c, int x, int y, int z, int also_x, int also_y, int also_z)
+{
+	static const int8_t d[6][3] = { {1,0,0}, {-1,0,0}, {0,1,0}, {0,-1,0}, {0,0,1}, {0,0,-1} };
+	int32_t trvr_ptr = 0, p;
+	int cut[2][3], n_cut = 0, k, i, dropped = 0;
+
+	cut[0][0] = x; cut[0][1] = y; cut[0][2] = z;
+	cut[1][0] = also_x; cut[1][1] = also_y; cut[1][2] = also_z;
+	/* the cut: taken out of the map, put back at the end */
+	for (k = 0; k < 2; k++) {
+		if (!bc_map_in(cut[k][0], cut[k][1], cut[k][2]) || cut[k][2] >= BC_MAP_GROUND_Z ||
+		    !(m->col[cut[k][1] * BC_MAP_X + cut[k][0]] & ((uint64_t)1 << cut[k][2]))) {
+			if (k == 0) return 0;
+			break;
+		}
+		m->col[cut[k][1] * BC_MAP_X + cut[k][0]] &= ~((uint64_t)1 << cut[k][2]);
+		n_cut++;
+	}
+	/* each neighbour's mass, as the server floods it; one that floats is
+	 * counted, and taken out too until the end, so that a mass touching
+	 * two neighbours is counted once and a later flood does not walk it */
+	for (k = 0; k < n_cut; k++)
+		for (i = 0; i < 6; i++) {
+			int nx = cut[k][0] + d[i][0], ny = cut[k][1] + d[i][1], nz = cut[k][2] + d[i][2];
+			int32_t from = trvr_ptr;
+
+			if (!bc_map_in(nx, ny, nz) || !(m->col[ny * BC_MAP_X + nx] & ((uint64_t)1 << nz)))
+				continue;
+			if (flood(m, c, nx, ny, nz, &trvr_ptr))
+				continue;
+			for (p = from; p < trvr_ptr; p++) {
+				int32_t xy = c->traversed_xy[p];
+
+				dropped += popcount64(m->col[xy] & c->traversed[xy]);
+				m->col[xy] &= ~c->traversed[xy];
+			}
+		}
+	/* all back as it was: the masses, the cut, and nothing proven */
+	while (trvr_ptr-- > 0) {
+		int32_t xy = c->traversed_xy[trvr_ptr];
+
+		m->col[xy] |= c->traversed[xy];
+		c->traversed[xy] = 0;
+	}
+	for (k = 0; k < n_cut; k++)
+		m->col[cut[k][1] * BC_MAP_X + cut[k][0]] |= (uint64_t)1 << cut[k][2];
+	bc_cull_end(c);
+	return dropped;
 }

@@ -164,6 +164,8 @@ void bc_do_tactics_stop(void *bot, const bt_args *a);
 /* skill_build.c */
 bt_status bc_do_build_at(void *bot, const bt_args *a, float dt);
 bt_status bc_do_dig_at(void *bot, const bt_args *a, float dt);
+bt_status bc_do_dig_weakest(void *bot, const bt_args *a, float dt);
+bt_status bc_do_put_at(void *bot, const bt_args *a, float dt);
 bt_status bc_do_build_perch(void *bot, const bt_args *a, float dt);
 void bc_do_build_stop(void *bot, const bt_args *a);
 /* skill_objective.c */

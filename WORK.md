@@ -378,3 +378,44 @@ DONE (commit), BLOCKED (on what).
   reward. Not seen: a real ZeroSpades client's hit on a teammate (the
   scripted client sends what it is told; ffa.lua relies on clients
   sending them) and the debris on a real screen.
+- 2026-11-25 (brain agent): babel, the idle bots and the owner's two asks.
+  IDLE: a bot reads "idle" when its whole tree ends at once every tick.
+  The 3 seen were team 2's waiting round their carrier, who stood 3.1
+  from his tent with the intel for minutes: `go_to own_base 2` arrived at
+  the CORNER of a square of radius 2 round the goal (2.9 from the column,
+  3.1 from the tent; ctf captures at 3, round). The planner's goal is now
+  a distance (is_goal: a disc), and an exact goal (build_at's floor) is
+  that floor, not one a voxel off it (move_to's "at hand"). ctf_test's
+  dropped-intel check is read at 25 s, not 12 (a team-mate who took
+  theirs is escorted past first; then two guard, as before).
+  CARRIER DEATHS, measured (blueresortbabel, 10 a team, 20 min, a probe
+  on kill and capture): 4 captures, 5 carrier deaths -- 4 shot, 1
+  grenaded; 3 in the middle of the platform, 2 near a base (one parked
+  out of capture range: the radius above); NONE by a fall: no fall
+  pricing added (nothing measured asks for it). The engine now reads
+  babel's one intel (bc_obj_theirs/ours: one object in the world is the
+  one both teams go for and keep; one put out of the map is none), so
+  the carrier uses `carry_home` (a route wide of the enemies it knows,
+  shooting only who is in its way), mates `escort`, the other side
+  `intercept`. After-numbers: being measured (same map, same probe).
+  TOWER WORK: words `dig_weakest <place> [voxels]` (the block a player
+  could dig whose removal drops the most: bc_cull_would_drop, the
+  server's collapse run on the bot's map and undone; two wide -> a cut
+  a block wide) and `put_at <place>` (a block where a player could put
+  it: the nearest floor in reach that sees a solid neighbour's face);
+  dig_at shares their edit path (stand chosen by bc_nav_sees_edit, the
+  edit sent when the bot's own eye sees it). A pillar jumps only with
+  the body's box clear of what is beside it. Team scope on the bridge:
+  a world fact or place "<name>@1|2" is read by that team under the bare
+  name (TREES.md 13). babel_plus: per team stair, widen (the second band,
+  put_at), prop (a pillar beside the middle of the longest stretch held
+  by nothing, build_at from the ground up), breach (theirs, at its
+  weakest stretch); places written exactly ("%.2f": one decimal rounded
+  a half by the build's own rule -- CI on Ubuntu's LuaJIT failed).
+  babel.bt: masons (mend, widen, prop), raiders dig_weakest, carriers
+  carry_home. Scenarios (build_test): propped stair broken where most
+  falls (36 of 36), a widened stair stands a dig that dropped 73, a
+  pillar to the step props it (72 -> 0), a cut stair rebuilt; 0 refused
+  for sight in all. Not done: step G (hostages) is in progress in
+  catalog/gamemodes/hostage/hostage.lua and bot/core/skill_fight.c (a
+  bot with no rounds does not aim to fire at will).

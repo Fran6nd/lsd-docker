@@ -492,6 +492,16 @@ int bc_nav_node_of_body(const bc_map *m, const bc_body *b, bc_nav_node *out);
  * z), then in rings out to `radius`. 0 if none. */
 int bc_nav_snap(const bc_map *m, int x, int y, int z, int radius, bc_nav_node *out);
 
+/* THE PLAYER'S RULE for one edit, from a body standing on `stand` (its
+ * eye 2.25 over the floor): a build of (x, y, z) against a solid
+ * neighbour's face on this cell's side, a dig of a face open to the air,
+ * within the server's reach of 5 and in clear sight -- what lib_botlink
+ * holds a bot to, and what the planner plans by. */
+int bc_nav_sees_edit(const bc_map *m, bc_nav_node stand, int x, int y, int z, int build);
+/* The same from an eye of the caller's (a body is seldom at its floor's
+ * middle): what the server will judge. */
+int bc_nav_sees_edit_from(const bc_map *m, bc_nav_node stand, const float eye[3], int x, int y, int z, int build);
+
 /* The same, but DRY: water columns are passed over. For a caller that
  * wants somewhere to go near a point that may be in the sea (a tent in the
  * water, a body wading): bc_nav_snap there answers the sea bed. */

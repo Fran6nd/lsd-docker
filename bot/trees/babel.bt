@@ -3,25 +3,35 @@
 # builders.
 #
 # The engine knows no tower. The gamemode's script (catalog/gamemodes/
-# babel/babel_plus.lua) lays each team's stair out and tells every bot,
-# through the bridge (bot/TREES.md section 13):
-#   @stair       the next step of its team's stair to build (build_at)
+# babel/babel_plus.lua) lays each team's stair out and tells each team,
+# through the bridge (bot/TREES.md section 13; the world's "<name>@<team>",
+# which a bot reads under the bare name):
+#   @stair       the next step of its team's stair to build (build_at):
+#                from the ground up, so a stair cut is built again from
+#                the cut
 #   @stair_top   the highest step built, to stand on and watch from
 #   @stair_foot  the ground at the stair's foot
-#   @breach      the lowest step of the OTHER team's stair (dig_at): a
-#                stair broken at its foot falls whole
+#   @widen       the next block of the second row beside it (put_at)
+#   @prop        the next block of a pillar beside its weakest stretch,
+#                from the ground up to the step (build_at: stood on as it
+#                rises)
+#   @breach      the OTHER team's stair where it is weakest (dig_weakest:
+#                the block there whose removal drops the most)
 #   @intel       the intel: where it lies, or the man who carries it
 #   fact stair_done  1 when its team's stair reaches the platform
 #   fact stair_high  how far up its team's stair is, 0 to 1
+#   fact widen, fact prop   1 while there is such a block to put
 #   fact breach      1 when the other team's stair is worth breaking
-#   fact carrying    1 for the bot that carries the intel
 # and sends edit=all (a tower is built), and these only when engine bots
-# are playing.
+# are playing. Who carries the intel the engine reads from the world:
+# babel's one intel is the one both teams go for (`carrying_intel`,
+# `their_intel_carried` -- a mate has it --, `our_intel_taken` -- one of
+# theirs has it).
 #
 # The top `pick` is a priority list looked at every second; `babel_role`
 # under it is a ROLE drawn once for each bot and kept in every life
-# (`pick roll=once`): builders, guards, snipers, raiders, runners -- by
-# character.
+# (`pick roll=once`): builders, masons, guards, snipers, raiders, runners
+# -- by character.
 
 tree babel:
 select
@@ -32,50 +42,85 @@ select
 			do leave_water
 		option none has_order x30             # the server said so
 			do obey
-		option none fact carrying x40         # it has the intel: home with it, nothing else
-			do go_to own_base 2
+		option none carrying_intel x40        # it has the intel: home with it, wide of the enemies it knows
+			do carry_home
 		option none stranded x20              # no way from here: hold and watch, shoot from there
 			tree babel_stranded
 		option none under_fire x10            # being shot at
 			tree babel_under_fire
 		option none enemy_visible x5          # somebody in sight
 			tree babel_contact
+		option teamwork their_intel_carried x1.5   # a mate carries it home: with him
+			do escort
+		option aggression our_intel_taken x1.5     # one of theirs carries it: cut him off
+			do intercept
 		option none always                    # the game
 			tree babel_role
 	limit 1
 		do seek                               # the net: the enemy's base
 
 # A role for good, by character: most build (the builder trait, which
-# nothing else used), the careful guard their stair's foot, rifles with
-# an eye for it snipe from the stair, the bold break the other stair,
-# the keen on the game build until the way is there and then run for the
-# intel.
+# nothing else used) -- the stair, then making it hold --, the careful
+# guard their stair's foot, rifles with an eye for it snipe from the
+# stair, the bold break the other stair, the keen on the game build until
+# the way is there and then run for the intel.
 tree babel_role:
 pick roll=once
-	option builder always x1.2                # a builder: the stair, a step at a time
+	option builder always x1.2                # a builder: the stair, then the intel or the stair made to hold
 		tree babel_builder
+	option builder always x0.6                # a mason: the stair made to hold, and mended
+		tree babel_mason
 	option objective always x0.8              # a runner: builds, then goes for the intel
 		tree babel_runner
 	option marksman gun_is rifle x0.6         # a sniper: up its stair, shooting their builders
 		tree babel_sniper
 	option caution always x0.5                # a guard: the stair's foot, where it can be broken
 		tree babel_guard
-	option aggression always x0.5             # a raider: their stair, from the foot
+	option aggression always x0.5             # a raider: their stair, where it is weakest
 		tree babel_raider
 
+# The stair first -- up, or mended where it was cut.
 tree babel_builder:
-pick every=5 sticky=0.5 noise=0.1
-	option none fact stair_done x2            # the stair is there: up to the intel
-		do go_to @intel 1
-	option none always                        # the next step
+select
+	seq
+		unless fact stair_done
 		do build_at @stair
+	pick every=10 sticky=0.5 noise=0.1
+		option objective their_intel_home x0.8    # the way is there: the intel
+			do fetch
+		option objective their_intel_dropped x2   # lying where a carrier fell
+			do fetch
+		option builder always                     # or the stair made to hold
+			tree babel_mason
+
+# Mended first; then a second row beside it, so that a block dug leaves
+# the other holding it; then props under its weakest stretch. Nothing to
+# do: watching from its top.
+tree babel_mason:
+select
+	seq
+		unless fact stair_done
+		do build_at @stair
+	pick every=10 sticky=0.5 noise=0.1
+		option none fact widen x2                 # the second row, a block at a time
+			do put_at @widen
+		option none fact prop                     # a prop, from the ground up
+			do build_at @prop
+		option none always x0.1                   # all done: watch from the top
+			do guard @stair_top 30
 
 tree babel_runner:
-pick every=5 sticky=0.5 noise=0.1
-	option none fact stair_done x3            # the way is there: the intel
-		do go_to @intel 1
-	option none always                        # not yet: help build it
+select
+	seq
+		unless fact stair_done
 		do build_at @stair
+	pick every=5 sticky=0.5 noise=0.1
+		option none their_intel_home x3           # the way is there: the intel
+			do fetch
+		option none their_intel_dropped x4
+			do fetch
+		option none always x0.3                   # somebody has it: near the top, ready
+			do guard @stair_top 20
 
 tree babel_sniper:
 pick every=20 sticky=0.5 noise=0
@@ -91,12 +136,18 @@ pick every=20 sticky=0.5 noise=0
 	option none always
 		do guard @stair_foot 40
 
+# Their stair, where it is weakest; a cut made, a while before the next
+# (what fell must be built again: the cut is the point). Nothing to break:
+# the intel, or their base.
 tree babel_raider:
 pick every=10 sticky=0.5 noise=0.1
-	option none fact breach x3                # their stair is up a way: break its foot
-		do dig_at @breach
-	option none fact stair_done x1            # nothing to break: the intel
-		do go_to @intel 1
+	option none fact breach x3
+		select
+			cooldown 15
+				do dig_weakest @breach
+			do seek
+	option none their_intel_home x1           # nothing to break: the intel
+		do fetch
 	option none always                        # their base: whoever is about
 		do seek
 

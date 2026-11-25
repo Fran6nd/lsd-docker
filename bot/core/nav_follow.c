@@ -23,6 +23,7 @@
  * the one the route was planned on.
  */
 #include "nav_i.h"
+#include "lsd_core.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -404,6 +405,24 @@ static void look_at(const bc_body *b, bc_nav_node v, bc_v3 *ori)
 	}
 }
 
+/* The body's box (its four corners, 0.45 out) in no solid voxel from
+ * z0 to z1: the room it rises through. */
+static int box_clear(const bc_body *b, const bc_map *m, int z0, int z1)
+{
+	int z;
+
+	for (z = z0; z <= z1; z++) {
+		float zz = (float)z + 0.5f;
+
+		if (bc_lsd_clip(m, b->pos.x - 0.45f, b->pos.y - 0.45f, zz) ||
+		    bc_lsd_clip(m, b->pos.x - 0.45f, b->pos.y + 0.45f, zz) ||
+		    bc_lsd_clip(m, b->pos.x + 0.45f, b->pos.y - 0.45f, zz) ||
+		    bc_lsd_clip(m, b->pos.x + 0.45f, b->pos.y + 0.45f, zz))
+			return 0;
+	}
+	return 1;
+}
+
 /* Ask for one voxel. Returns 0, or -why when it has been asked for too
  * long. */
 static int ask(bc_nav_follow *f, const bc_body *b, bc_nav_node v, uint8_t op,
@@ -473,7 +492,11 @@ static int edit_tick(bc_nav_follow *f, const bc_nav_route *r, const bc_nav_moves
 					return -BC_NAV_WHY_EDIT_REFUSED;
 			}
 			nav_law_steer(b, cx, cy, 0, 1, keys, ori);
-			if (off < 0.2f && bc_body_speed(b) < 0.6f)
+			/* up only with the body's box (0.9 wide) clear of what is
+			 * beside the column where it rises: a pillar against a wall
+			 * or a stair is jumped from its middle, not from 0.1 off it
+			 * with a shoulder under the next block */
+			if (off < 0.2f && bc_body_speed(b) < 0.6f && box_clear(b, m, st->to.z - 3, from.z - 1))
 				*keys = BC_K_JUMP;      /* until the server takes it */
 			return 0;
 		}
