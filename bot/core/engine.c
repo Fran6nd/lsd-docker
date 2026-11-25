@@ -2099,11 +2099,11 @@ static void stuck_out(bc_engine *e, bc_bot *b, const bc_body *body, const char *
 		py = (float)mv->goal.y + 0.5f - me->pos.y;
 		if (mv->has_route && bc_nav_follow_failed(&mv->follow, &mv->route, &from, &to, &kind))
 			bc_nav_fail_note(&e->fail, from, to, kind, e->now, 30.0);
-		if (!bc_nav_node_of_body(e->map, body, &from)) {
-			from.x = (int16_t)floorf(me->pos.x); from.y = (int16_t)floorf(me->pos.y);
-			from.z = (int16_t)floorf(me->pos.z + 2.75f);
-		}
-		bc_unreach_note(b, from, mv->goal);
+		/* the team is told there is no way from here only when "here" is
+		 * a floor: from a body in the air (knocked off a stair, mid-jump)
+		 * it would say so of a place nobody stands on */
+		if (bc_nav_node_of_body(e->map, body, &from))
+			bc_unreach_note(b, from, mv->goal);
 		mv->has_route = 0;
 		mv->state = BC_MV_FAILED;
 		mv->retry_at = e->now + 20.0;

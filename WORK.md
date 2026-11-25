@@ -36,7 +36,7 @@ DONE (commit), BLOCKED (on what).
 | 2 | Study of tree diagrams + a visual proof of concept for the owner to choose from | DOING (agent) |
 | 3 | Report: how botd is built, CPU with 30 bots, where the bottlenecks are | DOING (agent) |
 | 4 | Audit: every decision about WHAT that still lives in C; plan to move each | REVIEW (brain agent): bot/DECISIONS.md; 8 numbers made word arguments |
-| 5 | Archetypes as a data file beside the trees | TODO (after 4) |
+| 5 | Archetypes as a data file beside the trees | REVIEW (brain agent, 2026-11-25) |
 | 6 | Bots look where they are heading; shot at: cover within the field of view, else face the threat, never turn the back to search | REVIEW (brain agent): heading-first head, cover in view; bench re-baselined in BRAIN-STATUS.md |
 | 7 | Bots stuck on a roof bridge or dig their way down (engine_bots_edit=all) | REVIEW (brain agent): planner can bridge, stair down and dig down from a roof at scale; `stranded` for the trees |
 | 8 | A babel tree, sent by babel_plus only when bots are added; no bots, no engine | TODO (brain agent) |
@@ -44,7 +44,7 @@ DONE (commit), BLOCKED (on what).
 | 10 | Shooting range gamemode on a generated map: a static range (bots as targets from 5 to 50 m, standing or crouched, never dying, never moving, damage shown to the shooter; a target on a rail or one that blinks from place to place) and an IPSC course, one player at a time; all targets as fast as possible; IPSC after the owner played it: targets drop, a start wall, no-shoots with a time penalty | REVIEW (range agent): branch commits; `lsdctl play range`; live runs on lsd-range |
 | 11 | Graphical node editor in tools/tree-editor (replaces its text-first phase 2) | REVIEW (editor agent): diagram A/B, edits through the engine, upload to chosen bots/team/kind, who-chooses-what; real run green. No live view (owner) |
 | 12 | Docs pass left unfinished by the tooling agent (bot/trees/README.md, TREES.md trimmed, docs/*, skills) | TODO |
-| 13 | A scenario test for the sniper role (tdm, ctf) | TODO |
+| 13 | A scenario test for the sniper role (tdm, ctf) | REVIEW (brain agent, 2026-11-25) |
 | 14 | Proposal to the owner: a behaviour's HOW written in Lua (a script skill a tree can `do`) | REPORTED, waiting for a yes |
 | 15 | Editor backend gaps: a game list as data, a quiet roster poll, an outline for text that does not compile | PARTLY DONE: `lsdctl bots games`, `bttree --split --json` committed; open for botd/bt.c: a quiet roster request, a parse of a wrong text (see the 2026-11-25 log) |
 | 16 | A release (the published image predates `lsdctl bots`; the editor refuses it) | when the owner asks |
@@ -486,3 +486,39 @@ DONE (commit), BLOCKED (on what).
   entrypoint was never told the bots (lib_botlink resynced only after a
   silence; now a new engine_pid is a new engine). Next: what makes botd's
   p99 round at 200 (decide bursts, sight), and sight in two phases.
+- 2026-11-25 (brain agent): WHY TEAM 2'S CARRIERS CAME HOME THE WRONG WAY
+  (blueresortbabel), found on the real map in the simulator (platform,
+  both stairs as babel_plus lays them, babel_protect's zones): a carrier
+  run-jumps off its stair onto the roofs below (the planner's cheapest
+  way), lands a voxel off the node planned, and plans from a ledge; that
+  long search finds no way, and (1) `nocap` -- "the long search found
+  none" -- stayed set for the goal, so every later search, from the
+  floor it then stood on, took its first cap for "no way": stuck for
+  good; (2) the team's no-way memory read "from about here" as within 24
+  columns at ANY height, and was noted from a body in the air: from the
+  platform 40 up the team was told there was no way home that side.
+  Fixed: nocap is a fact about the floor it set out from (a search from
+  another starts ordinary); the memory matches in height as for the goal
+  (2), and is noted only from a floor. behaviour_test "no way from a
+  cage; then the way through a maze": never there before, 44 s now; the
+  height rule checked directly. Sim: team 2 carriers 24 of 24 home (12
+  seeds, levels 3 and 8), from 8 places on the platform 24 of 24. Live
+  (10 a team, the first 15 min until the map changed): 5 captures (4-1),
+  2 carrier deaths, both team 2's -- falls of 26 and 30 off the top of
+  its own stair (x 306-307, y 254: beside its two rows), with enemies
+  about; not reproduced without them (every run home is clean), no dig
+  near either, `evade` checks edges, routes plan no harmful drop: open.
+  STEP F (item 13 -> REVIEW): the sniper scenario landed (bot/tests/
+  sniper_test.c): rifles only (7 of 40 rifle marksmen, 0 smg, 0
+  shotgun); nothing heard, to within 45 of their base and watching it,
+  never idle (7 of 7); a shot heard beyond a wall, up a hill and camping
+  (7 of 7); the role in its next life (7 of 7); ctf, keen on the game:
+  their intel home, on toward their base and then for it (8 of 8 within
+  45 s), dropped in the field (8 of 8). Two tree faults found and fixed:
+  in tdm the top pick's `investigate` (curiosity) came before every role,
+  so a curious sniper went to look instead of going up -- it is now the
+  searchers' (tdm_searcher, looked at every second); and tdm_contact's
+  `advance_by_cover enemy` and `flank enemy` succeeded at once when the
+  man was already in range (or failed, too near to go round) with
+  nothing after -- the bot stood "idle" seeing him; both now end in a
+  fight.

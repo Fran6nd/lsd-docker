@@ -131,8 +131,11 @@ double bc_unreach_until(bc_bot *b, bc_nav_node from, bc_nav_node to)
 		dx = u->to.x - to.x; dy = u->to.y - to.y;
 		if (dx * dx + dy * dy > 5 * 5 || u->to.z - to.z > 2 || to.z - u->to.z > 2)
 			continue;
+		/* from about where it was found: near across, and at about the
+		 * same height, as for the goal -- not from the platform in the
+		 * sky because a bot under it found no way (babel) */
 		dx = u->from.x - from.x; dy = u->from.y - from.y;
-		if (dx * dx + dy * dy > 24 * 24)
+		if (dx * dx + dy * dy > 24 * 24 || u->from.z - from.z > 2 || from.z - u->from.z > 2)
 			continue;
 		e->stats.unreach_hits++;
 		return u->until;

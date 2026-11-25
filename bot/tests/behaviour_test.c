@@ -646,6 +646,67 @@ static void test_capped_in_a_maze(void)
 	CHECK(stuck == 0);
 }
 
+/* A bot whose long search proved there is no way from where it stood (a
+ * cage) is then somewhere else (it fell off the ledge it stood on: babel's
+ * carrier under its own stair). From there the search is an ordinary one
+ * again -- capped, walked, planned on -- not its first cap taken as the
+ * same "no way" for ever. */
+static void test_no_way_from_there(void)
+{
+	bs_sim *s = field(4, 180.5f, 260.5f);
+	int i, k, failed_in_cage = 0;
+
+	printf("no way from a cage; then, out of it, the way through a maze\n");
+	bs_box(s, 198, 226, G - 4, 250, 226, G - 1, 1);
+	bs_box(s, 198, 286, G - 4, 250, 286, G - 1, 1);
+	bs_box(s, 198, 226, G - 4, 198, 286, G - 1, 1);
+	bs_box(s, 250, 226, G - 4, 250, 286, G - 1, 1);
+	for (i = 0; i < 5; i++) {
+		int x = 206 + i * 8;
+
+		if (i % 2) bs_box(s, x, 227, G - 4, x, 281, G - 1, 1);
+		else bs_box(s, x, 231, G - 4, x, 285, G - 1, 1);
+	}
+	/* the cage: a cell walled in and roofed, away from the maze */
+	bs_box(s, 160, 300, G - 5, 164, 304, G - 1, 1);
+	bs_box(s, 161, 301, G - 4, 163, 303, G - 1, 0);
+	s->tent[1].x = 246.5f; s->tent[1].y = 282.5f;
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tdo go_to enemy_base\n\twait 1\n");
+	bs_set(s, BL_NO_PLAYER, "plan.cap=400");
+	bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, 5, 162.5f, 302.5f, 1, 0);
+	for (k = 0; k < 60 * 30; k++) {
+		bs_step(s);
+		if (bc_engine_bot(s->e, 0) && bc_engine_bot(s->e, 0)->mv.state == BC_MV_FAILED) failed_in_cage = 1;
+	}
+	/* out of it: at the maze's mouth */
+	bc_body_place(&s->p[0].body, s->truth, 202.5f, 282.5f, G, 0);
+	for (k = 0; k < 60 * 120; k++) {
+		float dx, dy;
+
+		bs_step(s);
+		dx = s->p[0].body.pos.x - s->tent[1].x; dy = s->p[0].body.pos.y - s->tent[1].y;
+		if (dx * dx + dy * dy < 3.0f * 3.0f) break;
+	}
+	printf("  in the cage: %s; out of it, through the maze %s\n", failed_in_cage ? "no way" : "a way (?)",
+	       k < 60 * 120 ? "and there" : "never");
+	if (k < 60 * 120) printf("  there after %.1f s\n", k / 60.0);
+	CHECK(failed_in_cage);
+	CHECK(k < 60 * 120);
+	{
+		/* and what the team is told: no way from about THERE -- across,
+		 * and in height: not from a floor 38 above it (the platform over
+		 * a bot that found no way under it) */
+		bc_bot *b = (bc_bot *)(uintptr_t)bc_engine_bot(s->e, 0);
+		bc_nav_node from = { 200, 200, 40 }, above = { 200, 200, 2 }, near = { 205, 200, 39 }, goal = { 300, 300, 40 };
+
+		bc_unreach_note(b, from, goal);
+		CHECK(bc_unreach_until(b, near, goal) > s->e->now);
+		CHECK(bc_unreach_until(b, above, goal) == 0.0);
+	}
+	bs_free(s);
+}
+
 /* in a pool with banks too high to climb: with digging allowed the route
  * digs its way out, and the digs are asked for from the water */
 static void test_dig_out_of_water(void)
@@ -695,6 +756,7 @@ int main(void)
 	test_harmful_water();
 	test_waiting_for_routes();
 	test_capped_in_a_maze();
+	test_no_way_from_there();
 	test_dig_out_of_water();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;

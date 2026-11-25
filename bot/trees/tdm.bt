@@ -31,9 +31,7 @@ select
 			tree tdm_under_fire
 		option none enemy_visible x5          # somebody in sight
 			tree tdm_contact
-		option curiosity search x2.5          # a noise, a man just lost, a hit: go and look
-			do investigate
-		option none always                    # nobody in sight, nothing heard
+		option none always                    # nobody in sight: its role (a searcher goes to look at a noise)
 			tree tdm_duty
 	limit 1
 		do seek                               # the net: the enemy's base
@@ -78,10 +76,16 @@ pick every=1.5 sticky=0.3 noise=0.15
 		do fight
 	option marksman standoff x1.1             # in reach and far enough: stand and shoot
 		do hold self 4
-	option caution enemy_far 70 x0.9          # far: close on him from cover to cover
-		do advance_by_cover enemy
-	option flank enemy_far 80 x0.6            # far: round him, the long way
-		do flank enemy
+	option caution enemy_far 70 x0.9          # far: close on him from cover to cover, and fight him there
+		seq
+			do advance_by_cover enemy
+			do fight
+	option flank enemy_far 80 x0.6            # far: round him, the long way, and fight him there (too near to go round: here)
+		select
+			seq
+				do flank enemy
+				do fight
+			do fight
 	option greed grenade_worth x0.8           # a group, a far man, one behind a wall
 		do throw_grenade
 
@@ -100,7 +104,7 @@ pick roll=once
 	option marksman gun_is smg x0.2           # an smg sometimes; a shotgun never
 		tree tdm_camper
 	option none always                        # anybody else: the search below
-		tree tdm_search
+		tree tdm_searcher
 
 # A camper: up to a perch, wait there, and when that ends (two kills,
 # shot off it, patience out) up to another. While none is free -- it has
@@ -113,7 +117,7 @@ pick every=3 sticky=0.5 noise=0
 			do take_high_ground               # claim it (two never take the same) and go up
 			do camp                           # until two kills, shot at, or out of patience
 	option none always                        # none just now: the search, until there is one
-		tree tdm_search
+		tree tdm_searcher
 
 # A sniper: it listens. Gunfire somewhere, a sighting told by the team:
 # up to a perch, and it waits there a while. Nothing heard: nearer the
@@ -133,6 +137,16 @@ pick every=20 sticky=0.5 noise=0
 		seq
 			do advance_by_cover enemy_base 45
 			do hold self 25
+
+# A searcher: a noise, a man just lost, a hit -- it goes and looks, as
+# soon as it hears (looked at every second); else the search. A camper or
+# a sniper does not: its role says what it does with a noise.
+tree tdm_searcher:
+pick every=1 sticky=0.2 noise=0
+	option curiosity search x2.5              # a noise, a man just lost, a hit: go and look
+		do investigate
+	option none always
+		tree tdm_search
 
 # Not a camper: every one of these heads for the enemy -- which, is the
 # bot's character and its luck. Chosen for a good while.

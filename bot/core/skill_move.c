@@ -600,6 +600,15 @@ void bc_movers_plan(bc_engine *e)
 			continue;
 		if (!bc_nav_node_of_body(e->map, &body, &cur))
 			continue;                           /* in the air: next think */
+		/* the long search's "no way" is a fact about the floor it set out
+		 * from: from another (a ledge it was standing on, and then fell
+		 * off) the search is an ordinary one again -- not its first cap
+		 * taken as no way, for ever, wherever the bot is (a carrier stuck
+		 * on a roof under its own stair, babel) */
+		if (mv->nocap && (cur.x != mv->plan_from.x || cur.y != mv->plan_from.y || cur.z != mv->plan_from.z)) {
+			mv->nocap = 0;
+			mv->partial_tries = 0;
+		}
 		team_n = fill_policy(b, &pol, danger);
 		if (e->plan_share && !mv->solo &&
 		    bc_route_key_of(&pol, bc_me(b)->team, team_n, mv->goal, mv->radius, mv->exact, mv->nocap, &key)) {
