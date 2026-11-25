@@ -204,7 +204,7 @@ check(team2, "on team 2: the people's enemies, the only ones");
 check(hidden, "hidden from roster, presence, kill feed and stats; no think");
 check(linked == 0 and opened == 0, "no engine: nothing asked of lib_botlink, no file opened");
 check(bots[made[1]].name == "L1 5m" and bots[made[7]].name == "L1 rail" and bots[made[8]].name == "L1 blink"
-	and bots[made[#made]].name == "IPSC 50", "named for what they are: " .. bots[made[1]].name .. ", " .. bots[made[7]].name);
+	and bots[made[#made]].name == "IPSC 10", "named for what they are: " .. bots[made[1]].name .. ", " .. bots[made[7]].name);
 
 local function pid_of(set, motion, n)
 	local i = 0;
@@ -319,7 +319,7 @@ for k, x in ipairs(xs) do
 end
 check(lo >= a and hi <= b and hi - lo > 5, string.format("the rail target goes from end to end of its track (%.2f to %.2f)", lo, hi));
 check(steady, "at a steady 2.5 blocks a second, on the track");
-check(players[rp].pos.z == rt.points[1].z - 2.25, "standing on the floor");
+check(players[rp].pos.z == rt.points[1].z - 2.251, "standing on the floor, as a spawn puts a body");
 teleports = {};
 for k = 0, 23 do tick(4000 + k * 0.25); end
 local jumps = {};

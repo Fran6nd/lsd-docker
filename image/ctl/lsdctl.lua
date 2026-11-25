@@ -1020,11 +1020,12 @@ local function generate_flat(name, height)
 end
 
 -- The map of a game that plays a generated one, from a seed: its
--- generator (GAMES, `generator`: a module of catalog/core with
+-- generator (its entry in GAMES names it: a module of catalog/core with
 -- generate(seed), vxl(map) and meta(map, name) -- parkour_map's course,
 -- range_map's range) writes the map and the metadata naming its places.
-local function generate_course(name, seed)
-	local P = require(game(name).generator);
+local function generate_course(g, seed)
+	local name = g.value;
+	local P = require(g.generator);
 	local c = P.generate(seed);
 	local path = MAPS .. "/" .. name .. ".vxl";
 	local f = assert(io.open(path .. ".tmp", "wb"));
@@ -1234,7 +1235,7 @@ command("map", "map list | add <page|url|source:id|file>... | rm <name>... | loa
 			end
 			local seed = args[1] == nil and os.time() % 1000000 or tonumber(args[1]);
 			if (seed == nil or seed < 0 or seed ~= math.floor(seed)) then die("map course [seed]: a whole number"); end
-			generate_course(g.value, seed);
+			generate_course(g, seed);
 			say("generated %s: a new course, seed %d (it plays at the next map change: lsdctl map load %s)",
 				g.value, seed, g.value);
 		elseif (sub == "generate") then
@@ -1347,7 +1348,7 @@ function force_map(doc, mode, fresh)
 	run("mkdir -p " .. sh_quote(MAPS));
 	if (fresh or not exists(MAPS .. "/" .. g.value .. ".vxl")) then
 		local seed = os.time() % 1000000;
-		generate_course(g.value, seed);
+		generate_course(g, seed);
 		say("map: %s, a course generated for the game (seed %d; another: lsdctl map course)", g.value, seed);
 	end
 	doc:set("map_rotation", g.value);

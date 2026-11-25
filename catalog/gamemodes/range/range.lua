@@ -264,9 +264,11 @@ local function range_target_at(t, now)
 	return t.points[1];
 end
 
--- the body there: its eye, standing or crouched
+-- the body there: its eye, standing or crouched, the feet a hair over
+-- the floor as a spawn puts them (feet on the floor's very top are in
+-- it, and the body is pushed a block up)
 local function body(t, p)
-	return {x = p.x + 0.5, y = p.y + 0.5, z = p.z - (t.stance == "crouch" and 1.35 or 2.25)};
+	return {x = p.x + 0.5, y = p.y + 0.5, z = p.z - (t.stance == "crouch" and 1.351 or 2.251)};
 end
 
 local function target_index(pid)
@@ -283,7 +285,12 @@ end
 local function name_of(r, t, k)
 	local lane = tonumber(string.match(t.set, "^lane(%d+)$"));
 	if (lane == nil) then
-		return "IPSC " .. k;
+		-- its number on the course
+		local n = 0;
+		for i = 1, k do
+			if (r.targets[i].set == t.set) then n = n + 1; end
+		end
+		return "IPSC " .. n;
 	end
 	if (t.motion ~= "static") then
 		return "L" .. lane .. " " .. t.motion;
