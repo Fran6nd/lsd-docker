@@ -218,6 +218,18 @@ rewards_enabled = true;
 NOW = NOW + 2; mod.after.tick();
 check(inventory_kinds().rocket ~= nil, "on again: the items are back");
 
+print("\n8c. a gamemode that gives none (gamemode_rewards = false): off, the setting untouched");
+gamemode_rewards = false;
+NOW = NOW + 2; mod.after.tick();
+empty(0);
+for i = 1, 30 do kill(0, 2); end
+mod.after.capture_intel(0);
+check(total(0) == 0 and next(inventory_kinds()) == nil, "nothing earned, no reward is an item");
+check(rewards_enabled == true, "rewards_enabled is still the operator's");
+gamemode_rewards = nil;
+NOW = NOW + 2; mod.after.tick();
+check(inventory_kinds().rocket ~= nil, "the gamemode gone: the items are back");
+
 print("\n9. unloaded, effects are everybody's again and the items are gone");
 mod.on_unload();
 check(rail.everyone and air.everyone, "everyone's again");

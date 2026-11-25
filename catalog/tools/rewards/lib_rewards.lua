@@ -53,6 +53,11 @@
 -- the effects of the menu stay nobody's), infinite (rewards_free: every
 -- reward, unlimited -- x∞ in the inventory -- for everybody).
 --
+-- A GAMEMODE WITH NOTHING TO EARN says so, whatever the setting:
+-- gamemode_rewards = false, set by the mode while it is loaded (the
+-- range: what is shot there is not a kill). Rewards are then off, as
+-- above; the setting is the operator's and is left as it is.
+--
 -- WHO ELSE HAS IT. A player effect is everybody's while its
 -- <id>_everyone is true, which is its default: install the railgun and
 -- every rifle is one. A reward the railgun is not worth that, so while
@@ -117,6 +122,11 @@ getcfg("rewards_free", false,
 	"Every reward free and unlimited, for trying them out (demos).");
 
 local INFINITE = math.huge;
+
+-- on, by the setting and by the gamemode
+local function enabled()
+	return rewards_enabled ~= false and gamemode_rewards ~= false;
+end
 local kills = pid_connected_table(0);
 
 local earned_you = {en = "You earned: %(what). Use it with /inv, or the pie menu."};
@@ -174,7 +184,7 @@ local function define_items()
 		return;
 	end
 	for i, e in ipairs(menu()) do
-		local on = rewards_enabled ~= false and offered(e);
+		local on = enabled() and offered(e);
 		if (on and not defined[e.key]) then
 			defined[e.key] = true;
 			inventory_define(e.key, {label = e.label, command = "reward " .. e.key,
@@ -217,7 +227,7 @@ local function draw()
 end
 
 local function award(pid, n)
-	if (rewards_enabled == false or rewards_free) then
+	if (not enabled() or rewards_free) then
 		return false; -- off, or everybody holds everything already
 	end
 	local given = 0;
@@ -350,7 +360,7 @@ local function free_for(pid)
 end
 
 local function sync_free()
-	if (rewards_free and rewards_enabled ~= false) then
+	if (rewards_free and enabled()) then
 		for pid in piditer(PID_BROADCAST) do free_for(pid); end
 	elseif (was_free) then
 		for pid in piditer(PID_BROADCAST) do
@@ -361,7 +371,7 @@ local function sync_free()
 			end
 		end
 	end
-	was_free = rewards_free == true and rewards_enabled ~= false;
+	was_free = rewards_free == true and enabled();
 end
 
 -- the effects offered are not everybody's: see WHO ELSE HAS IT
