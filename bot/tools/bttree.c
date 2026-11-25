@@ -454,16 +454,46 @@ static const char *arg_type(const bt_arg_spec *a)
 	return a->set && !a->values ? a->set : "enum";
 }
 
+/* THE KINDS OF PLAYER it draws bots from: the built-in ones, and what
+ * archetypes.txt files say over them (--archetypes FILE, as often as
+ * wanted, in order; else the archetypes.txt beside the trees given) --
+ * the table botd gives the engine */
+static bc_kinds K;
+
+static int read_kinds(const char *path, int must)
+{
+	FILE *fh = fopen(path, "rb");
+	char *text, err[200];
+	long n;
+	int ok;
+
+	if (!fh) {
+		if (must) fprintf(stderr, "bttree: cannot read %s\n", path);
+		return !must;
+	}
+	fseek(fh, 0, SEEK_END);
+	n = ftell(fh);
+	fseek(fh, 0, SEEK_SET);
+	text = malloc((size_t)n + 1);
+	if (!text || fread(text, 1, (size_t)n, fh) != (size_t)n) { fclose(fh); free(text); return 0; }
+	text[n] = 0;
+	fclose(fh);
+	ok = bc_kinds_parse(&K, text, err, sizeof err);
+	if (!ok) fprintf(stderr, "bttree: %s: %s\n", path, err);
+	free(text);
+	return ok;
+}
+
 /* the mean trait weights of 400 bots of one archetype */
 static void archetype_means(int a, float *mean)
 {
-	float w[BC_A_COUNT] = {0};
+	float w[BC_KINDS_MAX] = {0};
 	w[a] = 1;
 	memset(mean, 0, BC_T_COUNT * sizeof *mean);
 	for (int k = 0; k < 400; k++) {
 		bc_rng r; bc_persona p;
 		bc_rng_seed(&r, 1000 + (uint64_t)k, 7);
-		bc_persona_roll(&p, &r, w, 5);
+		bc_kinds_roll(&K, &p, &r, w, 5);
 		for (int t = 0; t < BC_T_COUNT; t++) mean[t] += p.trait[t] / 400.0f;
 	}
 }
@@ -619,16 +649,15 @@ static int schema(FILE *o)
 	jpad(o, 1); fputs("],", o);
 	jpad(o, 1); fprintf(o, "\"trait_range\": [%s, %s],", num(lo), num(hi));
 	jpad(o, 1); fputs("\"archetypes\": [", o);
-	for (int a = 0; a < BC_A_COUNT; a++) {
+	for (int a = 0; a < K.n; a++) {
 		if (a) fputc(',', o);
-		jpad(o, 2); fputs("{", o); jkv(o, "name", bc_archetype_name(a)); fputs(", ", o);
-		jkv(o, "doc", bc_archetype_doc(a));
+		jpad(o, 2); fputs("{", o); jkv(o, "name", K.k[a].name); fputs(", ", o);
+		jkv(o, "doc", K.k[a].doc);
 		fputs(",", o);
 		for (int pass = 0; pass < 2; pass++) {
 			jpad(o, 3); fputs(pass ? "\"spread\": {" : "\"weights\": {", o);
 			for (int t = 0; t < BC_T_COUNT; t++) {
-				float c, sp;
-				bc_archetype_trait(a, t, &c, &sp);
+				float c = K.k[a].centre[t], sp = K.k[a].spread[t];
 				if (t) fputs(", ", o);
 				jkey(o, bc_trait_name(t)); fputs(num(pass ? sp : c), o);
 			}
@@ -702,18 +731,17 @@ static int words_md(FILE *o)
 	      "A weight is rolled once a bot, around its archetype's centre, and kept between %s and %s.\n\n", num(lo), num(hi));
 	for (int t = 0; t < BC_T_COUNT; t++) fprintf(o, "- **`%s`** -- %s\n", bc_trait_name(t), bc_trait_doc(t));
 	fputs("\n## Archetypes\n\nThe kinds of bot a character is drawn from.\n\n", o);
-	for (int a = 0; a < BC_A_COUNT; a++) fprintf(o, "- **`%s`** -- %s\n", bc_archetype_name(a), bc_archetype_doc(a));
+	for (int a = 0; a < K.n; a++) fprintf(o, "- **`%s`** -- %s\n", K.k[a].name, K.k[a].doc);
 	fputs("\nThe centre each draws a trait around (`none` is always 1); the draw is a normal one about it,\n"
 	      "with the spread in brackets:\n\n| |", o);
 	for (int t = 1; t < BC_T_COUNT; t++) fprintf(o, " %s |", bc_trait_name(t));
 	fputs("\n|---|", o);
 	for (int t = 1; t < BC_T_COUNT; t++) fputs("---|", o);
 	fputs("\n", o);
-	for (int a = 0; a < BC_A_COUNT; a++) {
-		fprintf(o, "| **%s** |", bc_archetype_name(a));
+	for (int a = 0; a < K.n; a++) {
+		fprintf(o, "| **%s** |", K.k[a].name);
 		for (int t = 1; t < BC_T_COUNT; t++) {
-			float c, sp;
-			bc_archetype_trait(a, t, &c, &sp);
+			float c = K.k[a].centre[t], sp = K.k[a].spread[t];
 			fprintf(o, " %s (%s) |", num(c), num(sp));
 		}
 		fputs("\n", o);
@@ -1290,7 +1318,7 @@ static const char *where_text(const bt_node *n)
 	return buf;
 }
 
-typedef struct outcome { char what[256]; int by[BC_A_COUNT]; int all; } outcome;
+typedef struct outcome { char what[256]; int by[BC_KINDS_MAX]; int all; } outcome;
 typedef struct why { int bots, chosen; double score, weight, worth; } why;
 
 static int by_count(const void *a, const void *b) { return ((const outcome *)b)->all - ((const outcome *)a)->all; }
@@ -1305,18 +1333,18 @@ static int split(const char *only, int n, const char *mix, int level, int with_w
 	bt_forest *f = split_forest(only, &tree, &v);
 	if (!f) return 1;
 
-	float mixw[BC_A_COUNT];
-	if (!bc_archetype_weights(mix ? mix : "", mixw)) { fprintf(stderr, "bttree: --mix %s?\n", mix); return 1; }
+	float mixw[BC_KINDS_MAX];
+	if (!bc_kinds_weights(&K, mix ? mix : "", mixw)) { fprintf(stderr, "bttree: --mix %s?\n", mix); return 1; }
 
 	static outcome out[MAX_OUT];
-	int n_out = 0, crowd[BC_A_COUNT] = {0}, nodes = (int)bt_forest_nodes(f);
+	int n_out = 0, crowd[BC_KINDS_MAX] = {0}, nodes = (int)bt_forest_nodes(f);
 	bt_state *st = malloc(bt_state_size(f));
 	why *ws = calloc((size_t)nodes, sizeof *ws);
 	if (!st || !ws) return 1;
 	for (int k = 0; k < n; k++) {
 		bc_rng r; bc_persona p;
 		bc_rng_seed(&r, 4242 + (uint64_t)k, 11);
-		bc_persona_roll(&p, &r, mixw, level);
+		bc_kinds_roll(&K, &p, &r, mixw, level);
 		bt_ctx ctx = {&r, p.trait, BC_T_COUNT, 0.1f, split_random, 4242u + (uint64_t)k};   /* each its own, as a seed is */
 		bt_state_init(st, f);
 		bt_state_trace(st, with_why);
@@ -1351,11 +1379,11 @@ static int split(const char *only, int n, const char *mix, int level, int with_w
 
 	printf("%s%d bots, level %d, tree %s%s\n", BOLD, n, level, only ? only : "(the first)", OFF);
 	printf("%6s", "all");
-	for (int a = 0; a < BC_A_COUNT; a++) if (crowd[a]) printf(" %7.7s", bc_archetype_name(a));
+	for (int a = 0; a < K.n; a++) if (crowd[a]) printf(" %7.7s", K.k[a].name);
 	printf("\n");
 	for (int o = 0; o < n_out; o++) {
 		printf("%5.1f%%", 100.0 * out[o].all / n);
-		for (int a = 0; a < BC_A_COUNT; a++) if (crowd[a]) printf(" %6.0f%%", 100.0 * out[o].by[a] / crowd[a]);
+		for (int a = 0; a < K.n; a++) if (crowd[a]) printf(" %6.0f%%", 100.0 * out[o].by[a] / crowd[a]);
 		printf("  %s%s%s\n", BOLD, out[o].what, OFF);
 	}
 	for (int i = 0; with_why && i < nodes; i++) {
@@ -1388,16 +1416,16 @@ static void split_json(const char *only, int n, int level, const bt_forest *f, c
 	jkey(stdout, "tree");
 	if (only) jstr(stdout, only); else fputs("null", stdout);
 	printf(", \"n\": %d, \"level\": %d,\n \"crowd\": {", n, level);
-	for (int a = 0; a < BC_A_COUNT; a++)
-		if (crowd[a]) { printf("%s", first ? "" : ", "); jkey(stdout, bc_archetype_name(a)); printf("%d", crowd[a]); first = 0; }
+	for (int a = 0; a < K.n; a++)
+		if (crowd[a]) { printf("%s", first ? "" : ", "); jkey(stdout, K.k[a].name); printf("%d", crowd[a]); first = 0; }
 	printf("},\n \"outcomes\": [");
 	for (int o = 0; o < n_out; o++) {
 		printf("%s\n  {", o ? "," : "");
 		jkv(stdout, "what", out[o].what);
 		printf(", \"all\": %s, \"by\": {", num((double)out[o].all / n));
 		first = 1;
-		for (int a = 0; a < BC_A_COUNT; a++)
-			if (crowd[a]) { printf("%s", first ? "" : ", "); jkey(stdout, bc_archetype_name(a)); printf("%s", num((double)out[o].by[a] / crowd[a])); first = 0; }
+		for (int a = 0; a < K.n; a++)
+			if (crowd[a]) { printf("%s", first ? "" : ", "); jkey(stdout, K.k[a].name); printf("%s", num((double)out[o].by[a] / crowd[a])); first = 0; }
 		printf("}}");
 	}
 	printf("],\n \"picks\": [");
@@ -1509,14 +1537,14 @@ static int trace(const char *only, int seed, int level, double secs, int as_json
 	bt_vocab *v;
 	bt_forest *f = split_forest(only, &tree, &v);
 	if (!f) return 1;
-	float mixw[BC_A_COUNT] = {0};
-	int a = as_name ? bc_archetype_by_name(as_name) : BC_A_SOLDIER;
+	float mixw[BC_KINDS_MAX] = {0};
+	int a = as_name ? bc_kinds_by_name(&K, as_name) : BC_A_SOLDIER;
 	if (a < 0) { fprintf(stderr, "bttree: no archetype called %s\n", as_name); return 1; }
 	mixw[a] = 1;
 	as_name = NULL;                         /* its weights are in the numbers shown */
 	bc_rng r; bc_persona p;
 	bc_rng_seed(&r, 4242 + (uint64_t)seed, 11);
-	bc_persona_roll(&p, &r, mixw, level);
+	bc_kinds_roll(&K, &p, &r, mixw, level);
 	bt_ctx ctx = {&r, p.trait, BC_T_COUNT, 0.1f, split_random, 4242u + (uint64_t)seed};
 	bt_state *st = malloc(bt_state_size(f));
 	if (!st) return 1;
@@ -1538,7 +1566,7 @@ static int trace(const char *only, int seed, int level, double secs, int as_json
 		fputs("{\"format\": \"lsd-bt-trace\", \"version\": 1, ", o);
 		jkv(o, "tree", tr.name); fprintf(o, ", \"root\": %d, \"ticks\": %d, ", tr.root, ticks);
 		jkv(o, "answer", answer[res]);
-		fputs(",\n  \"bot\": {", o); jkv(o, "archetype", bc_archetype_name(p.archetype));
+		fputs(",\n  \"bot\": {", o); jkv(o, "archetype", K.k[p.archetype].name);
 		fprintf(o, ", \"level\": %d, \"weights\": {", p.level);
 		for (int t = 0; t < BC_T_COUNT; t++) { if (t) fputs(", ", o); jkey(o, bc_trait_name(t)); fputs(num(p.trait[t]), o); }
 		fputs("}},\n  \"running\": [", o);
@@ -1575,7 +1603,7 @@ static int trace(const char *only, int seed, int level, double secs, int as_json
 		char what[256] = "";
 		bt_describe(f, st, what, sizeof what);
 		printf("%s%s%s: a %s, level %d, after %d tick%s (%.1f s): %s%s%s%s%s\n", BOLD, tr.name, OFF,
-			bc_archetype_name(p.archetype), p.level, ticks, ticks > 1 ? "s" : "", ticks * 0.1,
+			K.k[p.archetype].name, p.level, ticks, ticks > 1 ? "s" : "", ticks * 0.1,
 			BOLD, answer[res], OFF, what[0] ? "  " : "", what);
 		printf("%s  id   an option: score x weight x factor x luck x sticky = worth%s\n", DIM, OFF);
 		trace_node(f, st, tr.root, "", 1, path, n_path);
@@ -2029,7 +2057,9 @@ static int usage(void)
 		"       bttree --json [--expanded] FILE.bt... | --from-json FILE | --format FILE.bt... | --roundtrip FILE.bt...\n"
 		"       bttree --words [--md] | --schema | --doc FILE.md... | --list [--json] FILE.bt...\n"
 		"       bttree --bots [--json] [--dir DIR]                              the engine's bots, now\n"
-		"       bttree --watch [--bot PID|NAME] [--full] [--once] [--json] [--hz 4] [--dir DIR]   one of them, live\n");
+		"       bttree --watch [--bot PID|NAME] [--full] [--once] [--json] [--hz 4] [--dir DIR]   one of them, live\n"
+		"  --archetypes FILE (as often as wanted): the kinds of player, read over the built-in ones; without it,\n"
+		"  the archetypes.txt beside the trees given (--schema, --as, --mix name these kinds)\n");
 	return 2;
 }
 
@@ -2041,10 +2071,17 @@ int main(int argc, char **argv)
 	int n_paths = 0, check = 0, list = 0, md = 0, do_split = 0, do_trace = 0, with_why = 0, crowd = 700, level = 5, seed = 0;
 	int json = 0, expanded = 0, do_schema = 0, do_doc = 0, do_format = 0, do_round = 0;
 	double secs = 0;
+	int kinds_said = 0;
 
+	bc_kinds_builtin(&K);
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--tree") && i + 1 < argc) only = argv[++i];
 		else if (!strcmp(argv[i], "--as") && i + 1 < argc) as_name = argv[++i];
+		else if (!strcmp(argv[i], "--archetypes") && i + 1 < argc) {
+			if (!kinds_said) bc_kinds_builtin(&K);
+			kinds_said = 1;
+			if (!read_kinds(argv[++i], 1)) return 1;
+		}
 		else if (!strcmp(argv[i], "--check")) check = 1;
 		else if (!strcmp(argv[i], "--words")) list = 1;
 		else if (!strcmp(argv[i], "--md")) md = 1;
@@ -2083,6 +2120,23 @@ int main(int argc, char **argv)
 		}
 		else if (argv[i][0] == '-' && argv[i][1]) return usage();
 		else if (n_paths < MAX_FILES) paths[n_paths++] = argv[i];
+	}
+	/* no --archetypes: the archetypes.txt beside the trees given, if any
+	 * (each directory once, in the order given) */
+	for (int i = 0; !kinds_said && i < n_paths; i++) {
+		char d[1024], p[1100];
+		const char *sl = strrchr(paths[i], '/');
+		int seen = 0;
+
+		snprintf(d, sizeof d, "%.*s", sl ? (int)(sl - paths[i]) : 1, sl ? paths[i] : ".");
+		for (int j = 0; j < i; j++) {
+			const char *sj = strrchr(paths[j], '/');
+			char dj[1024];
+			snprintf(dj, sizeof dj, "%.*s", sj ? (int)(sj - paths[j]) : 1, sj ? paths[j] : ".");
+			if (!strcmp(d, dj)) seen = 1;
+		}
+		snprintf(p, sizeof p, "%s/archetypes.txt", d);
+		if (!seen && !read_kinds(p, 0)) return 1;
 	}
 	colour = !plain && isatty(1);
 	if (crowd < 1) crowd = 1;
@@ -2164,7 +2218,7 @@ int main(int argc, char **argv)
 	}
 
 	if (as_name) {
-		int a = bc_archetype_by_name(as_name);
+		int a = bc_kinds_by_name(&K, as_name);
 		if (a < 0) { fprintf(stderr, "bttree: no archetype called %s\n", as_name); return 1; }
 		archetype_means(a, as_weight);
 	}

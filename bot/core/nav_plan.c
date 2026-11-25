@@ -315,7 +315,7 @@ static int zoned(const bc_nav_policy *pol, int x, int y, int dig)
 		const bc_nav_zone *z = &pol->zones[i];
 
 		if (x >= z->x0 && x <= z->x1 && y >= z->y0 && y <= z->y1 &&
-		    (dig ? z->no_dig : z->no_build))
+		    (z->team == 0 || z->team == pol->team) && (dig ? z->no_dig : z->no_build))
 			return 1;
 	}
 	return 0;

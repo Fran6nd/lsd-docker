@@ -29,6 +29,8 @@
  *                            is said and left out.
  *   cull=voxlap|openspades   the server's floating-block personality
  *   archetypes=camper:2,pusher:3,...   the mix characters are drawn from
+ *   archetype_table=<text>   the kinds of player as data (trees/
+ *                            archetypes.txt, persona.h), over the built-in
  *   sight, fov, notice, memory, relay, board, noise_secs   the senses
  *   night.sight=0|1          the three rows of night sight (senses.h) hold
  *                            (0: a night world is seen as by day)
@@ -42,8 +44,10 @@
  *   spend=<n>                blocks a route may use (50)
  *   water=lethal|safe
  *   water.damage=<n>         health a second a wading body loses (0)
- *   zone=x0 y0 x1 y1 [nodig] [nobuild]   a rectangle where routes do not
- *                            edit (both, when neither is said); zone=clear
+ *   zone=x0 y0 x1 y1 [nodig] [nobuild] [team N][; ...]   the rectangles
+ *                            where routes do not edit (both, when neither
+ *                            is said), for everybody or for team N's bots;
+ *                            each set the whole list; zone=clear
  *   protect=x y z            a voxel the server will refuse to change
  *   leaders.per=<n>          one leader for every n of a team (5; 0: none)
  *   leaders.human=<weight>   a person's weight in the draw, a bot's being
@@ -680,6 +684,8 @@ bc_engine *bc_engine_new(const bc_engine_host *host, int max_bots)
 	bc_nav_protect_clear(&e->protect);
 	bc_board_clear(&e->board);
 	bc_sense_cfg_default(&e->sense);
+	bc_kinds_builtin(&e->kinds_base);
+	e->kinds = e->kinds_base;
 	e->cull_personality = BC_CULL_OPENSPADES;
 	e->spend = 50;
 	e->ping_takers = 2;
@@ -790,6 +796,47 @@ int bc_engine_map(bc_engine *e, const uint8_t *vxl, size_t bytes, uint32_t map_s
 /* ====================================================================== */
 /* bots                                                                   */
 
+static void roll_persona(bc_engine *e, bc_bot *b);
+
+/* A new table of kinds: the mix said before read again over it (a mix
+ * naming a kind it has not keeps the old table), every bot drawn again. */
+static int use_kinds(bc_engine *e, const bc_kinds *t)
+{
+	float w[BC_KINDS_MAX];
+	int i;
+
+	if (e->have_archetypes && !bc_kinds_weights(t, e->archetypes_text, w)) {
+		bc_engine_log(e, 2, "kinds: archetypes=%s names a kind the new table has not: the kinds stay as they were",
+		              e->archetypes_text);
+		return 0;
+	}
+	e->kinds = *t;
+	if (e->have_archetypes) memcpy(e->archetypes, w, sizeof w);
+	for (i = 0; i < e->max_bots; i++)
+		if (e->bots[i].used) roll_persona(e, &e->bots[i]);
+	return 1;
+}
+
+int bc_engine_kinds(bc_engine *e, const char *text, char *err, size_t err_size)
+{
+	bc_kinds t;
+
+	bc_kinds_builtin(&t);
+	if (!bc_kinds_parse(&t, text, err, err_size))
+		return 0;
+	if (!use_kinds(e, &t)) {
+		snprintf(err, err_size, "archetypes=%s names a kind these have not", e->archetypes_text);
+		return 0;
+	}
+	e->kinds_base = t;
+	return 1;
+}
+
+const char *bc_engine_kind_name(const bc_engine *e, int kind)
+{
+	return kind >= 0 && kind < e->kinds.n ? e->kinds.k[kind].name : "?";
+}
+
 static void roll_persona(bc_engine *e, bc_bot *b)
 {
 	bc_rng r;
@@ -797,7 +844,7 @@ static void roll_persona(bc_engine *e, bc_bot *b)
 	/* its own stream, so the character is the seed's and the mix's and
 	 * can be drawn again when the mix arrives after the bot */
 	bc_rng_seed(&r, b->seed, 0x70657273);
-	bc_persona_roll(&b->persona, &r, e->have_archetypes ? e->archetypes : NULL, b->level);
+	bc_kinds_roll(&e->kinds, &b->persona, &r, e->have_archetypes ? e->archetypes : NULL, b->level);
 	{
 		/* traits=: the lot leans, each keeps its own roll under it */
 		int t;
@@ -984,7 +1031,7 @@ static void ev_bot(bc_engine *e, int pid, const bl_ev_bot *ev)
 	bc_rng_seed(&b->rng, b->seed, 0x62726169);
 	roll_persona(e, b);
 	bot_bind(e, b);
-	bc_engine_log(e, 1, "bot #%d: %s, level %d", pid, bc_archetype_name(b->persona.archetype), b->level);
+	bc_engine_log(e, 1, "bot #%d: %s, level %d", pid, bc_engine_kind_name(e, b->persona.archetype), b->level);
 }
 
 static void ev_unbot(bc_engine *e, int pid)
@@ -1455,16 +1502,26 @@ static void ev_set(bc_engine *e, int pid, const char *text)
 		e->cull_personality = !strcmp(val, "voxlap") ? BC_CULL_VOXLAP : BC_CULL_OPENSPADES;
 		e->map->cull_personality = e->cull_personality;
 	} else if (!strcmp(key, "archetypes")) {
-		float w[BC_A_COUNT];
+		float w[BC_KINDS_MAX];
 
-		if (!bc_archetype_weights(val, w)) {
+		if (strlen(val) >= sizeof e->archetypes_text || !bc_kinds_weights(&e->kinds, val, w)) {
 			bc_engine_log(e, 2, "archetypes=%s: a name nobody knows", val);
 			return;
 		}
+		snprintf(e->archetypes_text, sizeof e->archetypes_text, "%s", val);
 		memcpy(e->archetypes, w, sizeof w);
 		e->have_archetypes = val[0] != 0;
 		for (i = 0; i < e->max_bots; i++)
 			if (e->bots[i].used) roll_persona(e, &e->bots[i]);
+	} else if (!strcmp(key, "archetype_table")) {
+		/* the kinds of player as data, from a script: read over the files' */
+		bc_kinds t = e->kinds_base;
+		char err[160];
+
+		if (!bc_kinds_parse(&t, val, err, sizeof err))
+			bc_engine_log(e, 2, "archetype_table: %s: the kinds stay as they were", err);
+		else
+			use_kinds(e, &t);
 	} else if (bc_sense_cfg_set(&e->sense, key, (float)atof(val))) {
 		;
 	} else if (!strcmp(key, "spend")) {
@@ -1497,19 +1554,38 @@ static void ev_set(bc_engine *e, int pid, const char *text)
 	} else if (!strcmp(key, "ping_radius")) {
 		e->ping_radius = (float)atof(val);
 	} else if (!strcmp(key, "zone")) {
-		int x0, y0, x1, y1;
+		/* the whole list, each set: rectangles separated by ";" (one
+		 * setting a key: what lib_botlink keeps and sends again to an
+		 * engine that comes back is all of it) */
+		const char *r = val;
 
-		if (!strcmp(val, "clear")) {
-			e->nzones = 0;
-		} else if (sscanf(val, "%d %d %d %d", &x0, &y0, &x1, &y1) == 4 && e->nzones < BC_ZONES_MAX) {
-			bc_nav_zone *z = &e->zones[e->nzones++];
-			int nd = strstr(val, "nodig") != NULL, nb = strstr(val, "nobuild") != NULL;
+		e->nzones = 0;
+		while (r && *r && strcmp(r, "clear")) {
+			int x0, y0, x1, y1;
+			const char *end = strchr(r, ';');
+			char one[96];
+			size_t len = end ? (size_t)(end - r) : strlen(r);
 
-			memset(z, 0, sizeof *z);
-			z->x0 = (int16_t)(x0 < x1 ? x0 : x1); z->x1 = (int16_t)(x0 < x1 ? x1 : x0);
-			z->y0 = (int16_t)(y0 < y1 ? y0 : y1); z->y1 = (int16_t)(y0 < y1 ? y1 : y0);
-			z->no_dig = (uint8_t)(nd || !nb);
-			z->no_build = (uint8_t)(nb || !nd);
+			if (len >= sizeof one) len = sizeof one - 1;
+			memcpy(one, r, len);
+			one[len] = 0;
+			if (sscanf(one, "%d %d %d %d", &x0, &y0, &x1, &y1) == 4 && e->nzones < BC_ZONES_MAX) {
+				bc_nav_zone *z = &e->zones[e->nzones++];
+				int nd = strstr(one, "nodig") != NULL, nb = strstr(one, "nobuild") != NULL, team = 0;
+				const char *t = strstr(one, "team ");
+
+				if (t) team = atoi(t + 5);
+				memset(z, 0, sizeof *z);
+				z->team = (uint8_t)(team == 1 || team == 2 ? team : 0);
+				z->x0 = (int16_t)(x0 < x1 ? x0 : x1); z->x1 = (int16_t)(x0 < x1 ? x1 : x0);
+				z->y0 = (int16_t)(y0 < y1 ? y0 : y1); z->y1 = (int16_t)(y0 < y1 ? y1 : y0);
+				z->no_dig = (uint8_t)(nd || !nb);
+				z->no_build = (uint8_t)(nb || !nd);
+			} else {
+				bc_engine_log(e, 2, "zone: \"%.60s\" is not \"x0 y0 x1 y1 [nodig] [nobuild] [team N]\" (or no room, %d at most): ignored", one, BC_ZONES_MAX);
+			}
+			r = end ? end + 1 : NULL;
+			while (r && *r == ' ') r++;
 		}
 	} else if (!strcmp(key, "protect")) {
 		int x, y, z;
@@ -2537,7 +2613,7 @@ size_t bc_engine_describe(const bc_engine *e, int pid, char *out, size_t out_siz
 		bt_describe(b->forest, b->bt, tree, sizeof tree);
 	bc_route_text(b, route, sizeof route);
 	n = snprintf(out, out_size, "%s L%d | %s | %s | sees %d%s",
-	             bc_archetype_name(b->persona.archetype), b->level,
+	             bc_engine_kind_name(e, b->persona.archetype), b->level,
 	             !b->alive ? "dead" : tree[0] ? tree : "idle", route, b->senses.n_visible,
 	             b->senses.alert == BC_ALERT_SUSPICIOUS ? " suspicious" : "");
 	if (n < 0)

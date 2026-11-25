@@ -32,7 +32,7 @@ getcfg("engine_bots_level", 5, "Skill level (1 to 10) the engine bots are drawn 
 getcfg("engine_bots_level_spread", 2, "How far a bot's level may fall from that, either way.");
 
 getcfg("engine_bots_tree", "", "The behaviour tree the bots run, by name (yours: <name>.bt in the data volume's trees/); empty: the gamemode's.");
-getcfg("engine_bots_archetypes", "", "The mix of characters, as camper:2,pusher:1 (soldier, camper, pusher, flanker, support, sapper, scout); empty: every kind.");
+getcfg("engine_bots_archetypes", "", "The mix of characters, as camper:2,pusher:1 (soldier, camper, pusher, flanker, support, sapper, scout, and the operator's own in /data/trees/archetypes.txt); empty: every kind.");
 getcfg("engine_bots_traits", "", "Every bot's trait weights scaled, as aggression:2,caution:0.5; empty: as rolled.");
 getcfg("engine_bots_edit", "", "What a bot's route may do to the map: dig, build or all; empty: nothing, it only walks and jumps.");
 

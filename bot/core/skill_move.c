@@ -335,6 +335,7 @@ static int fill_policy(bc_bot *b, bc_nav_policy *p, bc_nav_danger *danger)
 	 * land is taken when there is one of about the same length) */
 	p->zones = e->zones;
 	p->nzones = e->nzones;
+	p->team = (uint8_t)(team >= 1 && team <= 2 ? team : 0);
 	p->protect = &e->protect;
 	p->fail = &e->fail;
 	p->now = e->now;

@@ -302,6 +302,10 @@ void bc_fire_at_will(bc_bot *b)
 
 	if (t < 0 || !b->senses.k[t].visible)
 		return;
+	/* no rounds in the gun nor besides: nothing to fire at will (a man the
+	 * server disarmed -- a hostage -- walks on without aiming at anybody) */
+	if (me->mag == 0 && me->reserve == 0)
+		return;
 	dx = b->senses.k[t].pos.x - me->pos.x;
 	dy = b->senses.k[t].pos.y - me->pos.y;
 	if (sqrtf(dx * dx + dy * dy) > bc_engage_range(b))

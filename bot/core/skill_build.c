@@ -32,6 +32,23 @@
 
 #include "brain.h"
 
+/* a zone the server's rules keep this bot's hands off (the setting zone:
+ * everybody's, or its team's) -- what the planner's routes respect too */
+static int zoned(const bc_bot *b, int x, int y, int dig)
+{
+	const bc_engine *e = b->e;
+	int i, team = bc_me(b)->team;
+
+	for (i = 0; i < e->nzones; i++) {
+		const bc_nav_zone *z = &e->zones[i];
+
+		if (x >= z->x0 && x <= z->x1 && y >= z->y0 && y <= z->y1 &&
+		    (z->team == 0 || z->team == team) && (dig ? z->no_dig : z->no_build))
+			return 1;
+	}
+	return 0;
+}
+
 static int may_edit(const bc_bot *b, int dig)
 {
 	const bc_engine *e = b->e;
@@ -167,7 +184,7 @@ bt_status bc_do_dig_at(void *bot, const bt_args *a, float dt)
 		return BT_SUCCESS;
 	}
 	if (!b->bld.started) {
-		if (!edit_stand(b, x, y, z, 0))
+		if (zoned(b, x, y, 1) || !edit_stand(b, x, y, z, 0))
 			return BT_FAILURE;
 		b->bld.started = 1;
 		b->bld.until = e->now + 15.0;
@@ -213,12 +230,12 @@ static int choose_cut(bc_bot *b, bl_vec3 at, int r)
 				for (x = ax - r; x <= ax + r; x++) {
 					if ((x - ax) * (x - ax) + (y - ay) * (y - ay) + (z - az) * (z - az) > r * r ||
 					    z < 0 || z >= BC_MAP_GROUND_Z || !bc_map_solid(e->map, x, y, z) ||
-					    !open_face(e->map, x, y, z))
+					    !open_face(e->map, x, y, z) || zoned(b, x, y, 1))
 						continue;
 					for (i = pass ? 0 : 5; i < 6; i++) {
 						int wx = x + d[i][0], wy = y + d[i][1], wz = z + d[i][2], n;
 
-						if (pass && (wz >= BC_MAP_GROUND_Z || !bc_map_solid(e->map, wx, wy, wz)))
+						if (pass && (wz >= BC_MAP_GROUND_Z || !bc_map_solid(e->map, wx, wy, wz) || zoned(b, wx, wy, 1)))
 							continue;
 						n = pass ? bc_cull_would_drop(e->map, e->cull, x, y, z, wx, wy, wz)
 						         : bc_cull_would_drop(e->map, e->cull, x, y, z, -1, -1, -1);
@@ -309,7 +326,7 @@ bt_status bc_do_put_at(void *bot, const bt_args *a, float dt)
 		return bc_map_in(x, y, z) ? BT_SUCCESS : BT_FAILURE;
 	}
 	if (!b->bld.started) {
-		if (bc_me(b)->blocks == 0 || !edit_stand(b, x, y, z, 1))
+		if (bc_me(b)->blocks == 0 || zoned(b, x, y, 0) || !edit_stand(b, x, y, z, 1))
 			return BT_FAILURE;
 		b->bld.started = 1;
 		b->bld.until = e->now + 15.0;

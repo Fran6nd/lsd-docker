@@ -20,6 +20,7 @@
 #ifndef BC_PERSONA_H
 #define BC_PERSONA_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include "rng.h"
 
@@ -80,5 +81,42 @@ void bc_trait_range(float *min, float *max);
 /* "camper:2,pusher:3" into BC_A_COUNT weights (those unnamed 0; all 1
  * when the text is empty). 0 on a name it does not know. */
 int bc_archetype_weights(const char *text, float *weights);
+
+/* THE KINDS AS DATA (trees/archetypes.txt). The table above is the
+ * built-in one; a bot engine holds a table of its own -- the built-in
+ * kinds, with what a text says over them: a kind of the same name
+ * replaced, a new one added (an operator's own kind, then usable in the
+ * `archetypes` weights). The text, a line a kind:
+ *
+ *     <name> <trait>=<centre>/<spread> ... [-- <its one line>]
+ *
+ * a trait not named drawn around 1 with the soldier's spread; `#` to the
+ * end of a line is a comment. */
+enum { BC_KINDS_MAX = 32, BC_KIND_NAME = 16, BC_KIND_DOC = 160 };
+
+typedef struct bc_kind {
+	char name[BC_KIND_NAME];
+	char doc[BC_KIND_DOC];
+	float centre[BC_T_COUNT], spread[BC_T_COUNT];   /* [BC_T_NONE]: 1 and 0 */
+} bc_kind;
+
+typedef struct bc_kinds {
+	int n;
+	bc_kind k[BC_KINDS_MAX];
+} bc_kinds;
+
+/* The built-in kinds, as the table above has them. */
+void bc_kinds_builtin(bc_kinds *t);
+/* `text` over what `t` holds. 1, or 0 with the first fault said in `err`
+ * (and `t` as it was). */
+int bc_kinds_parse(bc_kinds *t, const char *text, char *err, size_t errn);
+/* The table as a text that bc_kinds_parse reads back as it is. */
+size_t bc_kinds_write(const bc_kinds *t, char *out, size_t n);
+int bc_kinds_by_name(const bc_kinds *t, const char *name);
+/* "camper:2,pusher:3" into t->n weights (BC_KINDS_MAX room), as
+ * bc_archetype_weights */
+int bc_kinds_weights(const bc_kinds *t, const char *text, float *weights);
+/* bc_persona_roll from a table: `weights` t->n chances, or NULL */
+void bc_kinds_roll(const bc_kinds *t, bc_persona *p, bc_rng *rng, const float *weights, int level);
 
 #endif

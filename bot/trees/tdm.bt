@@ -129,12 +129,10 @@ pick every=20 sticky=0.5 noise=0
 				do take_high_ground
 				do camp 40
 			do hold self 20                   # none: down, and watch from where it stands
-	option none near_their_base 60 x3         # near his base, nothing heard: watch it from cover
+	option none always                        # nothing heard: by cover to within 45 of his base, and watch it from there
 		seq
 			do advance_by_cover enemy_base 45
 			do hold self 25
-	option none always                        # nothing heard: nearer his base, by cover
-		do advance_by_cover enemy_base 45
 
 # Not a camper: every one of these heads for the enemy -- which, is the
 # bot's character and its luck. Chosen for a good while.

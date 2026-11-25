@@ -121,6 +121,35 @@ static void test_dig_at(void)
 	bs_free(s);
 }
 
+/* A zone for one team (babel_protect: nobody breaks his own team's tower
+ * area): its bots leave the post alone, the other team's dig it. */
+static void test_team_zone(void)
+{
+	int team, i, gone[3] = { 0, 0, 0 };
+
+	printf("a zone for one team: its bots do not dig there, the other's do\n");
+	for (team = 1; team <= 2; team++) {
+		bs_sim *s = bs_new(G, 4);
+
+		s->have_tents = 1;
+		s->tent[0].x = 160.5f; s->tent[0].y = 240.5f; s->tent[0].z = (float)G - 2.25f;
+		s->tent[1].x = 320.5f; s->tent[1].y = 240.5f; s->tent[1].z = (float)G - 2.25f;
+		bs_box(s, 200, 240, G - 3, 200, 240, G - 1, 1);
+		bs_start(s);
+		bs_set(s, BL_NO_PLAYER, "edit=dig");
+		bs_set(s, BL_NO_PLAYER, "zone=150 230 210 250 nobuild; 190 230 210 250 nodig team 1");
+		bs_set(s, BL_NO_PLAYER, "place.post=200.5 240.5 38.5");
+		bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tdo dig_at @post\n\twait 60\n");
+		bs_add(s, 0, 1, team, 6, BL_GUN_RIFLE, 5, 180.5f, 240.5f, 1, 0);
+		for (i = 0; i < 60 * 15; i++)
+			bs_step(s);
+		gone[team] = !bc_map_solid(s->truth, 200, 240, 38);
+		bs_free(s);
+	}
+	printf("  team 1 (whose zone it is): %s; team 2: %s\n", gone[1] ? "dug it" : "left it", gone[2] ? "dug it" : "left it");
+	CHECK(!gone[1] && gone[2]);
+}
+
 /* A bot up where it cannot get down makes its height a vantage: a level
  * walkway toward the enemy's base, a block a step as a player bridges,
  * until it sees the base within its gun's reach; then it camps there and
@@ -421,6 +450,7 @@ static void test_repair(void)
 int main(void)
 {
 	test_dig_at();
+	test_team_zone();
 	test_stair();
 	test_perch();
 	test_dig_weakest();

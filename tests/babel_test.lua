@@ -240,7 +240,10 @@ do
 	run(15);
 	eq(last("edit", nil), "all", "edit=all, for a tower is built");
 	eq(sets_of("edit"), 1, "said once");
-	check(last("zone", nil) ~= nil, "the platform a zone no route edits", last("zone", nil));
+	eq(last("zone", nil), "206 240 305 271; 128 240 225 271 nodig team 1; 128 240 225 271 nobuild team 2; "
+		.. "287 240 383 271 nodig team 2; 287 240 383 271 nobuild team 1",
+		"one zone list: the platform for everybody; each tower area undug by its team and unbuilt by the other");
+	eq(sets_of("zone"), 1, "said once");
 	-- team 1's stair: step k at (205 - k, 240, 2 + k), down to the ground at 50
 	-- each team's, once for the team: the world's "<name>@<team>"
 	eq(last("place.stair@1", nil), "158.50 255.50 46.75", "team 1's stair's lowest step, first (on the platform's middle row, clear)");

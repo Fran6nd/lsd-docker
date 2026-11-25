@@ -476,8 +476,12 @@ struct bc_engine {
 	bc_setting settings[BC_SETTINGS_MAX];
 	int nsettings;
 	float trait_mul[BC_T_COUNT];        /* traits= for everybody (0: none said) */
-	float archetypes[BC_A_COUNT];
+	bc_kinds kinds_base;            /* the kinds of player: built-in, and the
+	                                   files' (bc_engine_kinds) */
+	bc_kinds kinds;                 /* ...and the setting archetype_table's over them */
+	float archetypes[BC_KINDS_MAX]; /* the mix: a weight a kind */
 	int have_archetypes;
+	char archetypes_text[256];      /* the mix as said, read again over a new table */
 	char tree_name[BT_NAME_MAX];
 	int ping_takers;
 	float ping_radius;

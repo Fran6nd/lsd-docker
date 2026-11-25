@@ -48,7 +48,7 @@ DONE (commit), BLOCKED (on what).
 | 14 | Proposal to the owner: a behaviour's HOW written in Lua (a script skill a tree can `do`) | REPORTED, waiting for a yes |
 | 15 | Editor backend gaps: a game list as data, a quiet roster poll, an outline for text that does not compile | PARTLY DONE: `lsdctl bots games`, `bttree --split --json` committed; open for botd/bt.c: a quiet roster request, a parse of a wrong text (see the 2026-11-25 log) |
 | 16 | A release (the published image predates `lsdctl bots`; the editor refuses it) | when the owner asks |
-| 17 | Hostage gamemode: the hostages as engine bots with a tree of their own (botlink_add with a tree), falling back to today's lib_bot hostages with no engine; guards kept | TODO (brain agent, after 8) |
+| 17 | Hostage gamemode: the hostages as engine bots with a tree of their own (botlink_add with a tree), falling back to today's lib_bot hostages with no engine; guards kept | REVIEW (brain agent, 2026-11-25) |
 | 18 | 230 bots without lag: botd sized for every seat, the planner's budget grown with the fleet, nothing built or walked for a bot on the server's send paths | REVIEW (scale agent): branch commits; numbers in BRAIN-STATUS.md (c2) |
 | 19 | Structural review of the fast fixes (the owner's rule: no quick hacks, one rule in one place) | REVIEW (review agent): see the 2026-11-25 log |
 | 21 | Never send a packet to a bot, nor the same packet to each: lib_bot is the one broadcaster (`broadcast`, `broadcast_each`, `people_in`), the guard counts what a script still sends at a bot, a test fails on any | REVIEW (bcast agent): branch commits; the core's own per-slot loops need C (see the log) |
@@ -419,3 +419,44 @@ DONE (commit), BLOCKED (on what).
   for sight in all. Not done: step G (hostages) is in progress in
   catalog/gamemodes/hostage/hostage.lua and bot/core/skill_fight.c (a
   bot with no rounds does not aim to fire at will).
+- 2026-11-25 (brain agent): CARRIER AFTER-NUMBERS (blueresortbabel, 10 a
+  team, the same probe; before: 4 captures, 5 carrier deaths in 20 min,
+  2-2). First after-run: team 2's carrier dug for an hour in its own tower
+  area, where babel_protect refuses it -- the engine knew only the
+  platform's zone. Now `zone` is the whole list ("; " between), each
+  rectangle for everybody or `team N`; babel_plus sends babel_protect's
+  rules (own area nodig, the other's nobuild, per team); routes and the
+  edit words honour them (build_test: a zone for one team). Second
+  after-run, 25 min: 8 captures (team 1 all), 8 carrier deaths (team 2
+  all: 7 shot, 1 grenaded), 6 of them on team 1's stair or in its area --
+  team 2's carriers go home the wrong way, down the enemy's stair. A
+  third run with the enemy's base as one more danger circle for
+  carry_home: the same (4-0, team 2's carriers still dying west, one of
+  a 26-voxel fall): backed out, not shipped. Open: why team 2's way
+  down on this map is not taken.
+  STEP G (item 17, REVIEW): the hostages are engine bots while an
+  engine beats (botlink_add with the script's own tree), lib_bot's
+  otherwise; the mind changes only while a hostage waits at a tent with
+  nobody leading it. decide() keeps all the game's rules; the tree is
+  told an order to follow, fact rescue / home / lost, and says `tell
+  hostage_home`. The server disarms it (no rounds); a bot with no rounds
+  does not aim to fire at will (skill_fight.c). Tests: bot/tests/
+  hostage_test.c (held, led 180 across the field within 8.8 of its man,
+  in when he is home and says so; rescuer dead: down and still, cowering
+  under fire, never aiming), tests/hostage_test.lua (no engine: lib_bot's
+  and nothing asked of an engine; engine: its tree, told once a change;
+  freed, home, rescuer dead; the swap only at a tent).
+  STEP E (item 5): the kinds of player as data -- trees/archetypes.txt,
+  the built-in table number for number (kinds_test); the operator's
+  /data/trees/archetypes.txt read after it by botd (a kind replaced, a
+  kind added, nameable in engine_bots_archetypes); a script's
+  `archetype_table` setting over the files'; a fault or a table missing a
+  kind the mix names changes nothing. bttree --schema/--as/--split --mix
+  read the file beside the trees or --archetypes FILE. The image ships
+  the file (Dockerfile). Not done: `lsdctl bots schema` passing the
+  files to bttree (lsdctl is not mine to edit; one line for its owner).
+  STEP F (item 13), part: the tdm and ctf snipers stood idle once within
+  45 of the enemy's base with nothing heard (`advance_by_cover ... 45`
+  is a radius: it succeeded at once, and nothing followed); now they
+  watch from there. The scenario test is parked: "a shot heard, up a
+  hill" holds for 1 sniper in 7 -- to look at next.

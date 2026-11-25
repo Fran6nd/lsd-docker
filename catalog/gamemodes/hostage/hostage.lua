@@ -51,9 +51,11 @@
 -- LIMITATIONS:
 -- * Needs a mode with tents: on maps/modes without them the hostages
 --   simply never spawn (creation retries every tick).
--- * Escorting is straight-line walking with a hop -- no pathfinding.
---   Hostages fall off cliffs, drown, and take fall damage; route
---   your rescue accordingly. The tent spawn height is a guess
+-- * With lib_bot's mind, escorting is straight-line walking with a hop
+--   -- no pathfinding: hostages fall off cliffs, drown, and take fall
+--   damage; route your rescue accordingly. While engine bots play, the
+--   hostages are the engine's (THE ENGINE'S MIND below): routed, and
+--   cowering under fire. The tent spawn height is a guess
 --   (tent z - 2.5), so they may drop a step on odd tents.
 -- * All lib_bot limitations apply: hostages use two player slots,
 --   kicks silently fail on them, and this script must be reloaded
@@ -158,10 +160,8 @@ local surrender_msgs = {
 -- own team (the ones who can rescue it), each in their own language
 local function hostage_say(hpid, msgtab, interptab)
 	local team = get_team(hpid);
-	for i in piditer(PID_BROADCAST) do
-		if (not bot_is_bot(i) and get_team(i) == team) then
-			send_chat(i, l10n_get_str_pid(i, msgtab, interptab or {}), 0, hpid);
-		end
+	for i in people_in(PID_BROADCAST_TEAM(team)) do
+		send_chat(i, l10n_get_str_pid(i, msgtab, interptab or {}), 0, hpid);
 	end
 end
 
@@ -288,9 +288,16 @@ local function reset_follow_state(mem)
 	mem.hero = nil;
 	mem.thanked = nil;
 	mem.missing_alerted = nil;
+	mem.rescuer = nil;
 end
 
-local function think(pid)
+-- WHO LEADS IT, and everything said about it: the game's rules, the same
+-- whichever mind walks the hostage (lib_bot's think below, or the bot
+-- engine's tree). Returns the man it is to follow now, or nil with
+-- `lost` true when it is loose in the open with nobody (it crouches and
+-- calls) and false when it is to stand (held at a tent, home, or back
+-- in the cage).
+local function decide(pid)
 	local me = bot_get(pid);
 	local mem = me.data;
 	local myteam = me.team;
@@ -347,8 +354,7 @@ local function think(pid)
 		-- and ctf's own tick is one frame away from calling that a
 		-- capture. Scoring it here as well would score it twice.
 		mem.hero = follow;
-		bot_stop(pid);
-		return;
+		return nil, false;
 	end
 
 	-- recaptured: a captor dragged it back to its prison (the enemy
@@ -358,8 +364,7 @@ local function think(pid)
 		l10n_send_chat(PID_BROADCAST, recaptured_msg,
 			{team=get_team_name(myteam)});
 		reset_follow_state(mem);
-		bot_stop(pid);
-		return;
+		return nil, false;
 	end
 
 	if (follow == nil) then
@@ -375,12 +380,11 @@ local function think(pid)
 		-- on its own sparse, jittered timer
 		if (near_a_tent(pid)) then
 			mem.missing_alerted = nil; -- safe at a tent, call off the hunt
-			bot_stop(pid);
 			if (due(mem, "captive", hostage_captive_interval)) then
 				hostage_say(pid, captive_msgs[math.random(#captive_msgs)]);
 			end
+			return nil, false;
 		else
-			bot_crouch(pid);
 			if (due(mem, "lost", hostage_lost_interval)) then
 				hostage_say(pid, lost_msgs[math.random(#lost_msgs)]);
 			end
@@ -392,8 +396,8 @@ local function think(pid)
 					callouts_ping_team(3-myteam, get_position(pid), loose_ping);
 				end
 			end
+			return nil, true;
 		end
-		return;
 	end
 
 	mem.missing_alerted = nil; -- someone has it now
@@ -427,6 +431,17 @@ local function think(pid)
 			hostage_say(pid, surrender_msgs[math.random(#surrender_msgs)]);
 		end
 	end
+	return follow, false;
+end
+
+-- LIB_BOT'S MIND: straight at the leader, with a hop
+local function think(pid)
+	local follow, lost = decide(pid);
+
+	if (follow == nil) then
+		if (lost) then bot_crouch(pid); else bot_stop(pid); end
+		return;
+	end
 
 	if (bot_distance_to(pid, follow) <= 1) then
 		bot_stop(pid); -- close enough, don't headbutt whoever leads it
@@ -442,6 +457,116 @@ local function think(pid)
 		-- hop over whatever demoncore's step-up can't clear
 		jump = v.x*v.x + v.y*v.y < 0.0004 and not is_airborne(pid),
 	});
+end
+
+--========================= THE ENGINE'S MIND =========================--
+-- While the bot engine beats (engine bots are playing), a hostage is one
+-- of its bots, with a tree of its own: the engine walks it (a route, not
+-- a straight line with a hop), the tree decides what it does with what
+-- decide() says, and decide() is still all of the game's rules. With no
+-- engine it is lib_bot's, as ever: nothing is started for a hostage.
+--
+-- What the tree is told: an order to follow its leader (botlink_order,
+-- `has_order`, `do follow order`), `fact rescue` when that leader is of
+-- its own side, `fact home` when he stands in its own tent (it runs the
+-- last steps: a man who leads keeps a few steps off), `fact lost` when it
+-- is loose with nobody. It says back `tell hostage_home` when it has
+-- walked into its own tent.
+local CAPTIVE_TREE = [[
+tree hostage_captive:
+pick every=0.5 sticky=0.3 noise=0
+	option none grenade_near x100         # a grenade at its feet: away
+		do evade
+	option none under_fire x10            # shot at: down where it stands
+		do crouch 2
+	option none fact home x8              # its man is home: in, the last steps (ctf counts a carrier at 3)
+		seq
+			do go_to own_base 2
+			do tell hostage_home
+	option none fact rescue x6            # led by its own side: with him
+		do follow order
+	option none has_order x4              # led off by the other side: it goes, it has no choice
+		do follow order
+	option none fact lost x2              # loose with nobody: down, and wait
+		do crouch 5
+	option none always                    # held: wait, looking about
+		do hold self 5
+]];
+
+local function engine_mind()
+	return botlink_alive ~= nil and botlink_alive();
+end
+
+local function tell_fact(pid, mem, name, v)
+	mem.told = mem.told or {};
+	if (mem.told[name] ~= v) then
+		mem.told[name] = v;
+		botlink_set("fact." .. name, v, pid);
+	end
+end
+
+-- once a tick for an engine hostage: what decide() says, as the tree
+-- reads it -- sent when it changes. A hostage is unarmed: that is the
+-- server's to see to, not the tree's.
+local function steer(pid)
+	local follow, lost = decide(pid);
+	local mem = bot_get(pid).data;
+
+	if (get_mag_ammo(pid) ~= 0 or get_reserve_ammo(pid) ~= 0) then
+		set_ammo(pid, 0, 0);
+	end
+	if (follow ~= mem.led_by) then
+		mem.led_by = follow;
+		botlink_order(pid, follow ~= nil and {order = "follow", target = follow}
+			or {order = "none"});
+	end
+	local rescue = follow ~= nil and get_team(follow) == get_team(pid);
+	if (rescue) then mem.rescuer = follow; end
+	tell_fact(pid, mem, "rescue", rescue and 1 or 0);
+	tell_fact(pid, mem, "home", (rescue and near_tent(get_position(follow),
+		get_tentloc()[get_team(pid)], hostage_tent_radius)) and 1 or 0);
+	tell_fact(pid, mem, "lost", lost and 1 or 0);
+end
+
+-- the tree says it is home: whoever brought it there gets the credit,
+-- even when he stopped short and it ran the last steps alone (ctf's own
+-- tick scores the capture: the hostage carries the flag)
+local function home_told(pid)
+	local b = bot_get(pid);
+	if (b ~= nil and b.data.hostage) then
+		b.data.hero = b.data.hero or b.data.rescuer;
+	end
+end
+
+local function make_hostage(team)
+	local name = "Hostage "..get_team_name(team);
+	if (engine_mind()) then
+		local pid = botlink_add{team = team, name = name, level = 1,
+			tree = CAPTIVE_TREE,
+			at = function() return post(team); end};
+		if (pid ~= nil) then
+			bot_get(pid).data.hostage = true;
+			return pid;
+		end
+	end
+	return bot_create{
+		team = team,
+		name = name,
+		tool = "block",
+		block_color = get_team_color(team),
+		spawn_at = function() return post(team); end,
+		think = think,
+		data = {hostage=true},
+	};
+end
+
+local function drop_hostage(pid)
+	local b = bot_get(pid);
+	if (b ~= nil and b.data.botlink and botlink_remove ~= nil) then
+		botlink_remove(pid);
+	else
+		bot_destroy(pid);
+	end
 end
 
 function mod.after.tick()
@@ -475,24 +600,35 @@ function mod.after.tick()
 			for i in piditer(PID_BROADCAST) do
 				local b = bot_get(i);
 				if (b ~= nil and b.data.hostage and b.team == team) then
-					b.think = think;
-					b.spawn_at = function() return post(team); end;
+					if (not b.data.botlink) then
+						b.think = think;
+						b.spawn_at = function() return post(team); end;
+					end
 					byteam[team] = i;
 					break;
 				end
 			end
 		end
 
+		-- the mind there is: the engine's while one beats, lib_bot's
+		-- otherwise; changed only while it waits at a tent with nobody
+		-- leading it (made again at its post, flag and all)
+		local hpid = byteam[team];
+		local b = hpid ~= nil and bot_get(hpid) or nil;
+		if (b ~= nil and is_alive(hpid) and (b.data.botlink == true) ~= engine_mind()
+		    and b.data.follow == nil and near_a_tent(hpid)) then
+			drop_hostage(hpid);
+			byteam[team] = nil;
+		end
+
 		if (byteam[team] == nil and post(team) ~= nil) then
-			byteam[team] = bot_create{
-				team = team,
-				name = "Hostage "..get_team_name(team),
-				tool = "block",
-				block_color = get_team_color(team),
-				spawn_at = function() return post(team); end,
-				think = think,
-				data = {hostage=true},
-			};
+			byteam[team] = make_hostage(team);
+		end
+
+		hpid = byteam[team];
+		b = hpid ~= nil and bot_get(hpid) or nil;
+		if (b ~= nil and b.data.botlink and is_alive(hpid)) then
+			steer(hpid);
 		end
 	end
 end
@@ -614,7 +750,7 @@ local function sweep_stale_hostages()
 		end
 	end
 	for _, i in ipairs(doomed) do
-		if (bot_get(i) ~= nil) then bot_destroy(i); else on_disconnect(i); end
+		if (bot_get(i) ~= nil) then drop_hostage(i); else on_disconnect(i); end
 	end
 end
 
@@ -630,6 +766,7 @@ function mod.on_load()
 	end
 
 	sweep_stale_hostages();
+	if (botlink_on ~= nil) then botlink_on("hostage_home", home_told); end
 	advertise();
 	-- catch anyone already connected up on the rules (on a fresh boot
 	-- there is nobody yet, so this is a no-op then)
@@ -641,9 +778,10 @@ function mod.on_unload()
 
 	for team=1,2 do
 		if (byteam[team] ~= nil) then
-			bot_destroy(byteam[team]);
+			drop_hostage(byteam[team]);
 		end
 	end
+	if (botlink_off ~= nil) then botlink_off("hostage_home"); end
 end
 
 -- one status line per hostage: whose it is, what it's doing, how far
@@ -688,7 +826,7 @@ end
 local function reset_hostages()
 	for team=1,2 do
 		if (byteam[team] ~= nil) then
-			bot_destroy(byteam[team]); -- our on_disconnect clears byteam
+			drop_hostage(byteam[team]); -- our on_disconnect clears byteam
 			byteam[team] = nil;        -- and clear now so tick respawns it
 		end
 	end

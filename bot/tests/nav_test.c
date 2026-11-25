@@ -551,7 +551,7 @@ static void test_steps_and_walls(void)
 	}
 	if (begin("wall_no_dig_zone")) {
 		/* a way round sixty voxels off, and a rule against digging */
-		bc_nav_zone z = {110, 0, 120, BC_MAP_Y - 1, 1, 1, {0, 0}};
+		bc_nav_zone z = {110, 0, 120, BC_MAP_Y - 1, 1, 1, 0, 0};    /* everybody's (team 0) */
 
 		fresh(G);
 		box(W.m, 115, 0, G - 4, 115, BC_MAP_Y - 1, G - 1, 1);
@@ -838,7 +838,7 @@ static void test_water_out(void)
 			}
 		/* ...unless the bank may not be dug */
 		{
-			bc_nav_zone z = {118, 0, 124, BC_MAP_Y - 1, 1, 1, {0, 0}};
+			bc_nav_zone z = {118, 0, 124, BC_MAP_Y - 1, 1, 1, 0, 0};    /* everybody's (team 0) */
 
 			shore_scene(61);
 			pol.zones = &z;

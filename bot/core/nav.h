@@ -257,7 +257,10 @@ typedef struct bc_nav_node { int16_t x, y, z; } bc_nav_node;
 typedef struct bc_nav_zone {
 	int16_t x0, y0, x1, y1;
 	uint8_t no_dig, no_build;
-	uint8_t pad_[2];
+	uint8_t team;               /* 0: everybody's; 1 or 2: that team's only
+	                               (a mode's rule for one side: babel's own
+	                               tower area, never dug by its team) */
+	uint8_t pad_;
 } bc_nav_zone;
 
 /* Voxels the server refused to let somebody edit, learned one at a time.
@@ -317,7 +320,7 @@ typedef struct bc_nav_policy {
 	uint8_t min_margin;         /* a jump needs this wide a window, ticks.
 	                               The follower needs three good ticks in
 	                               a row to press, so 3 is the floor */
-	uint8_t pad_;
+	uint8_t team;               /* whose zones hold (bc_nav_zone.team) */
 	float dig_secs;             /* per voxel removed: the bot's cadence,
 	                               never under the server's 0.2 */
 	float build_secs;           /* per voxel placed: never under 0.5 */

@@ -82,6 +82,12 @@ void bc_engine_free(bc_engine *e);
  * (engine.c, THE ITEMS TREE). */
 int bc_engine_trees(bc_engine *e, const char *text, char *err, size_t err_size);
 
+/* The kinds of player as data (trees/archetypes.txt: persona.h's format):
+ * read over the built-in kinds, the table every bot is drawn from (the
+ * setting archetype_table reads over this one). 1, or 0 with the fault
+ * in err and the kinds as they were. */
+int bc_engine_kinds(bc_engine *e, const char *text, char *err, size_t err_size);
+
 /* A map: the bytes of a .vxl, as the server's BL_EV_MAP named it. Every
  * bot forgets its route; what the fleet learned of the last map goes.
  * 0 if it is not a map. */
@@ -110,6 +116,11 @@ int bc_engine_bots(const bc_engine *e);
  * "pusher L6 | pick:aggression > fight | route 14/31 RUNJUMP | sees 2".
  * The length written; 0 for no such bot. */
 size_t bc_engine_describe(const bc_engine *e, int pid, char *out, size_t out_size);
+
+/* The name of a kind of player (bc_persona.archetype) in this engine's
+ * table (the built-in kinds, and the setting archetype_table's); "?" for
+ * none. */
+const char *bc_engine_kind_name(const bc_engine *e, int kind);
 
 /* WATCHING A BOT THINK (debug.c; the formats are specified in
  * bot/TREES.md). The core writes text into the host's buffer and does

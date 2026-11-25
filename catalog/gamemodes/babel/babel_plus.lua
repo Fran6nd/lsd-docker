@@ -25,7 +25,8 @@
 -- team's STAIR to the platform and tells the bots, once a second, through
 -- the bridge (bot/TREES.md section 13):
 --   edit=all                    a tower is built (sent once)
---   zone=<platform> both        no route edits under or round the platform
+--   zone=<platform> both; <each team's tower area> nodig for it and
+--                               nobuild for the other (babel_protect)
 --                               (babel refuses them there)
 --   place.stair, place.stair_top, place.stair_foot, place.widen,
 --   place.prop, place.breach    each team's, as the world's "<name>@<team>"
@@ -334,8 +335,20 @@ local function tell_bots()
 	if (not bots_told) then
 		bots_told = true;
 		botlink_set("edit", "all");
-		botlink_set("zone", string.format("%d %d %d %d", 256 - babel_width / 2, 256 - babel_height / 2,
-			255 + babel_width / 2, 255 + babel_height / 2));
+		-- the platform (babel refuses edits under and round it), and
+		-- babel_protect's rules, for each team's routes and hands: nothing
+		-- broken in its own tower area, nothing built in the other's (a
+		-- carrier home through its own area dug there, was refused, and
+		-- dug again for an hour). One setting, the whole list.
+		local zones = {string.format("%d %d %d %d", 256 - babel_width / 2, 256 - babel_height / 2,
+			255 + babel_width / 2, 255 + babel_height / 2)};
+		for team = 1, 2 do
+			for _, z in ipairs((babel_protect_zones or {})[team] or {}) do
+				zones[#zones + 1] = string.format("%d %d %d %d nodig team %d", z[1].x, z[1].y, z[2].x, z[2].y, team);
+				zones[#zones + 1] = string.format("%d %d %d %d nobuild team %d", z[1].x, z[1].y, z[2].x, z[2].y, other(team));
+			end
+		end
+		botlink_set("zone", table.concat(zones, "; "));
 	end
 	if (stairs[1] == nil) then lay_stairs(); end
 	local s = {};

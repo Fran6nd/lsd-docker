@@ -286,6 +286,37 @@ static void append(char **all, size_t *alen, const char *text)
  * stays. Returns 1 if the operator's directory had any *.bt (it is then
  * read again at each map: he edits a file and changes the map, no
  * restart). */
+/* THE KINDS OF PLAYER (persona.h): archetypes.txt beside the built-in
+ * trees, then the operator's in his trees directory, read in that order
+ * over the built-in kinds -- his replaces a kind of the same name and adds
+ * the ones he names anew. Read with the trees, so again at each map. */
+static void load_kinds(bc_engine *e, const char *dir, const char *userdir)
+{
+	char path[1200], err[200];
+	char *all = NULL;
+	size_t alen = 0, n;
+	int files = 0, k;
+
+	for (k = 0; k < 2; k++) {
+		char *text;
+
+		snprintf(path, sizeof path, "%s/archetypes.txt", k ? userdir : dir);
+		text = slurp(path, &n, 1 << 20);
+		if (!text) continue;
+		append(&all, &alen, text);
+		append(&all, &alen, "\n");
+		free(text);
+		files++;
+	}
+	if (!files) return;
+	err[0] = '\0';
+	if (!bc_engine_kinds(e, all, err, sizeof err))
+		say("archetypes: %s (the built-in kinds stay)", err);
+	else
+		say("archetypes: %d file%s read", files, files == 1 ? "" : "s");
+	free(all);
+}
+
 static int load_trees(bc_engine *e, const char *dir_opt, const char *user_opt)
 {
 	const char *dir = dir_opt;
@@ -392,6 +423,7 @@ static int load_trees(bc_engine *e, const char *dir_opt, const char *user_opt)
 	}
 	free(all);
 	free(user);
+	load_kinds(e, dir, userdir);
 	return un > 0;
 }
 

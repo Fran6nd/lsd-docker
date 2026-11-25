@@ -115,7 +115,7 @@ static void bot_head(jb *j, const bc_engine *e, const bc_bot *b)
 	jput(j, "\"pid\": %d, \"name\": ", b->pid);
 	jstr(j, b->name);
 	jput(j, ", \"team\": %d, \"alive\": %s, \"archetype\": ", p->team, b->alive ? "true" : "false");
-	jstr(j, bc_archetype_name(b->persona.archetype));
+	jstr(j, bc_engine_kind_name(e, b->persona.archetype));
 	jput(j, ", \"level\": %d, \"health\": %d, \"tree\": ", b->level, b->alive ? p->hp : 0);
 	jstr(j, tree_name(b));
 	jput(j, ", \"tree_from\": ");

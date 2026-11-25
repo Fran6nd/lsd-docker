@@ -69,8 +69,10 @@ pick every=20 sticky=0.5 noise=0.2
 				do take_high_ground
 				do camp 40
 			do hold self 20                   # none: down, and watch from where it stands
-	option none always                        # nothing heard: nearer their base, by cover
-		do advance_by_cover enemy_base 45
+	option none always                        # nothing heard: by cover to within 45 of their base, and watch it from there
+		seq
+			do advance_by_cover enemy_base 45
+			do hold self 25
 
 # The game. Chosen for a good while; chosen again when an intel is taken,
 # dropped or captured.

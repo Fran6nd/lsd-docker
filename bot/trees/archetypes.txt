@@ -1,0 +1,27 @@
+# archetypes.txt -- the kinds of player a bot may be (bot/core/persona.h)
+#
+# A bot is drawn a KIND by the weights the server sets (the setting
+# `archetypes`, lsd's `engine_bots_archetypes`: "camper:2,pusher:1"; every
+# kind alike when unset), then each TRAIT around that kind's centre, with
+# its spread (the standard deviation of a normal draw), kept within 0.2
+# and 3. A centre of 1 is "no opinion"; 2, the trait counts about twice
+# as much in a tree's `pick`. (bot/TREES.md, "What kind of player".)
+#
+# One line a kind:   <name> <trait>=<centre>/<spread> ... -- <its one line>
+# A trait not named is drawn round 1 with a spread of 0.25.
+#
+# These are the built-in kinds, the numbers the engine has without this
+# file (bot/core/persona.c; tests/kinds_test.c holds the two the same).
+# AN OPERATOR'S OWN: a file of this name in the trees directory of the data
+# volume (/data/trees/archetypes.txt) is read after this one -- a kind of a
+# name here is replaced by his, a new name is a kind more, and may then be
+# named in engine_bots_archetypes. A script may send a table too
+# (botlink_set("archetype_table", text)): read over the built-in kinds.
+
+soldier  aggression=1.0/0.25 caution=1.0/0.25 objective=1.0/0.25 teamwork=1.0/0.25 builder=1.0/0.25 marksman=1.0/0.25 flank=1.0/0.25 stealth=1.0/0.25 curiosity=1.0/0.25 greed=1.0/0.25 -- the middle of everything
+camper   aggression=0.5/0.30 caution=1.8/0.40 objective=0.8/0.30 teamwork=0.9/0.30 builder=1.0/0.30 marksman=1.8/0.40 flank=0.5/0.30 stealth=1.2/0.30 curiosity=0.8/0.30 greed=1.0/0.30 -- careful and a marksman: holds an angle, keeps its distance, seldom goes in
+pusher   aggression=1.9/0.40 caution=0.6/0.30 objective=1.6/0.40 teamwork=1.0/0.30 builder=0.8/0.30 marksman=0.8/0.30 flank=0.8/0.30 stealth=0.5/0.30 curiosity=0.9/0.30 greed=1.3/0.40 -- bold and keen on the game: straight at the enemy and at the objective
+flanker  aggression=1.2/0.30 caution=0.9/0.30 objective=1.0/0.30 teamwork=0.7/0.30 builder=0.8/0.30 marksman=0.9/0.30 flank=1.9/0.40 stealth=1.8/0.40 curiosity=1.1/0.30 greed=1.0/0.30 -- goes round, and quietly: comes at the enemy from where he is not looking
+support  aggression=0.8/0.30 caution=1.1/0.30 objective=1.1/0.30 teamwork=1.9/0.40 builder=1.6/0.40 marksman=0.9/0.30 flank=0.7/0.30 stealth=0.9/0.30 curiosity=0.9/0.30 greed=1.0/0.30 -- with the others: answers their calls, escorts, digs and builds for them
+sapper   aggression=0.8/0.30 caution=1.0/0.30 objective=1.0/0.30 teamwork=1.0/0.30 builder=2.5/0.40 marksman=0.8/0.30 flank=0.9/0.30 stealth=1.0/0.30 curiosity=1.0/0.30 greed=1.2/0.30 -- digs and builds rather than walk round
+scout    aggression=0.8/0.30 caution=0.9/0.30 objective=0.9/0.30 teamwork=0.8/0.30 builder=0.7/0.30 marksman=0.9/0.30 flank=1.2/0.30 stealth=1.7/0.40 curiosity=1.9/0.40 greed=0.9/0.30 -- curious and quiet: goes to look at what it heard, alone if need be

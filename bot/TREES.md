@@ -926,6 +926,26 @@ comes from the bot's own seed: the same seed is the same character. The
 centre and spread of each archetype for each trait are the table in
 [VOCAB.md](VOCAB.md#archetypes).
 
+**The kinds are data.** That table is the file `trees/archetypes.txt`,
+beside the shipped trees, a line a kind:
+
+```
+camper   aggression=0.5/0.30 caution=1.8/0.40 ... -- careful and a marksman: ...
+```
+
+(`<trait>=<centre>/<spread>`; a trait not named is drawn round 1 with a
+spread of 0.25; `#` starts a comment; after `--`, its one line.) The
+engine has the same numbers built in. **Your own:** an `archetypes.txt`
+in the trees directory of the data volume (`/data/trees/`) is read after
+the shipped one, at start and at each map: a kind of the same name is
+replaced by yours, a new name is one kind more, and `engine_bots_
+archetypes` may then name it (`medic:2,camper:1`). A script may send a
+table too, `botlink_set("archetype_table", text)`, read over the files'.
+A fault in a file or a text is said in botd's log, and the kinds stay as
+they were; so does a table that leaves out a kind the mix names. `bttree
+--split --mix`, `--as` and `--schema` read the `archetypes.txt` beside
+the trees they are given, or the ones named with `--archetypes FILE`.
+
 Three things lean the whole crowd, all settings the server sends
 ([section 12](#12-writing-your-own)):
 
@@ -1103,6 +1123,14 @@ local function enrage()
 end
 ```
 
+A mode that does this for real: the hostages of
+`catalog/gamemodes/hostage/hostage.lua` (THE ENGINE'S MIND there). The
+script keeps the game's rules -- who leads a hostage, when it is home --
+and tells its tree (an order to follow, `fact rescue`, `fact home`, `fact
+lost`); the tree decides what it does with that: follows, runs the last
+steps home and `tell`s it, cowers under fire. With no engine beating it
+is the lib_bot hostage it always was.
+
 (`read_file`, `village_spot` and when `enrage` is called are the
 script's own; the `botlink_*` calls are lib_botlink's, documented at the
 top of `catalog/libs/botlink/lib_botlink.lua`. Trees that several bots
@@ -1248,9 +1276,10 @@ comment, SETTINGS, has the detail):
 | `tree` * | a name, or the text of trees | 1 and 2 above |
 | `traits` * | `aggression:2,caution:0.5` | each named trait's weight multiplied, on top of the bot's own roll; for all and for one the two multiply |
 | `archetypes` | `camper:2,pusher:3` | the mix characters are drawn from |
+| `archetype_table` | the text of an `archetypes.txt` | the kinds of player, read over the files' ([section 11](#11-characters-traits-archetypes-weights)) |
 | `edit` * | `none`, `dig`, `build`, `all` | what a route may do to the map |
 | `spend` | a number | blocks a route may use (50) |
-| `zone` | `x0 y0 x1 y1 [nodig] [nobuild]`, `clear` | a rectangle where routes do not edit |
+| `zone` | `x0 y0 x1 y1 [nodig] [nobuild] [team N]`, more after `;`, or `clear` | the rectangles where routes and edit words do not edit (both, when neither is said), for everybody or for team N's bots; each set is the whole list |
 | `protect` | `x y z` | a voxel the server will refuse to change |
 | `water` | `lethal`, `safe`; `water.damage` a number | what wading costs |
 | `night.sight` | `0`, `1`; `night.cone`, `night.reach`, `night.far` | night sight and lamps (the night script sets them) |

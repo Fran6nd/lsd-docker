@@ -134,7 +134,8 @@ RUN ln -s /build /src/lsd \
  && cp /src/bot/build/libbotlink.so /src/bot/link/botlink.h /out/exec/ \
  && if [ -f /src/bot/build/bin/botd ]; then cp /src/bot/build/bin/botd /out/bin/; fi \
  && if [ -f /src/bot/build/bin/bttree ]; then cp /src/bot/build/bin/bttree /out/bin/; fi \
- && if ls /src/bot/trees/*.bt >/dev/null 2>&1; then cp /src/bot/trees/*.bt /out/trees/; fi
+ && if ls /src/bot/trees/*.bt >/dev/null 2>&1; then cp /src/bot/trees/*.bt /out/trees/; fi \
+ && if [ -f /src/bot/trees/archetypes.txt ]; then cp /src/bot/trees/archetypes.txt /out/trees/; fi
 
 
 FROM alpine:3.22

@@ -44,6 +44,7 @@ static struct {
 	int ev_n, ev_type[LOG_MAX], ev_pid[LOG_MAX];
 	int map_n; uint32_t map_seq; size_t map_bytes; uint8_t map_head[16];
 	char trees[4096]; int trees_calls;
+	char kinds[1024]; int kinds_calls;
 	bl_intent *intents_ptr;
 	bc_engine_host host;
 	float last_dt;
@@ -83,6 +84,16 @@ int bc_engine_trees(bc_engine *e, const char *text, char *err, size_t n)
 	if (!bad) snprintf(fake.trees, sizeof fake.trees, "%s", text);
 	pthread_mutex_unlock(&mu);
 	if (bad) { snprintf(err, n, "line 3: broken"); return 0; }
+	return 1;
+}
+
+int bc_engine_kinds(bc_engine *e, const char *text, char *err, size_t n)
+{
+	(void)e; (void)err; (void)n;
+	pthread_mutex_lock(&mu);
+	fake.kinds_calls++;
+	snprintf(fake.kinds, sizeof fake.kinds, "%s", text);
+	pthread_mutex_unlock(&mu);
 	return 1;
 }
 
@@ -456,6 +467,9 @@ static void test_user_trees(void)
 	snprintf(p, sizeof p, "%s/a.bt", udir); write_file(p, "tree a:\nUSERS\n", 14);         /* replaces the built-in a */
 	snprintf(p, sizeof p, "%s/n.bt", udir); write_file(p, "tree n:\n", 8);                 /* a new one */
 	snprintf(p, sizeof p, "%s/x.bt", udir); write_file(p, "tree c:\nBROKEN\n", 15);        /* does not compile: c stays the built-in */
+	/* the kinds of player: the built-in file, then his, in that order */
+	snprintf(p, sizeof p, "%s/archetypes.txt", treedir); write_file(p, "soldier BUILTIN\n", 16);
+	snprintf(p, sizeof p, "%s/archetypes.txt", udir); write_file(p, "medic HIS\n", 10);
 	user_trees = udir;
 
 	server s;
@@ -469,6 +483,11 @@ static void test_user_trees(void)
 	CHECK(count_of(fake.trees, "tree a:") == 1);  /* his, not both */
 	CHECK(strstr(fake.trees, "tree n:") != NULL && count_of(fake.trees, "tree c:") == 1);
 	CHECK(!strstr(fake.trees, "BROKEN"));
+	{
+		const char *b = strstr(fake.kinds, "BUILTIN"), *h = strstr(fake.kinds, "HIS");
+
+		CHECK(fake.kinds_calls >= 1 && b && h && b < h);   /* both, the built-in first: his read over it */
+	}
 	pthread_mutex_unlock(&mu);
 
 	/* he edits a file and the map changes: read again, no restart */
@@ -493,6 +512,8 @@ static void test_user_trees(void)
 	snprintf(p, sizeof p, "%s/a.bt", udir); unlink(p);
 	snprintf(p, sizeof p, "%s/n.bt", udir); unlink(p);
 	snprintf(p, sizeof p, "%s/x.bt", udir); unlink(p);
+	snprintf(p, sizeof p, "%s/archetypes.txt", udir); unlink(p);
+	snprintf(p, sizeof p, "%s/archetypes.txt", treedir); unlink(p);
 	rmdir(udir);
 	user_trees = "/nonexistent/botd_test_user_trees";
 }
