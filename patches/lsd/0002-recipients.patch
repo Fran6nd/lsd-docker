@@ -1,0 +1,125 @@
+--- a/src/main.c
++++ b/src/main.c
+@@ -276,6 +276,15 @@
+ 	}
+ }
+ 
++/* Use this for iterating over the RECIPIENTS of a BROADCAST_* pid: the slots
++ * pid_matches() accepts that have a client to send to. A bot is a player
++ * with no network peer; it is still a subject (damage, positions, piditer)
++ * but never a recipient, so a loop that sends or asks has_quirk() on behalf
++ * of a recipient must not visit it. */
++extern int pid_recipient(plid broadcast, plid pid, struct State *st) {
++	return st->p[pid].peer != NULL && pid_matches(broadcast, pid, st);
++}
++
+ static void set_fog(color color, struct State *st) {
+ 	st->globals.fog[0] = color[0];
+ 	st->globals.fog[1] = color[1];
+@@ -473,7 +482,7 @@
+ 	if (st->globals.cullPersonality == CULL_PERSONALITY_OPENSPADES) {
+ 		if (noneighbor)
+ 		for (i=0;i<MAX_PLAYERS;i++) {
+-			if (pid_matches(PID_BROADCAST, i, st) && !st->f.has_quirk(i, QUIRK_OS_BACTION_CULL, st))
++			if (pid_recipient(PID_BROADCAST, i, st) && !st->f.has_quirk(i, QUIRK_OS_BACTION_CULL, st))
+ 				st->f.send_block_action(i, pos, 1, st->f.get_anon_pid(st), st);
+ 		}
+ 	} else {
+@@ -490,12 +499,12 @@
+ 
+ 				if (pos.x >= 0 && pos.x < 512 && pos.y >= 0 && pos.y < 512 && pos.z >= 0 && pos.z < 62 && !get_solid3(pos.x, pos.y, pos.z, st))
+ 				for (i=0;i<MAX_PLAYERS;i++) {
+-					if (pid_matches(PID_BROADCAST, i, st) && st->f.has_quirk(i, QUIRK_OS_BACTION_CULL, st))
++					if (pid_recipient(PID_BROADCAST, i, st) && st->f.has_quirk(i, QUIRK_OS_BACTION_CULL, st))
+ 						st->f.send_block_action(i, pos, 1, st->f.get_anon_pid(st), st);
+ 				}
+ 			}
+ 		} else for (i=0;i<MAX_PLAYERS;i++) {
+-			if (pid_matches(PID_BROADCAST, i, st) && st->f.has_quirk(i, QUIRK_OS_BACTION_CULL, st))
++			if (pid_recipient(PID_BROADCAST, i, st) && st->f.has_quirk(i, QUIRK_OS_BACTION_CULL, st))
+ 				st->f.send_block_action(i, pos, 1, 32, st);
+ 		}
+ 	}
+@@ -592,7 +601,7 @@
+ 			st->f.send_block_action(PID_BROADCAST, pos, type, from, st);
+ 		else for (i=0;i<MAX_PLAYERS;i++) {
+ 			/* This also handles OpenSpades decreasing its block count on packet recv */
+-			if (pid_matches(PID_BROADCAST, i, st) && st->f.has_quirk(i, QUIRK_OS_BACTION_CULL, st))
++			if (pid_recipient(PID_BROADCAST, i, st) && st->f.has_quirk(i, QUIRK_OS_BACTION_CULL, st))
+ 				st->f.send_block_action(i, pos, type, from, st);
+ 		}
+ 	}
+@@ -1035,7 +1044,7 @@
+ 	/* TODO: don't bother reencoding the vxl if we can reuse the loaded one */
+ 	/* Only send map if someone's actually connected */
+ 	for (i=0;i<MAX_PLAYERS;i++) {
+-		if (pid_matches(PID_BROADCAST, i, st)) {
++		if (pid_recipient(PID_BROADCAST, i, st)) {
+ 			st->f.send_map(PID_BROADCAST, st);
+ 			break;
+ 		}
+@@ -1181,7 +1190,7 @@
+ 	struct PacketVersionRequest vr = {PacketTypeVersionRequest};
+ 
+ 	for (i=0;i<MAX_PLAYERS;i++) {
+-		if (pid_matches(pid, i, st)) {
++		if (pid_recipient(pid, i, st)) {
+ 			st->p[i].wantFingerprint = 3;
+ 
+ 			/* TODO: maybe just send handshake once instead of every call until recieved?
+--- a/src/funcs_send.c
++++ b/src/funcs_send.c
+@@ -13,6 +13,7 @@
+ #define LOG1(x) do {st->f.before_log(st); fputs(x"\n", stderr); st->f.after_log(st);} while (0)
+ 
+ int pid_matches(plid broadcast, plid pid, struct State *st);
++int pid_recipient(plid broadcast, plid pid, struct State *st);
+ static int send_packet_flags(plid pid, const void *data, size_t length, unsigned flags, struct State *st) {
+ 	ENetPacket *packet;
+ 	plid i;
+@@ -39,7 +40,7 @@
+ 	}
+ 
+ 	for (i=0;i<MAX_PLAYERS;i++) {
+-		if (pid_matches(pid, i, st) && st->p[i].peer != NULL)
++		if (pid_recipient(pid, i, st))
+ 			enet_peer_send(st->p[i].peer, 0, packet);
+ 	}
+ 
+@@ -207,7 +208,7 @@
+ 
+ 	/* TODO: should the iterator be moved to send_state? */
+ 	for (i=0;i<MAX_PLAYERS;i++)
+-		if (pid_matches(pid, i, st))
++		if (pid_recipient(pid, i, st))
+ 			st->f.send_state(i, st);
+ }
+ 
+@@ -312,7 +313,7 @@
+ 	strcpy(cr.name, name);
+ 
+ 	for (i=0;i<MAX_PLAYERS;i++) {
+-		if (pid_matches(pid, i, st)) {
++		if (pid_recipient(pid, i, st)) {
+ 			/* This -2 is here because *sane* clients always subtract 2 from CreatePlayer z.
+ 			 * BetterSpades is not sane, since it was based on piqueserver.
+ 			 * The +0.4 can be blamed on ZeroSpades.
+--- a/src/textcodec.c
++++ b/src/textcodec.c
+@@ -9,6 +9,7 @@
+ 
+ #define ERR(func) do {perror(func); exit(EXIT_FAILURE);} while (0)
+ int pid_matches(plid broadcast, plid pid, struct State *st);
++int pid_recipient(plid broadcast, plid pid, struct State *st);
+ 
+ static const uint8_t imgtbl[256] = {
+ 	/* 0x07 and 0x08 are swapped */
+@@ -145,7 +146,7 @@
+ 	char *utf8 = NULL;
+ 	char *utf8img = NULL;
+ 
+-	for (i=0;i<MAX_PLAYERS;i++) {if (pid_matches(pid, i, st)) {
++	for (i=0;i<MAX_PLAYERS;i++) {if (pid_recipient(pid, i, st)) {
+ 		const char *sendmsg = msg;
+ 
+ 		if (st->f.has_quirk(i, QUIRK_UTF8_COLOR_IMG, st)) {

@@ -12,3 +12,13 @@ applies to the new upstream.
                           Desktop's VM: 16 ms sleeps woke up to 160 ms
                           late, clients saw 10 then 110 updates a
                           second). Worth offering upstream.
+
+  0002-recipients.patch   pid_recipient(): the slots pid_matches() accepts
+                          that have an ENet peer. A bot is a subject (damage,
+                          piditer) but never a recipient: the loops that send
+                          to, or ask has_quirk() of, each slot of a group
+                          (send_map, send_spawn_player, send_packet_flags,
+                          demand_fingerprint, send_chat, the block-action
+                          culls, finish_map_load) walk recipients, so a
+                          server of bots no longer calls into Lua for each
+                          of them on a block edit or a map change.

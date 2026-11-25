@@ -332,3 +332,16 @@ DONE (commit), BLOCKED (on what).
   NULL` in those loops (funcs_send.c send_map, send_spawn_player; main.c
   cull and set_block loops), as send_packet_flags already does for the
   send itself.
+  DONE (peer agent): patches/lsd/0002-recipients.patch adds
+  `pid_recipient()` (pid_matches && peer != NULL; pid_matches itself is
+  unchanged, Lua's piditer and the damage/position loops still see bots)
+  and uses it in send_packet_flags, send_map, send_spawn_player,
+  demand_fingerprint, send_chat (textcodec), finish_map_load and the four
+  main.c block-action loops. Measured on 200 bots in one container, Lua
+  calls into the chain heads, before -> after: a map change send_state
+  200 -> 0, send_map 1 -> 0 (nobody to send a map to), send_packet 21 -> 7;
+  per 10 spade-3x edits has_quirk 26 000 -> 0 (Voxlap), 4 000 -> 0
+  (OpenSpades) and send_block_action 2 000 -> 0 (OpenSpades, no person);
+  per 10 grenade edits has_quirk 314 000 -> 0 (Voxlap), 4 000 -> 0.
+  Smoke OK, dev/test.sh passes. lib_bot's send_spawn_player split could
+  now go (the core skips bots itself): not done, harmless.
