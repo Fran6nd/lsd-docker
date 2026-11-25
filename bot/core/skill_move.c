@@ -150,7 +150,10 @@ static int move_to(bc_bot *b, bl_vec3 pos, float radius, int raw)
 		if (dx * dx + dy * dy <= (radius + 0.75f) * (radius + 0.75f) && fabsf(pos.z - me->pos.z) < 1.5f &&
 		    !(mv->goal_set && mv->state == BC_MV_FOLLOWING))
 			return BC_MV_ARRIVED;
-		if (e->now < mv->shut_until)
+		/* (a goal a single step away is still asked for: its search is
+		 * bounded by what is round the body -- a stranded bot building
+		 * its way out a block at a time, build_perch) */
+		if (e->now < mv->shut_until && dx * dx + dy * dy > 2.0f * 2.0f)
 			return BC_MV_FAILED;
 	}
 	if (raw) {
@@ -290,10 +293,10 @@ static void fill_policy(bc_bot *b)
 	 * real roofs, past the cap and the long search; with this, 500 to
 	 * 21 500, and the route a few percent dearer at most) */
 	if ((dig || build) && b->mv.goal.z - (int)floorf(me->pos.z + 2.75f) > BC_NAV_DZ_MAX)
-		p->descent_secs = 1.5f;
+		p->descent_secs = bc_nav_dig_down_secs(p);
 	/* and up: a stair or a pillar to a floor far above (build_at) */
 	if (build && (int)floorf(me->pos.z + 2.75f) - b->mv.goal.z > 2)
-		p->ascent_secs = 1.5f;
+		p->ascent_secs = bc_nav_climb_secs(p);
 	/* A WAY THROUGH WATER. Wading costs seven times what the heuristic
 	 * takes a column for (the sprint), so a search for a way across water
 	 * first looks at all the land it could have walked in that time: the

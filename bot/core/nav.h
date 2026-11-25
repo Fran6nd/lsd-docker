@@ -357,8 +357,9 @@ typedef struct bc_nav_policy {
 	 * 33 000 to 75 000 expansions on Pyeongyang's and BigPineTree's roofs,
 	 * past any cap (2026-11-25). With this, each voxel the goal lies below
 	 * the node beyond a safe drop (BC_NAV_DZ_MAX) adds this many seconds to
-	 * the heuristic. Not admissible (a stair or a drop chain is cheaper):
-	 * for the caller that has seen the plain search fail. 0: off. */
+	 * the heuristic: bc_nav_dig_down_secs(policy), the planner's own price
+	 * for a voxel dug down. Not admissible (a stair or a drop chain is
+	 * cheaper): for a caller whose body may edit. 0: off. */
 	float descent_secs;
 	/* THE GOAL'S OWN FLOOR: reached only at goal.z, not within one of it
 	 * (a floor to be BUILT a voxel over the ground is not reached by
@@ -367,10 +368,15 @@ typedef struct bc_nav_policy {
 	uint8_t pad2_[3];
 	/* THE SAME UPWARD, for a body that may build its way up (a stair to a
 	 * platform in the sky): each voxel the goal lies above the node beyond
-	 * two (a jump) adds this. Without it, a pillar of ten to a step of a
-	 * stair took 73 000 expansions on Babelpocalypse; 0: off. */
+	 * two (a jump) adds this: bc_nav_climb_secs(policy), the planner's own
+	 * price for a voxel climbed by a pillar. Without it, a pillar of ten to
+	 * a step of a stair took 73 000 expansions on Babelpocalypse; 0: off. */
 	float ascent_secs;
 } bc_nav_policy;
+
+/* The planner's own price of a voxel of height by edits (see above). */
+float bc_nav_climb_secs(const bc_nav_policy *p);
+float bc_nav_dig_down_secs(const bc_nav_policy *p);
 
 /* What a hit point is worth, in seconds of route. */
 #define BC_NAV_HP_SECS 1.0f

@@ -121,10 +121,61 @@ static void test_dig_at(void)
 	bs_free(s);
 }
 
+/* A bot up where it cannot get down makes its height a vantage: a level
+ * walkway toward the enemy's base, a block a step as a player bridges,
+ * until it sees the base within its gun's reach; then it camps there and
+ * shoots what comes into view. (The owner, of keidoro's sky slab: "bots
+ * stuck here should at least try to bridge to camp other enemies' spawn") */
+static void test_perch(void)
+{
+	static const char *const edits[2] = { "edit=all", "edit=none" };
+	int k;
+
+	printf("build_perch: a walkway off a slab in the sky, toward their base\n");
+	for (k = 0; k < 2; k++) {
+		bs_sim *s = bs_new(G, 4);
+		int i, from_x = 239, shots;
+		float far_x = 0.0f;
+
+		s->have_tents = 1;
+		s->tent[0].x = 160.5f; s->tent[0].y = 256.5f; s->tent[0].z = (float)G - 2.25f;
+		s->tent[1].x = 340.5f; s->tent[1].y = 256.5f; s->tent[1].z = (float)G - 2.25f;
+		bs_box(s, 230, 250, 0, from_x, 262, 0, 1);         /* a slab at the map's top */
+		bs_start(s);
+		bs_set(s, BL_NO_PLAYER, edits[k]);
+		bs_set(s, BL_NO_PLAYER, "leaders.per=0");
+		bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tseq\n\t\tif enemy_visible\n\t\tdo fight\n\tseq\n\t\tdo build_perch enemy_base\n\t\tdo camp 120\n\tdo hold self 10\n");
+		bs_add(s, 0, 1, 1, 8, BL_GUN_RIFLE, 41, 235.5f, 256.5f, 1, 0);
+		bc_body_place(&s->p[0].body, s->truth, 235.5f, 256.5f, 0, 0);
+		for (i = 0; i < 60 * 90; i++) {
+			if (i == 60 * 60)           /* a man walks out of their base */
+				bs_add(s, 1, 0, 2, 5, BL_GUN_RIFLE, 1, 330.5f, 256.5f, -1, 0);
+			if (i > 60 * 60) s->p[1].hp = 100;
+			bs_step(s);
+			if (s->p[0].body.pos.x > far_x) far_x = s->p[0].body.pos.x;
+		}
+		shots = s->p[0].shots;
+		printf("  %s: %d blocks used (of 50), out to x %.1f (the slab ends at %d, their base at 340), still at the top: %s, "
+		       "a man near their base from 60 s: %d rounds at him, %d hits; refused for not in sight: %d\n",
+		       edits[k], 50 - s->p[0].blocks, (double)far_x, from_x, bc_body_feet(&s->p[0].body) < 0.5f ? "yes" : "NO",
+		       shots, s->p[0].hits, s->vis_refused);
+		CHECK(bc_body_feet(&s->p[0].body) < 0.5f);
+		CHECK(s->vis_refused == 0);
+		if (k == 0) {
+			CHECK(far_x > (float)from_x + 5.0f && 50 - s->p[0].blocks > 5);
+			CHECK(shots > 0);
+		} else {
+			CHECK(far_x < (float)from_x + 1.0f && s->p[0].blocks == 50);
+		}
+		bs_free(s);
+	}
+}
+
 int main(void)
 {
 	test_dig_at();
 	test_stair();
+	test_perch();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;
 }

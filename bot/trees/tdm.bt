@@ -174,7 +174,21 @@ select
 	seq
 		if under_fire
 		do crouch 3
-	do hold self 10
+	pick every=30 sticky=0.5 noise=0
+		option marksman always                # its height a vantage: a walkway toward their base, and camp there
+			select
+				seq
+					do build_perch enemy_base
+					do camp 60
+				do hold self 10               # no building allowed, no block: watch from here
+		option aggression always x0.8
+			select
+				seq
+					do build_perch enemy_base
+					do camp 60
+				do hold self 10
+		option caution always x0.6            # the careful stay where they are and watch
+			do hold self 10
 
 # Beside the above, at every decision.
 tree tdm_also:

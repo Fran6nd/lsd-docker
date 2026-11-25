@@ -186,22 +186,48 @@ end
 -- each team's stair: step k at (corner x -/+ k, edge row, babel_z + 1 + k)
 -- from the top (k = 0, a step up from the platform's level) down to the
 -- step that rests on the ground
+-- One team's stair along row y, from the top down to the ground, and how
+-- many voxels in its way: in a step's cell or the three over it (where a
+-- body stands) and not the ground under the last step. A stair runs
+-- through the team's own protected area, where babel_protect lets nobody
+-- break his own team's blocks: what is in the way there stays in the way.
+local function stair_on_row(team, y)
+	local x0 = team == 1 and 255 - babel_width / 2 or 256 + babel_width / 2;
+	local dir = team == 1 and -1 or 1;
+	local steps, blocked = {}, 0;
+	for k = 0, 61 - babel_z do
+		local x, z = x0 + dir * k, babel_z + 1 + k;
+		if (x < 1 or x > 510) then break; end
+		local g = ground_at(x, y);
+		table.insert(steps, 1, {x = x, y = y, z = z});
+		for zz = z - 3, z do
+			if (zz >= 0 and zz < g and is_solid({x = x, y = y, z = zz})) then blocked = blocked + 1; end
+		end
+		if (z >= g - 1) then break; end
+	end
+	local b = steps[1];
+	return {steps = steps, foot = {x = b.x + dir, y = y, z = ground_at(b.x + dir, y)}}, blocked;
+end
+
+-- Each team's stair on the row beside the platform that has nothing in
+-- its way, the nearest the platform's middle row first; on the one with
+-- the least, if none is clear. Not the platform's two edge rows: the
+-- protected areas' borders are painted on them (babel_protect).
 local function lay_stairs()
-	local y = 256 - babel_height / 2;
-	local x0 = {[1] = 255 - babel_width / 2, [2] = 256 + babel_width / 2};
-	local dir = {[1] = -1, [2] = 1};
 	stairs = {};
 	for team = 1, 2 do
-		local steps = {};
-		for k = 0, 61 - babel_z do
-			local x, z = x0[team] + dir[team] * k, babel_z + 1 + k;
-			if (x < 1 or x > 510) then break; end
-			local g = ground_at(x, y);
-			table.insert(steps, 1, {x = x, y = y, z = z});
-			if (z >= g - 1) then break; end
+		local best, least = nil, math.huge;
+		local y0, y1 = 256 - babel_height / 2 + 1, 255 + babel_height / 2 - 1;
+		for i = 0, y1 - y0 do
+			-- out from the middle row: 0, +1, -1, +2, ...
+			local y = math.floor((y0 + y1) / 2) + (i % 2 == 0 and i / 2 or -(i + 1) / 2);
+			if (y >= y0 and y <= y1) then
+				local st, blocked = stair_on_row(team, y);
+				if (blocked < least) then best, least = st, blocked; end
+				if (blocked == 0) then break; end
+			end
 		end
-		local b = steps[1];
-		stairs[team] = {steps = steps, foot = {x = b.x + dir[team], y = y, z = ground_at(b.x + dir[team], y)}};
+		stairs[team] = best;
 	end
 end
 

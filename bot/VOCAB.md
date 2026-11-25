@@ -252,6 +252,8 @@ For `do`. Each says what it answers: RUNNING while it goes on, SUCCESS or FAILUR
   - `word`: a word; may be given several times; left out: nothing more
 - **`build_at <place>`** -- stand on the floor under the place -- that very voxel, not the nearest floor there is -- BUILDING it if it is not there, and the way to it: up a stair and one step more, a bridge -- only what a player could build from where it stands (a face it sees) (the setting edit must allow building). For a structure a script lays out, a block at a time (`@<name>`). SUCCESS standing there; FAILURE no such place, building not allowed, no way
   - `place`: a [place](#places); must be given
+- **`build_perch [place]`** -- a bot up where it cannot get down makes its height a vantage: a LEVEL walkway from where it stands toward the place (default enemy_base), along the axis nearest the way to it, a block a step as a player bridges, until it sees the place within its gun's reach, its blocks run out (nothing is restocked up there), or something or the map's edge is in the way. SUCCESS there (then `camp`); FAILURE building not allowed, no block in hand, no such place, no way
+  - `place`: a [place](#places); left out: `enemy_base`
 - **`dig_at <place>`** -- take away the block at the place (a script names a block: x y z): near enough to reach it, spade out, the head on it, dug at its cadence (the setting edit must allow digging). SUCCESS gone (or was); FAILURE no such place, digging not allowed, no way near, 15 s and still there
   - `place`: a [place](#places); must be given
 - **`reload`** -- reload now if the magazine is not full. SUCCESS asked, FAILURE nothing to do

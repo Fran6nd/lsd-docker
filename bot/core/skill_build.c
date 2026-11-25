@@ -126,3 +126,99 @@ void bc_do_build_stop(void *bot, const bt_args *a)
 	b->bld.started = 0;
 	bc_move_stop(b);
 }
+
+/* --- build_perch [place] -------------------------------------------------
+ *
+ * A bot up where it cannot get down (a roof, a slab at the top of the map:
+ * `stranded`) is not useless: its height is a vantage. It builds a LEVEL
+ * WALKWAY from where it stands toward the place (default: the enemy's
+ * base), along the axis nearest the way to it, at its own floor's height,
+ * a block a step -- each step a route of one bridge block (build_at's way:
+ * the block against the far face of the last, put in from its edge, as a
+ * player would) -- and stops where it first sees the place within its
+ * gun's reach, or where its blocks run out (it has what it was spawned
+ * with, 50, and one back for each block it digs: nothing is restocked up
+ * there), or at what is in the way (a voxel where the body would stand) or
+ * the map's edge. SUCCESS there (the tree then camps); FAILURE building not
+ * allowed, no block in hand, no such place. */
+
+static int perch_sees(const bc_bot *b, bl_vec3 eye, bl_vec3 place)
+{
+	float dx = place.x - eye.x, dy = place.y - eye.y, dz = place.z - eye.z;
+
+	return dx * dx + dy * dy + dz * dz <= bc_gun_reach(b) * bc_gun_reach(b) &&
+	       bc_sight_clear(b->e->map, eye, place);
+}
+
+bt_status bc_do_build_perch(void *bot, const bt_args *a, float dt)
+{
+	bc_bot *b = bot;
+	bc_engine *e = b->e;
+	const bl_player *me = bc_me(b);
+	bl_vec3 place, eye;
+	bc_nav_node at, next;
+	bc_body body;
+	int st, k;
+
+	(void)dt;
+	if (!bc_place_of(b, a->count > 0 ? a->text[0] : "enemy_base", &place) || !e->have_map || !may_edit(b, 0)) {
+		b->bld.started = 0;
+		return BT_FAILURE;
+	}
+	bc_body_of(me, &body);
+	if (!bc_nav_node_of_body(e->map, &body, &at))
+		return BT_RUNNING;      /* in the air: where it lands decides */
+	if (!b->bld.started) {
+		float dx = place.x - me->pos.x, dy = place.y - me->pos.y;
+
+		if (me->blocks == 0)
+			return BT_FAILURE;
+		b->bld.started = 1;
+		b->bld.from = at;
+		b->bld.dx = (int8_t)(fabsf(dx) >= fabsf(dy) ? (dx > 0.0f ? 1 : -1) : 0);
+		b->bld.dy = (int8_t)(fabsf(dx) >= fabsf(dy) ? 0 : (dy > 0.0f ? 1 : -1));
+	}
+	eye.x = (float)at.x + 0.5f; eye.y = (float)at.y + 0.5f; eye.z = (float)at.z - 2.25f;
+	/* the next cell of the walkway: the first one along the line from
+	 * where it set out that has no floor at that height */
+	next = b->bld.from;
+	for (k = 1; k < 512; k++) {
+		next.x = (int16_t)(b->bld.from.x + k * b->bld.dx);
+		next.y = (int16_t)(b->bld.from.y + k * b->bld.dy);
+		if (!bc_map_in(next.x, next.y, next.z) || !bc_map_solid(e->map, next.x, next.y, next.z))
+			break;
+	}
+	if (perch_sees(b, eye, place)) {
+		b->bld.started = 0;
+		return BT_SUCCESS;          /* it sees the place, in reach */
+	}
+	{
+		/* nowhere further: the map's edge, something where the body would
+		 * stand, or no block left -- to the walkway's end, and done there */
+		int end = next.x < 1 || next.y < 1 || next.x > BC_MAP_X - 2 || next.y > BC_MAP_Y - 2 || me->blocks == 0, z;
+
+		for (z = next.z - 3; z < next.z && !end; z++)
+			if (z >= 0 && bc_map_solid(e->map, next.x, next.y, z))
+				end = 1;
+		if (end) {
+			next.x = (int16_t)(next.x - b->bld.dx);
+			next.y = (int16_t)(next.y - b->bld.dy);
+			if (at.x == next.x && at.y == next.y) {
+				b->bld.started = 0;
+				return BT_SUCCESS;
+			}
+		}
+	}
+	{
+		bl_vec3 p;
+
+		p.x = (float)next.x + 0.5f; p.y = (float)next.y + 0.5f; p.z = (float)next.z - 2.25f;
+		st = bc_move_to_raw(b, p, 0.0f);
+	}
+	bc_fire_at_will(b);
+	if (st == BC_MV_FAILED) {
+		b->bld.started = 0;
+		return BT_FAILURE;
+	}
+	return BT_RUNNING;
+}

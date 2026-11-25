@@ -207,3 +207,18 @@ DONE (commit), BLOCKED (on what).
   planner is ~90% of botd on a real map), sight shared by pairs or
   staggered for far enemies (98% of a think on a flat field), the
   world write's 12 API calls a player.
+- 2026-11-25 (brain agent): a stranded bot makes its height a vantage
+  (the owner: "bots stuck here should at least try to bridge to camp
+  other enemies' spawn"): `build_perch [place]` (a level walkway toward the
+  place, a block a step through build_at's route, until it sees the place
+  within its gun's reach, its blocks run out -- 50 at spawn, nothing
+  restocked up there -- or something is in the way), then `camp`; in the
+  `<mode>_stranded` branch of the four trees, weighted by marksman and
+  aggression. A goal one step away is asked for even while shut in. On
+  keidoro, three bots on the slab with edit=all built 130 blocks of
+  walkway west in 5 minutes (out of reach of a base 330 away: they stop
+  when the blocks run out); with a base 100 off, the walkway stops at
+  sight and reach (38 blocks) and the bot shoots a man there. Babel: each
+  stair laid on the row beside the platform with nothing in its way (a
+  team may not break its own area's blocks), live: team 2's stair whole
+  in 4 minutes, 2 captures in 9.

@@ -32,6 +32,11 @@
 /* ---------------------------------------------------------------- */
 /* Small things the policy needs                                     */
 
+/* the time an edit move takes besides its edits: a pillar's jump, a dig
+ * down's fall of one voxel */
+#define PILLAR_SECS 0.75f
+#define DIG_FALL_SECS 0.4f
+
 void bc_nav_policy_default(bc_nav_policy *p)
 {
 	memset(p, 0, sizeof *p);
@@ -562,6 +567,22 @@ static int sees_edit(const bc_map *m, bc_nav_node from, const bc_nav_node *vox, 
 	return 0;
 }
 
+/* What a voxel of height costs by edits where the body stands: the
+ * PILLAR move (a jump and a block under the feet) up, the DIG DOWN move
+ * (the floor dug, a fall of one) down -- the prices try_edit gives those
+ * moves, so the heuristic's guess for a goal far above or below
+ * (descent_secs, ascent_secs) is the planner's own price, not a number of
+ * the caller's */
+float bc_nav_climb_secs(const bc_nav_policy *p)
+{
+	return p->build_secs + PILLAR_SECS;
+}
+
+float bc_nav_dig_down_secs(const bc_nav_policy *p)
+{
+	return p->dig_secs + DIG_FALL_SECS;
+}
+
 int nav_edits(const bc_nav_moves *t, const bc_map *m, const bc_nav_policy *pol,
               bc_nav_node from, bc_nav_node to,
               bc_nav_node vox[8], uint8_t op[8], int *digs, int *builds, int *edge)
@@ -1046,7 +1067,7 @@ static void try_edit(bc_nav_search *s, uint32_t ci, bc_nav_node a, bc_nav_node t
 		return;
 	if (dir == 8) {
 		e.kind = (uint8_t)(to.z < a.z ? BC_NAV_PILLAR : BC_NAV_DIG);
-		move_secs = to.z < a.z ? 0.75f : 0.4f + 0.05f * (float)(to.z - a.z - 1);  /* a jump; a fall */
+		move_secs = to.z < a.z ? PILLAR_SECS : DIG_FALL_SECS + 0.05f * (float)(to.z - a.z - 1);  /* a jump; a fall */
 	} else {
 		int mvi = s->t->walk[BC_NAV_CLS_AXIS][to.z - a.z + 1];
 

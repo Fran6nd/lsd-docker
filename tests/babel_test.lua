@@ -235,18 +235,18 @@ do
 	eq(sets_of("edit"), 1, "said once");
 	check(last("zone", nil) ~= nil, "the platform a zone no route edits", last("zone", nil));
 	-- team 1's stair: step k at (205 - k, 240, 2 + k), down to the ground at 50
-	eq(last("place.stair", 0), "158.5 240.5 46.8", "team 1's bot: its stair's lowest step, first");
-	eq(last("place.stair", 2), "353.5 240.5 46.8", "team 2's: the mirror of it");
+	eq(last("place.stair", 0), "158.5 255.5 46.8", "team 1's bot: its stair's lowest step, first (on the platform's middle row, clear)");
+	eq(last("place.stair", 2), "353.5 255.5 46.8", "team 2's: the mirror of it");
 	eq(last("fact.stair_done", 0), "0", "not done");
 	eq(last("place.intel", nil), "256.0 256.0 -1.2", "the intel where it lies, for everybody");
 	eq(last("place.stair", 1), nil, "a person is told nothing");
 	-- team 1 builds its three lowest steps
-	BUILT[k3(158, 240, 49)], BUILT[k3(159, 240, 48)], BUILT[k3(160, 240, 47)] = true, true, true;
+	BUILT[k3(158, 255, 49)], BUILT[k3(159, 255, 48)], BUILT[k3(160, 255, 47)] = true, true, true;
 	run(16);
-	eq(last("place.stair", 0), "161.5 240.5 43.8", "the next step up");
-	eq(last("place.stair_top", 0), "160.5 240.5 44.8", "the top of what is built");
+	eq(last("place.stair", 0), "161.5 255.5 43.8", "the next step up");
+	eq(last("place.stair_top", 0), "160.5 255.5 44.8", "the top of what is built");
 	eq(last("fact.breach", 2), "1", "team 2 is told team 1's stair is worth breaking");
-	eq(last("place.breach", 2), "158.5 240.5 49.5", "at its foot (the block)");
+	eq(last("place.breach", 2), "158.5 255.5 49.5", "at its foot (the block)");
 	eq(last("fact.breach", 0), "0", "team 1: nothing of team 2's to break");
 	INTEL = 2;
 	run(17);
@@ -254,9 +254,17 @@ do
 	eq(last("fact.carrying", 0), "0", "the others know it is not them");
 	eq(last("place.intel", nil), "pid 2", "the intel: the man who carries it");
 	-- the whole stair
-	for k = 0, 47 do BUILT[k3(205 - k, 240, 2 + k)] = true; end
+	for k = 0, 47 do BUILT[k3(205 - k, 255, 2 + k)] = true; end
 	run(18);
 	eq(last("fact.stair_done", 0), "1", "team 1's stair reaches the platform");
+	-- something in the way of the middle row (a tree in team 1's own
+	-- area, which it may not break): the next clear row instead
+	BUILT = {};
+	BUILT[k3(180, 255, 25)] = true;          -- over the step at (180, 255, 27)
+	mod.before.finish_map_load();
+	run(19);
+	eq(last("place.stair", 0), "158.5 254.5 46.8", "a tree on the middle row: the stair on the next row out, clear");
+	eq(last("place.stair", 2), "353.5 255.5 46.8", "team 2's row is clear: its own as it was");
 	-- a bot builds: its blocks are given back (infinite_blocks refills
 	-- players behind the botlink's count)
 	local restocked = {};

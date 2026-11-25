@@ -271,7 +271,8 @@ typedef struct bc_bot {
 	/* looking, cover, and what a bot does with nothing known (skill_look.c,
 	 * skill_cover.c, skill_tactics.c) */
 	bc_gaze gaze;
-	struct { double until, edit_at; uint8_t started, pad_[7]; } bld;     /* build_at, dig_at (skill_build.c) */
+	struct { double until, edit_at; uint8_t started; int8_t dx, dy; uint8_t pad_[5];
+	         bc_nav_node from; } bld;    /* build_at, dig_at, build_perch (skill_build.c) */
 	bc_cover_q cq;
 	struct { uint8_t phase, crouch, tries, peeking, has_peek, view, pad_[2];
 	         double until, peek_at, peek_until, seen_since, go_since, asked_at; bl_vec3 goal, peek; } tc;
@@ -534,6 +535,9 @@ uint8_t bc_fight_trigger(bc_bot *b, int on_target, float dist);
 /* ACT: reload discipline. 1 on the think the reload is asked. */
 int bc_reload_act(bc_bot *b);
 float bc_engage_range(const bc_bot *b);
+/* the farthest this bot opens fire with its gun at its level, before the
+ * whim of the man in hand (engage_range is this times that whim) */
+float bc_gun_reach(const bc_bot *b);
 float bc_hold_range(const bc_bot *b);
 /* opportunity fire for a skill that is doing something else */
 void bc_fire_at_will(bc_bot *b);

@@ -54,11 +54,16 @@ static float clampf(float v, float lo, float hi)
 	return v < lo ? lo : v > hi ? hi : v;
 }
 
-float bc_engage_range(const bc_bot *b)
+float bc_gun_reach(const bc_bot *b)
 {
 	const bc_gun_row *g = bc_gun(bc_me(b)->gun);
 
-	return g->reach * (0.75f + 0.23f * bc_level(b->level)->aggression) * b->fight.engage_frac;
+	return g->reach * (0.75f + 0.23f * bc_level(b->level)->aggression);
+}
+
+float bc_engage_range(const bc_bot *b)
+{
+	return bc_gun_reach(b) * b->fight.engage_frac;
 }
 
 float bc_hold_range(const bc_bot *b)
