@@ -48,10 +48,30 @@
  *   captures_in_4_games, games_with_a_capture, first_capture_mean_s, pickups, drops (ctf)
  */
 #include "brain_sim.h"
+#include "../botd/pool.h"
 
-/* BENCH_SET, a setting for every scene ("plan.share=0") */
+/* THE HOST'S PART, as botd has it: the planner's units on a pool of
+ * BENCH_THREADS threads (1: the calling thread alone), timed; BENCH_SET, a
+ * setting for every scene ("plan.share=0") */
+static botd_pool *pool;
+static double plan_us;
+
+static void unit_job(void *ctx, int i)
+{
+	bc_plan_unit_run(&((bc_plan_unit *)ctx)[i]);
+}
+
+static void run_units(void *ctx, bc_plan_unit *u, int n)
+{
+	double t0 = bs_now_us();
+
+	botd_pool_run(ctx, unit_job, u, n);
+	plan_us += bs_now_us() - t0;
+}
+
 static void host(bs_sim *s)
 {
+	bc_engine_plan_runner(s->e, run_units, pool);
 	if (getenv("BENCH_SET"))
 		bs_set(s, BL_NO_PLAYER, getenv("BENCH_SET"));
 }
@@ -118,6 +138,7 @@ static void report(const char *scene, bs_sim *s, const tally *t)
 	for (i = 0; i < BL_MAX_PLAYERS; i++)
 		if (s->p[i].used) stuck += s->p[i].stuck_events;
 	out(scene, "think_mean_us", s->think_us / (double)(s->thinks ? s->thinks : 1), "us");
+	out(scene, "think_plan_pct", 100.0 * plan_us / (s->think_us > 0.0 ? s->think_us : 1.0), "%");
 	out(scene, "think_worst_us", s->think_max_us, "us");
 	if (t->alive) {
 		out(scene, "no_key_pct", 100.0 * (double)t->idle / (double)t->alive, "%");
@@ -187,6 +208,7 @@ static void scene_arena(int per)
 	snprintf(name, sizeof name, "arena%d", per * 2);
 	bs_start(s);
 	host(s);
+	plan_us = 0.0;
 	s->respawn = 3.0;
 	teams(s, per, 207.5f, 293.5f, 4242, "tdm");
 	for (k = 0; k < 60 * 60; k++) { bs_step(s); watch(s, &t); }
@@ -214,6 +236,7 @@ static void scene_fight(int per)
 	}
 	bs_start(s);
 	host(s);
+	plan_us = 0.0;
 	for (i = 0; i < per; i++) {
 		bs_add(s, i, 1, 1, 3 + (i * 3) % 7, i % 3, 2026u + (uint32_t)i * 7919u, 192.5f + (float)(i % 4) * 2.5f, 232.5f + 2.5f * (float)i, 1, 0);
 		bs_add(s, 100 + i, 1, 2, 3 + (i * 5) % 7, (i + 1) % 3, 2526u + (uint32_t)i * 104729u, 318.5f - (float)(i % 4) * 2.5f, 232.5f + 2.5f * (float)i, -1, 0);
@@ -247,6 +270,7 @@ static void scene_sea(void)
 	s->tent[1].x = 440.5f; s->tent[1].y = 256.5f; s->tent[1].z = 61.75f;
 	bs_start(s);
 	host(s);
+	plan_us = 0.0;
 	s->respawn = 4.0;
 	for (i = 0; i < 20; i++) {
 		bs_add(s, i, 1, 1, 3 + (i * 3) % 7, i % 3, 61u + (uint32_t)i * 7919u, 120.5f + (float)(i % 5) * 9.0f, 215.5f + (float)(i / 5) * 24.0f, 1, 0);
@@ -271,6 +295,7 @@ static void scene_ctf(int per, int near)
 
 	memset(&t, 0, sizeof t);
 	snprintf(name, sizeof name, near ? "ctf%dnear" : "ctf%d", per);
+	plan_us = 0.0;
 	for (g = 0; g < 4; g++) {
 		bs_sim *s = bs_new(G, per * 2);
 		int i, k, first = -1;
@@ -316,6 +341,7 @@ static void scene_ctf(int per, int near)
 	out(name, "kills", kills, "");
 	out(name, "stuck", stuck, "");
 	out(name, "think_mean_us", think / (double)(thinks ? thinks : 1), "us");
+	out(name, "think_plan_pct", 100.0 * plan_us / (think > 0.0 ? think : 1.0), "%");
 	out(name, "think_worst_us", worst, "us");
 	if (t.alive) {
 		out(name, "no_key_pct", 100.0 * (double)t.idle / (double)t.alive, "%");
@@ -355,6 +381,7 @@ static void scene_map(const char *path, double secs, int bots)
 		return;
 	}
 	host(s);
+	plan_us = 0.0;
 	s->have_tents = 1;
 	s->tent[0].x = (float)a.x + 0.5f; s->tent[0].y = (float)a.y + 0.5f; s->tent[0].z = (float)a.z - 2.25f;
 	s->tent[1].x = (float)b.x + 0.5f; s->tent[1].y = (float)b.y + 0.5f; s->tent[1].z = (float)b.z - 2.25f;
@@ -389,6 +416,8 @@ int main(int argc, char **argv)
 	static const char *const all[] = { "arena12", "arena32", "arena40", "fight6", "fight20", "sea40", "ctf:10" };
 	int i, n = argc > 1 ? argc - 1 : (int)(sizeof all / sizeof all[0]);
 
+	pool = botd_pool_new(getenv("BENCH_THREADS") ? atoi(getenv("BENCH_THREADS")) : 1);
+
 	for (i = 0; i < n; i++) {
 		const char *sc = argc > 1 ? argv[i + 1] : all[i];
 
@@ -411,5 +440,6 @@ int main(int argc, char **argv)
 		}
 		fflush(stdout);
 	}
+	botd_pool_free(pool);
 	return 0;
 }

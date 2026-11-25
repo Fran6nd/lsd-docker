@@ -17,6 +17,8 @@ typedef struct botd_opts {
 	int budget;             /* planner expansions a think may always spend (default 3000) */
 	int plan_rate;          /* and each bot's share, expansions a second (BC_PLAN_RATE) */
 	int max_bots;           /* bots the engine is sized for (default 255: every seat) */
+	int threads;            /* the planner's threads, botd's own included (pool.h);
+	                           0 (the default): botd_threads_auto() */
 	int once;               /* 1: do not wait for a file, exit 1 if there is none */
 	int poll_ms;            /* wait between attach tries (default 1000) */
 	int stale_ms;           /* server beat unmoved this long: it is gone (default 5000) */
@@ -26,6 +28,11 @@ typedef struct botd_opts {
 } botd_opts;
 
 void botd_opts_default(botd_opts *o);
+
+/* --threads 0: as many as the planner can use at once (a think plans at
+ * most four routes at a time: core/brain.h BC_SEARCH_MAX), but never more
+ * than half the cores there are, the server being on the same machine. */
+int botd_threads_auto(void);
 
 /* Runs until the server goes, closes the link, or SIGTERM/SIGINT (which
  * it installs handlers for). 0 for a clean stop; 1 when --once found no

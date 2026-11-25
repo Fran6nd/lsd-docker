@@ -504,6 +504,32 @@ static void plan_done(bc_bot *b, int st)
 	}
 }
 
+void bc_plan_unit_run(bc_plan_unit *u)
+{
+	uint32_t before = bc_nav_plan_expansions(u->search);
+
+	u->status = bc_nav_plan_step(u->search, u->budget);
+	u->used = bc_nav_plan_expansions(u->search) - before;
+}
+
+static void run_units(bc_engine *e, bc_plan_unit *u, int n)
+{
+	int i;
+
+	if (e->plan_run) {
+		e->plan_run(e->plan_run_ctx, u, n);
+		return;
+	}
+	for (i = 0; i < n; i++)
+		bc_plan_unit_run(&u[i]);
+}
+
+void bc_engine_plan_runner(bc_engine *e, bc_plan_runner run, void *ctx)
+{
+	e->plan_run = run;
+	e->plan_run_ctx = ctx;
+}
+
 /* A team-mate's search under way for the same question, set off from
  * within BC_ROUTE_REACH of `from` (routes.h, a CLAIM). */
 static int claimed(const bc_engine *e, const bc_route_key *k, bc_nav_node from)
@@ -631,31 +657,46 @@ void bc_movers_plan(bc_engine *e)
 		active++;
 	}
 	/* share the budget: an even share each, longest wait first; what the
-	 * quick ones leave goes round again */
+	 * quick ones leave goes round again. A pass's searches are units
+	 * (engine.h, THE PLANNER'S WORK AS UNITS): with an even share each
+	 * fixed before any runs, they are handed to the runner together; with
+	 * too thin a budget to share, the first takes all there is and the
+	 * next what it leaves, one unit at a time. What they found is applied
+	 * afterwards, in this order. */
 	for (pass = 0; pass < 2 && active > 0 && e->budget_left > 0; pass++) {
-		int share = e->budget_left / active;
+		bc_plan_unit unit[BC_SEARCH_MAX];
+		int who[BC_SEARCH_MAX], k = 0, share = e->budget_left / active, thin = share < 64;
 
-		if (share < 64) share = e->budget_left;
-		for (i = 0; i < n && e->budget_left > 0; i++) {
-			bc_bot *b = &e->bots[order[i]];
-			bc_mover *mv = &b->mv;
-			uint32_t before, used;
-			int st, give;
+		for (i = 0; i < n; i++) {
+			bc_mover *mv = &e->bots[order[i]].mv;
 
 			if (mv->search < 0 || mv->state != BC_MV_PLANNING)
 				continue;
-			give = share < e->budget_left ? share : e->budget_left;
-			before = bc_nav_plan_expansions(e->search[mv->search]);
-			st = bc_nav_plan_step(e->search[mv->search], give);
-			used = bc_nav_plan_expansions(e->search[mv->search]) - before;
-			if (used == 0) used = 1;
+			who[k] = order[i];
+			unit[k].search = e->search[mv->search];
+			unit[k].budget = share;
+			k++;
+		}
+		if (!thin)
+			run_units(e, unit, k);
+		for (j = 0; j < k && e->budget_left > 0; j++) {
+			bc_bot *b = &e->bots[who[j]];
+			bc_mover *mv = &b->mv;
+			uint32_t used;
+
+			if (thin) {
+				unit[j].budget = e->budget_left;
+				run_units(e, &unit[j], 1);
+			}
+			used = unit[j].used ? unit[j].used : 1;
 			mv->expansions += used;
 			e->budget_left -= (int)used;
 			e->stats.expansions += used;
 			e->stats.last_expansions += used;
 			/* stopped at the cap; the one long search a goal may get, at five caps */
-			if (st != BC_NAV_MORE || (e->plan_cap > 0 && mv->expansions >= (uint32_t)e->plan_cap * (mv->nocap ? 5u : 1u))) {
-				plan_done(b, st);
+			if (unit[j].status != BC_NAV_MORE ||
+			    (e->plan_cap > 0 && mv->expansions >= (uint32_t)e->plan_cap * (mv->nocap ? 5u : 1u))) {
+				plan_done(b, unit[j].status);
 				active--;
 			}
 		}

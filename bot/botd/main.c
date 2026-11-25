@@ -7,7 +7,8 @@
 
 static void usage(FILE *f)
 {
-	fputs("usage: botd [--file PATH] [--trees DIR] [--user-trees DIR] [--hz N] [--budget N] [--plan-rate N] [--once]\n"
+	fputs("usage: botd [--file PATH] [--trees DIR] [--user-trees DIR] [--hz N] [--budget N] [--plan-rate N]\n"
+	      "            [--bots N] [--threads N] [--once]\n"
 	      "  --file PATH   the server's link file (default /dev/shm/lsd-botlink)\n"
 	      "  --trees DIR   behaviour trees, *.bt (default /opt/botd/trees, then ./trees)\n"
 	      "  --user-trees DIR  the operator's own *.bt, read after those and again at each\n"
@@ -20,6 +21,9 @@ static void usage(FILE *f)
 	      "  --plan-rate N and each bot's share: expansions a second (default 4500, 75 a\n"
 	      "                think at 60; a think spends the larger of the two)\n"
 	      "  --bots N      bots the engine is sized for (default 255: every seat)\n"
+	      "  --threads N   threads the route planner runs on, botd's own included (default 0:\n"
+	      "                half the cores, at most 4 -- a think plans at most 4 routes at\n"
+	      "                once). The bots do the same whatever the number\n"
 	      "  --once        do not wait for the file: exit 1 if it is not there now\n"
 	      "Waits quietly for the file, serves it until the server closes it or\n"
 	      "goes silent, then exits 0.\n", f);
@@ -53,6 +57,7 @@ int main(int argc, char **argv)
 		else if (!strcmp(a, "--budget") && more) o.budget = number(argv[++i], 0, 1000000, "--budget");
 		else if (!strcmp(a, "--plan-rate") && more) o.plan_rate = number(argv[++i], 0, 10000000, "--plan-rate");
 		else if (!strcmp(a, "--bots") && more) o.max_bots = number(argv[++i], 1, 256, "--bots");
+		else if (!strcmp(a, "--threads") && more) o.threads = number(argv[++i], 0, 64, "--threads");
 		else { usage(stderr); return 2; }
 	}
 	return botd_run(&o);

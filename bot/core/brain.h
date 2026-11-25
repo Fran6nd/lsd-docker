@@ -435,6 +435,8 @@ struct bc_engine {
 	bc_route_key search_key[BC_SEARCH_MAX];
 	bc_route_board routes;
 	uint8_t plan_share;         /* plan.share: the route board is used (1) */
+	bc_plan_runner plan_run;    /* the host's, for the planner's units (engine.h); NULL: none */
+	void *plan_run_ctx;
 
 	bt_vocab *vocab;
 	bt_forest *builtin, *custom, *fallback;

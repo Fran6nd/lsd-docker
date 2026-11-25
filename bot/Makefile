@@ -69,9 +69,11 @@ $(B)/tests/botd_test: tests/botd_test.c $(BOTD_LIB) $(LINK_OBJ) $(wildcard tests
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(STRICT) $(INC) -Ibotd -D_POSIX_C_SOURCE=200809L $< $(BOTD_LIB) $(LINK_OBJ) -lm -lpthread -o $@
 
-$(B)/tests/%: tests/%.c $(B)/libbotcore.a $(patsubst link/%.c,$(B)/link/%.o,$(LINK)) $(wildcard tests/*.h)
+# (and botd's pool: the bench and parallel_test run the planner's units on
+# threads as botd does)
+$(B)/tests/%: tests/%.c $(B)/libbotcore.a $(patsubst link/%.c,$(B)/link/%.o,$(LINK)) $(B)/botd/pool.o $(wildcard tests/*.h)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(STRICT) $(INC) -D_POSIX_C_SOURCE=200809L $< $(patsubst link/%.c,$(B)/link/%.o,$(LINK)) $(B)/libbotcore.a -lm -lpthread -o $@
+	$(CC) $(CFLAGS) $(STRICT) $(INC) -D_POSIX_C_SOURCE=200809L $< $(patsubst link/%.c,$(B)/link/%.o,$(LINK)) $(B)/botd/pool.o $(B)/libbotcore.a -lm -lpthread -o $@
 
 # VOCAB.md is written by the tool from the words the core has
 doc: $(B)/bin/bttree

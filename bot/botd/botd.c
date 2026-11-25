@@ -35,17 +35,19 @@
  * pid in engine_pid (a remade file says 0); and SIGBUS itself is caught
  * and turned into a re-attach.
  *
- * SPLITTING THE THINK LATER. think_all() is the only place that calls
- * bc_engine_think. To spread it over workers by team or by bot range:
- * give each worker its own bc_engine (the events are fanned out to all of
- * them by dispatch_event(), the map handed to all by load_map()), have
- * each think the same copy of the world into the same `mine` array for
- * its own pids (the arrays do not overlap), and join the workers here
- * before flush_intents(). Nothing in core/ changes: it is only told
- * which pids are its own.
+ * THREADS. The core has none; what it offers is its planner's work cut
+ * into units that may run at once (engine.h, THE PLANNER'S WORK AS
+ * UNITS), and botd runs them on a pool of --threads (pool.h), the round's
+ * own thread among them. Everything else of a think stays on the round's
+ * thread. The core applies what the units found in its own order, so the
+ * bots do the same whatever the number of threads (tests/parallel_test.c).
+ * Measured (BRAIN-STATUS.md (c3)): the planner is about half of a think
+ * at 230 bots on a real map once routes are shared; four threads take a
+ * think's planning time down by about 40%.
  */
 #include "botd.h"
 #include "engine.h"
+#include "pool.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -113,6 +115,7 @@ void botd_opts_default(botd_opts *o)
 	o->budget = 3000;
 	o->plan_rate = BC_PLAN_RATE;
 	o->max_bots = 255;
+	o->threads = 0;
 	o->poll_ms = 1000;
 	o->stale_ms = 5000;
 	o->health_s = 60;
@@ -161,6 +164,33 @@ static void host_action(void *ctx, uint8_t type, uint8_t pid, const void *payloa
 	if (bl_push(&s->f->actions, type, pid, payload, bytes)) s->actions++;
 	else s->drops++;
 }
+
+/* The planner's units, on the pool (THREADS, above). */
+static void unit_job(void *ctx, int i)
+{
+	bc_plan_unit_run(&((bc_plan_unit *)ctx)[i]);
+}
+
+static void run_units(void *pool, bc_plan_unit *units, int n)
+{
+	botd_pool_run(pool, unit_job, units, n);
+}
+
+int botd_threads_auto(void)
+{
+	/* (not a POSIX name: Linux's libcs have it, a strict POSIX build on
+	 * another system takes two cores) */
+#ifdef _SC_NPROCESSORS_ONLN
+	long cores = sysconf(_SC_NPROCESSORS_ONLN);
+#else
+	long cores = 2;
+#endif
+	int n = cores > 1 ? (int)(cores / 2) : 1;
+
+	return n < 4 ? n : 4;
+}
+
+static botd_pool *pool;     /* the process's: made once, in botd_run */
 
 /* ------------------------------------------------------------------ */
 /* Trees                                                              */
@@ -659,6 +689,7 @@ static int session_main(session *s)
 		return END_GONE;
 	}
 	bc_engine_plan_rate(s->e, s->o->plan_rate, s->o->hz);
+	bc_engine_plan_runner(s->e, run_units, pool);
 	s->user_trees = load_trees(s->e, s->o->trees, s->o->user_trees);
 	{
 		char dir[512];
@@ -692,6 +723,12 @@ int botd_run(const botd_opts *o)
 	int hz = o->hz > 0 ? o->hz : 60;
 	botd_opts opts = *o;
 	opts.hz = hz;
+	opts.threads = o->threads > 0 ? o->threads : botd_threads_auto();
+	if (!pool) {
+		pool = botd_pool_new(opts.threads);
+		if (!pool) { say("cannot make %d threads", opts.threads); return 1; }
+		say("the planner on %d thread%s", botd_pool_threads(pool), botd_pool_threads(pool) == 1 ? "" : "s");
+	}
 
 	int said_waiting = 0;
 	for (;;) {
