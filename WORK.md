@@ -53,6 +53,7 @@ DONE (commit), BLOCKED (on what).
 | 19 | Structural review of the fast fixes (the owner's rule: no quick hacks, one rule in one place) | REVIEW (review agent): see the 2026-11-25 log |
 | 20 | Server optimisation, "4 parallel threads?": the route board (a team's bots going the same way share one search) and the route planner on botd's threads, deterministic at any thread count | REVIEW (parallel agent): branch commits; numbers in BRAIN-STATUS.md (c3) |
 | 21 | Never send a packet to a bot, nor the same packet to each: lib_bot is the one broadcaster (`broadcast`, `broadcast_each`, `people_in`), the guard counts what a script still sends at a bot, a test fails on any | REVIEW (bcast agent): branch commits; the core's own per-slot loops need C (see the log) |
+| 22 | `/votepeace`: a vote toggles a peace where no player damage is done; bots stand down; on by default in every mode | REVIEW (peace agent): branch commits; live run on lsd-peace |
 
 ## Log
 
@@ -522,3 +523,17 @@ DONE (commit), BLOCKED (on what).
   man was already in range (or failed, too near to go round) with
   nothing after -- the bot stood "idle" seeing him; both now end in a
   fight.
+- 2026-11-25 (peace agent, item 22): "votepeace to vote peace mode:
+  damages are then disabled; undone on a new votepeace; warn joining
+  players; bots aware". lib_vote (the tally, majority, timeout) now serves
+  /va and /votepeace; vote_peace toggles the peace on a passed vote, with
+  one hook at the last of the damage chain (`late`), after the range's and
+  the editor's own answers to a hit: damage does nothing at peace except
+  the fall type (falls, water, boundary), the map's own rule (decision: so
+  a parkour course keeps its water; one line to change). Healing passes.
+  Ends with the map. Bots: `fact.peace` for the trees (tdm, ctf, default,
+  babel stand the war down on it: no fights, grenades or items) and the
+  engine setting `fire=hold` (the server's rule: the movement skills fire
+  at will, so trees alone could not keep a bot from shooting). On by
+  default in every mode: lsdctl's default scripts, and `defaults_offered`
+  gives an older settings file the script once, at `lsdctl init`.
