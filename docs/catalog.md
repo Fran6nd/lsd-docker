@@ -156,14 +156,14 @@ range`; `lsdctl map course [seed]` generates another.
   its supports away and the rest falls, as every client sees -- once the
   course is ready (every target standing in its place, nobody else
   inside, 3 s given to the shooter), and the clock starts then. A target
-  hit goes down and stays down; the clock stops in the blue end box once
+  hit goes down (it flips, below) and stays down; the clock stops in the blue end box once
   every target is down (in the end box with targets standing you are
   told how many, and the clock runs on). Each hit on a no-shoot costs 10
   s (`range_noshoot_penalty`), told at once ("No-shoot hit: +10 s") and
   in the final time ("12.50 s + 10 s penalty = 22.50 s"); a no-shoot
   never goes down. Dying, leaving the course, leaving the server or 120 s
   from the wall's fall abandons the run. However a run ends, the course
-  is made ready at once -- every target stood up again where it was, the
+  is made ready at once -- every target flipped back where it was, the
   wall built again -- and the next one goes in. Anybody else who gets in
   is sent to the waiting area, and so joins the queue.
 
@@ -182,22 +182,53 @@ left as you set it.
 The targets are lib_bot bots (54 of them: 8 a lane, 10 on the course on
 the other team, 4 no-shoots on yours), not the bot engine's: no tree, no
 `lsdctl bots`, nothing asked of botd. They never move of themselves.
-What a hit does is each target's kind, in the map's data: a lane's
-(plate) never falls; a course target (popper) falls -- killed by nobody,
-as a fall: no kill, no score, no reward -- and is stood up again for the
-next run; a no-shoot costs the penalty. Every hit stops in the mode's
-damage hook, and the shooter is shown what it was worth through Damage
-Markers (installed with the mode), as for a man. Silent Player clients
-leave them out of the score, the roster and the kill feed. They take
-seats: 54 of the 255; on a server with fewer seats a person still always
-gets in (a target gives way and comes back when a seat is free). A map
-of your own can be a range: its `.txt` names the spawn, the lanes' bays,
-the course's area, boxes and start wall, and the targets
-(`'range_version'`, `'range_spawn'`, `'range_lanes'`, `'range_ipsc'`,
-`'range_ipsc_start'`, `'range_ipsc_end'`, `'range_ipsc_wait'`,
-`'range_ipsc_wall'`, `'range_targets'`; the format is in
-`range_map.lua`). A range generated before the no-shoots and the wall is
-refused, the log says so: `lsdctl map course` generates a new one.
+**Nothing on the range is ever killed.** What a hit does is each target's
+kind, in the map's data, and it is a *flip*: the target is moved into the
+map's **holding cell** and a **stand-in**, a bot of the shooter's own team
+(team 1), stands in its exact place, pose (standing or crouched) and
+facing, following its motion if it is on a rail or blinks. The shooter
+sees the target change colour, nothing more; flipping back is the same
+swap the other way. A lane's plate flips for `range_flip_secs` seconds
+(5) on every bullet: the first counts for the run (once), and a plate
+shot again after it has flipped back flips again, as feedback, without
+counting again (a plate that is flipped has the stand-in in its place:
+shots at it count for nothing, so a run is complete when every plate
+has been hit once, whether or not the first have flipped back by then).
+A course target (popper) flips when the run's shooter hits it and stays
+flipped until the course is made ready for the next run; hit by anyone
+else, or with no run, it does nothing. A no-shoot never flips: its hit
+costs the penalty. A stand-in is not a target and not a no-shoot: a hit
+on it counts for nothing, costs nothing, does nothing, and it never
+shoots (no think, a spade). Every hit stops in the mode's damage hook,
+and the shooter is shown what it was worth through Damage Markers
+(installed with the mode), as for a man. Silent Player clients leave all
+of them out of the score, the roster and the kill feed.
+
+The seats: 54 targets and **one stand-in for each of the 50 that can flip**
+(40 plates, 10 poppers): 104 of the 255. A shared pool could not be
+smaller in the worst case, which is all of them flipped at once (eight
+plates a lane can be hit within 5 s at a rifle's pace, five lanes at
+once, and a whole course down), and it would need a rule for running
+dry; with one each there is none. On a server with fewer seats a person
+still always gets in (a target gives way and comes back when a seat is
+free); a target whose stand-in is missing does not flip: the hit counts
+and shows its marker, and the log says "no stand-in for ..." -- nothing
+more.
+
+The holding cell is part of the map, in the data (`'range_cell'`, a box
+like the others): a closed room 3 x 3 and 3 high cut into the solid
+mass west of the lanes, with no door and no port, walls and roof of
+solid voxels; the map test floods it from inside (sealed) and checks
+that no lane, firing position or the spawn has a line of sight into it.
+
+A map of your own can be a range: its `.txt` names the spawn, the lanes'
+bays, the course's area, boxes and start wall, the holding cell, and the
+targets (`'range_version'`, `'range_spawn'`, `'range_lanes'`,
+`'range_ipsc'`, `'range_ipsc_start'`, `'range_ipsc_end'`,
+`'range_ipsc_wait'`, `'range_ipsc_wall'`, `'range_cell'`,
+`'range_targets'`; the format is in `range_map.lua`). A range generated
+before the holding cell (version 3) is refused, the log says so:
+`lsdctl map course` generates a new one.
 
 ## Bots: day and night
 
