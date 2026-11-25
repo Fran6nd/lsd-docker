@@ -2,8 +2,9 @@
 -- Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
 --
 -- Under any gamemode: every rewards_kills kills a player makes (counted
--- across lives, from the map's start), and every intel capture
--- (rewards_capture), earns a REWARD: one of rewards_menu at random --
+-- across lives, from the map's start), every intel capture
+-- (rewards_capture) and every enemy carrier killed -- their intel freed,
+-- on its way back (rewards_return) -- earns REWARDS: one of rewards_menu at random --
 -- the costlier, the rarer -- put in the player's inventory (lib_inventory),
 -- used from there like any item:
 --
@@ -77,9 +78,10 @@ local function bot_tree(b)
 	return type(b) == "string" and b or nil;
 end
 
-getcfg("rewards_kills", 10, "Kills (across lives, per map) for one reward.");
-getcfg("rewards_capture", 1, "Rewards for an intel capture.");
-getcfg("rewards_max", 3, "Most rewards a player can hold.");
+getcfg("rewards_kills", 5, "Kills (across lives, per map) for one reward.");
+getcfg("rewards_capture", 3, "Rewards for an intel capture.");
+getcfg("rewards_return", 2, "Rewards for killing the player who carries your team's intel.");
+getcfg("rewards_max", 5, "Most rewards a player can hold.");
 getcfg("rewards_exclusive", true,
 	"Effects offered as rewards are held only by those who earned them, "
 	.. "even if their <id>_everyone setting is true.");
@@ -259,9 +261,21 @@ local function counts(pid, ktype, killer)
 	return get_team(killer) ~= get_team(pid) or tostring(gamemode) == "ffa";
 end
 
+-- who carried an intel when they died: asked before the kill, which drops it
+local carrying = {};
+function mod.before.kill(pid, ktype, killer)
+	carrying[pid] = has_intel ~= nil and has_intel(pid) or nil;
+end
+
 function mod.after.kill(pid, ktype, killer)
+	local carrier = carrying[pid];
+	carrying[pid] = nil;
 	if (not counts(pid, ktype, killer)) then
 		return;
+	end
+	-- the man who carried our intel: it is free again
+	if (carrier and rewards_return > 0) then
+		award(killer, rewards_return);
 	end
 	kills[killer] = kills[killer] + 1;
 	-- at the cap the count waits, so the next reward is one kill away

@@ -245,10 +245,11 @@ light theirs; at dawn they put them out. Scoring is tdm's
 
 ## Rewards
 
-On by default, in every gamemode. Every `rewards_kills` kills (10) and
-every intel capture earn a reward: one of the list below at random, the
-costlier the rarer, put in the player's [inventory](#inventory) -- at
-most `rewards_max` (3) held. It is used from there: `/inv`, the
+On by default, in every gamemode. Every `rewards_kills` kills (5) earn a
+reward, an intel capture `rewards_capture` (3), and killing the enemy who
+carries your intel `rewards_return` (2): each one of the list below at
+random, the costlier the rarer, put in the player's
+[inventory](#inventory) -- at most `rewards_max` (5) held. It is used from there: `/inv`, the
 Inventory pie, or `/reward <name>`. One that cannot be used right now (a
 medkit at full health, night vision by day) is kept.
 

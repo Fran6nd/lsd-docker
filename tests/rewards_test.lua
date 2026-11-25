@@ -84,15 +84,18 @@ local function total(pid)
 	return n;
 end
 local function empty(pid) for _, k in ipairs(KEYS) do inventory_set(pid, k, 0); end end
-local function kill(killer, victim, kt) mod.after.kill(victim, kt or 0, killer); end
+local function kill(killer, victim, kt)
+	if (mod.before.kill ~= nil) then mod.before.kill(victim, kt or 0, killer); end
+	mod.after.kill(victim, kt or 0, killer);
+end
 local function reward(...) cmds.reward.func(0, {...}); end
 
 --============================= EARNING ==============================--
 print("\n1. a reward for every rewards_kills kills, into the inventory");
-for i = 1, 9 do kill(0, 2); end
-check(#chat == 0 and total(0) == 0, "nine kills: nothing yet");
+for i = 1, rewards_kills - 1 do kill(0, 2); end
+check(#chat == 0 and total(0) == 0, "one kill short: nothing yet");
 kill(0, 2);
-check(total(0) == 1, "the tenth: one reward in the inventory");
+check(total(0) == 1, "the last: one reward in the inventory");
 check(last().to == PID_BROADCAST and last().text == "P0 earned a reward", "a short global line", last().text);
 check(chat[#chat-1].to == 0 and chat[#chat-1].text:find("^You earned: %u"), "and the player is told which, by name",
 	chat[#chat-1].text);
@@ -113,7 +116,7 @@ empty(0);
 kill(0, 2);
 check(total(0) == 1, "at the cap the count waited: one kill after using, the next reward");
 mod.after.load_map();
-for i = 1, 9 do kill(0, 2); end
+for i = 1, rewards_kills - 1 do kill(0, 2); end
 check(total(0) == 1, "a new map starts the kill count again");
 
 print("\n4. a capture earns one too, except tdm's winning one");
@@ -124,6 +127,27 @@ gamemode = "tdm";
 mod.after.capture_intel(0);
 check(total(0) == rewards_capture, "tdm's capture is the end of its game, not one");
 gamemode = "ctf";
+
+print("\n4b. killing the enemy who carries our intel");
+mod.after.load_map();      -- the kill count from zero: only the carrier reward counts here
+empty(0);
+CARRIER = 2;
+function has_intel(p) return p == CARRIER; end
+kill(0, 2);
+check(total(0) == rewards_return, "the carrier's killer is rewarded", total(0));
+mod.after.load_map();
+empty(0);
+kill(0, 2);
+check(total(0) == rewards_return, "and only while he carries it: a carrier again, again rewarded", total(0));
+CARRIER = nil;
+mod.after.load_map();
+empty(0);
+local before = total(0);
+kill(0, 2);
+check(total(0) == before, "an ordinary kill adds no carrier reward");
+has_intel = nil;
+mod.after.load_map();
+empty(0);
 
 print("\n5. the costlier, the rarer");
 local seen = {};
