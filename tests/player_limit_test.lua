@@ -231,7 +231,7 @@ mod.late.send_packet(PID_BROADCAST, ch(3, 50, 7));
 eq(#to(7), 0, "outdated #7 does not get #50");
 eq(#to(40), 0, "outdated #40 does not get #50");
 eq(#to(41), 1, "a 192 client does");
-eq(#to(9), 1, "a bot does");
+eq(#to(9), 0, "a bot is sent nothing: it has no client");
 eqb(to(41)[1][2], ch(3, 50, 7), "unchanged to the 192 client");
 SENT = {};
 

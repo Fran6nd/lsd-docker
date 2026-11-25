@@ -582,6 +582,14 @@ local function deliver(pid, data, reliable)
 	return raw_send(pid, out, reliable);
 end
 
+-- Who has a client (false: a bot), found once for each id and forgotten
+-- when it leaves.
+local human = pid_connected_table();
+-- True while no person connected needs a packet held or cut: every one
+-- of them speaks the extension and is owed nothing. Worked out a few
+-- times a second (tick, below) and dropped the moment somebody connects.
+local calm = false;
+
 -- Every packet LSd sends passes here. With 32 seats or fewer it is the
 -- one comparison and nothing else.
 local function route(pid, data, reliable)
@@ -596,8 +604,24 @@ local function route(pid, data, reliable)
 		return raw_send(pid, data, reliable);
 	end
 
+	-- Everybody a broadcast names who has a client is sent it as they
+	-- always were, in one go, when none of them needs it held or cut.
+	if (calm) then
+		return raw_send(pid, data, reliable);
+	end
+
+	-- Otherwise one by one -- and only to people: a bot has no client to
+	-- send to, and a server full of bots must not pay for each of them at
+	-- every packet.
 	for i in piditer(pid) do
-		deliver(i, data, reliable);
+		local h = human[i];
+		if (h == nil) then
+			h = person(i);
+			human[i] = h;
+		end
+		if (h) then
+			deliver(i, data, reliable);
+		end
 	end
 	return 0;
 end
@@ -612,6 +636,8 @@ end
 
 function mod.after.on_successful_connect(pid)
 	since[pid] = get_time();
+	human[pid] = nil;
+	calm = false;
 end
 
 local last_sweep = 0;
@@ -625,11 +651,21 @@ function mod.after.tick()
 	end
 	last_sweep = now;
 
+	local quiet = true;
 	for i in piditer(PID_BROADCAST) do
 		if (queue[i] ~= nil and decided(i)) then
 			flush(i);
 		end
+		local h = human[i];
+		if (h == nil) then
+			h = person(i);
+			human[i] = h;
+		end
+		if (h and (queue[i] ~= nil or classify(i) ~= "all")) then
+			quiet = false;
+		end
 	end
+	calm = quiet;
 end
 
 -- What makes the extension required while the server seats more than
