@@ -280,6 +280,7 @@ static void test_dig_weakest(void)
 	bs_set(s, BL_NO_PLAYER, t);
 	bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tdo dig_weakest @breach\n\twait 60\n");
 	bs_add(s, 0, 1, 2, 6, BL_GUN_RIFLE, 41, (float)px - 6.5f, (float)SY + 3.5f, 1, 0);
+	s->p[0].grenades = 0;                       /* nothing to throw: the spade */
 	before = band_solid(s, SY);
 	for (i = 0; i < 60 * 40 && band_solid(s, SY) == before; i++)
 		bs_step(s);
@@ -291,6 +292,72 @@ static void test_dig_weakest(void)
 	CHECK(before - after - 1 == best);         /* it found the weakest block, and the server dropped the rest */
 	CHECK(s->vis_refused == 0);
 	bs_free(s);
+}
+
+/* Their stair broken from a distance, never setting foot on it. One row
+ * wide, its weak point is low, where it leaves the ground: a grenade's
+ * (a hand grenade lands on nothing 17 or more over the thrower: no arc
+ * reaches). Propped in the middle, its weak point is high, over the prop:
+ * a weapon the tree names (a rocket: the server's "inv rocket x y z", here
+ * played as the server plays it, a blast that takes 3x3x3). */
+static void ranged_pass(int grenades, const char *item, int propped, float from_x, int *fell, int *climbed, double *secs, int *spade_digs)
+{
+	bs_sim *s = tower_field();
+	int P = base_k() / 2, px = SX0 - P, pz = step_z(P) + 2, i, before, k;
+	char t[128];
+
+	lay_band(s, SY);
+	if (propped)
+		bs_box(s, px, SY, pz, px, SY, G - 1, 1);       /* the pillar */
+	else
+		px = SX0 - base_k() + 3, pz = G - 3;       /* the breach: low, where it leaves the ground */
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "edit=dig");
+	snprintf(t, sizeof t, "place.breach=%d.5 %d.5 %d.5", px, SY, pz);
+	bs_set(s, BL_NO_PLAYER, t);
+	snprintf(t, sizeof t, "tree=tree t:\nselect\n\tdo dig_weakest @breach 6%s%s\n\twait 60\n", item ? " " : "", item ? item : "");
+	bs_set(s, BL_NO_PLAYER, t);
+	bs_add(s, 0, 1, 2, 8, BL_GUN_RIFLE, 41, from_x, (float)SY + 6.5f, -1, 0);
+	s->p[0].grenades = grenades;
+	if (item) {
+		snprintf(t, sizeof t, "item.%s=1", item);
+		bs_set(s, 0, t);
+	}
+	before = band_solid(s, SY);
+	*climbed = 0;
+	*spade_digs = 0;
+	k = s->p[0].cmds;
+	for (i = 0; i < 60 * 40 && band_solid(s, SY) > before - 3; i++) {
+		bs_step(s);
+		if (s->p[0].cmds != k) {
+			float x, y, z;
+
+			k = s->p[0].cmds;
+			if (item && sscanf(s->p[0].last_cmd + strlen("inv ") + strlen(item), " %f %f %f", &x, &y, &z) == 3)
+				bs_block(s, BL_NO_PLAYER, (int)floorf(x), (int)floorf(y), (int)floorf(z), BL_B_GRENADE);
+		}
+		if (fabsf(s->p[0].body.pos.y - (float)SY - 0.5f) < 0.6f && bc_body_feet(&s->p[0].body) < (float)G - 0.5f)
+			*climbed = 1;                     /* on their stair */
+	}
+	*fell = before - band_solid(s, SY);
+	*secs = i / 60.0;
+	*spade_digs = (int)bc_engine_stats_get(s->e)->edits;
+	bs_free(s);
+}
+
+static void test_ranged_cut(void)
+{
+	int fell, climbed, digs, px = SX0 - base_k() / 2;
+	double secs;
+
+	printf("dig_weakest from a distance: grenades, a rocket\n");
+	ranged_pass(3, NULL, 0, (float)(SX0 - base_k()) - 22.5f, &fell, &climbed, &secs, &digs);
+	printf("  one row wide, 3 grenades, 22 off its foot: %d blocks fell after %.1f s; it climbed their stair: %s; spade digs %d\n",
+	       fell, secs, climbed ? "yes" : "no", digs);
+	CHECK(fell > 10 && !climbed && digs == 0);
+	ranged_pass(0, "rocket", 1, (float)px - 40.5f, &fell, &climbed, &secs, &digs);
+	printf("  propped, a rocket, 40 off: %d fell after %.1f s; climbed: %s; spade digs %d\n", fell, secs, climbed ? "yes" : "no", digs);
+	CHECK(fell > 10 && !climbed && digs == 0);
 }
 
 /* Their stair one row wide: dug at the foot, it all falls. Widened -- a
@@ -454,6 +521,7 @@ int main(void)
 	test_stair();
 	test_perch();
 	test_dig_weakest();
+	test_ranged_cut();
 	test_widen();
 	test_pillar();
 	test_repair();

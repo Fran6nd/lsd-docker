@@ -459,8 +459,17 @@ static float s_always(void *bot, const bt_args *a)
 static float s_enemy_visible(void *bot, const bt_args *a)
 {
 	bc_bot *b = bot;
+	float secs = arg(a, 0, 0.0f), t;
 
-	(void)a; return b->senses.n_visible > 0 ? 1.0f : 0.0f;
+	if (b->senses.n_visible > 0)
+		return 1.0f;
+	/* and, asked for, a while after the last one left its sight: a man
+	 * behind a wall between two peeks is still the fight it is in --
+	 * not back to its duty and round again when he shows (babel) */
+	if (secs <= 0.0f || !b->senses.lost.valid)
+		return 0.0f;
+	t = (float)(b->e->now - b->senses.lost.at);
+	return t < secs ? 1.0f - t / secs : 0.0f;
 }
 
 static float s_enemy_known(void *bot, const bt_args *a)
@@ -928,7 +937,7 @@ static const word WORDS[] = {
 	{ VK_C, "knows", 1, { PLACE }, "the bot knows of such a place now", c_knows, NULL, NULL, NULL },
 	{ VK_C, "at", 2, { PLACE, NOPT("voxels", 4.0f) }, "it is within that of the place (default 4)", c_at, NULL, NULL, NULL },
 	{ VK_S, "always", NOARGS, "1", NULL, s_always, NULL, NULL },
-	{ VK_S, "enemy_visible", NOARGS, "1 with an enemy in sight, else 0", NULL, s_enemy_visible, NULL, NULL },
+	{ VK_S, "enemy_visible", 1, { NOPT("secs", 0.0f) }, "1 with an enemy in sight; with secs, for that long after the last one left its sight, fading to 0 (a fight is not dropped between two peeks); else 0", NULL, s_enemy_visible, NULL, NULL },
 	{ VK_S, "enemy_known", NOARGS, "how sure it is of an enemy it cannot see: 1 fresh, fading to 0; 0 with one in sight", NULL, s_enemy_known, NULL, NULL },
 	{ VK_S, "enemy_near", 1, { NOPT("voxels", 60.0f) }, "1 with an enemy in sight at arm's length, falling to 0 at that distance (default 60)", NULL, s_enemy_near, NULL, NULL },
 	{ VK_S, "hurt", NOARGS, "health lost: 0 unhurt, 1 nearly dead", NULL, s_hurt, NULL, NULL },
@@ -1030,7 +1039,7 @@ static const word WORDS[] = {
 	{ VK_A, "build_perch", 1, { PLACE_OPT("enemy_base") }, "a bot up where it cannot get down makes its height a vantage: a LEVEL walkway from where it stands toward the place (default enemy_base), along the axis nearest the way to it, a block a step as a player bridges, until it sees the place within its gun's reach, its blocks run out (nothing is restocked up there), or something or the map's edge is in the way. SUCCESS there (then `camp`); FAILURE building not allowed, no block in hand, no such place, no way", NULL, NULL, bc_do_build_perch, bc_do_build_stop },
 	{ VK_A, "dig_at", 1, { PLACE }, "take away the block at the place (a script names a block: x y z): near enough to reach it, spade out, the head on it, dug at its cadence (the setting edit must allow digging). SUCCESS gone (or was); FAILURE no such place, digging not allowed, no way near, 15 s and still there", NULL, NULL, bc_do_dig_at, bc_do_build_stop },
 	{ VK_A, "put_at", 1, { PLACE }, "put a block at the voxel at the place (a script names a block: x y z) as a player places one: against a solid neighbour's face it sees, within reach, standing on the nearest floor round it from which that is so -- for a block that is not a floor to stand on (a pillar under a stair, a second row beside one; build_at makes floors). The setting edit must allow building. SUCCESS there (or was); FAILURE no such place, building not allowed, no block in hand, nowhere to place it from, no way there, 15 s", NULL, NULL, bc_do_put_at, bc_do_build_stop },
-	{ VK_A, "dig_weakest", 2, { PLACE, NNOTE("voxels", "6: what is dug standing about the place -- the server's reach of 5, and a step") }, "break a structure where it falls most: of the blocks within that of the place a player could dig (a face open to the air), the one whose removal drops the most of what stands on it -- the server's own collapse, run on the bot's map; with no such block (two wide, propped) a cut a block wide, it and one beside it. Chosen when it starts, dug as dig_at digs (the setting edit must allow digging). SUCCESS the cut made; FAILURE nothing there falls, digging not allowed, no way near, 15 s on a block", NULL, NULL, bc_do_dig_weakest, bc_do_build_stop },
+	{ VK_A, "dig_weakest", 3, { PLACE, NNOTE("voxels", "6: what is dug standing about the place -- the server's reach of 5, and a step"), TEXT_OPT("item", "none: its grenades, else the spade") }, "break a structure where it falls most: of the blocks within that of the place it could cut (a face open to the air -- in its sight, with a grenade or the item in hand; else one a floor in reach digs), the one whose removal drops the most of what stands on it -- the server's own collapse, run on the bot's map; with no such block (two wide, propped) a cut a block wide, it and one beside it. Chosen when it starts. Cut by the cheapest it has: the item named (a rocket...: `inv <item> x y z`), a grenade landing on it (the server's 3x3x3), from where it stands and clear of the blast; else the spade, as dig_at digs (the setting edit must allow digging). SUCCESS the cut made; FAILURE nothing there falls, digging not allowed, no way near, 15 s", NULL, NULL, bc_do_dig_weakest, bc_do_build_stop },
 	{ VK_A, "reload", NOARGS, "reload now if the magazine is not full. SUCCESS asked, FAILURE nothing to do", NULL, NULL, bc_do_reload, NULL },
 };
 

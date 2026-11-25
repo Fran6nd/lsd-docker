@@ -710,6 +710,30 @@ bt_status bc_do_ping(void *bot, const bt_args *a, float dt)
 
 /* --- use <name> [self|enemy|group|<place>] [guide secs] ------------------ */
 
+/* An item held, used at a point: the server's "inv <item> x y z". 1 sent;
+ * 0 none held, or not again yet. (dig_weakest's blast, `use`'s aim.) */
+int bc_item_use_at(void *bot, const char *name, bl_vec3 p)
+{
+	bc_bot *b = bot;
+	bc_engine *e = b->e;
+	float greed = b->persona.trait[BC_T_GREED];
+	bc_item *it = bc_item_find(b, name, 0);
+	char cmd[96];
+
+	if (!it || it->count == 0 || e->now < it->cd_until || e->now < b->use_at)
+		return 0;
+	snprintf(cmd, sizeof cmd, "inv %s %.1f %.1f %.1f", it->name, (double)p.x, (double)p.y, (double)p.z);
+	if (e->host.action)
+		e->host.action(e->host.ctx, BL_AC_COMMAND, b->pid, cmd, (uint32_t)strlen(cmd) + 1);
+	e->stats.uses++;
+	if (it->count > 0)
+		it->count--;
+	if (greed < 0.3f) greed = 0.3f;
+	it->cd_until = e->now + 4.0 / (double)greed;
+	b->use_at = e->now + 1.5 / (double)greed;
+	return 1;
+}
+
 bt_status bc_do_use(void *bot, const bt_args *a, float dt)
 {
 	bc_bot *b = bot;

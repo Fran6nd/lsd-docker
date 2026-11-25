@@ -50,7 +50,7 @@ select
 			tree babel_stranded
 		option none under_fire x10            # being shot at
 			tree babel_under_fire
-		option none enemy_visible x5          # somebody in sight
+		option none enemy_visible 3 x5        # somebody in sight, or just gone behind something: the fight it is in
 			tree babel_contact
 		option teamwork their_intel_carried x1.5   # a mate carries it home: with him
 			do escort
@@ -179,12 +179,29 @@ pick every=10 sticky=0.5 noise=0.1
 	option none fact breach x3
 		select
 			cooldown 15
-				do dig_weakest @breach
+				tree babel_cut
 			do seek
 	option none their_intel_home x1           # nothing to break: the intel
 		do fetch
 	option none always                        # their base: whoever is about
 		do seek
+
+# The cut, at their stair's weakest block (dig_weakest chooses it): with a
+# weapon it holds that breaks blocks, from where it stands -- the greedy
+# use what they have -- else its grenades if one lands there, else the
+# spade.
+tree babel_cut:
+pick every=10 sticky=0.5 noise=0
+	option greed has_item rocket x2
+		do dig_weakest @breach 6 rocket
+	option greed has_item missile x2
+		do dig_weakest @breach 6 missile
+	option greed has_item grenade_launcher x1.5
+		do dig_weakest @breach 6 grenade_launcher
+	option greed has_item airstrike x1.5
+		do dig_weakest @breach 6 airstrike
+	option none always
+		do dig_weakest @breach
 
 # Shot at: down, then cover in view or face him; or fight back.
 tree babel_under_fire:
@@ -217,6 +234,8 @@ pick every=1.5 sticky=0.3 noise=0.15
 		do build_at @stair
 	option greed grenade_worth x0.8
 		do throw_grenade
+	option none enemy_visible 3 x0.5          # he has just gone behind something: here, watching for him
+		do hold self 3
 
 tree babel_stranded:
 select

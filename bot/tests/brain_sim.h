@@ -87,6 +87,7 @@ typedef struct bs_sim {
 	bl_vec3 tent[2];
 	/* lsd/scripts/ctf.lua */
 	int ctf, intel_holder[2], caps[3], pickups[3], drops;
+	int one_intel;              /* babel: intel[0] is everybody's, carried to the carrier's own tent */
 	bl_vec3 intel[2];           /* [team - 1]: that team's own, where it lies */
 	int intel_zone[2][4];       /* x0 y0 x1 y1: where it is put back */
 	double drop_timeout;
@@ -934,7 +935,8 @@ static inline void bs_ctf_tick(bs_sim *s)
 			}
 		} else if (s->time >= s->drop_timeout) {
 			for (i = 0; i < BL_MAX_PLAYERS; i++)
-				if (s->p[i].used && s->p[i].alive && s->p[i].team != t + 1 && bs_in_cylinder(&s->p[i].body, s->intel[t])) {
+				if (s->p[i].used && s->p[i].alive && (s->p[i].team != t + 1 || (s->one_intel && t == 0)) &&
+				    bs_in_cylinder(&s->p[i].body, s->intel[t])) {
 					s->intel_holder[t] = i;
 					s->pickups[s->p[i].team]++;
 					break;

@@ -204,8 +204,11 @@ bt_status bc_do_dig_at(void *bot, const bt_args *a, float dt)
  * with the most voxels dropped (bc_cull_would_drop: the engine floods its
  * map as the server floods its own). A structure with no such block -- two
  * wide, propped -- is cut a block wide: the voxel and one beside it, the
- * pair that drops the most. Chosen once, when it starts; dug as dig_at
- * digs, one voxel and then the other. SUCCESS when the cut is made (or the
+ * pair that drops the most. Chosen once, when it starts. HOW it is cut is
+ * the cheapest it has, block by block: the weapon the tree names (an
+ * item: `dig_weakest @breach 6 rocket`), a grenade -- both from where it
+ * stands, at a block in its sight, the grenade landing on it (the
+ * server's 3x3x3) and it clear of the blast -- else dug as dig_at digs. SUCCESS when the cut is made (or the
  * blocks went otherwise); FAILURE nothing there drops anything, digging not
  * allowed, no way near, 15 s on one voxel. */
 
@@ -216,12 +219,80 @@ static int open_face(const bc_map *m, int x, int y, int z)
 	       !bc_map_solid(m, x, y, z + 1) || !bc_map_solid(m, x, y, z - 1);
 }
 
-static int choose_cut(bc_bot *b, bl_vec3 at, int r)
+/* a face of the voxel open to the air, in clear sight of the eye: what a
+ * grenade or a weapon is aimed at (from any distance; the spade's own
+ * rule, with its reach, is bc_nav_sees_edit) */
+static int face_in_sight(const bc_bot *b, int x, int y, int z, bl_vec3 *at)
+{
+	/* the top first: what a grenade lands on and lies on till it bursts */
+	static const int8_t f[6][3] = { {0,0,-1}, {1,0,0}, {-1,0,0}, {0,1,0}, {0,-1,0}, {0,0,1} };
+	const bc_engine *e = b->e;
+	bl_vec3 eye = bc_me(b)->pos, p;
+	int i;
+
+	for (i = 0; i < 6; i++) {
+		if (bc_map_solid(e->map, x + f[i][0], y + f[i][1], z + f[i][2]))
+			continue;
+		p.x = (float)x + 0.5f + 0.55f * (float)f[i][0];
+		p.y = (float)y + 0.5f + 0.55f * (float)f[i][1];
+		p.z = (float)z + 0.5f + 0.55f * (float)f[i][2];
+		if (bc_sight_clear(e->map, eye, p)) {
+			if (at) *at = p;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int in_sight(const bc_bot *b, int x, int y, int z)
+{
+	return face_in_sight(b, x, y, z, NULL);
+}
+
+/* a grenade from where it stands at a voxel it sees (a face of it in
+ * sight), aimed at an open face -- its top first: what a lob lands on,
+ * seen or not from below -- that lands with the voxel in its crater: the
+ * aim in *mark */
+static int grenade_takes(const bc_bot *b, int x, int y, int z, bl_vec3 *mark)
+{
+	static const int8_t f[6][3] = { {0,0,-1}, {1,0,0}, {-1,0,0}, {0,1,0}, {0,-1,0}, {0,0,1} };
+	const bc_engine *e = b->e;
+	bl_vec3 eye = bc_me(b)->pos, p, vel;
+	float flight;
+	int i;
+
+	if (!in_sight(b, x, y, z))
+		return 0;
+	for (i = 0; i < 6; i++) {
+		if (bc_map_solid(e->map, x + f[i][0], y + f[i][1], z + f[i][2]))
+			continue;
+		p.x = (float)x + 0.5f + 0.55f * (float)f[i][0];
+		p.y = (float)y + 0.5f + 0.55f * (float)f[i][1];
+		p.z = (float)z + 0.5f + 0.55f * (float)f[i][2];
+		if (bc_grenade_lands(e->map, eye, p, x, y, z, &vel, &flight)) {
+			if (mark) *mark = p;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/* a block of a cut it can make, and how dear: 2 from where it stands
+ * (with a weapon the tree names, in its sight; with a grenade, one that
+ * lands on it from here), 1 from a floor that digs it (walked to), 0 not */
+static int cuttable(bc_bot *b, int x, int y, int z, int with_item, int with_grenade)
+{
+	if ((with_item && in_sight(b, x, y, z)) || (with_grenade && grenade_takes(b, x, y, z, NULL)))
+		return 2;
+	return edit_stand(b, x, y, z, 0) ? 1 : 0;
+}
+
+static int choose_cut(bc_bot *b, bl_vec3 at, int r, int with_item, int with_grenade)
 {
 	static const int8_t d[6][3] = { {1,0,0}, {-1,0,0}, {0,1,0}, {0,-1,0}, {0,0,1}, {0,0,-1} };
 	bc_engine *e = b->e;
 	int ax = (int)floorf(at.x), ay = (int)floorf(at.y), az = (int)floorf(at.z);
-	int x, y, z, i, pass, best = 0;
+	int x, y, z, i, pass, best = 0, best_how = 0;
 
 	b->bld.n_cut = 0;
 	for (pass = 0; pass < 2 && best == 0; pass++)
@@ -241,8 +312,19 @@ static int choose_cut(bc_bot *b, bl_vec3 at, int r)
 						         : bc_cull_would_drop(e->map, e->cull, x, y, z, -1, -1, -1);
 						/* only a cut a player could make: each block of it
 						 * dug from a floor that sees a face of it */
-						if (n > best && edit_stand(b, x, y, z, 0) &&
-						    (!pass || edit_stand(b, wx, wy, wz, 0))) {
+						/* the most it drops; of equals, the one cut from
+						 * where it stands rather than walked to */
+						if (n > 0 && n >= best) {
+							int how = cuttable(b, x, y, z, with_item, with_grenade);
+
+							if (how && pass) {
+								int h2 = cuttable(b, wx, wy, wz, with_item, with_grenade);
+
+								how = h2 < how ? h2 : how;
+							}
+							if (!how || (n == best && how <= best_how))
+								continue;
+							best_how = how;
 							best = n;
 							b->bld.cut[0].x = (int16_t)x; b->bld.cut[0].y = (int16_t)y; b->bld.cut[0].z = (int16_t)z;
 							b->bld.cut[1].x = (int16_t)wx; b->bld.cut[1].y = (int16_t)wy; b->bld.cut[1].z = (int16_t)wz;
@@ -257,34 +339,76 @@ bt_status bc_do_dig_weakest(void *bot, const bt_args *a, float dt)
 {
 	bc_bot *b = bot;
 	bc_engine *e = b->e;
+	const bl_player *me = bc_me(b);
+	const char *item = a->count > 2 && a->text[2] && a->text[2][0] ? a->text[2] : NULL;
 	bl_vec3 p;
 	bt_status r = BT_SUCCESS;
-	int k;
+	int k, with_item, with_grenade;
 
 	(void)dt;
 	if (a->count < 1 || !bc_place_of(b, a->text[0], &p) || !e->have_map || !e->cull || !may_edit(b, 1)) {
 		b->bld.started = 0;
 		return BT_FAILURE;
 	}
+	with_item = item && bc_item_count(b, item) > 0;
+	with_grenade = me->grenades > 0;
 	if (!b->bld.started) {
-		if (choose_cut(b, p, a->count > 1 && a->num[1] > 0.0f ? (int)(a->num[1] + 0.5f) : 6) == 0)
+		if (choose_cut(b, p, a->count > 1 && a->num[1] > 0.0f ? (int)(a->num[1] + 0.5f) : 6, with_item, with_grenade) == 0)
 			return BT_FAILURE;
 		b->bld.started = 1;
 		b->bld.dx = -1;             /* which voxel of the cut it stands for: none yet */
+		b->bld.blast = 0;
+		b->bld.until = e->now + 15.0;
 	}
 	for (k = 0; k < b->bld.n_cut; k++) {
 		const bc_nav_node *v = &b->bld.cut[k];
+		bl_vec3 c, face;
 
 		if (!bc_map_solid(e->map, v->x, v->y, v->z))
 			continue;
+		if (e->now >= b->bld.until) {
+			r = BT_FAILURE;
+			break;
+		}
+		c.x = (float)v->x + 0.5f; c.y = (float)v->y + 0.5f; c.z = (float)v->z + 0.5f;
+		/* a blast on its way: it waits for it, watching */
+		if (b->bld.blast && e->now < b->bld.edit_at) {
+			b->wish.move = BC_MOVE_NONE;
+			b->wish.look = BC_LOOK_POINT;
+			b->wish.look_at = c;
+			return BT_RUNNING;
+		}
+		b->bld.blast = 0;
+		/* HOW, the cheapest it has: the weapon the tree named, a grenade,
+		 * then the spade -- the first two from where it stands, at a block
+		 * in its sight */
+		if (b->nade.phase == 0 && in_sight(b, v->x, v->y, v->z)) {
+			if (item && bc_item_use_at(b, item, c)) {
+				b->bld.blast = 1;
+				b->bld.edit_at = e->now + 3.0;      /* a weapon's flight, and the blast */
+				return BT_RUNNING;
+			}
+		}
+		if (me->grenades > 0 && (b->nade.phase != 0 || grenade_takes(b, v->x, v->y, v->z, &face))) {
+			/* at the face it sees (its top first): a grenade lands on a
+			 * block, it does not go into one */
+			bt_status t = bc_throw_at(b, b->nade.phase != 0 ? c : face, 1);
+
+			if (t == BT_RUNNING)
+				return BT_RUNNING;
+			if (t == BT_SUCCESS) {
+				b->bld.blast = 1;
+				b->bld.edit_at = e->now + (double)b->nade.fuse + 0.5;
+				return BT_RUNNING;
+			}
+		}
 		if (b->bld.dx != k) {
-			/* this voxel's own stand, and its own 15 s */
+			/* this voxel's own stand */
 			if (!edit_stand(b, v->x, v->y, v->z, 0)) {
 				r = BT_FAILURE;
 				break;
 			}
 			b->bld.dx = (int8_t)k;
-			b->bld.until = e->now + 15.0;
 		}
 		r = edit_voxel(b, v->x, v->y, v->z, 0);
 		break;

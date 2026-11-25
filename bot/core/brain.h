@@ -279,7 +279,7 @@ typedef struct bc_bot {
 	/* looking, cover, and what a bot does with nothing known (skill_look.c,
 	 * skill_cover.c, skill_tactics.c) */
 	bc_gaze gaze;
-	struct { double until, edit_at; uint8_t started; int8_t dx, dy; uint8_t n_cut; uint8_t pad_[4];
+	struct { double until, edit_at; uint8_t started; int8_t dx, dy; uint8_t n_cut; uint8_t blast; uint8_t pad_[3];
 	         bc_nav_node from; bc_nav_node cut[2]; } bld;    /* build_at, dig_at, build_perch, dig_weakest (skill_build.c) */
 	bc_cover_q cq;
 	struct { uint8_t phase, crouch, tries, peeking, has_peek, view, pad_[2];

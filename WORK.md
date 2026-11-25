@@ -568,3 +568,35 @@ DONE (commit), BLOCKED (on what).
   and goes no farther. Tests changed: skills_test's spade check runs the
   fight skill, not the tdm tree (a man with no round left is pressed
   now, and the careful back off).
+- 2026-11-25 (brain agent): BABEL DITHERING, and TOWERS BROKEN FROM AFAR.
+  Measured in the sim on blueresortbabel (10 a side, babel.bt, the
+  bridge as babel_plus says it, 10 min): per bot per minute 16 leaf
+  changes, 21 goal changes, 2.3 reversals of travel; the reversals came
+  with a flip between the duty and the fight (enemy_visible dropping to
+  0 the moment a man went behind something) far more than with the stair
+  step moving (2 of 453: babel_plus's places left as they are), and with
+  fight's own strafing (its dodge, kept). Fixed in the word: the score
+  `enemy_visible [secs]` stays up that long after the last man left its
+  sight, fading (the same 3 s as under_fire); babel's top pick reads it,
+  and babel_contact has "just gone behind something: here, watching".
+  After: 13 leaf changes, 15 goal changes, 1.2-1.4 reversals; stairs
+  whole at 66-70 s as before; captures 3-0 / 1-0 / 0-0 over the three
+  10-minute games (one game each: not read as a trend).
+  TOWERS: dig_weakest keeps the one decision of WHERE (the server's cull)
+  and now cuts by the cheapest it has, block by block: a weapon the tree
+  names (`dig_weakest @breach 6 rocket`: the server's "inv rocket x y
+  z", at a block in its sight), a grenade that lands with the block in
+  the server's 3x3x3 crater, thrower clear (bc_grenade_lands, the arc
+  solver's burst flown through the map; aimed at an open face, top
+  first), else the spade; of the blocks that drop the most it takes one
+  it can cut from where it stands. A hand grenade reaches nothing 17 or
+  more over the thrower: a propped stair's weak point (high) is a
+  rocket's, a plain one's (low, where it leaves the ground) a grenade's.
+  babel.bt: babel_cut, the greedy using a rocket, missile, grenade
+  launcher or airstrike they hold. build_test: a plain stair dropped by
+  grenades from 22 off (74 blocks in 3.1 s), a propped one by a rocket
+  from 40 off (40 at once), neither climbed; with nothing in hand the
+  spade, as before. Not done: gunfire at blocks -- LSd takes a gun's
+  "destroy" on the client's word (it counts the round); a bot has no
+  client, and lib_botlink has no honest path for it yet (the rounds
+  really fired at a block in sight, the hits a block takes counted).

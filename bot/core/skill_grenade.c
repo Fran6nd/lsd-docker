@@ -29,6 +29,7 @@
  * of 0.75 - 0.45 x skill s; skill under 0.2 (levels 1-2) does not notice.
  */
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "brain.h"
@@ -187,18 +188,48 @@ int bc_grenade_target(bc_bot *b, bl_vec3 *out)
 bt_status bc_do_throw(void *bot, const bt_args *a, float dt)
 {
 	bc_bot *b = bot;
+	bl_vec3 mark = bc_me(b)->pos;           /* (in hand: the mark is the throw's, kept) */
+
+	(void)dt;
+	if (b->nade.phase == 0 &&
+	    (a->count > 0 ? !bc_place_of(b, a->text[0], &mark) : !bc_grenade_target(b, &mark)))
+		return BT_FAILURE;
+	return bc_throw_at(b, mark, 0);
+}
+
+/* Would a grenade thrown from `from` at `mark`, going off as it arrives,
+ * take the voxel (x, y, z) in its crater (the server's 3x3x3)? The arc's
+ * own burst, flown through the map (it lands on what it hits) -- and
+ * clear of the thrower. 1 with the throw in vel/flight. */
+int bc_grenade_lands(const bc_map *m, bl_vec3 from, bl_vec3 mark, int x, int y, int z,
+                     bl_vec3 *vel, float *flight)
+{
+	bl_vec3 burst;
+
+	if (!bc_grenade_plan(m, from, mark, vel, flight, &burst))
+		return 0;
+	burst = bc_grenade_fly(m, from, *vel, *flight + G_STEP);
+	return abs((int)floorf(burst.x) - x) <= 1 && abs((int)floorf(burst.y) - y) <= 1 &&
+	       abs((int)floorf(burst.z) - z) <= 1 && bc_grenade_damage(m, burst, from) <= 25.0f;
+}
+
+/* A grenade at a point. At men (crater 0): a burst that would hurt them
+ * there, as a player of its skill judges it. At a BLOCK (crater 1, the
+ * server's 3x3x3): a burst whose voxel takes the block -- one that lands
+ * and goes off there. SUCCESS thrown; RUNNING in hand; FAILURE none, not
+ * yet again, no arc that does it, or it would be in the blast itself. */
+bt_status bc_throw_at(void *bot, bl_vec3 mark, int crater)
+{
+	bc_bot *b = bot;
 	bc_engine *e = b->e;
 	const bl_player *me = bc_me(b);
 	float skill = bc_level(b->level)->grenade;
 
-	(void)dt;
 	if (b->nade.phase == 0) {
-		bl_vec3 mark, vel, burst;
+		bl_vec3 vel, burst;
 		float flight, fuse, d;
 
 		if (e->now < b->nade.cd_until || me->grenades == 0 || !e->have_map)
-			return BT_FAILURE;
-		if (a->count > 0 ? !bc_place_of(b, a->text[0], &mark) : !bc_grenade_target(b, &mark))
 			return BT_FAILURE;
 		d = d3(mark, me->pos);
 		mark.x += bc_rng_range(&b->rng, -1.0f, 1.0f) * d * 0.13f * (1.0f - skill);
@@ -207,8 +238,13 @@ bt_status bc_do_throw(void *bot, const bt_args *a, float dt)
 			b->nade.cd_until = e->now + 1.0;
 			return BT_FAILURE;
 		}
-		fuse = flight + (3.0f - flight) * (1.0f - skill) +
-		       bc_rng_range(&b->rng, -0.15f, 0.15f) * (1.0f - skill);
+		if (crater) {
+			/* on arrival: it bursts where it lands */
+			fuse = flight + G_STEP;
+		} else {
+			fuse = flight + (3.0f - flight) * (1.0f - skill) +
+			       bc_rng_range(&b->rng, -0.15f, 0.15f) * (1.0f - skill);
+		}
 		if (fuse < 0.35f) fuse = 0.35f;
 		if (fuse > 3.0f) fuse = 3.0f;
 		burst = bc_grenade_fly(e->map, me->pos, vel, fuse);
@@ -216,7 +252,10 @@ bt_status bc_do_throw(void *bot, const bt_args *a, float dt)
 			b->nade.cd_until = e->now + 1.5;
 			return BT_FAILURE;
 		}
-		if (bc_grenade_damage(NULL, burst, mark) < 22.0f + 35.0f * skill) {
+		if (crater ? (abs((int)floorf(burst.x) - (int)floorf(mark.x)) > crater ||
+		              abs((int)floorf(burst.y) - (int)floorf(mark.y)) > crater ||
+		              abs((int)floorf(burst.z) - (int)floorf(mark.z)) > crater)
+		           : bc_grenade_damage(NULL, burst, mark) < 22.0f + 35.0f * skill) {
 			b->nade.cd_until = e->now + 1.0;
 			return BT_FAILURE;
 		}

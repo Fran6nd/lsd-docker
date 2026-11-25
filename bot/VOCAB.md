@@ -122,7 +122,8 @@ For `option <trait> <score>`: 0 to 1, how much the situation calls for the optio
 - **`night_vision`** -- 1 by night for a bot that has night vision
 - **`hit_in_dark`** -- 1 by night for a bot with no night vision that was hit in the last 8 s
 - **`always`** -- 1
-- **`enemy_visible`** -- 1 with an enemy in sight, else 0
+- **`enemy_visible [secs]`** -- 1 with an enemy in sight; with secs, for that long after the last one left its sight, fading to 0 (a fight is not dropped between two peeks); else 0
+  - `secs`: a number; left out: 0
 - **`enemy_known`** -- how sure it is of an enemy it cannot see: 1 fresh, fading to 0; 0 with one in sight
 - **`enemy_near [voxels]`** -- 1 with an enemy in sight at arm's length, falling to 0 at that distance (default 60)
   - `voxels`: a number; left out: 60
@@ -261,9 +262,10 @@ For `do`. Each says what it answers: RUNNING while it goes on, SUCCESS or FAILUR
   - `place`: a [place](#places); must be given
 - **`put_at <place>`** -- put a block at the voxel at the place (a script names a block: x y z) as a player places one: against a solid neighbour's face it sees, within reach, standing on the nearest floor round it from which that is so -- for a block that is not a floor to stand on (a pillar under a stair, a second row beside one; build_at makes floors). The setting edit must allow building. SUCCESS there (or was); FAILURE no such place, building not allowed, no block in hand, nowhere to place it from, no way there, 15 s
   - `place`: a [place](#places); must be given
-- **`dig_weakest <place> [voxels]`** -- break a structure where it falls most: of the blocks within that of the place a player could dig (a face open to the air), the one whose removal drops the most of what stands on it -- the server's own collapse, run on the bot's map; with no such block (two wide, propped) a cut a block wide, it and one beside it. Chosen when it starts, dug as dig_at digs (the setting edit must allow digging). SUCCESS the cut made; FAILURE nothing there falls, digging not allowed, no way near, 15 s on a block
+- **`dig_weakest <place> [voxels] [item]`** -- break a structure where it falls most: of the blocks within that of the place it could cut (a face open to the air -- in its sight, with a grenade or the item in hand; else one a floor in reach digs), the one whose removal drops the most of what stands on it -- the server's own collapse, run on the bot's map; with no such block (two wide, propped) a cut a block wide, it and one beside it. Chosen when it starts. Cut by the cheapest it has: the item named (a rocket...: `inv <item> x y z`), a grenade landing on it (the server's 3x3x3), from where it stands and clear of the blast; else the spade, as dig_at digs (the setting edit must allow digging). SUCCESS the cut made; FAILURE nothing there falls, digging not allowed, no way near, 15 s
   - `place`: a [place](#places); must be given
   - `voxels`: a number; left out: 6: what is dug standing about the place -- the server's reach of 5, and a step
+  - `item`: a word; left out: none: its grenades, else the spade
 - **`reload`** -- reload now if the magazine is not full. SUCCESS asked, FAILURE nothing to do
 
 ## Traits
