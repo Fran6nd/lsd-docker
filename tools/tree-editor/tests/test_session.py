@@ -158,8 +158,9 @@ def test_a_whole_session_runs_nothing_outside_the_allowed_set(session, fake):
     assert {t for _, t in acts} == {cid, name}
     assert collections.Counter(acts) == {
         ("volume inspect", name): 4,   # before each use of the volume: two set-up runs, the server's run, its removal
-        ("inspect", cid): 16,          # before each command on the container
-        ("exec", cid): 14, ("logs", cid): 1, ("rm", cid): 1, ("volume rm", name): 1}
+        ("inspect", cid): 17,          # before each command on the container
+        # revert_all is two commands now (--all, then --each for the bots given a tree of their own)
+        ("exec", cid): 15, ("logs", cid): 1, ("rm", cid): 1, ("volume rm", name): 1}
     assert acts[-4:] == [("inspect", cid), ("rm", cid), ("volume inspect", name), ("volume rm", name)]
     execs = [c[c.index(cid) + 1:] for c in calls if c[0] == "exec"]
     assert all(e[0] in ("lsdctl", "bttree") for e in execs)

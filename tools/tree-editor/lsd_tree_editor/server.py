@@ -566,8 +566,16 @@ class Session:
         return self._json(["apply", "-", "--all"], text, timeout=60)
 
     def revert_all(self) -> dict:
+        """Every bot back to the game's tree: the world's tree reverted, and
+        each bot that was given one of its own (`--all` alone leaves those)."""
         self._need()
-        return self._json(["revert", "--all"], timeout=60)
+        world = self._json(["revert", "--all"], timeout=60)
+        try:
+            each = self._json(["revert", "--each"], timeout=60)
+            world["bots"] = each.get("bots", world.get("bots", []))
+        except ServerError:
+            pass                               # no engine bot: nothing more to give back
+        return world
 
     @staticmethod
     def _whom(bots: list[int] | None = None, team: int | None = None, kind: str | None = None) -> list[str]:

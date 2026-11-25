@@ -862,7 +862,7 @@ class Diagram(QGraphicsView):
         self.b_fold = tb("Unfold all", "Show every node again", self.unfold_all)
         self.b_map = tb("Map", "Show or hide the map of the whole tree", self.toggle_map)
         self.b_map.setCheckable(True)
-        self.b_map.setChecked(True)
+        self.b_map.setChecked(False)
         self.overview = Overview(self)
         self.message = QLabel(self)
         self.message.setWordWrap(True)

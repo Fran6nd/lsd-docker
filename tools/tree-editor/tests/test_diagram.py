@@ -224,7 +224,7 @@ def test_apply_to_the_selected_bots_a_team_a_kind(window, fake):
 def test_who_chooses_what(window, real, monkeypatch):
     load(window)
     window.diagram.set_root("tdm_contact")
-    window.side_tabs.setCurrentWidget(window.tuning)
+    window.side_tabs.setCurrentWidget(window.tuning_tab)
     window.diagram.select(("tdm_contact", ()), emit=True)
     assert until(lambda: window.tuning.result is not None and window._busy == 0)
     assert "enemy_visible" in window.tuning.sliders

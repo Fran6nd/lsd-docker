@@ -23,7 +23,7 @@ from PySide6.QtGui import QAction, QActionGroup, QColor, QKeySequence, QPalette
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QDialog, QDialogButtonBox,
                                QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog,
                                QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPlainTextEdit, QProgressBar,
-                               QPushButton, QRadioButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
+                               QPushButton, QRadioButton, QScrollArea, QSpinBox, QSplitter, QFrame, QTableWidget, QTableWidgetItem,
                                QTabWidget, QToolBar, QTreeView, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from . import model as M
@@ -165,8 +165,8 @@ class MainWindow(QMainWindow):
         self._bridge = _Bridge()
         self._bridge.done.connect(self._finished)
 
-        self.resize(1480, 900)
         self._build()
+        self._fit_to_screen()
         self._refresh_title()
         self._refresh_server()
 
@@ -179,7 +179,7 @@ class MainWindow(QMainWindow):
         self._log_timer.timeout.connect(self._pump_log)
         self._log_timer.start()
 
-        self.set_theme(None)
+        self._restore_state()
         self.new_document(ask=False)
         if session.swept:
             self.status("Removed what an earlier run of the tree editor had left: " + ", ".join(session.swept))
@@ -488,9 +488,14 @@ class MainWindow(QMainWindow):
         self.side_tabs = QTabWidget()
         self.side_tabs.addTab(self.panel, "Properties")
         self.side_tabs.addTab(outline_side, "Outline")
-        self.side_tabs.addTab(self.tuning, "Who chooses what")
+        tuning_scroll = QScrollArea()
+        tuning_scroll.setWidgetResizable(True)
+        tuning_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        tuning_scroll.setWidget(self.tuning)
+        self.tuning_tab = tuning_scroll
+        self.side_tabs.addTab(tuning_scroll, "Who chooses what")
         self.side_tabs.currentChanged.connect(lambda *_: self.tuning.changed())
-        right_side = QSplitter(Qt.Orientation.Vertical)
+        right_side = self.right_side = QSplitter(Qt.Orientation.Vertical)
         right_side.addWidget(text_side)
         right_side.addWidget(self.side_tabs)
         right_side.setSizes([400, 400])
@@ -501,28 +506,28 @@ class MainWindow(QMainWindow):
         self.left_tabs.setCurrentIndex(1)
         left.setMaximumWidth(16777215)
         left.setMinimumWidth(0)
-        self.left_tabs.setMinimumWidth(240)
-        self.left_tabs.setMaximumWidth(280)
+        self.left_tabs.setMinimumWidth(200)
         self.left_tabs.resize(250, 600)
 
-        top = QSplitter(Qt.Orientation.Horizontal)
+        top = self.top_split = QSplitter(Qt.Orientation.Horizontal)
         top.addWidget(diagram_side)
         top.addWidget(right_side)
         top.setStretchFactor(0, 1)
         top.setSizes([880, 440])
-        bottom = QSplitter(Qt.Orientation.Horizontal)
+        bottom = self.bottom_split = QSplitter(Qt.Orientation.Horizontal)
         bottom.addWidget(self.lower_tabs)
         bottom.addWidget(bots_side)
         bottom.setSizes([430, 760])
-        right = QSplitter(Qt.Orientation.Vertical)
+        right = self.main_split = QSplitter(Qt.Orientation.Vertical)
         right.addWidget(top)
         right.addWidget(bottom)
         right.setSizes([760, 170])
-        central = QWidget()
-        h = QHBoxLayout(central)
-        h.setContentsMargins(4, 4, 4, 4)
-        h.addWidget(self.left_tabs)
-        h.addWidget(right, 1)
+        central = self.outer_split = QSplitter(Qt.Orientation.Horizontal)
+        central.setContentsMargins(4, 4, 4, 4)
+        central.addWidget(self.left_tabs)
+        central.addWidget(right)
+        central.setStretchFactor(1, 1)
+        central.setCollapsible(1, False)
         self.setCentralWidget(central)
 
         self.spinner = QProgressBar()
@@ -592,9 +597,11 @@ class MainWindow(QMainWindow):
         sep()
         self.act_edit_words = action("Edit its words", lambda: self.side_tabs.setCurrentWidget(self.panel)
                                      or self.panel.setFocus(), "F2")
-        self.act_insert_after = action("Insert after it...", lambda: self.insert_node("after"), "Ins")
+        self.act_insert_after = action("Insert after it...", lambda: self.insert_node("after"), "Ctrl+I")
+        self.act_insert_after.setShortcuts([QKeySequence("Ctrl+I"), QKeySequence("Ins")])
         self.act_insert_before = action("Insert before it...", lambda: self.insert_node("before"))
-        self.act_insert_child = action("Add a child...", lambda: self.insert_node("child"), "Shift+Ins")
+        self.act_insert_child = action("Add a child...", lambda: self.insert_node("child"), "Ctrl+Shift+I")
+        self.act_insert_child.setShortcuts([QKeySequence("Ctrl+Shift+I"), QKeySequence("Shift+Ins")])
         self.act_move_up = action("Move earlier (Alt+arrow)", lambda: self._move_selected(-1))
         self.act_move_down = action("Move later (Alt+arrow)", lambda: self._move_selected(1))
         sep()
@@ -609,6 +616,7 @@ class MainWindow(QMainWindow):
         self.act_paste = action("Paste after it", lambda: self.paste("after"), QKeySequence.StandardKey.Paste)
         self.act_paste_child = action("Paste as its child", lambda: self.paste("child"))
         self.act_delete = action("Delete", self.delete_selected, QKeySequence.StandardKey.Delete)
+        self.act_delete.setShortcuts([QKeySequence(QKeySequence.StandardKey.Delete), QKeySequence("Backspace")])
         sep()
         self.act_rename = action("Rename this tree...", self.rename_tree)
         edit_menu = self.menuBar().addMenu("Edit")
@@ -627,8 +635,11 @@ class MainWindow(QMainWindow):
             view_menu.addAction(a)
         view_menu.addSeparator()
         group = QActionGroup(self)
+        self._theme_actions = []
         for text, theme in (("Colours of the system", None), ("Light", False), ("Dark", True)):
             a = QAction(text, self, checkable=True)
+            a.setData({None: "system", False: "light", True: "dark"}[theme])
+            self._theme_actions.append(a)
             a.setChecked(theme is None)
             a.triggered.connect(lambda *_, t=theme: self.set_theme(t))
             group.addAction(a)
@@ -1237,8 +1248,13 @@ class MainWindow(QMainWindow):
                 dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
             except AttributeError:
                 dark = self.palette().window().color().lightness() < 128
-        if self._theme is not None and app is not None:
-            app.setPalette(_dark_palette() if dark else app.style().standardPalette())
+        if app is not None:
+            if not hasattr(self, "_system_palette"):
+                self._system_palette = QPalette(app.palette())
+            if self._theme is None:
+                app.setPalette(self._system_palette)
+            else:
+                app.setPalette(_dark_palette() if dark else app.style().standardPalette())
         self.diagram.set_theme(dark)
         self.editor.highlighter.set_dark(dark)
 
@@ -1594,6 +1610,59 @@ class MainWindow(QMainWindow):
 
     # ---- closing: the server goes first ------------------------------------------------
 
+    # ---- the window's shape, kept between runs ----------------------------------------
+
+    def _fit_to_screen(self) -> None:
+        """A first size that fits the screen: a 13-inch laptop is 1440 x 900 points."""
+        screen = QApplication.primaryScreen()
+        area = screen.availableGeometry() if screen else None
+        w, h = 1480, 920
+        if area is not None and area.width() > 200:
+            w, h = min(w, area.width() - 40), min(h, area.height() - 40)
+        self.size_for(w, h)
+
+    def size_for(self, w: int, h: int) -> None:
+        """The window and its panes for a size: the diagram gets what the others leave."""
+        self.resize(w, h)
+        left = 240 if w < 1500 else 260
+        text = 380 if w < 1500 else 440
+        self.top_split.setSizes([w - left - text - 20, text])
+        self.main_split.setSizes([h - 90 - (150 if h < 950 else 180), 150 if h < 950 else 180])
+        self.right_side.setSizes([(h - 260) * 11 // 20, (h - 260) * 9 // 20])
+        self.outer_split.setSizes([left, w - left])
+        self.bottom_split.setSizes([(w - left) * 2 // 5, (w - left) * 3 // 5])
+
+    def _restore_state(self) -> None:
+        st = self.settings
+        try:
+            if st.value("geometry"):
+                self.restoreGeometry(st.value("geometry"))
+            for name in ("outer_split", "top_split", "bottom_split", "main_split", "right_side"):
+                if st.value("split/" + name):
+                    getattr(self, name).restoreState(st.value("split/" + name))
+        except (TypeError, ValueError):
+            pass
+        view = st.value("view", "A")
+        self.set_view(view if view in ("A", "B") else "A")
+        theme = st.value("theme", "system")
+        self.set_theme({"light": False, "dark": True}.get(theme))
+        for a in self._theme_actions:
+            a.setChecked(a.data() == theme)
+
+    def _save_state(self) -> None:
+        st = self.settings
+        st.setValue("geometry", self.saveGeometry())
+        for name in ("outer_split", "top_split", "bottom_split", "main_split", "right_side"):
+            st.setValue("split/" + name, getattr(self, name).saveState())
+        st.setValue("view", self.diagram.view)
+        st.setValue("theme", {None: "system", False: "light", True: "dark"}[self._theme])
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        if event.type() == event.Type.ActivationChange and hasattr(self, "_poll"):
+            # the roster asked less often while the window is not in front (each ask is logged by botd)
+            self._poll.setInterval(2000 if self.isActiveWindow() else 10000)
+
     def closeEvent(self, event) -> None:
         if self._may_close:
             event.accept()
@@ -1611,6 +1680,7 @@ class MainWindow(QMainWindow):
             return
         self._closing = True
         self._poll.stop()
+        self._save_state()
         had_server = self.session.instance is not None
         self.centralWidget().setEnabled(False)
         self.menuBar().setEnabled(False)

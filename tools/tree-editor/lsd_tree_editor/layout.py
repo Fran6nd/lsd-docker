@@ -4,7 +4,7 @@
 
 - **A, top-down** (the main one): a parent above its children, the
   children left to right in their order, every card the same width.
-  A parent of many children none of which shows children of its own
+  A parent of more than three children none of which shows children of its own
   (a pick's options, folded or leaves) stacks them in a numbered column
   under it instead: a pick of 13 options is not 3,800 px wide.
 - **B, left to right**: a parent left of its children, the children top
@@ -49,7 +49,7 @@ FRAME_HEAD = 22.0         # the frame's title line
 A_WIDTH = 268.0
 A_HGAP = 22.0
 A_VGAP = 48.0
-A_COLUMN = 4              # more children than this, all without children shown: a column
+A_COLUMN = 3              # more children than this, all without children shown: a column
 A_INDENT = 26.0
 A_COL_GAP = 10.0
 # B

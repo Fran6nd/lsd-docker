@@ -86,7 +86,8 @@ class TuningPanel(QWidget):
     # -- when to run
     def shown(self) -> bool:
         tabs = getattr(self.window, "side_tabs", None)
-        return tabs is not None and tabs.currentWidget() is self
+        return tabs is not None and tabs.currentWidget() is not None and \
+            self in (tabs.currentWidget(), getattr(tabs.currentWidget(), "widget", lambda: None)())
 
     def document_changed(self) -> None:
         self.changed()
