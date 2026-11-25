@@ -23,5 +23,11 @@ Upstream LSd modules, patched. Copied over upstream's at every start.
                Reads the block whole; an incomplete one is none. Report
                upstream (lib_pyscrape's get_ext reads one line only).
 
+  tentspawns.lua
+               A spawn is not put on a thin layer floating far above
+               the tent (a slab in the sky over air deeper than a safe
+               fall: keidoro's at z 0): the floor under it instead.
+               Report upstream.
+
 Each one is a whole file, so after `dev/bump-lsd.sh` re-apply the patch
 onto upstream's new copy (git -C lsd diff OLD..NEW -- scripts/<file>).

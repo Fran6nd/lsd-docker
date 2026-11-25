@@ -2127,6 +2127,24 @@ static void watchdog(bc_engine *e, bc_bot *b, const bc_body *body, int nav, cons
 			if (b->unstick.until - e->now > 0.45)
 				*keys |= BL_K_JUMP;
 		}
+		{
+			/* not off an edge: the way these keys take the body, for the
+			 * facing it has, must keep its feet up (a step back off a
+			 * slab's edge killed a bot, 2026-11-25) -- else it stands */
+			float fx = me->ori.x, fy = me->ori.y, fl = sqrtf(fx * fx + fy * fy);
+			float f = (float)((*keys & BL_K_FORWARD) != 0) - (float)((*keys & BL_K_BACK) != 0);
+			float r = (float)((*keys & BL_K_RIGHT) != 0) - (float)((*keys & BL_K_LEFT) != 0);
+
+			if (fl > 1e-4f && (f != 0.0f || r != 0.0f)) {
+				float mx, my;
+
+				fx /= fl; fy /= fl;
+				mx = fx * f - fy * r;
+				my = fy * f + fx * r;
+				if (!bc_walk_safe(b, mx, my))
+					*keys &= (uint8_t)~(15 | BL_K_JUMP);
+			}
+		}
 	}
 }
 

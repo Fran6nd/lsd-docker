@@ -968,6 +968,13 @@ static void try_move(bc_nav_search *s, uint32_t ci, bc_nav_node a, int mvi, int 
 
 	if (mvi < 0 || !nav_move_fits(s->t, s->m, mvi, a, dir))
 		return;
+	/* no jumping in the top band of the map (a floor under 3: the head
+	 * over the map's top): the moves were measured lower down, and a run
+	 * and jump across a gap of keidoro's sky slab fell short and killed
+	 * the bot (2026-11-25) */
+	if ((s->t->mv[mvi].kind == BC_NAV_JUMP || s->t->mv[mvi].kind == BC_NAV_RUNJUMP) &&
+	    (a.z < 3 || a.z + s->t->mv[mvi].dz < 3))
+		return;
 	edge_from_move(s, ci, &e, a, mvi, dir);
 	relax(s, ci, a, &e);
 }

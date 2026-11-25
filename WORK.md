@@ -175,3 +175,13 @@ DONE (commit), BLOCKED (on what).
   scenario and the soak. keidoro's sky slab: no way a player could build
   (the nearest top 20 under it) -- stranded, holds. Spawn on the slab and
   the net's step-back off edges next.
+- 2026-11-25 (brain agent): the spawn on a sky slab: catalog/overrides/
+  tentspawns.lua (upstream's, patched) takes the floor under a thin layer
+  (3 voxels or fewer) floating more than 9 over the tent with more than 9
+  of air under it -- for anybody, person or bot; tests/tentspawns_test.lua.
+  The net's step back and sidestep never walk off an edge; no jumping in
+  the map's top band (a run and jump across a gap of keidoro's slab fell
+  short). A stranded bot's capped search is taken as no way (no bridge
+  built toward nowhere, no long search) and it is shut in 30 s at a time:
+  keidoro, 3 bots stranded 5 minutes with edit=all, about 27 000
+  expansions a minute each (450 a second); with edits off 8 000.

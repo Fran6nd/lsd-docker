@@ -365,6 +365,14 @@ static void plan_done(bc_bot *b, int st)
 		}
 		if (capped) e->stats.plan_caps++;
 		else e->stats.plan_fails++;
+		if (capped && e->now < mv->stranded_until) {
+			/* stranded: a capped search is not walked (a bridge built
+			 * toward nowhere) nor followed by the long one -- it is taken
+			 * as no way, and the bot stays stranded (what one costs at
+			 * 230 bots: one capped search in 30 s) */
+			capped = 0;
+			e->stats.plan_fails++;
+		}
 		if (capped && mv->nocap) {
 			/* the long search found no way either: as good as none */
 			capped = 0;
@@ -385,8 +393,9 @@ static void plan_done(bc_bot *b, int st)
 			mv->noway_at = e->now;
 			if (++mv->noway >= 3) {
 				mv->noway = 2;          /* the next one that fails shuts it in again */
-				mv->shut_until = e->now + 15.0;
-				mv->stranded_until = e->now + 30.0;
+				/* shut in again while still stranded: twice as long */
+				mv->shut_until = e->now + (e->now < mv->stranded_until ? 30.0 : 15.0);
+				mv->stranded_until = e->now + 45.0;
 				e->stats.shut_in++;
 			}
 			mv->state = BC_MV_FAILED;
