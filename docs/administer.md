@@ -106,6 +106,18 @@ lsdctl set engine_bots_traits "'aggression:1.5'"    # every bot's weights, scale
 lsdctl set engine_bots_edit "'dig'"                 # what a bot's route may do to the map: dig, build, all
 ```
 
+The bots think in a process of their own beside the server (`botd`),
+whose heaviest work is finding routes on a big map. It searches up to
+four routes at once on as many threads; how many it uses is read when
+it starts, and does not change what the bots do, only how soon their
+routes come:
+
+```sh
+lsdctl set botlink_threads 2    # 0 (the default): half the cores the container sees, at most 4; 1: none beside its own
+```
+
+(`set` restarts the server, and botd with it.)
+
 And on the bots that are playing, with no restart:
 
 ```sh

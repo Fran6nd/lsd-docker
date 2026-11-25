@@ -345,6 +345,91 @@ ctf:115 makes no capture in four games of 300 s (115 a side on a pitch
 made for 10: the bench's town is 150 voxels across). Not looked at here:
 it is the trees' (item 13).
 
+## (c3) PARALLEL: the route board and the planner on threads (2026-11-25, WORK.md item 20)
+
+The owner asked: "search for optimization doable for the server:
+multi threading bots? like have 4 parallel threads?" Two things were
+built, both of them: ONE SEARCH FOR A TEAM GOING THE SAME WAY (the route
+board, core/routes.h) and THE PLANNER ON THREADS (botd --threads,
+botd/pool.h, engine.h "THE PLANNER'S WORK AS UNITS").
+
+**Where the time goes, before** (bench, M-series laptop, load about 4 on
+14 cores, quiet; think = one bc_engine_think; planner = the searches'
+units, timed by the bench's runner):
+
+| scene | think mean us | planner share of a think | what the rest is |
+|---|---|---|---|
+| map230:prisonbreakv1 | 3050 | 63% | decide (sight, trees), act |
+| ctf:115 | 1770 | 26% | sight on a crowded town |
+| arena230 (flat) | 1540 | 5% | sight: bc_lsd__cast_ray 55% of all time ((c2)) |
+
+The server process (LSd, C and LuaJIT, one thread) was read for what
+could leave its thread: little. A World Update is a 255-slot loop and a
+memcpy for each PERSON (none for a bot since item 18/21), sent
+uncompressed (ENet's range coder is off); the map's compression for a
+joining client is OpenMP-parallel already and happens at a join; the
+map file botd reads is written once a map. ENet is not thread-safe and
+every send comes from Lua, so moving sends off the thread would need a
+queue in front of ENet for a few percent of a tick. What costs the
+server at 230 bots is Lua's per-tick work and the C physics ((c2)),
+which share the Lua state: nothing to run beside it. **So: nothing on
+the server; the work is in botd.**
+
+**What repeats.** A plan log of map230 (60 s, every search's start,
+goal, team and cost): 37% of the plans, holding 52% of the expansions,
+were begun within 2 s of a team-mate's search to the SAME goal node from
+within 16 columns (within 32: 40% / 56%; goals within 2 columns: 48% /
+57%). On arena230: 15% / 12%. Estimated gain of a board: up to half the
+planner's expansions on a real map; measured: 16% (a join is a search
+too, and a route is handed on only under the same rules -- see
+routes.h, THE SAME QUESTION).
+
+**Candidates, estimated then measured** (map230, think mean):
+
+| | estimate | measured | decisions |
+|---|---|---|---|
+| route board (plan.share=1) | planner -30 to -50% | planner -28%, think -18% (3050 -> 2500 us); expansions -16%; waiting for a route 2.8 -> 1.4% | change (they are the point) |
+| planner on 4 threads | planner / 2 to / 3 (4 search slots at most, unequal units) | planner -55% (1930 -> 875 us with or without the board), think -35% (3050 -> 1975 us) | identical, think for think |
+| both | | think -35% (1975 us): with 4 threads the think waits on its longest unit, which the board does not shorten; the board's gain is then CPU (fewer expansions) and routes sooner (waiting halved) | |
+| 2 threads | | think 2130 us (-30%) | identical |
+| sight in parallel (not built) | arena230 think -40% at 4 threads (sight 55% of it) | -- | needs a two-phase sight: the rays per bot apart, then the team board's reads and writes in bot order (senses.c writes the board as it sees) |
+
+Measured twice each, the same within 4%; worst thinks 8.5 to 11 ms in
+every setting (not the planner: the decide burst). With every bot
+deciding sight-heavy on a flat field, the threads buy nothing (planner
+5%).
+
+**Determinism.** The board is engine state, read and written in the
+planner's fixed order. The units of one pass of the budget get equal
+shares fixed before any runs, and what they found is applied after, in
+the slots' bots' order (longest waiting first); a thin budget's units go
+one at a time. So: the bench's deterministic metrics are identical at 1,
+2 and 4 threads (map230, arena230, ctf:115: every line but think_*);
+tests/parallel_test.c hashes every intent of every think of a 20-a-side
+game at 0 (no runner), 1, 2, 3 and 4 threads, board on and off, budget
+shared and thin: the same hash; under ThreadSanitizer (gcc 14, Linux) it
+reports nothing. With plan.share=0 the engine is master's, metric for
+metric over every scene of the bench.
+
+**The bench, board on (deterministic; before -> after, 120 s / 4 games):**
+
+| scene | plans (own) | joins | expansions | waiting % | no key % | kills |
+|---|---|---|---|---|---|---|
+| map230:prisonbreakv1 | 9730 -> 8559 | 2668 | 52.8M -> 44.2M | 2.8 -> 1.4 | 24.5 -> 23.4 | 328 -> 305 |
+| arena230 | 6281 -> 5703 | 510 | 821k -> 651k | 5.1 -> 5.2 | 25.7 -> 25.9 | 358 -> 372 |
+| ctf:115 | | | | 5.2 -> 5.2 | 21.0 -> 21.2 | 8895 -> 8724 |
+| map:CubeMaze (40) | 995 -> 998 | 71 | | 6.9 -> 4.5 | 54.5 -> 54.8 | 3 -> 3 |
+| map:prisonbreakv1 (40) | 2107 -> 1880 | 322 | | 1.6 -> 2.4 | 14.2 -> 14.3 | 54 -> 53 |
+
+The default scenes move as any change to routes moves them: ctf:10 11 ->
+7 captures (4 of 4 games with one still), fight20 to the last man 30 ->
+21 s, sea40 wading 14 -> 26%. arena230's head-on-heading 40 -> 18% is
+not the board: at 230 on a flat field a bot is hardly ever travelling
+with nobody in sight (about 600 samples in the whole run), and those on
+joined routes were 79% on their heading (instrumented).
+
+LIVE_TABLE_HERE
+
 ## (d) WHAT THE SERVER MAY SEND (BL_EV_SET, "key=value")
 
 `*` = may be sent for one bot (pid) as well as for everybody. engine.c's

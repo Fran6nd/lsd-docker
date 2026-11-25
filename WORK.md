@@ -51,6 +51,7 @@ DONE (commit), BLOCKED (on what).
 | 17 | Hostage gamemode: the hostages as engine bots with a tree of their own (botlink_add with a tree), falling back to today's lib_bot hostages with no engine; guards kept | REVIEW (brain agent, 2026-11-25) |
 | 18 | 230 bots without lag: botd sized for every seat, the planner's budget grown with the fleet, nothing built or walked for a bot on the server's send paths | REVIEW (scale agent): branch commits; numbers in BRAIN-STATUS.md (c2) |
 | 19 | Structural review of the fast fixes (the owner's rule: no quick hacks, one rule in one place) | REVIEW (review agent): see the 2026-11-25 log |
+| 20 | Server optimisation, "4 parallel threads?": the route board (a team's bots going the same way share one search) and the route planner on botd's threads, deterministic at any thread count | REVIEW (parallel agent): branch commits; numbers in BRAIN-STATUS.md (c3) |
 | 21 | Never send a packet to a bot, nor the same packet to each: lib_bot is the one broadcaster (`broadcast`, `broadcast_each`, `people_in`), the guard counts what a script still sends at a bot, a test fails on any | REVIEW (bcast agent): branch commits; the core's own per-slot loops need C (see the log) |
 
 ## Log
