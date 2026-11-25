@@ -409,39 +409,75 @@ function mod.after.on_block_line(pid, startp, endp)
 	refill_bot(pid);
 end
 
---======================= EFFECTS BREAK NOTHING =======================--
--- A rocket's crater or a railgun is the server breaking blocks, which
--- babel.lua and babel_protect never see: they guard what PLAYERS do.
--- So the same rules again, at the gate every effect goes through
--- (PlayerEffect.break_blocks): the platform is never broken, and a
--- team's tower area is not broken by that team -- nor by the world's
--- own effects, which have no team. A grenade (type 3) reaches one block
--- around its centre, so it is kept that far off, as babel.lua does.
-local function near_box(pos, a, b, m)
+--=========================== WHAT BABEL KEEPS ==========================--
+-- Babel's protections, said once, to the one question every edit answers
+-- (lib_block_filter): so they hold for a player's spade, a grenade, a
+-- bot's dig, a rocket, a railgun or a script alike. Upstream's babel and
+-- babel_protect still refuse a player's own action, with their message.
+--   * the platform is never broken, by anyone
+--   * a team's tower area is not broken by that team (a player with the
+--     no_babel_protect cap may), nor by the world's own effects, which
+--     have no team -- the other team may: that is the game
+--   * nobody builds on or beside the platform, nor in the other team's
+--     tower area; a script (the platform's own rebuild, its paintings)
+--     builds where it likes
+local function within(pos, a, b, m)
+	m = m or 0;
 	return pos.x >= a.x - m and pos.x <= b.x + m and pos.y >= a.y - m and pos.y <= b.y + m;
 end
 
-function mod.may_break_block(owner, pos, type)
-	local m = (type == 3) and 1 or 0;
+local function zones_of(team)
+	return (babel_protect_zones or {})[team] or {};
+end
+
+-- upstream babel's rule for a block built near the platform: its own
+-- layer, within or one beside it but for the four corners; and the
+-- layers just above and below it
+local function platform_forbids_building(pos, ps, pe)
+	if (pos.z == babel_z) then
+		local corner = (pos.x == ps.x - 1 or pos.x == pe.x + 1)
+			and (pos.y == ps.y - 1 or pos.y == pe.y + 1);
+		return within(pos, ps, pe, 1) and not corner;
+	end
+	return math.abs(pos.z - babel_z) == 1 and within(pos, ps, pe);
+end
+
+function mod.may_edit_block(who, pos, type)
 	local ps = {x = 256 - babel_width/2, y = 256 - babel_height/2};
 	local pe = {x = 255 + babel_width/2, y = 255 + babel_height/2};
-	if (pos.z >= babel_z - m and pos.z <= babel_z + m and near_box(pos, ps, pe, m)) then
-		return false;
-	end
-	local mine = owner ~= nil and get_team(owner) or nil;
-	for team = 1, 2 do
-		if (mine == nil or mine == team) then
-			for _, zone in ipairs((babel_protect_zones or {})[team] or {}) do
-				if (near_box(pos, zone[1], zone[2], m)) then
-					return false;
+	local team = who ~= nil and get_team(who) or nil;
+	if (type == 1) then
+		if (pos.z == babel_z and within(pos, ps, pe)) then
+			return false;
+		end
+		if (who == nil or has_cap == nil or not has_cap(who, "no_babel_protect")) then
+			for t = 1, 2 do
+				if (team == nil or team == t) then
+					for _, zone in ipairs(zones_of(t)) do
+						if (within(pos, zone[1], zone[2])) then
+							return false;
+						end
+					end
+				end
+			end
+		end
+	elseif (who ~= nil) then
+		if (platform_forbids_building(pos, ps, pe)) then
+			return false;
+		end
+		for t = 1, 2 do
+			if (team ~= t) then
+				for _, zone in ipairs(zones_of(t)) do
+					if (within(pos, zone[1], zone[2])) then
+						return false;
+					end
 				end
 			end
 		end
 	end
-	-- the end of the chain is lib_player_effect's yes; a server with bots
-	-- and no effect has no lib_player_effect, and nothing below this
-	local below = mod.next.may_break_block;
-	return below == nil or below(owner, pos, type);
+	-- what another script protects stays protected (the chain goes on)
+	local below = mod.next.may_edit_block;
+	return below == nil or below(who, pos, type);
 end
 
 function mod.after.tick()

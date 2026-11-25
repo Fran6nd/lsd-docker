@@ -190,6 +190,8 @@ end
 function base.on_block_action(pid, pos, type) block_action(pos, type, pid); end
 function base.block_line(a, b, from) SOLID[key(a.x, a.y, a.z)] = true; SOLID[key(b.x, b.y, b.z)] = true; end
 function base.on_block_line(pid, a, b) block_line(a, b, pid); end
+-- the line's two ends are all this engine stub builds; asked, they are all it has
+function iter_block_line(a, b) local l, i = {a, b}, 0; return function() i = i + 1; return l[i]; end; end
 function base.set_hp(pid, hp) P[pid].hp = hp; end
 function base.set_hp_directional(pid, hp, pos) P[pid].hp = hp; end
 function base.kill(pid, ktype, killer) P[pid].alive = false; rec.killed[#rec.killed + 1] = pid; end
@@ -278,6 +280,10 @@ function prot.block_action(pos, type, from)
 	if (PROTECTED[key(pos.x, pos.y, pos.z)]) then return; end
 	prot.next.block_action(pos, type, from);
 end
+function prot.may_edit_block(who, pos, type)
+	if (PROTECTED[key(pos.x, pos.y, pos.z)]) then return false; end
+	return prot.next.may_edit_block(who, pos, type);
+end
 
 local TMP = os.tmpname();
 os.remove(TMP);
@@ -293,7 +299,8 @@ local function load_modules(libpath)
 	-- a fresh lib_bot and lib_botlink each time
 	local lb = dofile("catalog/libs/bot/lib_bot.lua");
 	local bl = dofile("catalog/libs/botlink/lib_botlink.lua");
-	mods = {lb, bl, prot};
+	-- the filter every edit answers to, between the bots and the engine
+	mods = {dofile("catalog/libs/block_filter/lib_block_filter.lua"), lb, bl, prot};
 	wire();
 	lb.on_load();    -- as register() does: the people already connected
 	return lb, bl;
@@ -397,7 +404,7 @@ do
 	check(same and botlink_alive() == false, "botlink_stats untouched, the link not alive");
 	mods[#mods] = nil; wire();
 	-- what babel_plus put in the chains, out again (its hooks name
-	-- functions nothing else here has: may_break_block)
+	-- functions nothing else here has: may_edit_block)
 	for k, v in pairs(_G) do if (before[k] == nil and type(v) == "function") then _G[k] = nil; end end
 	for k, v in pairs(before) do if (type(v) == "function" and _G[k] ~= v) then _G[k] = v; end end
 	botlink_set, botlink_add = set0, add0;
@@ -707,11 +714,11 @@ P[pid].tool = 0;
 block(200, 200, 33, 1);
 step(1);
 check(not SOLID[key(200, 200, 33)], "a dig with the spade");
-may_break_block = function(p, pos2, t) return false; end
+PROTECTED[key(201, 200, 33)] = true;
 block(201, 200, 33, 1);
 step(10);
-check(SOLID[key(201, 200, 33)], "a dig may_break_block refuses: not done");
-may_break_block = nil;
+check(SOLID[key(201, 200, 33)], "a dig the filter refuses: not done");
+PROTECTED[key(201, 200, 33)] = nil;
 -- a voxel with no face open to the air, or none it can see: refused
 for _, c in ipairs{{210, 210, 40}, {211, 210, 40}, {209, 210, 40}, {210, 211, 40}, {210, 209, 40}, {210, 210, 39}, {210, 210, 41}} do
 	SOLID[key(c[1], c[2], c[3])] = true;

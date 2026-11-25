@@ -24,6 +24,9 @@ function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
 function pid_connected_table(d) return setmetatable({}, {__index = function() return d; end}); end
 function log() end
 package.loaded["lib_bulk_destroy"] = true;
+-- lib_block_filter's two contexts, which only name whom an edit is for
+function edit_as(who, fn, ...) return fn(...); end
+function server_edit(fn, ...) return fn(...); end
 
 local NOW = 100;
 function get_time() return NOW; end

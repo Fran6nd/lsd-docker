@@ -306,26 +306,27 @@ CMDS.medkit.func(1);
 check(CHAT[1] and CHAT[1][2]:find("no medkit here", 1, true), "/m without the effect: told so");
 kit.everyone = true;
 
-print("\nN. effects break blocks through one door, which asks the gate");
-local BROKE, FINISHED, ASKED = {}, 0, {};
-function bdestroy_block_action(p, t) BROKE[#BROKE+1] = {p = p, t = t}; end
-function bdestroy_finish() FINISHED = FINISHED + 1; end
-function may_break_block(owner, pos, t)
-	ASKED[#ASKED+1] = {owner = owner, t = t};
-	return pos.x ~= 13;   -- a script protects x = 13
+print("\nN. effects break blocks through one door, as their owner");
+local BROKE, FINISHED, AS = {}, 0, nil;
+function edit_as(who, fn, ...)
+	AS = {who = who};
+	local r = fn(...);
+	AS.done = true;
+	return r;
 end
-local n = PE.break_blocks(0, {{x = 10.7, y = 5, z = 20}, {x = 13, y = 5, z = 20},
+function bdestroy_block_action(p, t) BROKE[#BROKE+1] = {p = p, t = t, who = AS and AS.who, inside = AS ~= nil and not AS.done}; end
+function bdestroy_finish() FINISHED = FINISHED + 1; end
+PE.break_blocks(0, {{x = 10.7, y = 5, z = 20}, {x = 13, y = 5, z = 20},
 	{x = 11, y = 5, z = 62}, {x = -1, y = 5, z = 20}}, 3);
-eq(n, 1, "only what may be broken is broken");
+eq(#BROKE, 2, "every block on the map above the floor goes to the engine's bulk destroy");
 eq(BROKE[1] and BROKE[1].p.x, 10, "at whole-block coordinates");
 eq(BROKE[1] and BROKE[1].t, 3, "with the type asked for");
-eq(#ASKED, 2, "the gate is asked about every block on the map above the floor");
-eq(ASKED[1] and ASKED[1].owner, 0, "on behalf of the effect's owner");
+check(BROKE[1] and BROKE[1].inside and BROKE[2].inside, "inside the owner's edits (edit_as): the filter asks, not the effect");
+eq(BROKE[1] and BROKE[1].who, 0, "for the effect's owner");
 eq(FINISHED, 1, "the bulk destroy is finished once");
-BROKE, FINISHED = {}, 0;
-eq(PE.break_blocks(nil, {{x = 13, y = 5, z = 20}}, 1), 0, "a refused block alone: nothing broken");
-eq(FINISHED, 0, "and nothing to finish");
-may_break_block = nil;
+BROKE = {};
+PE.break_blocks(nil, {{x = 13, y = 5, z = 20}}, 1);
+eq(BROKE[1] and BROKE[1].who, nil, "the world's own: for nobody");
 
 L.clean(check);
 print(string.format("\n%d checks, %d failed", checks, failures));

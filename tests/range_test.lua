@@ -115,6 +115,9 @@ function is_solid(p)
 	return R.solid(range, p.x, p.y, p.z);
 end
 function get_anon_pid() return 63; end
+-- lib_block_filter's two contexts, which only name whom an edit is for
+function edit_as(who, fn, ...) return fn(...); end
+function server_edit(fn, ...) return fn(...); end
 function set_block_color(pid, c) colors[#colors + 1] = {pid = pid, c = c}; end
 function block_action(p, type, from)
 	written[vkey(p)] = type == 0;
@@ -616,10 +619,9 @@ check(#reverted == 1 and reverted[1].pos == wp and #hooks == 0 and is_solid(wp) 
 	"a bullet's or a spade's: refused, put back on the client");
 mod.late.on_block_line(0, {x = 1, y = 1, z = 40}, {x = 2, y = 1, z = 40});
 check(#reverted == 3 and reverted[3].type == 0 and #hooks == 0, "a line of blocks: every one taken back");
-mod.block_action(wp, 3, 0);
-check(#hooks == 0 and is_solid(wp), "a grenade: no crater");
-mod.block_action(wp, 1, 63);
-check(#hooks == 1 and hooks[1][1] == "block_action", "the server's own writes go through");
+check(not mod.may_edit_block(0, wp, 1) and not mod.may_edit_block(nil, wp, 1) and not mod.may_edit_block(0, wp, 0),
+	"a player's, an effect's or a script's edit of the wall: no, to the one question every edit answers to");
+check(not mod.may_edit_block(2, {x = 1, y = 1, z = 1}, 1), "and of anything else on the range");
 
 print("\n7. /best");
 L.reset();

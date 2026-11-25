@@ -391,29 +391,20 @@ local mod = init_mod();
 --========================== BREAKING BLOCKS ==========================--
 --
 -- An effect that breaks blocks -- a rocket's crater, a railgun boring
--- through walls, the Fall's shaft -- breaks them as the server, not as
--- a player, so nothing that guards blocks against players sees it:
--- babel's platform, each team's tower area, a door of the map's layout.
--- So no effect breaks a block itself. There is one door:
+-- through walls, the Fall's shaft -- is the server breaking them, on its
+-- owner's behalf. There is one door:
 --
---   PlayerEffect.break_blocks(owner, list, type)  -> how many broken
+--   PlayerEffect.break_blocks(owner, list, type)
 --        owner   the player whose effect it is, or nil for the world's
 --        list    positions {x, y, z}
 --        type    1: that block; 3: the 3x3x3 around it, a grenade's
 --
--- and behind it one gate, a hook chain every script that protects
--- blocks joins, once, for every effect there is and will be:
---
---   function mod.may_break_block(owner, pos, type)
---       if (<pos is mine to guard>) then return false; end
---       return mod.next.may_break_block(owner, pos, type);
---   end
---
--- tests/catalog_test.lua refuses an effect, or a library an effect
--- uses, that breaks blocks any other way.
-function mod.impl.may_break_block(owner, pos, type)
-	return true;
-end
+-- and it runs the breaking as `owner` (lib_block_filter's edit_as), so
+-- the one question every edit answers to, may_edit_block, is asked of
+-- each block the effect would take: whatever a gamemode protects, it
+-- protects from an effect as from a player. tests/catalog_test.lua
+-- refuses an effect, or a library an effect uses, that breaks blocks any
+-- other way.
 
 -- The water-level floor (z 62 and below) is the engine's to keep.
 local BOTTOM = 61;
@@ -422,20 +413,17 @@ function PlayerEffect.break_blocks(owner, list, type)
 	if (bdestroy_block_action == nil) then
 		require "lib_bulk_destroy";
 	end
-	local n = 0;
-	for _, p in ipairs(list) do
-		local q = {x = math.floor(p.x), y = math.floor(p.y), z = math.floor(p.z)};
-		if (q.x >= 0 and q.x <= 511 and q.y >= 0 and q.y <= 511
-		    and q.z >= 0 and q.z <= BOTTOM
-		    and (may_break_block or mod.impl.may_break_block)(owner, q, type)) then
-			bdestroy_block_action(q, type);
-			n = n + 1;
+	edit_as(owner, function()
+		for _, p in ipairs(list) do
+			local q = {x = math.floor(p.x), y = math.floor(p.y), z = math.floor(p.z)};
+			if (q.x >= 0 and q.x <= 511 and q.y >= 0 and q.y <= 511
+			    and q.z >= 0 and q.z <= BOTTOM) then
+				bdestroy_block_action(q, type);
+			end
 		end
-	end
-	if (n > 0) then
-		bdestroy_finish();
-	end
-	return n;
+	end);
+	-- craters the filter took by pieces began their culls too
+	bdestroy_finish();
 end
 
 -- The timer behind <name>_every, for every loaded effect with a trigger:

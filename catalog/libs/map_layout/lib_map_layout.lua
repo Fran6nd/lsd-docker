@@ -421,28 +421,31 @@ function mod.late.on_block_line(pid, start, stop)
 	mod.late.next.on_block_line(pid, start, stop);
 end
 
--- A cell another script must not write: one a component occupies, or a
--- volume a component has reserved. Blocks written by a script bypass
--- may_edit entirely (that only sees player edits), and `guarded` is our
--- record of what exists -- a foreign write makes that record a lie, and
--- the component silently breaks. sel.lua's /selrm and /selfill are
--- exactly this: bulk writes through the anon pid.
+-- A cell nothing but a component may write: one it occupies, or a volume
+-- it has reserved. `guarded` is our record of what exists -- a foreign
+-- write makes that record a lie, and the component silently breaks. That
+-- is the whole of what this library keeps, said once to the question
+-- every edit answers to (lib_block_filter): not a script's /selrm or
+-- /selfill, not a rocket's or a grenade's crater, not a bot's dig. Our
+-- own drawing is the server's (server_edit) and is not asked.
 local function foreign_blocked(pos)
 	return we.guarded[we.key(pos.x, pos.y, pos.z)] ~= nil
 	    or in_reserved(pos.x, pos.y, pos.z);
 end
 
--- Grenades and other world damage go straight to block_action without
--- passing a player, so they cannot be team-resolved: anything short of
--- a fully open component (perm "rw") shrugs them off. Our own writes
--- come through as the anon pid and must pass -- we.drawing is how we
--- recognise them; any other anon-pid write is another script's.
+function mod.may_edit_block(who, pos, type)
+	if (foreign_blocked(pos)) then
+		return false;
+	end
+	local below = mod.next.may_edit_block;
+	return below == nil or below(who, pos, type);
+end
+
+-- A grenade a player threw that lands on a component: anything short of
+-- a fully open one (perm "rw") shrugs it off, an open one is broken
+-- whole -- the same as a player's spade on it (above).
 function mod.block_action(pos, type, from)
-	if (from == get_anon_pid()) then
-		if (not we.drawing and foreign_blocked(pos)) then
-			return;
-		end
-	elseif (type ~= 0) then
+	if (from ~= get_anon_pid() and type ~= 0) then
 		local id = we.guarded[we.key(pos.x, pos.y, pos.z)];
 		local inst = id and insts[id];
 		if (inst ~= nil) then
@@ -455,27 +458,6 @@ function mod.block_action(pos, type, from)
 		end
 	end
 	mod.next.block_action(pos, type, from);
-end
-
--- lib_bulk_destroy (and so sel.lua's /selrm, /selmv, /selswiz) destroys
--- through block_action_rm, which never reaches block_action above -- so
--- it needs the same guard.
---
--- Hooking it is safe despite the loop it looks like: lblock_action_rm
--- calls f.block_action_rm, and `f` is a static snapshot taken in
--- lua.c:1619 *before* register_luaawk() installs the cX bridges, so the
--- chain terminates in the original C implementation rather than calling
--- the global straight back.
---
--- Returning 0 is the honest "nothing was destroyed" mask -- main.c's
--- block_action_rm returns exactly that for an already-empty cell -- and
--- bdestroy_block_action skips zero masks, so nothing is left queued for
--- a cull that never happened.
-function mod.block_action_rm(pos, type, from)
-	if (not we.drawing and from == get_anon_pid() and foreign_blocked(pos)) then
-		return 0;
-	end
-	return mod.next.block_action_rm(pos, type, from);
 end
 
 --================================ EVENTS ============================--

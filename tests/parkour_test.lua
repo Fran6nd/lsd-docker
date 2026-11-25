@@ -129,11 +129,11 @@ print("\n3. no building, no digging, no craters");
 hooks = {};
 mod.on_block_action(0, {x = 1, y = 1, z = 1}, 0);
 mod.on_block_line(0, {x = 1, y = 1, z = 1}, {x = 2, y = 1, z = 1});
-mod.block_action({x = 1, y = 1, z = 1}, 3, 0);
-check(#hooks == 0, "a block, a line and a grenade's crater are refused");
+check(#hooks == 0, "a block and a line are refused");
 check(L.chat[#L.chat].m == "No building or digging on the course.", "and the builder is told");
-mod.block_action({x = 1, y = 1, z = 1}, 0, 40);
-check(#hooks == 1, "the server's own blocks pass");
+check(not mod.may_edit_block(0, {x = 1, y = 1, z = 1}, 1) and not mod.may_edit_block(nil, {x = 1, y = 1, z = 1}, 1)
+	and not mod.may_edit_block(0, {x = 1, y = 1, z = 1}, 0),
+	"no crater, no blast, no script's edit: the one question every edit answers to says no");
 
 print("\n4. spawning: on the start platform, and told the game once");
 L.reset();

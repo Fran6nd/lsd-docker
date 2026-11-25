@@ -4,4 +4,6 @@ return Library {
 	title = "Player effect",
 	summary = "The class player effects are built on (lib_player_effect).",
 	module = "lib_player_effect",
+	-- its effects break blocks as their owners: edit_as
+	requires = {"block_filter"},
 }

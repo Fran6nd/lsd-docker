@@ -189,12 +189,11 @@ function mod.on_block_line(pid, start, stop)
 	l10n_send_chat(pid, no_build_msg);
 end
 
--- a grenade's crater is the server's own block_action, by its thrower
-function mod.block_action(pos, type, from)
-	if (type == 3 and from ~= nil and from >= 0 and from < MAX_PLAYERS and is_joined(from)) then
-		return;
-	end
-	return mod.next.block_action(pos, type, from);
+-- The course is nobody's to edit: not by a player's grenade, not by an
+-- effect's blast, not by a script -- the one question every edit answers
+-- to (lib_block_filter) is no. The server's own is never asked.
+function mod.may_edit_block(who, pos, type)
+	return false;
 end
 
 --=============================== RUNS ===============================--

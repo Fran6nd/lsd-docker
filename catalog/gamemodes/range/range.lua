@@ -619,6 +619,10 @@ local function build_wall(w)
 	end);
 end
 
+-- as the server: what the one question every edit answers to refuses
+-- everybody else is not asked of it
+local function raise_wall(w) return server_edit(build_wall, w); end
+
 -- Its supports go first: both ends, then the bottom row from the ends
 -- inward. With the last of them the rest hangs on nothing: the server
 -- culls it, and every client drops it as falling debris -- the wall
@@ -648,6 +652,7 @@ local function collapse_wall(w)
 	end
 	each_voxel(w, take);
 end
+local function bring_down_wall(w) return server_edit(collapse_wall, w); end
 
 --============================== HITS ================================--
 
@@ -778,7 +783,7 @@ local function end_run(pid)
 	if (shooter == pid) then
 		shooter = nil;
 		if (r ~= nil and r.ipsc ~= nil and r.ipsc.wall ~= nil) then
-			build_wall(r.ipsc.wall);
+			raise_wall(r.ipsc.wall);
 		end
 	end
 end
@@ -943,7 +948,7 @@ local function look_ipsc(pid, r, pos, now)
 		elseif (run.since == nil) then
 			-- behind the wall: it falls, and the clock starts, when all is ready
 			if (now >= run.go and ready(r, run.set)) then
-				if (I.wall ~= nil) then collapse_wall(I.wall); end
+				if (I.wall ~= nil) then bring_down_wall(I.wall); end
 				run.since, run.deadline = now, now + IPSC_LIMIT;
 				tell(pid, go_msg);
 			end
@@ -1104,12 +1109,12 @@ function mod.late.on_block_line(pid, start, stop)
 	l10n_send_chat(pid, no_build_msg);
 end
 
--- a grenade's crater is the server's own block_action, by its thrower
-function mod.block_action(pos, type, from)
-	if (type == 3 and from ~= nil and from >= 0 and from < MAX_PLAYERS and is_joined(from)) then
-		return;
-	end
-	return mod.next.block_action(pos, type, from);
+-- The range is nobody's to edit: not by a player's grenade, not by an
+-- effect's blast, not by a script -- the one question every edit answers
+-- to (lib_block_filter) is no, and so the start wall stands against all
+-- of them. Its own raising and collapse are the server's (server_edit).
+function mod.may_edit_block(who, pos, type)
+	return false;
 end
 
 --============================= COMMANDS =============================--
@@ -1226,14 +1231,14 @@ function mod.on_load()
 	-- loaded onto a range whose wall an earlier life of this left down
 	local r = range();
 	if (r ~= nil and r.ipsc ~= nil and r.ipsc.wall ~= nil) then
-		build_wall(r.ipsc.wall);
+		raise_wall(r.ipsc.wall);
 	end
 end
 
 function mod.on_unload()
 	local r = range();
 	if (r ~= nil and r.ipsc ~= nil and r.ipsc.wall ~= nil) then
-		build_wall(r.ipsc.wall);
+		raise_wall(r.ipsc.wall);
 	end
 	drop_targets(1);
 	gamemode_rewards = nil;

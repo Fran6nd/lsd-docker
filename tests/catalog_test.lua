@@ -188,12 +188,13 @@ for _, e in ipairs(cat:of_class(C.PlayerEffect)) do
 			m .. " is named by its catalog id, " .. e.id);
 	end
 end
--- Effects break blocks only through PlayerEffect.break_blocks, which
--- asks may_break_block -- the gate a gamemode's protections join
--- (babel's platform and towers). An effect or a bot, or a library one
--- needs, that broke blocks without asking it would slip past every one
--- of them: the only code that breaks blocks itself is code that asks
--- may_break_block first (PlayerEffect.break_blocks, bot_dig_block).
+-- Effects break blocks only through PlayerEffect.break_blocks, and bots
+-- through bot_dig_block: both run the breaking as someone (edit_as), so
+-- that may_edit_block, the question every gamemode's protections answer,
+-- is asked of the blocks. An effect or a bot, or a library one needs,
+-- that broke blocks otherwise would be nobody's, and a script's -- the
+-- only code that breaks blocks itself says whose it is (edit_as) or that
+-- it is the server's own (server_edit).
 do
 	local FORBIDDEN = {
 		{"bdestroy_block_action%s*%(", "bdestroy_block_action"},
@@ -212,7 +213,7 @@ do
 		local f = io.open(path);
 		local src = f:read("*a"); f:close();
 		src = src:gsub("%-%-%[%[.-%]%]", ""):gsub("%-%-[^\n]*", "");
-		if (src:find("may_break_block%s*%(")) then
+		if (src:find("edit_as%s*%(") or src:find("server_edit%s*%(")) then
 			return nil;
 		end
 		for _, fb in ipairs(FORBIDDEN) do
@@ -233,7 +234,7 @@ do
 				if (not seen[path]) then
 					seen[path] = true;
 					local bad = offence(path);
-					check(bad == nil, path .. " breaks no block without asking may_break_block",
+					check(bad == nil, path .. " breaks no block without saying for whom (edit_as)",
 						bad and ("calls " .. bad));
 				end
 			end

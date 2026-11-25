@@ -8,10 +8,11 @@
 --
 -- State, read by lib_map_layout's guards:
 --   we.guarded   packed cell -> owning instance id (indestructible)
---   we.drawing   true only while a component is writing. Our writes and
---                every other script's both arrive as the anon pid, so
---                the guard cannot tell them apart by `from` alone; this
---                is what tells them apart.
+--
+-- A component writes as the server (lib_block_filter's server_edit): its
+-- own drawing is not asked what may change, while every other script's
+-- writes, which arrive as the same anon pid, are -- and are refused on
+-- these cells (lib_map_layout's may_edit_block).
 --
 -- Blocks are built the way a client would: point the anon player's held
 -- colour at what we want, then build from that pid.
@@ -40,7 +41,7 @@
 -- batching packets.
 require "lib_bulk_destroy";   -- bdestroy_block_action / bdestroy_finish
 
-local we = {guarded = {}, drawing = false};
+local we = {guarded = {}};
 
 -- Deepest layer components may write. z=63 is the client's connectivity
 -- Root (GameMapWrapper::Rebuild marks every column's z=63 Root
@@ -117,7 +118,6 @@ function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep, line)
 	if (x1 > x2 or y1 > y2 or z1 > z2) then return; end
 	local guarded = we.guarded;
 
-	we.drawing = true;
 	if (on) then
 		hold_color(color);
 	end
@@ -159,7 +159,6 @@ function we.fill(inst, x1, y1, z1, x2, y2, z2, color, on, keep, line)
 	end
 
 	if (not on) then bdestroy_finish(); end
-	we.drawing = false;
 end
 
 -- Recolour cells this component already owns, without breaking them.
@@ -185,7 +184,6 @@ function we.paint(inst, x1, y1, z1, x2, y2, z2, color, keep)
 	if (x1 > x2 or y1 > y2 or z1 > z2) then return; end
 	local guarded = we.guarded;
 
-	we.drawing = true;
 	hold_color(color);
 
 	for z = z1, z2 do
@@ -200,7 +198,6 @@ function we.paint(inst, x1, y1, z1, x2, y2, z2, color, keep)
 		end
 	end
 
-	we.drawing = false;
 end
 
 function we.is_guarded(x, y, z)
@@ -213,7 +210,6 @@ end
 function we.dig_box(x1, y1, z1, x2, y2, z2, keep)
 	x1, y1, z1, x2, y2, z2 = clamp(x1, y1, z1, x2, y2, z2);
 	local guarded = we.guarded;
-	we.drawing = true;
 	for z = z1, z2 do
 		for y = y1, y2 do
 			for x = x1, x2 do
@@ -226,7 +222,6 @@ function we.dig_box(x1, y1, z1, x2, y2, z2, keep)
 		end
 	end
 	bdestroy_finish();
-	we.drawing = false;
 end
 
 -- Forget every cell an instance owns, leaving the blocks in the map.
@@ -265,5 +260,11 @@ end
 -- components build their trigger volumes from the same shape library
 -- the authorization chunks use
 we.areas = require "map_layout.areas";
+
+-- what writes the map does so as the server: not asked what may change
+for _, name in ipairs({"fill", "paint", "dig_box"}) do
+	local write = we[name];
+	we[name] = function(...) return server_edit(write, ...); end
+end
 
 return we;

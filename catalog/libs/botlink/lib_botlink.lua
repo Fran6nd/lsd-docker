@@ -1088,7 +1088,9 @@ local function do_block(pid)
 	end
 
 	if (tool ~= 0 or not bot_solid(x, y, z) or not sees_dig(get_position(pid), x, y, z)) then return false; end
-	if (may_break_block ~= nil and not may_break_block(pid, posbuf, act)) then return false; end
+	-- told no before the swing, not after: the filter would refuse it
+	-- silently, and the engine would count a dig that never was
+	if (may_edit_block ~= nil and not may_edit_block(pid, posbuf, 1)) then return false; end
 	next_block[pid] = now + (act == 1 and botlink_dig_secs or botlink_dig3_secs);
 	if (act == 1) then blocks[pid] = math.min(50, blocks[pid] + 1); end
 	on_block_action(pid, posbuf, act);

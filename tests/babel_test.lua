@@ -189,23 +189,32 @@ run(60);
 eq(count("mark"), 0, "nothing marked");
 babel_camp_marks = true;
 
-print("\nN. effects break nothing babel protects (may_break_block)");
+print("\nN. what babel keeps, said to the one question every edit answers (may_edit_block)");
 babel_width, babel_height, babel_z = 100, 32, 1;
-mod.next.may_break_block = function() return true; end
-local may = mod.may_break_block;
+mod.next.may_edit_block = function() return true; end
+local may = mod.may_edit_block;
 -- platform: x 206..305, y 240..271, at z 1
-check(not may(0, {x = 250, y = 250, z = 1}, 1), "the platform: not a railgun");
-check(not may(2, {x = 250, y = 250, z = 2}, 3), "nor a crater one block under it");
-check(may(0, {x = 250, y = 250, z = 4}, 3), "a crater further off the platform: yes");
+check(not may(0, {x = 250, y = 250, z = 1}, 1), "the platform: nobody breaks it");
+check(not may(nil, {x = 250, y = 250, z = 1}, 1), "nor does the world's effect, nor a script");
+check(may(2, {x = 250, y = 250, z = 2}, 1), "the block under it is another matter");
+check(not may(2, {x = 250, y = 250, z = 2}, 0) and not may(2, {x = 250, y = 250, z = 0}, 0),
+	"but nobody builds above or below it");
+check(not may(2, {x = 205, y = 250, z = 1}, 0) and may(2, {x = 205, y = 239, z = 1}, 0),
+	"nor beside it, but for the corners");
+check(may(nil, {x = 250, y = 250, z = 1}, 0), "a script builds the platform where it likes (its rebuild, its paintings)");
+check(may(0, {x = 250, y = 250, z = 4}, 1), "further off the platform: yes");
 -- team 1's tower area x 128..225, team 2's x 287..383 (y 240..271)
 check(not may(0, {x = 150, y = 250, z = 40}, 1), "team 1 breaks nothing in its own tower area");
 check(may(2, {x = 150, y = 250, z = 40}, 1), "team 2 breaks team 1's tower: that is the game");
-check(not may(0, {x = 127, y = 250, z = 40}, 3), "a crater one block outside one's own area still reaches it");
-check(may(0, {x = 126, y = 250, z = 40}, 3), "two blocks out, it does not");
-check(not may(nil, {x = 150, y = 250, z = 40}, 3) and not may(nil, {x = 300, y = 250, z = 40}, 3),
+check(not may(2, {x = 150, y = 250, z = 40}, 0), "and builds nothing in it");
+check(may(0, {x = 150, y = 250, z = 40}, 0), "team 1 builds there");
+check(not may(nil, {x = 150, y = 250, z = 40}, 1) and not may(nil, {x = 300, y = 250, z = 40}, 1),
 	"the world's own effects break neither team's area");
-check(may(nil, {x = 50, y = 50, z = 40}, 3), "and anything outside them");
-mod.next.may_break_block = function() return false; end
+check(may(nil, {x = 50, y = 50, z = 40}, 1), "and anything outside them");
+function has_cap(pid, cap) return pid == 0 and cap == "no_babel_protect"; end
+check(may(0, {x = 150, y = 250, z = 40}, 1), "a player with the no_babel_protect cap breaks his own team's area");
+has_cap = nil;
+mod.next.may_edit_block = function() return false; end
 check(not may(0, {x = 50, y = 50, z = 40}, 1), "and what another script protects stays protected (the chain goes on)");
 
 print("\nB. engine bots: each team's stair, told through the bridge -- only when there are bots");
