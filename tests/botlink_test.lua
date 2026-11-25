@@ -852,6 +852,16 @@ botlink_set("night_vision", 1);
 local s = of(engine_events(), 11);
 check(#s == 1 and ffi.string(s[1].raw) == "night_vision=1", "botlink_set pushes at once");
 
+print("\n9a. an engine replaced without a pause (botd started again at once) is told everything");
+E.header.engine_pid = 4242;
+step(1);
+evs = engine_events();
+check(#of(evs, 1) == 1 and #of(evs, 9) == 1 and of(evs, 9)[1].pid == pid, "a new engine_pid: the MAP and the bot again");
+check(#of(evs, 11) >= 5, "...and the settings", #of(evs, 11));
+step(1);
+evs = engine_events();
+check(#of(evs, 9) == 0, "the same engine next tick: nothing said twice");
+
 print("\n9b. what a bot holds, and what each item is for, reach the engine");
 local INV;
 function inventory_listen(name, l) INV = l; end

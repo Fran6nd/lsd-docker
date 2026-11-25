@@ -108,6 +108,7 @@ local L, f = nil, nil;     -- the library, and the file once made
 local inert_why = nil;     -- why nothing works, once known
 local w, players, intents; -- views into f
 local attached, frozen = false, false;
+local engine_seen = 0;      -- the engine_pid of the engine attached last
 local last_move, beat_last = -1e9, ffi.new("uint32_t[1]");
 local tick_n, wcount, map_seq, map_file_n = 0, 0, 1, 0;
 local loading = false;
@@ -1256,8 +1257,14 @@ function mod.before.tick()
 	if (L.bl_alive(f.header.engine_beat, beat_last) == 1) then last_move = now; end
 	local was = attached;
 	attached = (now - last_move) < botlink_stale;
+	-- AN ENGINE IS NEW when it comes after a silence, or when another
+	-- process took the file without one (the container starts botd again
+	-- at once, within botlink_stale): either way it knows nothing
+	local engine = f.header.engine_pid;
+	local other = attached and was and engine ~= engine_seen;
+	if (attached) then engine_seen = engine; end
 
-	if (attached and not was) then
+	if (attached and (not was or other)) then
 		frozen = false;
 		hook_listeners();
 		resync();
