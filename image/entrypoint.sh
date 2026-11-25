@@ -100,7 +100,7 @@ bot_link() {
 	su-exec lsd lsdctl get botlink_file 2>/dev/null || echo /dev/shm/lsd-botlink
 }
 
-# the threads botd's route planner runs on (botd --threads; 1 unless the
+# the threads botd's sight and route planner run on (botd --threads; 1 unless the
 # setting says otherwise; 0: botd's choice, half the cores at most 4)
 bot_threads() {
 	t=$(su-exec lsd lsdctl get botlink_threads 2>/dev/null) || t=1

@@ -19,7 +19,7 @@ typedef struct botd_opts {
 	int plan_ms;            /* the planner's part of a round, ms (default 8; 0: unbounded):
 	                           botd.c, THE PLANNER'S BOUND */
 	int max_bots;           /* bots the engine is sized for (default 255: every seat) */
-	int threads;            /* the planner's threads, botd's own included (pool.h);
+	int threads;            /* the threads sight and the planner run on, botd's own included (pool.h);
 	                           1 (the default): botd's own alone; 0: botd_threads_auto() */
 	int once;               /* 1: do not wait for a file, exit 1 if there is none */
 	int poll_ms;            /* wait between attach tries (default 1000) */

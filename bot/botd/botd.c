@@ -41,7 +41,13 @@
  * --threads (pool.h), the round's own thread among them. Everything else
  * of a think stays on the round's thread. The core takes in what the jobs
  * found in its own order, so the bots do the same whatever the number of
- * threads (tests/parallel_test.c).
+ * threads (tests/parallel_test.c). One thread is the default: measured
+ * live at 100 and 200 bots (BRAIN-STATUS.md (c4)), with the planner spread
+ * over every round and bounded (below) a round's p99 is under its period
+ * on one thread, and four bought no shorter rounds -- only more planning
+ * in a round (a higher bound), for 5% of a core more. In the bench, sight
+ * on four threads halves a think on a flat field of 230 bots; live it is
+ * under half a millisecond a round. More threads stay an operator's choice.
  *
  * THE PLANNER'S BOUND. The core spends what the fleet needs on routes
  * (engine.h, THE PLANNER'S BUDGET), in expansions; what a round can hold
@@ -51,12 +57,8 @@
  * the expansions they took, threads and all, a moving mean over the
  * rounds that planned -- and bounds each think to what fits in --plan-ms
  * (8 of a round's 16.7). At 200 bots on a real map with edits a single
- * long search had taken 25 to 40 ms of one round (BRAIN-STATUS.md (c4)).
- * Measured (BRAIN-STATUS.md (c3)): the planner is about half of a think
- * at 230 bots on a real map once routes are shared, and four threads take
- * a think's planning time down by about 40% in the bench; live, at 100 and
- * 200 bots, a round's p99 is not the planner's and stayed where it was --
- * so one thread is the default, more an operator's choice.
+ * long search had taken 25 to 40 ms of one round: the slow rounds were
+ * the planner's (BRAIN-STATUS.md (c4)).
  */
 #include "botd.h"
 #include "engine.h"
@@ -132,7 +134,7 @@ void botd_opts_default(botd_opts *o)
 	o->plan_rate = BC_PLAN_RATE;
 	o->plan_ms = 8;
 	o->max_bots = 255;
-	o->threads = 1;     /* BRAIN-STATUS.md (c3): live, more bought nothing yet */
+	o->threads = 1;     /* THREADS, above: live, more bought no shorter round */
 	o->poll_ms = 1000;
 	o->stale_ms = 5000;
 	o->health_s = 60;

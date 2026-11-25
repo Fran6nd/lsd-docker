@@ -124,11 +124,13 @@ chooses to do: [the table](../bot/TREES.md#11-characters-traits-archetypes-weigh
 
 The bots think in a process of their own beside the server (`botd`),
 whose heaviest work is finding routes on a big map; a team's bots going
-the same way share one search. It can search up to four routes at once
-on as many threads. How many it uses is read when it starts and changes
-nothing of what the bots do, only how soon a think is done; measured at
-200 bots it did not lower botd's slowest rounds, so it is off unless you
-turn it on:
+the same way share one search, and no round gives routes more than about
+half its time (what does not fit waits for the next). It can search up
+to four routes at once, and look for many bots at once, on as many
+threads. How many it uses is read when it starts and changes nothing of
+what the bots do, only how much route finding fits in a round; measured
+at 200 bots one thread keeps botd's rounds inside their period and four
+made none shorter, so it is off unless you turn it on:
 
 ```sh
 lsdctl set botlink_threads 4    # 1 (the default): botd's own thread alone; 0: half the cores the container sees, at most 4

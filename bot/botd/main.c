@@ -23,7 +23,7 @@ static void usage(FILE *f)
 	      "  --plan-ms N   the most of a round the planner may take, ms (default 8; 0: no\n"
 	      "                bound): what does not fit waits for the next round\n"
 	      "  --bots N      bots the engine is sized for (default 255: every seat)\n"
-	      "  --threads N   threads the route planner runs on, botd's own included (default 1;\n"
+	      "  --threads N   threads sight and the route planner run on, botd's own included (default 1;\n"
 	      "                0: half the cores, at most 4 -- a think plans at most 4 routes at\n"
 	      "                once). The bots do the same whatever the number\n"
 	      "  --once        do not wait for the file: exit 1 if it is not there now\n"

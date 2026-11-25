@@ -91,7 +91,7 @@ local band, bor = bit.band, bit.bor;
 getcfg("botlink_header", "botlink.h", "The link's header (its path, or a name looked for beside the scripts).");
 getcfg("botlink_lib", "libbotlink.so", "The link's library (its path, or a name looked for beside the scripts).");
 getcfg("botlink_file", "/dev/shm/lsd-botlink", "The file shared with the bot engine.");
-getcfg("botlink_threads", 1, "Threads the bot engine's route planner runs on, read when botd starts (0: half the cores, at most 4).");
+getcfg("botlink_threads", 1, "Threads the bot engine's sight and route planner run on, read when botd starts (0: half the cores, at most 4).");
 getcfg("botlink_stale", 2, "Seconds of engine silence after which every bot stands still.");
 getcfg("botlink_map_dir", (os.getenv("LSD_DATA") or "/data") .. "/rw/", "Where the map the engine loads is written.");
 getcfg("botlink_world_hz", 30, "Times a second the world is written for the engine (1 to 60); everything else is per tick.");
