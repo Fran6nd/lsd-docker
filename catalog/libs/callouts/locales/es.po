@@ -302,24 +302,29 @@ msgstr "Peligro"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Say"
 msgstr "Decir"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Good game"
 msgstr "Buen juego"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "gg"
 msgstr "gg"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Nice shot"
 msgstr "Buen disparo"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Nice shot!"
 msgstr "¡Buen disparo!"
 
@@ -432,6 +437,34 @@ msgstr "Una carrera"
 #: catalog/libs/callouts/callouts/parkour.lua
 msgid "Race you to the tent!"
 msgstr "¡A ver quién llega antes a la tienda!"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Your turn"
+msgstr "Tu turno"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Your turn!"
+msgstr "¡Tu turno!"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Watch this"
+msgstr "Mira esto"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Watch this!"
+msgstr "¡Mira esto!"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Beat that"
+msgstr "Supera eso"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Beat that!"
+msgstr "¡Supera eso!"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Target"
+msgstr "Objetivo"
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Mark"

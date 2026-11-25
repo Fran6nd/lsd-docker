@@ -1,0 +1,146 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ru\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Shooting range: step into a lane's firing position and hit every target of the lane as fast as you can; /ipsc queues you for the IPSC course, one shooter at a time. /best lists the best times."
+msgstr "Тир: встань на огневой рубеж и сбей все мишени дорожки как можно быстрее; /ipsc -- в очередь на трассу IPSC, по одному стрелку. /best -- лучшие времена."
+
+#: catalog/gamemodes/range/range.lua
+msgid "Lane %(lane): %(total) targets. The clock starts in %(secs) s."
+msgstr "Дорожка %(lane): мишеней: %(total). Отсчёт через %(secs) с."
+
+#: catalog/gamemodes/range/range.lua
+msgid "Go!"
+msgstr "Старт!"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Lane %(lane) is in use."
+msgstr "Дорожка %(lane) занята."
+
+#: catalog/gamemodes/range/range.lua
+msgid "Hit: %(n)/%(total)"
+msgstr "Попаданий: %(n)/%(total)"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Run void: you left the firing position."
+msgstr "Заход сорван: ты ушёл с огневого рубежа."
+
+#: catalog/gamemodes/range/range.lua
+msgid "Run void: you died."
+msgstr "Заход сорван: ты погиб."
+
+#: catalog/gamemodes/range/range.lua
+msgid "Every target down in %(time) s: your best on the static range!"
+msgstr "Все мишени сбиты за %(time) с: твой лучший на статическом тире!"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Every target down in %(time) s. Your best on the static range is %(best) s."
+msgstr "Все мишени сбиты за %(time) с. Твой лучший на статическом тире: %(best) с."
+
+#: catalog/gamemodes/range/range.lua
+msgid "IPSC course in %(time) s: your best!"
+msgstr "Трасса IPSC за %(time) с: твой лучший!"
+
+#: catalog/gamemodes/range/range.lua
+msgid "IPSC course in %(time) s. Your best is %(best) s."
+msgstr "Трасса IPSC за %(time) с. Твой лучший: %(best) с."
+
+#: catalog/gamemodes/range/range.lua
+msgid "%(name) holds the static range record: %(time) s"
+msgstr "%(name) держит рекорд статического тира: %(time) с"
+
+#: catalog/gamemodes/range/range.lua
+msgid "%(name) holds the IPSC record: %(time) s"
+msgstr "%(name) держит рекорд IPSC: %(time) с"
+
+#: catalog/gamemodes/range/range.lua
+msgid "You are number %(n) in the IPSC queue."
+msgstr "Ты №%(n) в очереди на IPSC."
+
+#: catalog/gamemodes/range/range.lua
+msgid "You left the IPSC queue."
+msgstr "Ты вышел из очереди на IPSC."
+
+#: catalog/gamemodes/range/range.lua
+msgid "You are on the IPSC course."
+msgstr "Ты на трассе IPSC."
+
+#: catalog/gamemodes/range/range.lua
+msgid "The IPSC course is in use: you are number %(n) in the queue."
+msgstr "Трасса IPSC занята: ты №%(n) в очереди."
+
+#: catalog/gamemodes/range/range.lua
+msgid "Your turn on the IPSC course: the clock starts when you leave the green start box and stops in the blue end box once every target is hit. %(limit) s at most."
+msgstr "Твоя очередь на трассе IPSC: отсчёт с выхода из зелёного старта, стоп в синем финише, когда сбиты все мишени. Лимит: %(limit) с."
+
+#: catalog/gamemodes/range/range.lua
+msgid "Every target hit: to the blue end box!"
+msgstr "Все мишени сбиты: в синий финиш!"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Targets still standing: %(n)"
+msgstr "Мишеней осталось: %(n)"
+
+#: catalog/gamemodes/range/range.lua
+msgid "IPSC run abandoned: you left the course."
+msgstr "Заход IPSC снят: ты покинул трассу."
+
+#: catalog/gamemodes/range/range.lua
+msgid "IPSC run abandoned: over %(limit) s."
+msgstr "Заход IPSC снят: дольше %(limit) с."
+
+#: catalog/gamemodes/range/range.lua
+msgid "IPSC run abandoned: you died."
+msgstr "Заход IPSC снят: ты погиб."
+
+#: catalog/gamemodes/range/range.lua
+msgid "This map has no IPSC course."
+msgstr "На этой карте нет трассы IPSC."
+
+#: catalog/gamemodes/range/range.lua
+msgid "No building or digging on the range."
+msgstr "В тире нельзя строить и копать."
+
+#: catalog/gamemodes/range/range.lua
+msgid "Everybody is on the same team here."
+msgstr "Здесь все в одной команде."
+
+#: catalog/gamemodes/range/range.lua
+msgid "Static range:"
+msgstr "Статический тир:"
+
+#: catalog/gamemodes/range/range.lua
+msgid "IPSC course:"
+msgstr "Трасса IPSC:"
+
+#: catalog/gamemodes/range/range.lua
+msgid "%(rank). %(name): %(time) s"
+msgstr "%(rank). %(name): %(time) с"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Your best on the static range: %(time) s"
+msgstr "Твой лучший на статическом тире: %(time) с"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Your best on the IPSC course: %(time) s"
+msgstr "Твой лучший на трассе IPSC: %(time) с"
+
+#: catalog/gamemodes/range/range.lua
+msgid "No times yet."
+msgstr "Времён пока нет."
+
+#: catalog/gamemodes/range/range.lua
+msgctxt "command"
+msgid "Join the IPSC course's queue, or leave it."
+msgstr "Встать в очередь на трассу IPSC или выйти из неё."
+
+#: catalog/gamemodes/range/range.lua
+msgctxt "command"
+msgid "List the best times on the range and the IPSC course."
+msgstr "Показать лучшие времена тира и трассы IPSC."

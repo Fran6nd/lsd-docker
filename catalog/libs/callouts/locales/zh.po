@@ -302,24 +302,29 @@ msgstr "危险"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Say"
 msgstr "喊话"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Good game"
 msgstr "打得好"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "gg"
 msgstr "gg"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Nice shot"
 msgstr "好枪法"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Nice shot!"
 msgstr "好枪法！"
 
@@ -432,6 +437,34 @@ msgstr "比一比"
 #: catalog/libs/callouts/callouts/parkour.lua
 msgid "Race you to the tent!"
 msgstr "看谁先到帐篷！"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Your turn"
+msgstr "轮到你"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Your turn!"
+msgstr "轮到你了！"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Watch this"
+msgstr "看好了"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Watch this!"
+msgstr "看好了！"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Beat that"
+msgstr "超得过吗"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Beat that!"
+msgstr "超得过吗！"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Target"
+msgstr "靶子"
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Mark"

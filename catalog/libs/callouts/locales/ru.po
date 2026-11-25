@@ -302,24 +302,29 @@ msgstr "Опасность"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Say"
 msgstr "Сказать"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Good game"
 msgstr "Хорошая игра"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "gg"
 msgstr "gg"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Nice shot"
 msgstr "Классный выстрел"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Nice shot!"
 msgstr "Классный выстрел!"
 
@@ -432,6 +437,34 @@ msgstr "Наперегонки"
 #: catalog/libs/callouts/callouts/parkour.lua
 msgid "Race you to the tent!"
 msgstr "Наперегонки до палатки!"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Your turn"
+msgstr "Твоя очередь"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Your turn!"
+msgstr "Твоя очередь!"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Watch this"
+msgstr "Смотри"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Watch this!"
+msgstr "Смотри сюда!"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Beat that"
+msgstr "Переплюнь"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Beat that!"
+msgstr "Переплюнь!"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Target"
+msgstr "Цель"
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Mark"

@@ -302,24 +302,29 @@ msgstr "Danger"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Say"
 msgstr "Dire"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Good game"
 msgstr "Bien joué"
 
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "gg"
 msgstr "gg"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Nice shot"
 msgstr "Beau tir"
 
 #: catalog/libs/callouts/callouts/ffa.lua
+#: catalog/libs/callouts/callouts/range.lua
 msgid "Nice shot!"
 msgstr "Beau tir !"
 
@@ -432,6 +437,34 @@ msgstr "On fait la course"
 #: catalog/libs/callouts/callouts/parkour.lua
 msgid "Race you to the tent!"
 msgstr "Le premier à la tente !"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Your turn"
+msgstr "À toi"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Your turn!"
+msgstr "À toi !"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Watch this"
+msgstr "Regarde ça"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Watch this!"
+msgstr "Regarde ça !"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Beat that"
+msgstr "Fais mieux"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Beat that!"
+msgstr "Fais mieux !"
+
+#: catalog/libs/callouts/callouts/range.lua
+msgid "Target"
+msgstr "Cible"
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Mark"

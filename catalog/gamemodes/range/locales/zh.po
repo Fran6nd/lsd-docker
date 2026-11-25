@@ -1,0 +1,146 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lsd-docker\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Shooting range: step into a lane's firing position and hit every target of the lane as fast as you can; /ipsc queues you for the IPSC course, one shooter at a time. /best lists the best times."
+msgstr "射击场：站进靶道的射击位，尽快打中该靶道的每个靶子；/ipsc 让你排队进入 IPSC 课程，每次一人。/best 列出最佳成绩。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Lane %(lane): %(total) targets. The clock starts in %(secs) s."
+msgstr "靶道 %(lane)：%(total) 个靶子。%(secs) 秒后开始计时。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Go!"
+msgstr "开始！"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Lane %(lane) is in use."
+msgstr "靶道 %(lane) 正在使用中。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Hit: %(n)/%(total)"
+msgstr "命中：%(n)/%(total)"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Run void: you left the firing position."
+msgstr "本次作废：你离开了射击位。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Run void: you died."
+msgstr "本次作废：你死亡了。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Every target down in %(time) s: your best on the static range!"
+msgstr "全部靶子 %(time) 秒内打倒：静态靶道最佳成绩！"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Every target down in %(time) s. Your best on the static range is %(best) s."
+msgstr "全部靶子 %(time) 秒内打倒。你在静态靶道的最佳成绩是 %(best) 秒。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "IPSC course in %(time) s: your best!"
+msgstr "IPSC 课程 %(time) 秒：最佳成绩！"
+
+#: catalog/gamemodes/range/range.lua
+msgid "IPSC course in %(time) s. Your best is %(best) s."
+msgstr "IPSC 课程 %(time) 秒。你的最佳成绩是 %(best) 秒。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "%(name) holds the static range record: %(time) s"
+msgstr "%(name) 保持静态靶道纪录：%(time) 秒"
+
+#: catalog/gamemodes/range/range.lua
+msgid "%(name) holds the IPSC record: %(time) s"
+msgstr "%(name) 保持 IPSC 纪录：%(time) 秒"
+
+#: catalog/gamemodes/range/range.lua
+msgid "You are number %(n) in the IPSC queue."
+msgstr "你是 IPSC 队列中的第 %(n) 位。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "You left the IPSC queue."
+msgstr "你已离开 IPSC 队列。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "You are on the IPSC course."
+msgstr "你正在 IPSC 课程上。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "The IPSC course is in use: you are number %(n) in the queue."
+msgstr "IPSC 课程正在使用中：你是队列中的第 %(n) 位。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Your turn on the IPSC course: the clock starts when you leave the green start box and stops in the blue end box once every target is hit. %(limit) s at most."
+msgstr "轮到你进行 IPSC 课程：离开绿色起点框时开始计时，全部靶子命中后在蓝色终点框停止计时。最多 %(limit) 秒。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Every target hit: to the blue end box!"
+msgstr "全部靶子已命中：前往蓝色终点框！"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Targets still standing: %(n)"
+msgstr "剩余靶子：%(n)"
+
+#: catalog/gamemodes/range/range.lua
+msgid "IPSC run abandoned: you left the course."
+msgstr "IPSC 本次中止：你离开了课程。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "IPSC run abandoned: over %(limit) s."
+msgstr "IPSC 本次中止：超过 %(limit) 秒。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "IPSC run abandoned: you died."
+msgstr "IPSC 本次中止：你死亡了。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "This map has no IPSC course."
+msgstr "本地图没有 IPSC 课程。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "No building or digging on the range."
+msgstr "靶场内禁止建造或挖掘。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Everybody is on the same team here."
+msgstr "这里所有人都在同一队。"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Static range:"
+msgstr "静态靶道："
+
+#: catalog/gamemodes/range/range.lua
+msgid "IPSC course:"
+msgstr "IPSC 课程："
+
+#: catalog/gamemodes/range/range.lua
+msgid "%(rank). %(name): %(time) s"
+msgstr "%(rank). %(name)：%(time) 秒"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Your best on the static range: %(time) s"
+msgstr "你在静态靶道的最佳成绩：%(time) 秒"
+
+#: catalog/gamemodes/range/range.lua
+msgid "Your best on the IPSC course: %(time) s"
+msgstr "你在 IPSC 课程的最佳成绩：%(time) 秒"
+
+#: catalog/gamemodes/range/range.lua
+msgid "No times yet."
+msgstr "暂无成绩。"
+
+#: catalog/gamemodes/range/range.lua
+msgctxt "command"
+msgid "Join the IPSC course's queue, or leave it."
+msgstr "加入或离开 IPSC 课程的队列。"
+
+#: catalog/gamemodes/range/range.lua
+msgctxt "command"
+msgid "List the best times on the range and the IPSC course."
+msgstr "列出靶道和 IPSC 课程的最佳成绩。"
