@@ -100,6 +100,14 @@ bot_link() {
 	su-exec lsd lsdctl get botlink_file 2>/dev/null || echo /dev/shm/lsd-botlink
 }
 
+# the threads botd's route planner runs on (botd --threads; 0: its own
+# choice, half the cores at most 4)
+bot_threads() {
+	t=$(su-exec lsd lsdctl get botlink_threads 2>/dev/null) || t=0
+	case "$t" in ''|*[!0-9]*) t=0 ;; esac
+	echo "$t"
+}
+
 bot_clean() {
 	command -v botd >/dev/null 2>&1 || return 0
 	rm -f "$(bot_link)" "$DATA"/rw/botlink-map-*.vxl "$DATA"/rw/botlink-map-*.vxl.new
@@ -114,7 +122,7 @@ bot_helper() {
 		fails=0
 		while [ -z "$stopping" ]; do
 			started=$(date +%s)
-			su-exec lsd botd --bots 255 --file "$(bot_link)" &
+			su-exec lsd botd --bots 255 --threads "$(bot_threads)" --file "$(bot_link)" &
 			pid=$!
 			while kill -0 "$pid" 2>/dev/null; do
 				wait "$pid" || true
