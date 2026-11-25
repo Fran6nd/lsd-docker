@@ -956,8 +956,31 @@ Three things lean the whole crowd, all settings the server sends
   too, and the two multiply;
 - the tree's own factors, which weigh an option for everybody.
 
-**Level** (1 to 10) is apart from character: how good the bot is --
-reaction, aim, turn rate -- not what it prefers. A tree never reads it.
+**Level** (1 to 10) is apart from character: how WELL the bot does what
+its tree and character choose, never WHAT it chooses. Everything below
+moves together with the level, because a weak player is not only a worse
+shot: they also react later, hear less and move worse.
+
+| What the level sets | Level 1 | Level 5 | Level 10 | Where |
+|---|---|---|---|---|
+| aim cone (how far the aim wanders) | 14 deg | 6.2 deg | 1.8 deg | `core/aim.c` LEVELS |
+| turn speed | 90 deg/s | 175 deg/s | 320 deg/s | `core/aim.c` |
+| delay before acting on a new target | 0.50 s | 0.30 s | 0.14 s | `core/aim.c` |
+| where on the body the aim lands (0 centre, 1 spread) | 1.00 | 0.90 | 0.38 | `core/aim.c` |
+| lead on a moving man (0 exact, 1 like a person) | 1.00 | 0.88 | 0.30 | `core/aim.c` |
+| sensing where a hit came from | 0.95 s, 40 deg off | | 0.15 s, 4 deg off | `core/aim.c`, `core/senses.c` |
+| hearing a shot / a dig or build / a step / a blast | 14 / 6 / 4 / 24 blocks | | 34 / 14 / 8 / 48 blocks | `core/senses.c` bc_hear_range |
+| aggression: opens fire from this share of the gun's range | 0.20: 80 % | 0.52: 87 % | 0.95: 97 % | `core/skill_fight.c` LEVELS |
+| dodging, crouching, sprinting, reloading, digging, grenades | 0.05 to 0.30 | 0.35 to 0.58 | 0.66 to 0.95 | `core/skill_fight.c` |
+
+Each table is the one place to tune it, monotonic in every column (a
+test checks it). The level leaves alone: the tree and the role (a level
+1 sniper is a sniper), the character's traits, and the body (speed,
+jump, health are a player's). Operators choose levels with
+`engine_bots_level` (the centre, 5 by default) and
+`engine_bots_level_spread` (how far each bot may fall from it, either
+way: 2 by default, so levels 3 to 7); a script gives one bot its level
+with `botlink_add{level = n}`.
 
 ## 12. Writing your own
 

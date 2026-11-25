@@ -50,10 +50,21 @@ lsdctl map load random               # ...to a random one
 lsdctl set map_random True           # play the rotation in a random order
 lsdctl masterlist off                # unlist, live, nobody disconnected
 
+lsdctl account add alice admin       # an account, its password asked for (or read from stdin)
+lsdctl account list                  # every account and its caps
+lsdctl account caps alice mod        # replace its caps (admin: everything; mod, guard: see cap_groups)
+lsdctl account passwd alice          # reset its password
+lsdctl account rm alice
+
 lsdctl restart                       # warns players; the container stays up
 lsdctl say "back in five"
 lsdctl console                       # the in-game admin console
 ```
+
+An account's player logs in with `/login alice <password>`. A password
+never goes on the command line and never reaches the server's log; a
+script gives it on stdin: `echo "$pw" | docker exec -i lsd lsdctl account add alice admin`.
+The server has to be running.
 
 The settings are read when the server starts, so every change restarts
 the server process after a five-second in-game warning; `--now` skips
@@ -104,7 +115,12 @@ lsdctl set engine_bots_tree "'mine'"                # the tree they run, by name
 lsdctl set engine_bots_archetypes "'camper:2,pusher:1'"   # the mix of characters
 lsdctl set engine_bots_traits "'aggression:1.5'"    # every bot's weights, scaled
 lsdctl set engine_bots_edit "'dig'"                 # what a bot's route may do to the map: dig, build, all
+lsdctl set engine_bots_level 8                      # how good they are, 1 to 10 (5 by default)
+lsdctl set engine_bots_level_spread 0               # how far each may fall from it, either way (2 by default)
 ```
+
+A level is how WELL a bot aims, reacts, hears and moves, never what it
+chooses to do: [the table](../bot/TREES.md#11-characters-traits-archetypes-weights).
 
 The bots think in a process of their own beside the server (`botd`),
 whose heaviest work is finding routes on a big map; a team's bots going
