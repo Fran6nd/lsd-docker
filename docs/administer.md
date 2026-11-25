@@ -115,8 +115,8 @@ lsdctl set engine_bots_tree "'mine'"                # the tree they run, by name
 lsdctl set engine_bots_archetypes "'camper:2,pusher:1'"   # the mix of characters
 lsdctl set engine_bots_traits "'aggression:1.5'"    # every bot's weights, scaled
 lsdctl set engine_bots_edit "'dig'"                 # what a bot's route may do to the map: dig, build, all
-lsdctl set engine_bots_level 8                      # how good they are, 1 to 10 (5 by default)
-lsdctl set engine_bots_level_spread 0               # how far each may fall from it, either way (2 by default)
+lsdctl set engine_bots_level 8                      # how good they are, 1 to 10 (10 by default)
+lsdctl set engine_bots_level_spread 0               # how far each may fall from it, either way (0 by default)
 ```
 
 A level is how WELL a bot aims, reacts, hears and moves, never what it

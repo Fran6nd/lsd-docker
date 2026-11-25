@@ -112,7 +112,7 @@ class Setup:
     map: str = "random"                    # random (from the web) | generated
     bots_team1: int = 3
     bots_team2: int = 3                    # ignored in a game of one team
-    level: int = 5
+    level: int = 10
 
 
 @dataclass

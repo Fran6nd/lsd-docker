@@ -277,7 +277,7 @@ class MainWindow(QMainWindow):
         self.team1 = QSpinBox(minimum=0, maximum=50, value=3)
         self.team2 = QSpinBox(minimum=0, maximum=50, value=3)
         self.team1_label, self.team2_label = QLabel("Bots, team 1"), QLabel("Bots, team 2")
-        self.level = QSpinBox(minimum=1, maximum=10, value=5)
+        self.level = QSpinBox(minimum=1, maximum=10, value=10)
         self.set_bots_button = QPushButton("Change the bots now")
         self.set_bots_button.setToolTip("Changing the number of bots restarts the server: players are put back in.")
         self.set_bots_button.clicked.connect(self.change_bots)

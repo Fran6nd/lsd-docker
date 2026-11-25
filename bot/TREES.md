@@ -977,9 +977,9 @@ Each table is the one place to tune it, monotonic in every column (a
 test checks it). The level leaves alone: the tree and the role (a level
 1 sniper is a sniper), the character's traits, and the body (speed,
 jump, health are a player's). Operators choose levels with
-`engine_bots_level` (the centre, 5 by default) and
+`engine_bots_level` (the centre, 10 by default) and
 `engine_bots_level_spread` (how far each bot may fall from it, either
-way: 2 by default, so levels 3 to 7); a script gives one bot its level
+way: 0 by default, so every bot is level 10); a script gives one bot its level
 with `botlink_add{level = n}`.
 
 A tree may gate a branch on the level -- what only the able should try:

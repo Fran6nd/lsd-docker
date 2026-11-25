@@ -28,8 +28,8 @@ local mod = init_mod();
 getcfg("engine_bots_count", 6, "Engine bots kept alive per team.");
 getcfg("engine_bots_team1", -1, "Engine bots on team 1 (blue), when not engine_bots_count; -1: that count.");
 getcfg("engine_bots_team2", -1, "Engine bots on team 2 (green), when not engine_bots_count; -1: that count.");
-getcfg("engine_bots_level", 5, "Skill level (1 to 10) the engine bots are drawn around.");
-getcfg("engine_bots_level_spread", 2, "How far a bot's level may fall from that, either way.");
+getcfg("engine_bots_level", 10, "Skill level (1 to 10) the engine bots are drawn around.");
+getcfg("engine_bots_level_spread", 0, "How far a bot's level may fall from that, either way.");
 
 getcfg("engine_bots_tree", "", "The behaviour tree the bots run, by name (yours: <name>.bt in the data volume's trees/); empty: the gamemode's.");
 getcfg("engine_bots_archetypes", "", "The mix of characters, as camper:2,pusher:1 (soldier, camper, pusher, flanker, support, sapper, scout, and the operator's own in /data/trees/archetypes.txt); empty: every kind.");
