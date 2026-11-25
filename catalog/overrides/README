@@ -22,6 +22,14 @@ Upstream LSd modules, patched. Copied over upstream's at every start.
                each tick, stopping every script after it (bots, blasts).
                Reads the block whole; an incomplete one is none. Report
                upstream (lib_pyscrape's get_ext reads one line only).
+  command_ups.lua
+               A World Update is built for each PERSON among the
+               recipients (lib_bot's people_in), not for each of a fleet
+               of bots it would never reach: with 230 bots it was built
+               230 times a tick. Ours (bots are lib_bot's).
+  afkick.lua   A bot is never away: no timer, and its inputs cost
+               nothing (each walked every player three times); its
+               walks are nil-safe. Ours (bots are lib_bot's).
 
   tentspawns.lua
                A spawn is not put on a thin layer floating far above

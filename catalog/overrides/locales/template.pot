@@ -9,6 +9,16 @@ msgstr ""
 msgid "lsd-docker %(latest) is available; this server runs %(running). Update from the host: lsd update"
 msgstr ""
 
+#: catalog/overrides/afkick.lua
+#: lsd/scripts/afkick.lua
+msgid "%(name) was kicked: AFK"
+msgstr ""
+
+#: catalog/overrides/afkick.lua
+#: lsd/scripts/afkick.lua
+msgid "You will be automatically AFK-kicked in %(time) s"
+msgstr ""
+
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
 msgid "Command not found."
@@ -35,6 +45,22 @@ msgstr ""
 #: lsd/scripts/command_cmds.lua
 msgctxt "command"
 msgid "Display the invocation and description of a command."
+msgstr ""
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgid "%(arg) should be one of {%(freqs)} (Hz)"
+msgstr ""
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgid "Current update rate: %(freq) Hz"
+msgstr ""
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgctxt "command"
+msgid "Get/set the rate your client receives player position/orientation."
 msgstr ""
 
 #: catalog/overrides/lib_l10n.lua
@@ -293,14 +319,6 @@ msgstr ""
 
 #: image/config.lua
 msgid "Welcome to %(server), running [LSd]."
-msgstr ""
-
-#: lsd/scripts/afkick.lua
-msgid "%(name) was kicked: AFK"
-msgstr ""
-
-#: lsd/scripts/afkick.lua
-msgid "You will be automatically AFK-kicked in %(time) s"
 msgstr ""
 
 #: lsd/scripts/apoc.lua
@@ -952,19 +970,6 @@ msgstr ""
 #: lsd/scripts/command_tp.lua
 msgctxt "command"
 msgid "Teleport one player (or you) to a different player."
-msgstr ""
-
-#: lsd/scripts/command_ups.lua
-msgid "%(arg) should be one of {%(freqs)} (Hz)"
-msgstr ""
-
-#: lsd/scripts/command_ups.lua
-msgid "Current update rate: %(freq) Hz"
-msgstr ""
-
-#: lsd/scripts/command_ups.lua
-msgctxt "command"
-msgid "Get/set the rate your client receives player position/orientation."
 msgstr ""
 
 #: lsd/scripts/command_version.lua

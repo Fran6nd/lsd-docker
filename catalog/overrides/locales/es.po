@@ -11,6 +11,16 @@ msgstr ""
 msgid "lsd-docker %(latest) is available; this server runs %(running). Update from the host: lsd update"
 msgstr "lsd-docker %(latest) está disponible; este servidor ejecuta %(running). Actualiza desde el host: lsd update"
 
+#: catalog/overrides/afkick.lua
+#: lsd/scripts/afkick.lua
+msgid "%(name) was kicked: AFK"
+msgstr "%(name) fue expulsado: AFK"
+
+#: catalog/overrides/afkick.lua
+#: lsd/scripts/afkick.lua
+msgid "You will be automatically AFK-kicked in %(time) s"
+msgstr "Serás expulsado automáticamente por AFK en %(time) s"
+
 #: catalog/overrides/command_cmds.lua
 #: lsd/scripts/command_cmds.lua
 msgid "Command not found."
@@ -38,6 +48,22 @@ msgstr "Filtrar la lista de comandos. No analiza argumentos."
 msgctxt "command"
 msgid "Display the invocation and description of a command."
 msgstr "Mostrar la sintaxis y la descripción de un comando."
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgid "%(arg) should be one of {%(freqs)} (Hz)"
+msgstr "%(arg) debe ser uno de {%(freqs)} (Hz)"
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgid "Current update rate: %(freq) Hz"
+msgstr "Frecuencia de actualización actual: %(freq) Hz"
+
+#: catalog/overrides/command_ups.lua
+#: lsd/scripts/command_ups.lua
+msgctxt "command"
+msgid "Get/set the rate your client receives player position/orientation."
+msgstr "Ver/cambiar la frecuencia con que tu cliente recibe la posición/orientación de los jugadores."
 
 #: catalog/overrides/lib_l10n.lua
 msgid "usage: %(cmd)"
@@ -296,14 +322,6 @@ msgstr "Escribe /lang para leer el servidor en otro idioma."
 #: image/config.lua
 msgid "Welcome to %(server), running [LSd]."
 msgstr "Bienvenido a %(server), que funciona con [LSd]."
-
-#: lsd/scripts/afkick.lua
-msgid "%(name) was kicked: AFK"
-msgstr "%(name) fue expulsado: AFK"
-
-#: lsd/scripts/afkick.lua
-msgid "You will be automatically AFK-kicked in %(time) s"
-msgstr "Serás expulsado automáticamente por AFK en %(time) s"
 
 #: lsd/scripts/apoc.lua
 msgid "%(originname)'s apocs have been given to %(destname)"
@@ -955,19 +973,6 @@ msgstr "Has ido a ninguna parte con éxito."
 msgctxt "command"
 msgid "Teleport one player (or you) to a different player."
 msgstr "Teletransportar a un jugador (o a ti) hasta otro jugador."
-
-#: lsd/scripts/command_ups.lua
-msgid "%(arg) should be one of {%(freqs)} (Hz)"
-msgstr "%(arg) debe ser uno de {%(freqs)} (Hz)"
-
-#: lsd/scripts/command_ups.lua
-msgid "Current update rate: %(freq) Hz"
-msgstr "Frecuencia de actualización actual: %(freq) Hz"
-
-#: lsd/scripts/command_ups.lua
-msgctxt "command"
-msgid "Get/set the rate your client receives player position/orientation."
-msgstr "Ver/cambiar la frecuencia con que tu cliente recibe la posición/orientación de los jugadores."
 
 #: lsd/scripts/command_version.lua
 msgid "Running %(server_name) commit %(commit)"

@@ -25,6 +25,9 @@
 --                                       lib_silent_player (re)loads
 --   bot_destroy(pid)                 -- idempotent
 --   bot_is_bot(pid) / bot_get(pid)   -- bot_get(pid).data is yours
+--   people_in(set)                   -- piditer(set) without the bots: what
+--                                       splits a send or walks players for
+--                                       a person's sake uses it (THE SEND GUARD)
 --   bot_walk(pid, {forward=, back=, left=, right=, jump=, crouch=,
 --                  sneak=, sprint=})  -- unset keys mean released
 --   bot_keys(pid, mask)              -- the whole key set as one number
@@ -1159,6 +1162,33 @@ local function in_set(set, i)
 			and (not is_joined(i) or get_team(i) ~= data % 256);
 	end
 	return false;
+end
+
+-- THE ONE RULE for a fleet: nothing is built, sent, queued or looped
+-- over for a bot. people_in(set) is piditer(set) without the bots -- the
+-- recipients of a send that have a client behind them, out of the list
+-- of people made once a tick -- for every script that splits a send or
+-- walks the players for something only a person can want (the overrides
+-- of command_ups and afkick; lib_player_limit and lib_edit_mode have
+-- their own lists of people). A pid of the server's own (the console's
+-- 255, a fakepid) goes as piditer would take it.
+local function none() end
+function people_in(set)
+	if (set < MAX_PLAYERS) then
+		if (bots[set] ~= nil) then return none; end
+		return piditer(set);
+	end
+	if (set < SET) then
+		return piditer(set);
+	end
+	local list, k = who(), 0;
+	return function()
+		while (true) do
+			k = k + 1;
+			local i = list[k];
+			if (i == nil or in_set(set, i)) then return i; end
+		end
+	end
 end
 
 local function only_bots(pid)
