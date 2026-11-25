@@ -438,6 +438,13 @@ typedef struct bc_nav_route {
 int bc_nav_step_edits(const bc_nav_route *r, int i, const bc_nav_moves *t, const bc_map *m,
                       bc_nav_node vox[8], uint8_t op[8]);
 
+/* Do steps [from, to) of the route still fit the map as it is now? An
+ * edit step whose work is not done yet ends the look (what lies past it
+ * cannot be judged): 1. What the follower checks when the map changes
+ * (ROUTE_STALE), and what a route handed from one bot to another is
+ * checked by (routes.h). */
+int bc_nav_route_holds(const bc_nav_route *r, int from, int to, const bc_nav_moves *t, const bc_map *m);
+
 /* ================================================================== */
 /* 4. THE SEARCH                                                       */
 

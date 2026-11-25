@@ -1257,7 +1257,7 @@ comment, SETTINGS, has the detail):
 | `night_vision` * | `0`, `1` | the bot sees by night as by day |
 | `sight`, `fov`, `notice`, `memory`, `relay`, `board`, `noise_secs` | numbers | the senses |
 | `leaders.per`, `leaders.human` | numbers | squads: one leader for every n; a person's weight in the draw |
-| `plan.greed`, `plan.cap`, `plan.wait` | | the route search |
+| `plan.greed`, `plan.cap`, `plan.wait`, `plan.share` | | the route search (`plan.share=0`: no route board, every bot searches alone) |
 | `gaze` | `0`, `1` | a travelling bot's head is its own |
 | `ping_takers`, `ping_radius` | numbers | how many bots answer a ping, from how far |
 | `cull` | `voxlap`, `openspades` | which floating blocks fall |

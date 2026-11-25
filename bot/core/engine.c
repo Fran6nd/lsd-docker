@@ -52,6 +52,8 @@
  *                            1: exact, and water searched as land is)
  *   plan.cap=<n>             expansions a search may take before the bot sets
  *                            off for the nearest place it found (8000; 0: none)
+ *   plan.share=0|1           a team's bots going the same way share one search
+ *                            (1; routes.h, the route board)
  *   plan.wait=walk|stand     what a bot does while its route is searched
  *                            (walk: on toward the goal)
  *   gaze=0|1                 1 (default): a travelling bot's head is its
@@ -230,6 +232,12 @@ void bc_engine_search_release(bc_engine *e, bc_bot *b)
 	if (b->mv.search >= 0 && b->mv.search < e->nsearch)
 		e->search_owner[b->mv.search] = -1;
 	b->mv.search = -1;
+	if (b->mv.join) {
+		/* a way onto a team-mate's route, left: its local bounds go */
+		b->mv.join = 0;
+		b->mv.pol.scope = 0;
+		b->mv.pol.goal_exact_z = b->mv.exact;
+	}
 }
 
 static float bot_random(void *bot)
@@ -677,6 +685,7 @@ bc_engine *bc_engine_new(const bc_engine_host *host, int max_bots)
 	e->ping_takers = 2;
 	e->ping_radius = 40.0f;
 	e->plan_greed = 1.5f;
+	e->plan_share = 1;
 	e->plan_cap = 8000;
 	e->lead_per = 5;
 	bc_engine_plan_rate(e, BC_PLAN_RATE, 60);
@@ -755,6 +764,7 @@ int bc_engine_map(bc_engine *e, const uint8_t *vxl, size_t bytes, uint32_t map_s
 	bc_nav_fail_clear(&e->fail);
 	bc_nav_protect_clear(&e->protect);
 	bc_board_clear(&e->board);
+	bc_routes_clear(&e->routes);
 	e->hot_at[0] = e->hot_at[1] = -1e9;
 	memset(e->nades, 0, sizeof e->nades);
 	e->nnades = 0;
@@ -1478,6 +1488,8 @@ static void ev_set(bc_engine *e, int pid, const char *text)
 		e->plan_cap = atoi(val);
 	} else if (!strcmp(key, "plan.wait")) {
 		e->plan_stand = !strcmp(val, "stand");
+	} else if (!strcmp(key, "plan.share")) {
+		e->plan_share = (uint8_t)(atoi(val) != 0);
 	} else if (!strcmp(key, "gaze")) {
 		e->gaze_off = !atoi(val);
 	} else if (!strcmp(key, "ping_takers")) {

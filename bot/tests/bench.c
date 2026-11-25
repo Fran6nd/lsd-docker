@@ -32,7 +32,12 @@
  *   waiting_pct      ... of which standing waiting for a route
  *   longest_idle_s   the longest one bot went so
  *   wading_pct       living bot-time in the water
- *   plans, plans_capped, plans_no_way, expansions_per_plan
+ *   plans, plans_capped, plans_no_way, expansions_per_plan, expansions (plans are
+ *                    searches of a bot's own -- a join onto a team-mate's route is
+ *                    not one; expansions are every search's, joins included)
+ *   routes_shared, route_joins, route_join_fails, route_waits   the route board
+ *                    (core/routes.h): routes put up, taken, joins that found no
+ *                    way onto theirs, thinks a bot waited on a team-mate's search
  *   kills, stuck (one cell, keys down, over 3 s), goals_dropped (the net)
  *   head_on_heading_pct  of the time a bot travels (over 3 voxels/s, on the
  *                    ground, nobody in its sight, not shot at for 3 s): the head within 30
@@ -43,6 +48,13 @@
  *   captures_in_4_games, games_with_a_capture, first_capture_mean_s, pickups, drops (ctf)
  */
 #include "brain_sim.h"
+
+/* BENCH_SET, a setting for every scene ("plan.share=0") */
+static void host(bs_sim *s)
+{
+	if (getenv("BENCH_SET"))
+		bs_set(s, BL_NO_PLAYER, getenv("BENCH_SET"));
+}
 
 enum { G = 40 };
 static const float EYE = (float)G - 2.25f;
@@ -121,6 +133,11 @@ static void report(const char *scene, bs_sim *s, const tally *t)
 	out(scene, "plans_capped", st->plan_caps, "");
 	out(scene, "plans_no_way", st->plan_fails, "");
 	out(scene, "expansions_per_plan", st->plans ? (double)st->expansions / (double)st->plans : 0.0, "");
+	out(scene, "expansions", st->expansions, "");
+	out(scene, "routes_shared", st->routes_published, "");
+	out(scene, "route_joins", st->route_joins, "");
+	out(scene, "route_join_fails", st->route_join_fails, "");
+	out(scene, "route_waits", st->route_waits, "thinks");
 	out(scene, "kills", s->kills[1] + s->kills[2], "");
 	out(scene, "stuck", stuck, "");
 	out(scene, "goals_dropped", st->stuck_resets, "");
@@ -169,6 +186,7 @@ static void scene_arena(int per)
 	memset(&t, 0, sizeof t);
 	snprintf(name, sizeof name, "arena%d", per * 2);
 	bs_start(s);
+	host(s);
 	s->respawn = 3.0;
 	teams(s, per, 207.5f, 293.5f, 4242, "tdm");
 	for (k = 0; k < 60 * 60; k++) { bs_step(s); watch(s, &t); }
@@ -195,6 +213,7 @@ static void scene_fight(int per)
 		else bs_box(s, x, y, G - 4, x + 6, y, G - 1, 1);
 	}
 	bs_start(s);
+	host(s);
 	for (i = 0; i < per; i++) {
 		bs_add(s, i, 1, 1, 3 + (i * 3) % 7, i % 3, 2026u + (uint32_t)i * 7919u, 192.5f + (float)(i % 4) * 2.5f, 232.5f + 2.5f * (float)i, 1, 0);
 		bs_add(s, 100 + i, 1, 2, 3 + (i * 5) % 7, (i + 1) % 3, 2526u + (uint32_t)i * 104729u, 318.5f - (float)(i % 4) * 2.5f, 232.5f + 2.5f * (float)i, -1, 0);
@@ -227,6 +246,7 @@ static void scene_sea(void)
 	s->tent[0].x = 100.5f; s->tent[0].y = 256.5f; s->tent[0].z = 61.75f;
 	s->tent[1].x = 440.5f; s->tent[1].y = 256.5f; s->tent[1].z = 61.75f;
 	bs_start(s);
+	host(s);
 	s->respawn = 4.0;
 	for (i = 0; i < 20; i++) {
 		bs_add(s, i, 1, 1, 3 + (i * 3) % 7, i % 3, 61u + (uint32_t)i * 7919u, 120.5f + (float)(i % 5) * 9.0f, 215.5f + (float)(i / 5) * 24.0f, 1, 0);
@@ -268,6 +288,7 @@ static void scene_ctf(int per, int near)
 		if (near) bs_ctf(s, 172, 262, 178, 268, 332, 244, 338, 250);
 		else bs_ctf(s, 185, 236, 215, 276, 295, 236, 325, 276);
 		bs_start(s);
+		host(s);
 		s->respawn = 6.0;
 		teams(s, per, 182.5f, 328.5f, 3131u + (uint32_t)g * 977u, "ctf");
 		for (k = 0; k < 60 * 300; k++) {
@@ -333,6 +354,7 @@ static void scene_map(const char *path, double secs, int bots)
 		bs_free(s);
 		return;
 	}
+	host(s);
 	s->have_tents = 1;
 	s->tent[0].x = (float)a.x + 0.5f; s->tent[0].y = (float)a.y + 0.5f; s->tent[0].z = (float)a.z - 2.25f;
 	s->tent[1].x = (float)b.x + 0.5f; s->tent[1].y = (float)b.y + 0.5f; s->tent[1].z = (float)b.z - 2.25f;

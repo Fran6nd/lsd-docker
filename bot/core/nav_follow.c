@@ -539,19 +539,20 @@ static int edit_tick(bc_nav_follow *f, const bc_nav_route *r, const bc_nav_moves
 
 /* --- the route against the map ---------------------------------------- */
 
-static int route_holds(const bc_nav_follow *f, const bc_nav_route *r, const bc_nav_moves *t,
-                       const bc_map *m)
+int bc_nav_route_holds(const bc_nav_route *r, int from, int to, const bc_nav_moves *t, const bc_map *m)
 {
 	int j;
 
-	for (j = f->step; j < r->n && j < f->step + 96; j++) {
+	if (from < 0)
+		from = 0;
+	for (j = from; j < r->n && j < to; j++) {
 		const bc_nav_step *st = &r->steps[j];
-		bc_nav_node from = step_from(r, j);
+		bc_nav_node a = step_from(r, j);
 
 		if (is_edit_kind(st->kind)) {
 			bc_nav_node vox[8];
 			uint8_t op[8];
-			int n = nav_edits(t, m, NULL, from, st->to, vox, op, NULL, NULL, NULL);
+			int n = nav_edits(t, m, NULL, a, st->to, vox, op, NULL, NULL, NULL);
 
 			if (n < 0)
 				return 0;
@@ -560,13 +561,23 @@ static int route_holds(const bc_nav_follow *f, const bc_nav_route *r, const bc_n
 				               cannot be judged yet */
 			continue;
 		}
-		if (j == f->step && (is_jump_kind(st->kind) || st->kind == BC_NAV_DROP) &&
-		    f->phase == NAV_XS_AIR)
-			continue;       /* in flight: too late to mind */
-		if (st->move >= 0 && !nav_move_fits(t, m, st->move, from, st->dir))
+		if (st->move >= 0 && !nav_move_fits(t, m, st->move, a, st->dir))
 			return 0;
 	}
 	return 1;
+}
+
+/* The steps ahead, 96 of them, from the one in hand -- but not a jump or
+ * a drop the body is already in the air on: too late to mind. */
+static int route_holds(const bc_nav_follow *f, const bc_nav_route *r, const bc_nav_moves *t,
+                       const bc_map *m)
+{
+	int from = f->step;
+
+	if (from >= 0 && from < r->n && !is_edit_kind(r->steps[from].kind) &&
+	    (is_jump_kind(r->steps[from].kind) || r->steps[from].kind == BC_NAV_DROP) && f->phase == NAV_XS_AIR)
+		from++;
+	return bc_nav_route_holds(r, from, f->step + 96, t, m);
 }
 
 /* --- the tick ---------------------------------------------------------- */

@@ -38,6 +38,7 @@
 #include "nav.h"
 #include "persona.h"
 #include "rng.h"
+#include "routes.h"
 #include "senses.h"
 #include "skills.h"
 
@@ -48,7 +49,8 @@ enum {
 	BC_ZONES_MAX = 32,
 	BC_GRENADES_MAX = 3 * BL_MAX_PLAYERS,  /* live grenades: the three every player can
 	                               hold, thrown at once (e->nnades bounds the walks) */
-	BC_DANGER_MAX = 4,
+	BC_DANGER_MAX = BC_ROUTE_DANGER_MAX,   /* a team's danger places (4): the route
+	                               board keeps them in its key (routes.h) */
 	BC_SEARCH_MAX = 4,
 	BC_CHANGE_CELLS = 2048,
 	BC_UNREACH_MAX = 16,        /* a team's memory of goals with no way to them */
@@ -122,7 +124,11 @@ typedef struct bc_mover {
 	uint32_t expansions;    /* of the plan in progress */
 	int32_t last_status;    /* bc_nav_follow_status */
 	uint8_t edit_tool;      /* the tool the edit in hand needs */
-	uint8_t pad_[3];
+	uint8_t solo;           /* this goal is searched alone: a join onto a
+	                           team-mate's route found no way (routes.h) */
+	int16_t join_step;      /* the search in hand is the way onto place
+	                           join_step of the board's route `join` */
+	uint32_t join;          /* (routes.h); 0: a search of its own */
 	bc_nav_cmd cmd;
 	bc_nav_policy pol;
 	bc_nav_danger danger[BC_DANGER_MAX + 1 + BC_AVOID_MAX];    /* the team's, a flank's, the men a carrier avoids */
@@ -388,6 +394,11 @@ typedef struct bc_engine_stats {
 	uint32_t stuck_resets;      /* ... and dropped the goal: the tree decided again */
 	uint32_t tells;             /* `do tell` sent to the server */
 	uint32_t tells_dropped;     /* ... and not sent: the same word from the same bot within 0.2 s */
+	/* the route board (routes.h) */
+	uint32_t routes_published;  /* routes put up for team-mates */
+	uint32_t route_joins;       /* routes taken from the board (a join onto one) */
+	uint32_t route_join_fails;  /* joins that found no way onto it: searched alone */
+	uint32_t route_waits;       /* thinks a bot waited on a team-mate's search */
 } bc_engine_stats;
 
 struct bc_engine {
@@ -419,6 +430,11 @@ struct bc_engine {
 	void *search_mem[BC_SEARCH_MAX];
 	bc_nav_search *search[BC_SEARCH_MAX];
 	int search_owner[BC_SEARCH_MAX];    /* bot index or -1 */
+	/* A CLAIM (routes.h): the search asks this question for the team */
+	uint8_t search_claim[BC_SEARCH_MAX];
+	bc_route_key search_key[BC_SEARCH_MAX];
+	bc_route_board routes;
+	uint8_t plan_share;         /* plan.share: the route board is used (1) */
 
 	bt_vocab *vocab;
 	bt_forest *builtin, *custom, *fallback;

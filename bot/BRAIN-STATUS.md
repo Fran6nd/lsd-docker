@@ -367,6 +367,7 @@ header is the full list; new since the first version in **bold**.
 | **`plan.cap`** | expansions | a search stops there and the partial route is walked (8000; 0: none). |
 | **`plan.greed`** | factor | nav's `h_weight` (1.5; 1: exact searches, water as land). |
 | **`plan.wait`** | `walk` / `stand` | what a bot does while its route is searched (walk). |
+| **`plan.share`** | `0` / `1` | the route board (core/routes.h): a team's bots going the same way share one search (1). |
 | `sight` `fov` `notice` `memory` `relay` `board` `noise_secs`, `ping_takers`, `ping_radius` | | as before. |
 | anything else | | kept for a tree's `if setting <key> [value]`. |
 

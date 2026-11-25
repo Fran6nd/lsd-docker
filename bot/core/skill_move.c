@@ -11,6 +11,11 @@
  *  - THE SEARCHES ARE LENT. The engine has a few (6 MiB each); a bot
  *    holds one only while its plan runs. Who gets expansions first is
  *    who has waited longest (bc_movers_plan).
+ *  - ONE SEARCH FOR A TEAM GOING THE SAME WAY (routes.h): before a bot is
+ *    lent a search, the route board is asked -- a team-mate's fresh route
+ *    to the same goal from near here is joined by a local search onto it;
+ *    a team-mate's search for it under way is waited on; else the bot's
+ *    own search is a claim, and what it finds goes up for the others.
  *  - WHAT THE FOLLOWER SAYS IS OBEYED AS nav.h PRESCRIBES: a failed step
  *    goes in the shared failure memory (30 s) and the route is planned
  *    again from where the body is; a refused edit protects the voxel,
@@ -88,6 +93,8 @@ void bc_mover_reset(bc_bot *b)
 	b->mv.retry_at = b->mv.edit_at = b->mv.noedit_until = b->mv.tool_grace = 0.0;
 	b->mv.edit_tool = BL_TOOL_GUN;
 	b->mv.search = -1;
+	b->mv.join = 0;
+	b->mv.solo = 0;
 	memset(&b->mv.cmd, 0, sizeof b->mv.cmd);
 }
 
@@ -245,6 +252,7 @@ static int move_to(bc_bot *b, bl_vec3 pos, float radius, int raw)
 		mv->braking = 0;
 		mv->again = 0;
 		mv->nocap = 0;
+		mv->solo = 0;
 	}
 	return mv->state;
 }
@@ -264,13 +272,15 @@ void bc_move_replan(bc_bot *b)
 
 /* --- PLAN -------------------------------------------------------------- */
 
-static void fill_policy(bc_bot *b)
+/* The policy a search for b would be made under, its dangers in `danger`.
+ * Returns how many of them are the team's (the first ones; any after are
+ * the bot's own). */
+static int fill_policy(bc_bot *b, bc_nav_policy *p, bc_nav_danger *danger)
 {
 	bc_engine *e = b->e;
 	const bl_player *me = bc_me(b);
 	const bc_level_row *lv = bc_level(b->level);
-	bc_nav_policy *p = &b->mv.pol;
-	int dig = e->may_dig, build = e->may_build, i, n = 0, team = me->team;
+	int dig = e->may_dig, build = e->may_build, i, n = 0, team = me->team, team_n;
 
 	bc_nav_policy_default(p);
 	if (b->edit >= 0) {
@@ -331,13 +341,15 @@ static void fill_policy(bc_bot *b)
 	if (team >= 1 && team <= 2)
 		for (i = 0; i < BC_DANGER_MAX; i++)
 			if (e->now - e->danger_at[team - 1][i] < 35.0)   /* aosbot: 35 s */
-				b->mv.danger[n++] = e->danger[team - 1][i];
+				danger[n++] = e->danger[team - 1][i];
+	team_n = n;
 	if (b->flank.avoid_on)
-		b->mv.danger[n++] = b->flank.avoid;     /* a flank: not through the middle */
+		danger[n++] = b->flank.avoid;     /* a flank: not through the middle */
 	for (i = 0; i < b->carry.n && i < BC_AVOID_MAX; i++)
-		b->mv.danger[n++] = b->carry.avoid[i];  /* a carrier: not past those men */
-	p->danger = b->mv.danger;
+		danger[n++] = b->carry.avoid[i];  /* a carrier: not past those men */
+	p->danger = danger;
 	p->ndanger = n;
+	return team_n;
 }
 
 static void plan_done(bc_bot *b, int st)
@@ -346,8 +358,38 @@ static void plan_done(bc_bot *b, int st)
 	bc_mover *mv = &b->mv;
 	int n = bc_nav_plan_route(e->search[mv->search], &mv->route);
 
-	e->stats.plans++;
-	bc_engine_search_release(e, b);
+	if (mv->join) {
+		/* THE WAY ONTO A TEAM-MATE'S ROUTE (routes.h): with the rest of it,
+		 * the bot's route -- as if its own search had found it */
+		const bc_shared_route *r = bc_routes_get(&e->routes, mv->join);
+
+		mv->join = 0;
+		mv->pol.scope = 0;
+		mv->pol.goal_exact_z = mv->exact;
+		bc_engine_search_release(e, b);
+		if (st != BC_NAV_DONE || !r) {
+			/* no way onto it (or it has gone): this goal is searched alone */
+			e->stats.route_join_fails++;
+			mv->solo = 1;
+			mv->has_route = 0;  /* its route was the join's scratch */
+			return;
+		}
+		bc_routes_splice(&mv->route, r, mv->join_step, e->map->rev);
+		n = mv->route.n;
+		st = r->reached ? BC_NAV_DONE : BC_NAV_MORE;
+		e->stats.route_joins++;
+	} else {
+		int s = mv->search;
+
+		e->stats.plans++;
+		/* under a claim: put up for the team -- a route, or a capped
+		 * search's partial one (routes.h) */
+		if (e->search_claim[s] && n > 0 && (st == BC_NAV_DONE || (st == BC_NAV_MORE && !mv->nocap))) {
+			bc_routes_publish(&e->routes, &e->search_key[s], &mv->route, st == BC_NAV_DONE, e->now);
+			e->stats.routes_published++;
+		}
+		bc_engine_search_release(e, b);
+	}
 	if (st == BC_NAV_DONE) {
 		mv->noway = 0;
 		if (n > 0) {
@@ -429,6 +471,7 @@ static void plan_done(bc_bot *b, int st)
 	mv->again = 1;          /* any further route to this goal is "another" */
 	mv->state = BC_MV_FOLLOWING;
 	mv->has_route = 1;
+	mv->solo = 0;
 	{
 		/* The body did not stand still while the route was searched (it
 		 * walked on toward the goal: engine.c, WAITING FOR A ROUTE), so it
@@ -460,6 +503,26 @@ static void plan_done(bc_bot *b, int st)
 	}
 }
 
+/* A team-mate's search under way for the same question, set off from
+ * within BC_ROUTE_REACH of `from` (routes.h, a CLAIM). */
+static int claimed(const bc_engine *e, const bc_route_key *k, bc_nav_node from)
+{
+	int s;
+
+	for (s = 0; s < e->nsearch; s++) {
+		const bc_nav_node *p;
+		int dx, dy, dz;
+
+		if (e->search_owner[s] < 0 || !e->search_claim[s] || !bc_route_claim_fits(k, &e->search_key[s]))
+			continue;
+		p = &e->bots[e->search_owner[s]].mv.plan_from;
+		dx = p->x - from.x; dy = p->y - from.y; dz = p->z - from.z;
+		if (dx * dx + dy * dy + dz * dz <= BC_ROUTE_REACH * BC_ROUTE_REACH)
+			return 1;
+	}
+	return 0;
+}
+
 void bc_movers_plan(bc_engine *e)
 {
 	int order[BL_MAX_PLAYERS], n = 0, i, j, active = 0, pass;
@@ -485,8 +548,12 @@ void bc_movers_plan(bc_engine *e)
 		bc_bot *b = &e->bots[order[i]];
 		bc_mover *mv = &b->mv;
 		bc_body body;
-		bc_nav_node cur;
-		int s;
+		bc_nav_node cur, goal;
+		bc_nav_policy pol;
+		bc_nav_danger danger[BC_DANGER_MAX + 1 + BC_AVOID_MAX];
+		bc_route_key key;
+		uint32_t join = 0;
+		int s, share = 0, team_n, step = -1, radius;
 
 		if (mv->search >= 0) {
 			if (e->map->rev != mv->plan_rev && mv->restarts < 2) {
@@ -499,20 +566,61 @@ void bc_movers_plan(bc_engine *e)
 		}
 		for (s = 0; s < e->nsearch && e->search_owner[s] >= 0; s++)
 			;
-		if (s == e->nsearch)
+		if (s == e->nsearch && !e->plan_share)
 			continue;
 		bc_body_of(bc_me(b), &body);
 		if (mv->braking && bc_body_speed(&body) > 1.5f)
 			continue;
 		if (!bc_nav_node_of_body(e->map, &body, &cur))
 			continue;                           /* in the air: next think */
-		fill_policy(b);
-		if (!bc_nav_plan_begin(e->search[s], e->moves, e->map, &mv->pol, cur, mv->goal, mv->radius)) {
+		team_n = fill_policy(b, &pol, danger);
+		if (e->plan_share && !mv->solo &&
+		    bc_route_key_of(&pol, bc_me(b)->team, team_n, mv->goal, mv->radius, mv->exact, mv->nocap, &key)) {
+			/* THE ROUTE BOARD (routes.h): a team-mate's route, or his
+			 * search for it under way -- and no search the team knows
+			 * finds no way */
+			double until = bc_unreach_until(b, cur, mv->goal);
+
+			if (until > e->now) {
+				mv->state = BC_MV_FAILED;
+				mv->has_route = 0;
+				mv->retry_at = until;
+				continue;
+			}
+			join = bc_routes_find(&e->routes, &key, cur, e->now, e->moves, e->map, &step);
+			if (!join && claimed(e, &key, cur)) {
+				e->stats.route_waits++;
+				continue;
+			}
+			share = !join;
+		}
+		if (s == e->nsearch)
+			continue;
+		mv->pol = pol;
+		memcpy(mv->danger, danger, sizeof mv->danger);
+		mv->pol.danger = mv->danger;
+		goal = mv->goal;
+		radius = mv->radius;
+		if (join) {
+			/* only the way onto it: a local search to that very floor */
+			goal = bc_route_place(&bc_routes_get(&e->routes, join)->route, step);
+			radius = 0;
+			mv->pol.scope = BC_ROUTE_JOIN_SCOPE;
+			mv->pol.goal_exact_z = 1;
+		}
+		if (!bc_nav_plan_begin(e->search[s], e->moves, e->map, &mv->pol, cur, goal, radius)) {
+			mv->pol.scope = 0;
+			mv->pol.goal_exact_z = mv->exact;
 			mv->state = BC_MV_FAILED;
 			mv->retry_at = e->now + 0.5;
 			continue;
 		}
 		e->search_owner[s] = order[i];
+		e->search_claim[s] = (uint8_t)share;
+		if (share)
+			e->search_key[s] = key;
+		mv->join = join;
+		mv->join_step = (int16_t)step;
 		mv->plan_from = cur;
 		if (!mv->again && mv->partial_tries == 0)
 			mv->first_from = cur;       /* where it set out for this goal from */
