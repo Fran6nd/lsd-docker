@@ -401,7 +401,12 @@ local function give_way()
 	return true;
 end
 
+-- the ids that are not bots, listed when first asked (THE SEND GUARD,
+-- below); nil: not known
+local people = nil;
+
 function mod.assign_new_pid()
+	people = nil;        -- somebody is connecting
 	local pid = mod.next.assign_new_pid();
 	if (next(bots) == nil) then
 		return pid;
@@ -993,6 +998,7 @@ mod.xearly.after.disconnect_now = advertise_humans;
 local next_advertise = 0;
 
 function mod.after.tick()
+	people = nil;
 	-- also once a second: it heals the count if anything else (a
 	-- `lsdctl load masterlist`, say) recomputes it with bots in. Every
 	-- event that changes it already recomputes it at once (above).
@@ -1099,6 +1105,7 @@ end
 
 function mod.after.on_disconnect(pid)
 	bots[pid] = nil;
+	people = nil;
 end
 
 -- Every packet addressed to a bot alone, or to a group with only bots
@@ -1118,16 +1125,54 @@ end
 -- Dropping the send here, before C, costs nothing anyone could see: the
 -- core would have sent these nowhere anyway. The single-pid branch is
 -- kept because it is free and saves the trip into C.
+--
+-- Asked for every packet, so it must not walk every player each time:
+-- the people connected are listed once (a tick, or until somebody
+-- connects) and a set of recipients is tested against that short list
+-- -- with a fleet of bots and nobody else, every packet stops here at
+-- the cost of one comparison.
+local function who()
+	if (people == nil) then
+		people = {};
+		for i in piditer(PID_BROADCAST) do
+			if (bots[i] == nil) then
+				people[#people + 1] = i;
+			end
+		end
+	end
+	return people;
+end
+
+-- main.c's pid_matches, for one id: is it among a broadcast's recipients?
+local SET = 0x20000000;
+local function in_set(set, i)
+	local flags = math.floor(set / SET);
+	local data = set % SET;
+	if (flags == 1) then
+		return is_connected(i);
+	elseif (flags == 2) then
+		return is_connected(i) and i ~= data;
+	elseif (flags == 3) then
+		return is_joined(i) and get_team(i) == data;
+	elseif (flags == 4) then
+		return i ~= math.floor(data / 256) and is_connected(i)
+			and (not is_joined(i) or get_team(i) ~= data % 256);
+	end
+	return false;
+end
+
 local function only_bots(pid)
 	if (pid < MAX_PLAYERS) then
 		return bots[pid] ~= nil;
 	end
 	if (pid == PID_BROADCAST) then
-		return false;
+		return #who() == 0;
 	end
-	-- piditer walks pid_matches, the same test the C loop uses
-	for i in piditer(pid) do
-		if (bots[i] == nil) then
+	if (pid < SET) then
+		return false;    -- a handle of the server's own (the console)
+	end
+	for _, i in ipairs(who()) do
+		if (in_set(pid, i)) then
 			return false;
 		end
 	end

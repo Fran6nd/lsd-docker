@@ -396,6 +396,28 @@ local function sane_pid(pid)
 	return pid ~= nil and pid >= 0 and pid < MAX_PLAYERS and pid % 1 == 0;
 end
 
+-- Is nobody editing, and nobody owed or missing a block packet? Asked
+-- for every block packet there is, so it is worked out once and kept
+-- until something that could change it happens (unknown()) or the tick
+-- ends -- on a server full of bots that dig and build, walking every
+-- player for every block was most of what the server did.
+local idle = nil;
+local function unknown()
+	idle = nil;
+end
+local function nobody_busy()
+	if (idle == nil) then
+		idle = true;
+		for i in piditer(PID_BROADCAST) do
+			if (editing[i] or missed[i] or queue[i] ~= nil) then
+				idle = false;
+				break;
+			end
+		end
+	end
+	return idle;
+end
+
 local function edit_any()
 	for i in piditer(PID_BROADCAST) do
 		if (editing[i]) then
@@ -443,6 +465,7 @@ local function start_queue(pid)
 		end
 	end
 	queue[pid] = q;
+	unknown();
 	return q;
 end
 
@@ -532,19 +555,10 @@ function mod.late.send_packet(pid, data)
 
 	-- the common case, with nobody editing and nobody out: untouched,
 	-- broadcast and all
-	local any = edit_any();
-	local busy = any;
-	if (not busy) then
-		for i in piditer(PID_BROADCAST) do
-			if (missed[i] or queue[i] ~= nil) then
-				busy = true;
-				break;
-			end
-		end
-	end
-	if (not busy) then
+	if (nobody_busy()) then
 		return mod.late.next.send_packet(pid, data);
 	end
+	local any = edit_any();
 
 	if (sane_pid(pid)) then
 		return deliver(pid, data, id, any);
@@ -621,6 +635,7 @@ function miss(pid)
 	local q = queue[pid];
 	queue[pid] = nil;
 	missed[pid] = true;
+	unknown();
 
 	-- what was held that is not an edit still goes, in order
 	if (q ~= nil) then
@@ -938,6 +953,7 @@ function edit_mode_set(pid, on)
 	end
 
 	editing[pid] = on;
+	unknown();
 	changed(pid, on);
 	return true;
 end
@@ -997,6 +1013,7 @@ end
 local last_sweep = 0;
 
 function mod.after.tick()
+	unknown();
 	local now = get_time();
 	if (now - last_sweep < 0.25) then
 		return;

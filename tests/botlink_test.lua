@@ -31,7 +31,8 @@ end
 --============================== STUBS ===============================--
 MAX_PLAYERS = 32;
 PID_BROADCAST = 0x20000000;
-local TEAMBASE, EXCEPTBASE = 0x40000000, 0x60000000;
+-- as state.h has them: flag 2 is all-but-one, flag 3 a team
+local EXCEPTBASE, TEAMBASE = 0x40000000, 0x60000000;
 function PID_BROADCAST_TEAM(t) return TEAMBASE + t; end
 function PID_BROADCAST_EXCEPT(p) return EXCEPTBASE + p; end
 function init_mod()
@@ -113,10 +114,10 @@ function piditer(spec)
 			local p = P[i];
 			if (p ~= nil and p.conn) then
 				if (spec == PID_BROADCAST or spec == nil) then return i; end
-				if (spec >= EXCEPTBASE) then
-					if (i ~= spec - EXCEPTBASE) then return i; end
-				elseif (spec >= TEAMBASE) then
+				if (spec >= TEAMBASE) then
 					if (p.team == spec - TEAMBASE) then return i; end
+				elseif (spec >= EXCEPTBASE) then
+					if (i ~= spec - EXCEPTBASE) then return i; end
 				elseif (spec == i) then return i; end
 			end
 		end
