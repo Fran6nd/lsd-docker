@@ -1137,6 +1137,46 @@ static void test_off_the_roof(void)
 		pol.h_weight = 0.0f;
 		pol.descent_secs = 0.0f;
 	}
+	if (begin("ceiling_slab")) {
+		/* A one-voxel slab at the very top of the map (z 0, a body's head
+		 * above the map), the ground 40 below -- keidoro's, where bots
+		 * spawned (tentspawns puts a spawn on a column's top). Under part
+		 * of it a floor at 8 with a stair from it to the ground. */
+		fresh(G);
+		box(W.m, 90, 90, 0, 120, 110, 0, 1);
+		box(W.m, 100, 96, 8, 106, 104, 8, 1);
+		for (i = 1; i <= G - 8; i++)
+			box(W.m, 106 + i, 100, 8 + i, 106 + i, 100, G - 1, 1);
+		/* nothing allowed: no way (the whole slab, 651 columns, flooded) */
+		bc_nav_policy_default(&pol);
+		r = sim_run(&W, pol, node(103, 100, 0), node(150, 100, G), 0, 600);
+		report("ceiling_slab (no edits)", &r);
+		CHECK(!r.arrived && r.damage == 0 && r.max_feet < 0.5f);
+		/* digging: dig the voxel it stands on, drop 8 onto the floor under,
+		 * and down its stair */
+		pol.may_dig = 1;
+		pol.descent_secs = 1.5f;
+		r = sim_run(&W, pol, node(103, 100, 0), node(150, 100, G), 0, 60 * 60);
+		report("ceiling_slab (dig, drop)", &r);
+		CHECK(r.arrived && r.damage == 0);
+		CHECK(r.kinds & K(BC_NAV_DIG));
+		/* the ground 20 under it and nothing else, building too: a stair
+		 * down into the air (two blocks a step) to a safe drop. (40 under
+		 * it, as in keidoro, a stair would take 62 blocks: there it goes
+		 * to the nearest thing it can drop onto -- see NAV-STATUS.md) */
+		fresh(20);
+		box(W.m, 90, 90, 0, 120, 110, 0, 1);
+		pol.may_build = 1;
+		pol.blocks = 50;
+		pol.h_weight = 1.5f;
+		r = sim_run(&W, pol, node(118, 100, 0), node(150, 100, 20), 0, 60 * 90);
+		report("ceiling_slab (no floor under it: a stair down)", &r);
+		CHECK(r.arrived && r.damage == 0);
+		CHECK(r.kinds & K(BC_NAV_BUILD));
+		bc_nav_policy_default(&pol);
+		pol.may_dig = pol.may_build = 1;
+		pol.blocks = 50;
+	}
 	if (begin("roof_no_edits")) {
 		/* the same tower, nothing allowed: it stays up, and the search
 		 * that proves there is no way is small (the roof) */

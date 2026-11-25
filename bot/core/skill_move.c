@@ -112,7 +112,22 @@ static void replan(bc_bot *b, int brake)
 	e->stats.replans++;
 }
 
+static int move_to(bc_bot *b, bl_vec3 pos, float radius, int raw);
+
 int bc_move_to(bc_bot *b, bl_vec3 pos, float radius)
+{
+	return move_to(b, pos, radius, 0);
+}
+
+/* The place's own column and floor (the voxel under an eye at `pos`),
+ * not the nearest place to stand to it: a floor that is not there yet,
+ * for a route that builds it (build_at). */
+int bc_move_to_raw(bc_bot *b, bl_vec3 pos, float radius)
+{
+	return move_to(b, pos, radius, 1);
+}
+
+static int move_to(bc_bot *b, bl_vec3 pos, float radius, int raw)
 {
 	bc_engine *e = b->e;
 	bc_mover *mv = &b->mv;
@@ -138,11 +153,16 @@ int bc_move_to(bc_bot *b, bl_vec3 pos, float radius)
 		if (e->now < mv->shut_until)
 			return BC_MV_FAILED;
 	}
-	if (!bc_nav_snap(e->map, (int)floorf(pos.x), (int)floorf(pos.y),
-	                 (int)floorf(pos.z + 2.25f + 0.5f), 3, &n))
+	if (raw) {
+		n.x = (int16_t)floorf(pos.x); n.y = (int16_t)floorf(pos.y); n.z = (int16_t)floorf(pos.z + 2.25f + 0.5f);
+		if (!bc_map_in(n.x, n.y, n.z))
+			return BC_MV_FAILED;
+	} else if (!bc_nav_snap(e->map, (int)floorf(pos.x), (int)floorf(pos.y),
+	                        (int)floorf(pos.z + 2.25f + 0.5f), 3, &n)) {
 		return BC_MV_FAILED;
+	}
 	if (mv->goal_set && mv->goal.x == n.x && mv->goal.y == n.y && mv->goal.z == n.z &&
-	    mv->radius == r) {
+	    mv->radius == r && mv->exact == raw) {
 		if (mv->state == BC_MV_FAILED && e->now >= mv->retry_at) {
 			/* asked for again: not if the team still knows there is no way */
 			const bl_player *me = bc_me(b);
@@ -206,6 +226,7 @@ int bc_move_to(bc_bot *b, bl_vec3 pos, float radius)
 		bc_engine_search_release(e, b);
 		if (!near)
 			mv->has_route = 0;
+		mv->exact = (uint8_t)raw;
 		mv->goal = n;
 		mv->radius = (int16_t)r;
 		mv->goal_set = 1;
@@ -262,6 +283,7 @@ static void fill_policy(bc_bot *b)
 	p->dig_secs = 0.70f - 0.40f * lv->dig;
 	p->build_secs = 0.85f - 0.30f * lv->dig;
 	p->h_weight = e->plan_greed;
+	p->goal_exact_z = b->mv.exact;
 	/* OFF A ROOF: the goal far below and edits allowed -- the way down is
 	 * dug or built, and a search that takes going down for free floods the
 	 * whole roof first (nav.h, descent_secs: 33 000 to 75 000 expansions on
@@ -269,6 +291,9 @@ static void fill_policy(bc_bot *b)
 	 * 21 500, and the route a few percent dearer at most) */
 	if ((dig || build) && b->mv.goal.z - (int)floorf(me->pos.z + 2.75f) > BC_NAV_DZ_MAX)
 		p->descent_secs = 1.5f;
+	/* and up: a stair or a pillar to a floor far above (build_at) */
+	if (build && (int)floorf(me->pos.z + 2.75f) - b->mv.goal.z > 2)
+		p->ascent_secs = 1.5f;
 	/* A WAY THROUGH WATER. Wading costs seven times what the heuristic
 	 * takes a column for (the sprint), so a search for a way across water
 	 * first looks at all the land it could have walked in that time: the

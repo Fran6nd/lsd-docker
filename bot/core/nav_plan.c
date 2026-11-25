@@ -360,7 +360,10 @@ int nav_edits(const bc_nav_moves *t, const bc_map *m, const bc_nav_policy *pol,
 	int n = 0, nd = 0, nb = 0, k;
 	int bx = to.x, by = to.y, tz = to.z;
 
-	if (!bc_map_in(bx, by, tz) || tz < 3)
+	/* (a floor at 0, 1 or 2 has the body's head above the map, which is
+	 * air: babel's platform in the sky is at 1, a stair to it ends at 2,
+	 * and a bridge off a slab at the map's ceiling is at 0) */
+	if (!bc_map_in(bx, by, tz))
 		return -1;
 
 	if (to.x == from.x && to.y == from.y) {
@@ -380,8 +383,14 @@ int nav_edits(const bc_nav_moves *t, const bc_map *m, const bc_nav_policy *pol,
 				ADD_EDIT(bx, by, tz, BC_BLOCK_BUILD);
 				nb++;
 			}
-		} else if (tz == from.z + 1) {
-			/* DIG DOWN: the floor goes, the one under it must be there */
+		} else if (tz > from.z && tz - from.z <= BC_NAV_DZ_MAX) {
+			/* DIG DOWN: the floor goes, and the body falls onto the floor
+			 * under it -- the next voxel, or (a roof, a slab with a room
+			 * under it) the first solid one up to a safe drop below, with
+			 * nothing between */
+			for (k = from.z + 1; k < tz; k++)
+				if (bc_map_solid(m, bx, by, k))
+					return -1;
 			if (!bc_map_solid(m, bx, by, tz))
 				return -1;
 			if (bc_map_solid(m, bx, by, from.z)) {
@@ -605,14 +614,17 @@ static float heur(const bc_nav_search *s, bc_nav_node n)
 	hi = dx < dy ? dy : dx;
 	/* policy.descent_secs (nav.h): the goal far below, on a search made
 	 * for a body that has no way down without edits */
+	float up = (float)(n.z - s->goal.z - 2);
+
 	return (hi + 0.41421356f * lo) * s->inv_speed +
-	       (down > 0.0f && s->pol->descent_secs > 0.0f ? down * s->pol->descent_secs : 0.0f);
+	       (down > 0.0f && s->pol->descent_secs > 0.0f ? down * s->pol->descent_secs : 0.0f) +
+	       (up > 0.0f && s->pol->ascent_secs > 0.0f ? up * s->pol->ascent_secs : 0.0f);
 }
 
 static int is_goal(const bc_nav_search *s, bc_nav_node n)
 {
 	return abs(n.x - s->goal.x) <= s->radius && abs(n.y - s->goal.y) <= s->radius &&
-	       abs(n.z - s->goal.z) <= 1;
+	       (s->pol->goal_exact_z ? n.z == s->goal.z : abs(n.z - s->goal.z) <= 1);
 }
 
 /* --- heap --- */
@@ -883,7 +895,12 @@ static void try_edit(bc_nav_search *s, uint32_t ci, bc_nav_node a, bc_nav_node t
 		 * 8 steps to where a drop is safe -- not a causeway across the
 		 * map, which every edge would then try. A stair UP is built
 		 * against something (a cliff), not into the open */
-		int most = to.z > a.z ? 8 : 4;
+		/* (a body that has no way down without them -- the caller set
+		 * descent_secs -- may go on further: off a slab at the top of the
+		 * map, a stair of a dozen steps and a bridge to what it can drop
+		 * onto; the search is greedy downward then, it does not fan out) */
+		int far = s->pol->descent_secs > 0.0f;
+		int most = to.z > a.z ? (far ? 24 : 8) : (far ? 16 : 4);
 
 		if (to.z < a.z)
 			return;
@@ -908,9 +925,14 @@ static void try_edit(bc_nav_search *s, uint32_t ci, bc_nav_node a, bc_nav_node t
 	e.digs = (uint8_t)digs;
 	e.builds = (uint8_t)builds;
 	e.move = -1;
+	/* not up into the top of the map (z under 3: a body's head over the
+	 * ceiling) unless that is where it is going: a route over the top of
+	 * the map was a way onto sky slabs with no way down (keidoro) */
+	if (to.z < 3 && to.z < a.z && s->goal.z >= 3)
+		return;
 	if (dir == 8) {
 		e.kind = (uint8_t)(to.z < a.z ? BC_NAV_PILLAR : BC_NAV_DIG);
-		move_secs = to.z < a.z ? 0.75f : 0.4f;  /* a jump; a fall of one */
+		move_secs = to.z < a.z ? 0.75f : 0.4f + 0.05f * (float)(to.z - a.z - 1);  /* a jump; a fall */
 	} else {
 		int mvi = s->t->walk[BC_NAV_CLS_AXIS][to.z - a.z + 1];
 
@@ -1112,8 +1134,19 @@ static void expand(bc_nav_search *s, uint32_t ci)
 		if (pol->may_build)
 			try_edit(s, ci, a, to, 8);
 		to.z = (int16_t)(a.z + 1);
-		if (pol->may_dig)
+		if (pol->may_dig) {
+			/* the floor under this one, through the air between: a fall
+			 * that does not hurt (dig down onto the next voxel, or drop
+			 * through a dug roof onto what is under it) */
+			uint64_t col = m->col[a.y * BC_MAP_X + a.x] >> (a.z + 1);
+			int zb = col ? a.z + 1 + bc_ctz64(col) : 64;
+
+			if (zb > a.z + 1 && zb - a.z <= BC_NAV_DZ_MAX && zb < BC_MAP_WATER_Z &&
+			    t->drop[BC_NAV_CLS_AXIS][zb - a.z - BC_NAV_DZ_MIN] >= 0 &&
+			    t->mv[t->drop[BC_NAV_CLS_AXIS][zb - a.z - BC_NAV_DZ_MIN]].damage <= pol->max_fall_damage)
+				to.z = (int16_t)zb;
 			try_edit(s, ci, a, to, 8);
+		}
 	}
 }
 

@@ -367,6 +367,40 @@ step(130);
 check(not exists(botlink_file), "engine_bots at count 0: still no file");
 mods[#mods] = nil; wire();
 
+--============ 2b. BABEL WITH NO BOTS: NO ENGINE, NO FILE ============
+-- babel_plus tells engine bots their stair -- and must not start
+-- anything when there are none (the owner: "otherwise never turn on the
+-- engine")
+print("\n2b. babel with no bots: no link, no file, nothing sent");
+do
+	babel_width, babel_height, babel_z = 100, 32, 1;
+	tentspawns_radius = 20;
+	new_player(10, 1); new_player(11, 2);       -- two people, no bots
+	local sets, adds = 0, 0;
+	local set0, add0 = botlink_set, botlink_add;
+	botlink_set = function(...) sets = sets + 1; return set0(...); end
+	botlink_add = function(...) adds = adds + 1; return add0(...); end
+	local stats0 = botlink_stats();
+	local before = {};
+	for k, v in pairs(_G) do before[k] = v; end
+	local bp = dofile("catalog/gamemodes/babel/babel_plus.lua");
+	mods[#mods + 1] = bp; wire();
+	step(200);
+	local stats1 = botlink_stats();
+	local same = true;
+	for k, v in pairs(stats0) do if (stats1[k] ~= v) then same = false; end end
+	check(not exists(botlink_file), "babel ticking with no bots: no file");
+	check(sets == 0 and adds == 0, "babel_plus called neither botlink_set nor botlink_add", sets .. " " .. adds);
+	check(same and botlink_alive() == false, "botlink_stats untouched, the link not alive");
+	mods[#mods] = nil; wire();
+	-- what babel_plus put in the chains, out again (its hooks name
+	-- functions nothing else here has: may_break_block)
+	for k, v in pairs(_G) do if (before[k] == nil and type(v) == "function") then _G[k] = nil; end end
+	for k, v in pairs(before) do if (type(v) == "function" and _G[k] ~= v) then _G[k] = v; end end
+	botlink_set, botlink_add = set0, add0;
+	P[10], P[11] = nil, nil;
+end
+
 --================= 3. THE FIRST BOT, AND THE WORLD ==================--
 print("\n3. the first bot makes the file; the world is the server's");
 new_player(0, 1); new_player(1, 2); P[1].gun = 1; P[1].tool = 0;

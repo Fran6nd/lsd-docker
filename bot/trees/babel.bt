@@ -1,0 +1,150 @@
+# babel.bt -- babel: build your team's stair to the platform in the sky,
+# take the intel there and bring it home; break theirs, shoot their
+# builders.
+#
+# The engine knows no tower. The gamemode's script (catalog/gamemodes/
+# babel/babel_plus.lua) lays each team's stair out and tells every bot,
+# through the bridge (bot/TREES.md section 13):
+#   @stair       the next step of its team's stair to build (build_at)
+#   @stair_top   the highest step built, to stand on and watch from
+#   @stair_foot  the ground at the stair's foot
+#   @breach      the lowest step of the OTHER team's stair (dig_at): a
+#                stair broken at its foot falls whole
+#   @intel       the intel: where it lies, or the man who carries it
+#   fact stair_done  1 when its team's stair reaches the platform
+#   fact stair_high  how far up its team's stair is, 0 to 1
+#   fact breach      1 when the other team's stair is worth breaking
+#   fact carrying    1 for the bot that carries the intel
+# and sends edit=all (a tower is built), and these only when engine bots
+# are playing.
+#
+# The top `pick` is a priority list looked at every second; `babel_role`
+# under it is a ROLE drawn once for each bot and kept in every life
+# (`pick roll=once`): builders, guards, snipers, raiders, runners -- by
+# character.
+
+tree babel:
+select
+	pick every=1 sticky=0.2 noise=0
+		option none grenade_near x100         # a grenade at its feet: run
+			do evade
+		option none harmful_water x60         # wading in water that hurts: out, first
+			do leave_water
+		option none has_order x30             # the server said so
+			do obey
+		option none fact carrying x40         # it has the intel: home with it, nothing else
+			do go_to own_base 2
+		option none stranded x20              # no way from here: hold and watch, shoot from there
+			tree babel_stranded
+		option none under_fire x10            # being shot at
+			tree babel_under_fire
+		option none enemy_visible x5          # somebody in sight
+			tree babel_contact
+		option none always                    # the game
+			tree babel_role
+	limit 1
+		do seek                               # the net: the enemy's base
+
+# A role for good, by character: most build (the builder trait, which
+# nothing else used), the careful guard their stair's foot, rifles with
+# an eye for it snipe from the stair, the bold break the other stair,
+# the keen on the game build until the way is there and then run for the
+# intel.
+tree babel_role:
+pick roll=once
+	option builder always x1.2                # a builder: the stair, a step at a time
+		tree babel_builder
+	option objective always x0.8              # a runner: builds, then goes for the intel
+		tree babel_runner
+	option marksman gun_is rifle x0.6         # a sniper: up its stair, shooting their builders
+		tree babel_sniper
+	option caution always x0.5                # a guard: the stair's foot, where it can be broken
+		tree babel_guard
+	option aggression always x0.5             # a raider: their stair, from the foot
+		tree babel_raider
+
+tree babel_builder:
+pick every=5 sticky=0.5 noise=0.1
+	option none fact stair_done x2            # the stair is there: up to the intel
+		do go_to @intel 1
+	option none always                        # the next step
+		do build_at @stair
+
+tree babel_runner:
+pick every=5 sticky=0.5 noise=0.1
+	option none fact stair_done x3            # the way is there: the intel
+		do go_to @intel 1
+	option none always                        # not yet: help build it
+		do build_at @stair
+
+tree babel_sniper:
+pick every=20 sticky=0.5 noise=0
+	option none fact stair_high x3            # its stair up a third of the way or more: climb it, watch from there
+		seq
+			do go_to @stair_top 2
+			do camp 40
+	option none always                        # not yet: watch from the foot
+		do guard @stair_foot 30
+
+tree babel_guard:
+pick every=20 sticky=0.5 noise=0
+	option none always
+		do guard @stair_foot 40
+
+tree babel_raider:
+pick every=10 sticky=0.5 noise=0.1
+	option none fact breach x3                # their stair is up a way: break its foot
+		do dig_at @breach
+	option none fact stair_done x1            # nothing to break: the intel
+		do go_to @intel 1
+	option none always                        # their base: whoever is about
+		do seek
+
+# Shot at: down, then cover in view or face him; or fight back.
+tree babel_under_fire:
+seq
+	do crouch                                 # the flinch, facing the shot
+	pick every=2.5 sticky=0.5 noise=0.2
+		option aggression enemy_visible       # fight back from where it stands
+			do fight
+		option caution under_fire x1.1        # to cover it can see, facing him; none: face him
+			select
+				seq
+					if cover_in_view
+					do take_cover in_view
+				do crouch 3
+		option caution pressed x1.4           # hurt or outnumbered: back, from cover to cover
+			do fall_back_by_cover
+		option builder always x0.4            # a builder goes on building under fire
+			do build_at @stair
+
+# An enemy in sight.
+tree babel_contact:
+pick every=1.5 sticky=0.3 noise=0.15
+	option caution pressed x1.8               # hurt or outnumbered: break off
+		do fall_back_by_cover
+	option aggression enemy_visible           # fight him
+		do fight
+	option marksman standoff x1.1             # in reach and far enough: stand and shoot
+		do hold self 4
+	option builder enemy_far 60 x0.8          # far off: the stair matters more
+		do build_at @stair
+	option greed grenade_worth x0.8
+		do throw_grenade
+
+tree babel_stranded:
+select
+	seq
+		if enemy_visible
+		do fight
+	seq
+		if under_fire
+		do crouch 3
+	do hold self 10
+
+tree babel_also:
+seq
+	always
+		tree extras                           # what the server's scripts add (night and lamps, if it has them)
+	always
+		tree items                            # whatever it holds, used as each item says

@@ -104,6 +104,7 @@ typedef struct bc_mover {
 	float partial_d;        /* how far from the goal the last partial route ended */
 	uint8_t nocap;          /* this goal's next search runs to its end */
 	uint8_t noway;          /* searches in a row that found no way to anywhere */
+	uint8_t exact;          /* the goal is that very floor (bc_move_to_raw) */
 	double noway_at;        /* the last of them */
 	double shut_until;      /* SHUT IN: no route is asked for before (skill_move.c) */
 	double stranded_until;  /* `stranded` holds till then: 30 s from the last
@@ -269,6 +270,7 @@ typedef struct bc_bot {
 	/* looking, cover, and what a bot does with nothing known (skill_look.c,
 	 * skill_cover.c, skill_tactics.c) */
 	bc_gaze gaze;
+	struct { double until, edit_at; uint8_t started, pad_[7]; } bld;     /* build_at, dig_at (skill_build.c) */
 	bc_cover_q cq;
 	struct { uint8_t phase, crouch, tries, peeking, has_peek, view, pad_[2];
 	         double until, peek_at, peek_until, seen_since, go_since, asked_at; bl_vec3 goal, peek; } tc;
@@ -498,6 +500,9 @@ void bc_mover_reset(bc_bot *b);
  * FAILED. A new place starts a new plan; the old route is walked
  * meanwhile if it leads the same way. */
 int bc_move_to(bc_bot *b, bl_vec3 pos, float radius);
+/* The same to the very floor under `pos`, there or not (no snapping to
+ * the nearest place to stand): what build_at builds its way to. */
+int bc_move_to_raw(bc_bot *b, bl_vec3 pos, float radius);
 void bc_move_stop(bc_bot *b);
 /* PLAN: every bot waiting for a route, longest first. */
 void bc_movers_plan(bc_engine *e);

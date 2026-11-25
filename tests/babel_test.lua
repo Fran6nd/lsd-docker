@@ -201,5 +201,78 @@ check(may(nil, {x = 50, y = 50, z = 40}, 3), "and anything outside them");
 mod.next.may_break_block = function() return false; end
 check(not may(0, {x = 50, y = 50, z = 40}, 1), "and what another script protects stays protected (the chain goes on)");
 
+print("\nB. engine bots: each team's stair, told through the bridge -- only when there are bots");
+do
+	local SETS = {};
+	local BUILT = {};
+	local INTEL = {x = 256, y = 256, z = 1};
+	local function k3(x, y, z) return x .. "," .. y .. "," .. z; end
+	function is_solid(p) return p.z >= 50 or BUILT[k3(p.x, p.y, p.z)] == true; end
+	function get_1intel_loc() return INTEL; end
+	function botlink_set(key, value, pid) SETS[#SETS + 1] = {key, tostring(value), pid}; return true; end
+	local ALIVE_LINK, BOTS = false, {};
+	function botlink_alive() return ALIVE_LINK; end
+	function bot_get(pid) return BOTS[pid] and {data = {botlink = true}} or nil; end
+	local function last(key, pid)
+		for i = #SETS, 1, -1 do
+			if (SETS[i][1] == key and SETS[i][3] == pid) then return SETS[i][2]; end
+		end
+	end
+	local function sets_of(key)
+		local n = 0;
+		for _, e in ipairs(SETS) do if (e[1] == key) then n = n + 1; end end
+		return n;
+	end
+	reset();
+	run(5);
+	eq(#SETS, 0, "no engine bots: nothing is told, nothing asked of the link");
+	ALIVE_LINK = true;
+	run(10);
+	eq(#SETS, 0, "a link but no engine bot among the players: still nothing");
+	BOTS[0], BOTS[2] = true, true;
+	run(15);
+	eq(last("edit", nil), "all", "edit=all, for a tower is built");
+	eq(sets_of("edit"), 1, "said once");
+	check(last("zone", nil) ~= nil, "the platform a zone no route edits", last("zone", nil));
+	-- team 1's stair: step k at (205 - k, 240, 2 + k), down to the ground at 50
+	eq(last("place.stair", 0), "158.5 240.5 46.8", "team 1's bot: its stair's lowest step, first");
+	eq(last("place.stair", 2), "353.5 240.5 46.8", "team 2's: the mirror of it");
+	eq(last("fact.stair_done", 0), "0", "not done");
+	eq(last("place.intel", nil), "256.0 256.0 -1.2", "the intel where it lies, for everybody");
+	eq(last("place.stair", 1), nil, "a person is told nothing");
+	-- team 1 builds its three lowest steps
+	BUILT[k3(158, 240, 49)], BUILT[k3(159, 240, 48)], BUILT[k3(160, 240, 47)] = true, true, true;
+	run(16);
+	eq(last("place.stair", 0), "161.5 240.5 43.8", "the next step up");
+	eq(last("place.stair_top", 0), "160.5 240.5 44.8", "the top of what is built");
+	eq(last("fact.breach", 2), "1", "team 2 is told team 1's stair is worth breaking");
+	eq(last("place.breach", 2), "158.5 240.5 49.5", "at its foot (the block)");
+	eq(last("fact.breach", 0), "0", "team 1: nothing of team 2's to break");
+	INTEL = 2;
+	run(17);
+	eq(last("fact.carrying", 2), "1", "the carrier knows it");
+	eq(last("fact.carrying", 0), "0", "the others know it is not them");
+	eq(last("place.intel", nil), "pid 2", "the intel: the man who carries it");
+	-- the whole stair
+	for k = 0, 47 do BUILT[k3(205 - k, 240, 2 + k)] = true; end
+	run(18);
+	eq(last("fact.stair_done", 0), "1", "team 1's stair reaches the platform");
+	-- a bot builds: its blocks are given back (infinite_blocks refills
+	-- players behind the botlink's count)
+	local restocked = {};
+	function restock(pid) restocked[#restocked + 1] = pid; end
+	function get_hp() return 70; end
+	function get_mag_ammo() return 3; end
+	function get_reserve_ammo() return 20; end
+	local hp_set, ammo_set;
+	function set_hp(pid, hp) hp_set = hp; end
+	function set_ammo(pid, m, r) ammo_set = m .. "/" .. r; end
+	mod.after.on_block_action(0, {x = 1, y = 1, z = 1}, 0);
+	mod.after.on_block_action(1, {x = 1, y = 1, z = 1}, 0);
+	eq(#restocked, 1, "a bot that builds is restocked; a person is not");
+	eq(hp_set, 70, "its health as it was");
+	eq(ammo_set, "3/20", "its ammunition as it was");
+end
+
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures == 0 and 0 or 1);

@@ -360,6 +360,16 @@ typedef struct bc_nav_policy {
 	 * the heuristic. Not admissible (a stair or a drop chain is cheaper):
 	 * for the caller that has seen the plain search fail. 0: off. */
 	float descent_secs;
+	/* THE GOAL'S OWN FLOOR: reached only at goal.z, not within one of it
+	 * (a floor to be BUILT a voxel over the ground is not reached by
+	 * standing on the ground beside it). 0: within one, as always. */
+	uint8_t goal_exact_z;
+	uint8_t pad2_[3];
+	/* THE SAME UPWARD, for a body that may build its way up (a stair to a
+	 * platform in the sky): each voxel the goal lies above the node beyond
+	 * two (a jump) adds this. Without it, a pillar of ten to a step of a
+	 * stair took 73 000 expansions on Babelpocalypse; 0: off. */
+	float ascent_secs;
 } bc_nav_policy;
 
 /* What a hit point is worth, in seconds of route. */
