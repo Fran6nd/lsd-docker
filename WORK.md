@@ -41,7 +41,7 @@ DONE (commit), BLOCKED (on what).
 | 7 | Bots stuck on a roof bridge or dig their way down (engine_bots_edit=all) | REVIEW (brain agent): planner can bridge, stair down and dig down from a roof at scale; `stranded` for the trees |
 | 8 | A babel tree, sent by babel_plus only when bots are added; no bots, no engine | TODO (brain agent) |
 | 9 | Remove battle_bots and the gamemodes bots, bots_rewards (setup, scripts, docs, migration of servers that run them) | TODO (after 0) |
-| 10 | Shooting range gamemode on a generated map: a static range (bots as targets from 5 to 50 m, standing or crouched, never dying, never moving, damage shown to the shooter; a target on a rail or one that blinks from place to place) and an IPSC course, one player at a time; all targets as fast as possible | TODO (after 9) |
+| 10 | Shooting range gamemode on a generated map: a static range (bots as targets from 5 to 50 m, standing or crouched, never dying, never moving, damage shown to the shooter; a target on a rail or one that blinks from place to place) and an IPSC course, one player at a time; all targets as fast as possible | REVIEW (range agent): branch commits; `lsdctl play range`; live run on lsd-range |
 | 11 | Graphical node editor in tools/tree-editor (replaces its text-first phase 2) | REVIEW (editor agent): diagram A/B, edits through the engine, upload to chosen bots/team/kind, who-chooses-what; real run green. No live view (owner) |
 | 12 | Docs pass left unfinished by the tooling agent (bot/trees/README.md, TREES.md trimmed, docs/*, skills) | TODO |
 | 13 | A scenario test for the sniper role (tdm, ctf) | TODO |
@@ -263,3 +263,24 @@ DONE (commit), BLOCKED (on what).
   row 255 (42/42 each) and the score 2-1 at 6 minutes, unchanged at 10
   (3 of 12 bots read "idle" in bots list then: to look at); babel's
   GAMES row in lsdctl now says bots = true.
+- 2026-11-25 (range agent, item 10): the `range` gamemode on a generated
+  map (catalog/core/range_map.lua, seeded; 1 block = 1 m). Static range:
+  5 lanes 9 wide between walls 3 high, a line every 5 m (orange every
+  10), lane numbers on a backstop 10 high; each lane the same 8 targets
+  (5, 10, 15, 25, 35, 50 m standing or crouched, some on plinths; a rail
+  at 20 m, 2.5 m/s across the lane; a blink between 30, 40 and 45 m
+  every 1.5 s). A run: step into a bay, the clock 3 s later, stops at
+  8/8; leaving the bay voids it. IPSC: a hall and three rooms walled 5
+  high, doors and ports, 10 targets (one on a rail); /ipsc or the orange
+  waiting area queues; one inside; clock from leaving the start box to
+  the end box with every target hit; death, walking out, leaving the
+  server or 120 s abandons; an intruder is sent to the waiting area and
+  queued. Best times on two boards (/best). Targets: 50 lib_bot bots on
+  team 2, silent, no think, no engine (no botlink file, botlink_add
+  never called; GAMES bots unset), one controller from the map's data
+  (static | rail | blink); immortal in the damage hook, the shooter shown
+  the hit through damage_markers_show. Counted: bullets only. Live
+  (lsd-range, two pyenet clients): targets where the metadata says (39
+  static exact, 14 crouched), a lane run 8/8 with a double hit counted
+  once, a marker per hit (49 body, 100 head) with the target at 100 hp,
+  the IPSC queue end to end. Not done: a bot tree to run the course.
