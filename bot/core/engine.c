@@ -1529,6 +1529,8 @@ static void ev_set(bc_engine *e, int pid, const char *text)
 	} else if (!strcmp(key, "water")) {
 		e->water_lethal = !strcmp(val, "lethal");
 		memset(e->unreach, 0, sizeof e->unreach);
+	} else if (!strcmp(key, "fire")) {
+		e->hold_fire = !strcmp(val, "hold");
 	} else if (!strcmp(key, "water.damage")) {
 		e->water_damage = (float)atof(val);
 		if (!(e->water_damage > 0.0f)) e->water_damage = 0.0f;

@@ -16,6 +16,8 @@
 tree ctf:
 select
 	pick every=1 sticky=0.2 noise=0
+		option none fact peace x1000          # the players voted peace: nobody fights
+			tree ctf_peace
 		option none grenade_near x100         # a grenade at its feet: run
 			do evade
 		option none harmful_water x60         # wading in water that hurts: out, first
@@ -36,6 +38,36 @@ select
 			tree ctf_role
 	limit 1
 		tree ctf_net
+
+# Peace (the server's `fact peace`): no bot starts a fight, throws a
+# grenade or answers a shot, but the game goes on -- their intel is
+# fetched and brought home (not shooting on the way: `carry_home 0`),
+# ours is not guarded (there is nobody to guard it from) -- and with
+# nothing to fetch it walks about with its squad or alone. Looked at
+# every second: the war is back within one of the peace's end.
+tree ctf_peace:
+pick every=1 sticky=0.2 noise=0
+	option none harmful_water x60             # wading in water that hurts: out, first
+		do leave_water
+	option none carrying_intel x40            # it has their intel: home, shooting nobody
+		do carry_home 0
+	option none has_order x30                 # the server said so
+		do obey
+	option none always
+		tree ctf_peace_duty
+
+tree ctf_peace_duty:
+pick every=20 sticky=1.5 noise=0.3
+	option objective their_intel_dropped x2   # theirs lies where a carrier fell: pick it up
+		do fetch
+	option objective their_intel_home         # go and take theirs
+		do fetch
+	option flank their_intel_home x1.1        # take theirs, coming at it the long way round
+		tree ctf_round
+	option teamwork has_leader x1.6           # fall in with its leader
+		do follow leader
+	option none always x0.25                  # nothing else: about the map
+		do roam
 
 # Its ROLE first, drawn by lot once for each bot and kept for good (the
 # scores are facts about the bot, its gun): about one rifle in four is a
@@ -221,7 +253,9 @@ seq
 	always
 		tree extras                           # what the server's scripts add (night and lamps, if it has them)
 	always
-		tree items                            # whatever it holds, used as each item says
+		select
+			if fact peace                     # at peace nothing is used on anyone
+			tree items                            # whatever it holds, used as each item says
 	always
 		tree ctf_callouts
 

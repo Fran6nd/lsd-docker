@@ -1282,6 +1282,7 @@ comment, SETTINGS, has the detail):
 | `zone` | `x0 y0 x1 y1 [nodig] [nobuild] [team N]`, more after `;`, or `clear` | the rectangles where routes and edit words do not edit (both, when neither is said), for everybody or for team N's bots; each set is the whole list |
 | `protect` | `x y z` | a voxel the server will refuse to change |
 | `water` | `lethal`, `safe`; `water.damage` a number | what wading costs |
+| `fire` | `hold`, or nothing | the server forbids all fire: no bot pulls a trigger or strikes a blow, whatever its tree does (a tree decides what a bot goes to do; this is the server's rule, as the water is). A server at peace sets it beside `fact.peace`, which the shipped trees read to stop fights and grenades |
 | `night.sight` | `0`, `1`; `night.cone`, `night.reach`, `night.far` | night sight and lamps (the night script sets them) |
 | `night_vision` * | `0`, `1` | the bot sees by night as by day |
 | `sight`, `fov`, `notice`, `memory`, `relay`, `board`, `noise_secs` | numbers | the senses |

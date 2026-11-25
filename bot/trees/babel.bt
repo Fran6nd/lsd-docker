@@ -36,6 +36,8 @@
 tree babel:
 select
 	pick every=1 sticky=0.2 noise=0
+		option none fact peace x1000          # the players voted peace: nobody fights
+			tree babel_peace
 		option none grenade_near x100         # a grenade at its feet: run
 			do evade
 		option none harmful_water x60         # wading in water that hurts: out, first
@@ -58,6 +60,39 @@ select
 			tree babel_role
 	limit 1
 		do seek                               # the net: the enemy's base
+
+# Peace (the server's `fact peace`): no bot starts a fight, throws a
+# grenade, breaks the other stair or answers a shot -- everybody builds:
+# the stair, then its second row and props, and the intel once the way is
+# there, brought home shooting nobody. Looked at every second: the war is
+# back within one of the peace's end.
+tree babel_peace:
+pick every=1 sticky=0.2 noise=0
+	option none harmful_water x60             # wading in water that hurts: out, first
+		do leave_water
+	option none has_order x30                 # the server said so
+		do obey
+	option none carrying_intel x40            # it has the intel: home with it, shooting nobody
+		do carry_home 0
+	option none always
+		tree babel_peace_duty
+
+tree babel_peace_duty:
+select
+	seq
+		unless fact stair_done
+		do build_at @stair
+	pick every=10 sticky=0.5 noise=0.1
+		option none their_intel_home x3       # the way is there: the intel
+			do fetch
+		option none their_intel_dropped x4
+			do fetch
+		option none fact widen x2             # the second row, a block at a time
+			do put_at @widen
+		option none fact prop                 # a prop, from the ground up
+			do build_at @prop
+		option none always x0.1               # all done: watch from the top
+			do hold @stair_top 30
 
 # A role for good, by character: most build (the builder trait, which
 # nothing else used) -- the stair, then making it hold --, the careful
@@ -212,4 +247,6 @@ seq
 	always
 		tree extras                           # what the server's scripts add (night and lamps, if it has them)
 	always
-		tree items                            # whatever it holds, used as each item says
+		select
+			if fact peace                     # at peace nothing is used on anyone
+			tree items                            # whatever it holds, used as each item says

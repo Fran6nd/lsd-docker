@@ -18,6 +18,8 @@
 tree default:
 select
 	pick every=1.5 sticky=0.3 noise=0.15
+		option none fact peace x1000          # the players voted peace: nobody fights
+			tree default_peace
 		option none grenade_near x100         # a grenade at its feet: run
 			do evade
 		option none harmful_water x60         # wading in water that hurts: out, first
@@ -38,6 +40,19 @@ select
 			do seek
 	limit 1
 		do seek
+
+# Peace (the server's `fact peace`): no bot starts a fight, throws a
+# grenade or answers a shot; it keeps out of the water, obeys the server,
+# and walks about the map. Looked at every second: the war is back within
+# one of the peace's end.
+tree default_peace:
+pick every=1 sticky=0.2 noise=0
+	option none harmful_water x60             # wading in water that hurts: out, first
+		do leave_water
+	option none has_order x30                 # the server said so
+		do obey
+	option none always                        # about the map, where the team has not been lately
+		do roam
 
 tree default_cover:
 seq
@@ -77,4 +92,6 @@ seq
 	always
 		tree extras                           # what the server's scripts add (night and lamps, if it has them)
 	always
-		tree items                            # whatever it holds, used as each item says
+		select
+			if fact peace                     # at peace nothing is used on anyone
+			tree items                            # whatever it holds, used as each item says

@@ -415,6 +415,7 @@ struct bc_engine {
 	uint8_t may_dig, may_build, water_lethal;
 	float water_damage;         /* health a second lost wading (water.damage) */
 	uint8_t gaze_off;           /* gaze=0: heads follow the steering */
+	uint8_t hold_fire;          /* fire=hold: the server forbids it; no trigger is pulled, no blow struck */
 	uint8_t plan_stand;         /* plan.wait=stand: a bot waits for its route standing */
 	float plan_greed;           /* plan.greed: nav's h_weight for every plan (1.5) */
 	int plan_cap;               /* plan.cap: expansions a plan may take before the

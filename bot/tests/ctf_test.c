@@ -222,6 +222,51 @@ static void test_six_a_side(void)
 	bs_free(s);
 }
 
+/* PEACE: the server tells the engine two things while the players have
+ * voted it -- `fire=hold` (the rule: no trigger is pulled) and `fact.peace`
+ * (what the trees read: no fights, no grenades; the game goes on). With
+ * both nobody fires a shot though the teams are about, the intel is still
+ * taken; both forgotten, the war is back. */
+static int shots_of(bs_sim *s)
+{
+	int i, n = 0;
+
+	for (i = 0; i < BL_MAX_PLAYERS; i++) n += s->p[i].used && s->p[i].bot ? s->p[i].shots : 0;
+	return n;
+}
+
+static void test_peace(void)
+{
+	bs_sim *s = big_pitch(8);
+	int war, at_peace, after, pick0, kills0;
+
+	printf("peace: no shot while it lasts, the war back when it ends\n");
+	bs_start(s);
+	s->respawn = 4.0;
+	teams(s, 4, 777);
+	bs_run(s, 120.0);
+	war = shots_of(s);
+	bs_set(s, BL_NO_PLAYER, "fire=hold");
+	bs_set(s, BL_NO_PLAYER, "fact.peace=1");
+	bs_run(s, 3.0);                                   /* a pick looks again every second */
+	at_peace = shots_of(s);
+	pick0 = s->pickups[1] + s->pickups[2];
+	kills0 = s->kills[1] + s->kills[2];
+	bs_run(s, 120.0);
+	after = shots_of(s);
+	printf("  120 s of war: %d shots; 120 s at peace: %d shots, %d kills, intel taken %d times\n",
+	       war, after - at_peace, s->kills[1] + s->kills[2] - kills0, s->pickups[1] + s->pickups[2] - pick0);
+	CHECK(war > 20);
+	CHECK(after - at_peace == 0 && s->kills[1] + s->kills[2] == kills0);
+	CHECK(s->pickups[1] + s->pickups[2] > pick0);
+	bs_set(s, BL_NO_PLAYER, "fire=");
+	bs_set(s, BL_NO_PLAYER, "fact.peace=");
+	bs_run(s, 120.0);
+	printf("  120 s after the peace: %d shots\n", shots_of(s) - after);
+	CHECK(shots_of(s) - after > 20);
+	bs_free(s);
+}
+
 /* The carrier and a man who does it no harm, off to one side of its way
  * home: it does not stop for him. */
 static void test_carrier_runs(void)
@@ -423,6 +468,7 @@ int main(void)
 	test_carrier_runs();
 	test_thief();
 	test_spread();
+	test_peace();
 	test_replay();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;

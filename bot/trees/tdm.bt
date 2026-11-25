@@ -19,6 +19,8 @@
 tree tdm:
 select
 	pick every=1 sticky=0.2 noise=0
+		option none fact peace x1000          # the players voted peace: nobody fights
+			tree tdm_peace
 		option none grenade_near x100         # a grenade at its feet: run
 			do evade
 		option none harmful_water x60         # wading in water that hurts: out, first
@@ -35,6 +37,28 @@ select
 			tree tdm_duty
 	limit 1
 		do seek                               # the net: the enemy's base
+
+# Peace (the server says `fact peace` while the players have voted it): no
+# damage is done by anyone, and no bot starts a fight, throws a grenade
+# or answers a shot. It leaves what is not a fight: the wet, the server's
+# orders, and the game's walking about -- with its squad, else by roaming
+# (neither of which fires). It is a priority list, looked at every second,
+# so the war comes back within one second of the peace's end.
+tree tdm_peace:
+pick every=1 sticky=0.2 noise=0
+	option none harmful_water x60             # wading in water that hurts: out, first
+		do leave_water
+	option none has_order x30                 # the server said so
+		do obey
+	option none always
+		tree tdm_peace_duty
+
+tree tdm_peace_duty:
+pick every=25 sticky=1.5 noise=0.35
+	option teamwork has_leader x0.85          # fall in with its leader
+		do follow leader
+	option none always                        # about the map, where the team has not been lately
+		do roam
 
 # Shot at (hurt, a round close by, a mate dropped beside it): down at
 # once, then one of these -- by caution, health, and the odds. Nobody
@@ -208,7 +232,9 @@ seq
 	always
 		tree extras                           # what the server's scripts add (night and lamps, if it has them)
 	always
-		tree items                            # a medkit when hurt, a rocket at a group: each item's own rule
+		select
+			if fact peace                     # at peace nothing is used on anyone
+			tree items                            # a medkit when hurt, a rocket at a group: each item's own rule
 	always
 		tree tdm_callouts
 

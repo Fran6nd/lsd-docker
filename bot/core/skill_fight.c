@@ -352,7 +352,7 @@ uint8_t bc_fight_trigger(bc_bot *b, int on_target, float dist)
 	const bc_gun_row *g = bc_gun(me->gun);
 	bc_fight *f = &b->fight;
 
-	if (b->wish.fire_pid < 0 || !on_target) {
+	if (b->wish.fire_pid < 0 || !on_target || e->hold_fire) {
 		f->burst_until = 0.0;
 		return 0;
 	}
