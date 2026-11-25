@@ -203,6 +203,136 @@ role and the bridge had moved it.)
 at HEAD before step B: the trees changed since (the sniper role). Item 13,
 the sniper scenario, is where the ctf game is looked at again.)
 
+## (c2) SCALE: 230 bots (2026-11-25, WORK.md item 18)
+
+**What the owner saw with "230 bots"** was not 230 bots: botd was sized
+for 64 (`--bots` defaulted to 64 and the entrypoint gave none), so 166
+stood still, and the server carried 230 peerless players through Lua
+send paths that walked every player for every packet. Now botd is sized
+for every seat (255, the default and the entrypoint's), and nothing is
+built, sent or walked for a bot (lib_bot's `people_in`, used by the
+overrides of command_ups and afkick; lib_player_limit's, lib_edit_mode's
+and lib_bot's own send guards on master; lib_player_properties).
+
+**Measured** on a container of its own (M-series laptop, Docker
+Desktop, arm64 native, other containers running), one headless client
+that speaks Player Limit connected as a spectator,
+60 s a point, after 50 s of play. CPU is percent of ONE core
+(/proc/<pid>/stat); tick = the server's whole tick, Lua and C
+(`mod.xearly` before/after); UPS = ticks a second, min / p1 / median over
+whole seconds; keys = alive bots holding a movement key at a sample,
+moved = alive bots that moved over 2 voxels in 8 s. BEFORE = master at
+9d7d14c (botd at 255, no send-path fix), AFTER = this branch.
+
+ctf, prisonbreakv1, engine_bots_edit=all:
+
+| bots | | server % | botd % | tick p50 / p99 / max ms | ticks over 25 ms a min | UPS min/p1/med | botd round mean / worst ms | keys % | moved % | client UPS min / med, gap max ms |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 40 | before | 7.5 | 2.9 | 0.57 / 1.8 / 2.9 | 0 | 60/60/61 | 0.41 / 7.3 | 75 | 83 | 59 / 60, 26 |
+| 40 | after | 6.9 | 3.9 | 0.46 / 1.7 / 2.8 | 0 | 60/60/61 | 0.56 / 10.4 | 87 | 93 | 59 / 60, 25 |
+| 100 | before | 10.7 | 7.9 | 0.98 / 6.5 / 17.3 | 0 | 60/60/61 | 1.22 / 10.0 | 89 | 96 | 59 / 60, 33 |
+| 100 | after | 8.6 | 9.3 | 0.70 / 2.1 / 3.8 | 0 | 60/60/61 | 1.47 / 19.6 | 87 | 95 | 60 / 60, 20 |
+| 160 | before | 15.3 | 11.9 | 1.60 / 16.3 / 36.4 | 4 | 60/60/61 | 1.96 / 10.9 | 83 | 88 | 59 / 60, 52 |
+| 160 | after | 10.0 | 11.4 | 0.98 / 2.8 / 37.1 | 2 | 60/60/61 | 1.85 / 24.4 | 84 | 94 | 59 / 60, 53 |
+| 230 | before | 22.1 | 13.5 | 2.63 / 29.9 / 57.5 | 58 | 60/60/61 | 2.19 / 11.8 | 84 | 89 | 59 / 60, 73 |
+| 230 | after | 13.2 | 15.6 | 1.35 / 4.6 / 45.9 | 1 | 60/60/61 | 2.61 / 34.9 | 81 | 90 | 59 / 60, 62 |
+
+tdm, the generated flat map, no edits:
+
+| bots | | server % | botd % | tick p50 / p99 / max ms | ticks over 25 ms a min | UPS min/p1/med | botd round mean / worst ms | keys % | moved % | client UPS min / med, gap max ms |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 40 | before | 9.3 | 3.2 | 0.79 / 2.8 / 5.7 | 0 | 60/60/61 | 0.43 / 3.4 | 96 | 100 | 59 / 60, 23 |
+| 40 | after | 7.5 | 2.3 | 0.56 / 1.8 / 3.1 | 0 | 60/60/61 | 0.28 / 3.9 | 93 | 99 | 59 / 60, 35 |
+| 100 | before | 11.2 | 4.6 | 1.19 / 4.4 / 10.8 | 0 | 60/60/61 | 0.70 / 5.2 | 90 | 97 | 59 / 60, 26 |
+| 100 | after | 9.4 | 5.2 | 0.86 / 2.5 / 4.0 | 0 | 60/60/60 | 0.80 / 5.5 | 94 | 99 | 59 / 60, 26 |
+| 160 | before | 14.5 | 7.0 | 1.83 / 4.3 / 10.2 | 0 | 60/60/61 | 1.10 / 4.9 | 93 | 97 | 60 / 60, 26 |
+| 160 | after | 11.6 | 7.6 | 1.21 / 3.6 / 49.4 | 1 | 60/60/61 | 1.19 / 14.2 | 89 | 98 | 59 / 60, 34 |
+| 230 | before | 20.3 | 8.9 | 2.12 / 6.6 / 105 | 2 | 55/55/61 | 1.42 / 14.2 | 92 | 99 | 53 / 60, 121 |
+| 230 | after | 14.3 | 9.4 | 1.58 / 6.7 / 92 | 13 | 54/54/61 | 1.48 / 30.0 | 89 | 99 | 55 / 60, 141 |
+
+The 230 rows on the flat map each had one second at 54-55 ticks: a tick
+of about 100 ms, at the same moment as botd's "stall: woke 50-70 ms
+late" -- both processes were held by the host (Docker Desktop's VM, with
+other containers and a build running beside), not by their own work: the
+server's tick p99 is 6.7 ms. The same host effect is behind most of the
+"worst" columns.
+
+botd's rounds are its own clock (60 a second); the world comes at 30
+(`botlink_world_hz`), and a bot decides at 20 in four phases, acts at
+every world. Its worst round rose with the planner's budget (below) and
+stays inside two periods; no "stall" line in any run above.
+
+**What was done, and what each bought** (commits on the branch, in order):
+
+1. botd sized for every seat: 64 -> 255 (entrypoint, botd's default; a
+   bot the engine has no room for is said with the option to raise). The
+   only other cap that 115 a side outgrew: a team's leaders, 8 -> 52.
+   botd's RSS at 255: 35-40 MB.
+2. THE PLANNER'S BUDGET grows with the fleet (engine.h): `--budget` (3000
+   expansions a think) is for 40 bots, and n bots get n/40 of it. A fixed
+   budget planned about 11 routes a second for everybody: bench map230
+   (prisonbreakv1, 120 s): waiting for a route 32.7% -> 2.1% of the bots'
+   time, no key 51 -> 24%, plans 1280 -> 11045, kills 130 -> 251; a think
+   1.1 -> 2.8 ms (a call; the host calls twice a world), worst 4 -> 20 ms.
+   Up to 40 bots nothing moves (the whole baseline above is unchanged).
+3. `people_in` (lib_bot) and the overrides: command_ups built a World
+   Update for EVERY player, bots included, 60 times a second (230 builds
+   of a 255-entry packet a tick, each sent nowhere); afkick walked every
+   player three times at each input of anybody (bots' inputs: hundreds a
+   second). 230 bots + a client: server 19 -> 12.5%, tick p50 2.4 -> 1.4
+   ms, p99 6.4 -> 4.1 ms; the VM's samples 2287 -> 1296 per 12 s.
+4. lib_player_properties: no snapshot of every player every tick when no
+   client has agreed to be told; its viewers are looked for among people.
+
+**Where the cost is now, at 230** (LuaJIT profiler, 12 s, one client):
+the C core's tick (physics for every body, core.lua:84, about a quarter),
+writing the world for botd (lib_botlink.lua:866, 9%: fill_player, 12 API
+calls a player), lib_ctf's per-player intel check (8%), lib_player_limit
+(6%), noclip, jp, ctf, fall_damage, lib_night (1.5-5% each: per-player
+tick loops upstream's, needed for bots as for people). botd on a real map
+is the planner (nav_move_fits, relax, plan_step: about 90% of a think);
+on a flat field, sight (bc_lsd__cast_ray: 55% of the time, 98% of a
+think's own cost at arena230 -- every bot looks at every enemy in its
+cone, three rays each, at 20 Hz).
+
+**The limit on this machine**: 230 bots hold 60 ticks a second (UPS min
+60 over every minute measured) with the server at 13% of a core and botd
+at 16%. Neither is near a core; what limits first is the client's link:
+a World Update carries every slot up to the highest living id, 24 bytes
+each, 60 a second -- 5.5 KB, 324 kB/s (2.6 Mbit/s) a person at 230.
+ENet sends a packet over the MTU as reliable fragments (4 a packet). A
+link that cannot carry that queues: the protocol lets a client ask for
+fewer (`/ups 30`, `/ups 20`: command_ups, now built for people only),
+and it lets nothing smaller per packet (the update is indexed by player
+id). Tried and dropped: sending it as unreliable fragments
+(ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT, a patch to funcs_send.c): under
+netem 40 ms 1% loss the client got 51 updates a second (min 11) against
+60 (min 57) reliable; 3% loss 41 against 60; 4 Mbit at 80 ms 45 against
+67. Reliable is the better of the two.
+
+**Measuring again**: `tests/bench.c` takes `arena<N>`, `ctf:<n>` and
+`map<N>:<file>` up to 254 bots (BENCH_BUDGET=n: a map scene's budget,
+522 at 230 being the old fixed 3000). The live harness (a probe module
+through `lsdctl exec`, a CPU reader on /proc, a headless Player Limit
+client in Python with pyenet: ENet connect with data 3, join as a
+spectator on StateData, answer the version request as a ZeroSpades
+newer than 0.1.3 and echo the ExtInfo list, then count packet 2) is
+described in WORK.md's log for item 18; it is not kept in the repo.
+
+Bench at scale, AFTER (deterministic but for think):
+
+| scene | think mean / worst us | no key % | waiting % | head on % | plans | kills | stuck |
+|---|---|---|---|---|---|---|---|
+| arena100 | 449 / 3432 | 22.1 | 0.3 | 42.2 | 2992 | 193 | 0 |
+| arena160 | 925 / 6037 | 21.9 | 0.5 | 26.9 | 4945 | 285 | 0 |
+| arena230 | 1554 / 8652 | 25.7 | 5.1 | 47.4 | 6391 | 360 | 0 |
+| map230:prisonbreakv1 | 2786 / 19754 | 24.3 | 2.1 | 82.8 | 11045 | 251 | 0 |
+| ctf:115 (four games) | 1147 / 13249 | 21.7 | 5.4 | 75.2 | | 8911 | 0 |
+
+ctf:115 makes no capture in four games of 300 s (115 a side on a pitch
+made for 10: the bench's town is 150 voxels across). Not looked at here:
+it is the trees' (item 13).
+
 ## (d) WHAT THE SERVER MAY SEND (BL_EV_SET, "key=value")
 
 `*` = may be sent for one bot (pid) as well as for everybody. engine.c's

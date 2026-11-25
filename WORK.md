@@ -49,6 +49,7 @@ DONE (commit), BLOCKED (on what).
 | 15 | Editor backend gaps: a game list as data, a quiet roster poll, an outline for text that does not compile | PARTLY DONE: `lsdctl bots games`, `bttree --split --json` committed; open for botd/bt.c: a quiet roster request, a parse of a wrong text (see the 2026-11-25 log) |
 | 16 | A release (the published image predates `lsdctl bots`; the editor refuses it) | when the owner asks |
 | 17 | Hostage gamemode: the hostages as engine bots with a tree of their own (botlink_add with a tree), falling back to today's lib_bot hostages with no engine; guards kept | TODO (brain agent, after 8) |
+| 18 | 230 bots without lag: botd sized for every seat, the planner's budget grown with the fleet, nothing built or walked for a bot on the server's send paths | REVIEW (scale agent): branch commits; numbers in BRAIN-STATUS.md (c2) |
 
 ## Log
 
@@ -185,3 +186,24 @@ DONE (commit), BLOCKED (on what).
   built toward nowhere, no long search) and it is shut in 30 s at a time:
   keidoro, 3 bots stranded 5 minutes with edit=all, about 27 000
   expansions a minute each (450 a second); with edits off 8 000.
+- 2026-11-25 (scale agent, item 18): what the owner saw at "230 bots"
+  was 64 bots and 166 standing (botd --bots 64) on a server whose Lua
+  walked every player for every packet. Measured on a container of its
+  own with one headless Player Limit client (a probe module on
+  mod.xearly before/after tick via `lsdctl exec`: tick p50/p99/max, UPS
+  min/p1/median a second, bots holding keys and moving; CPU from
+  /proc/<pid>/stat; a Python pyenet client counting World Updates):
+  ctf prisonbreakv1 edit=all at 230, before -> after: server 22 -> 13%
+  of a core, tick p99 30 -> 4.6 ms, ticks over 25 ms 58 -> 1 a minute,
+  UPS 60 throughout, botd 13.5 -> 15.6% (the bigger planner budget),
+  client 60 updates a second either way (5.5 KB each, 324 kB/s). Done:
+  botd at 255 (the coordinator's entrypoint commit; botd's default too;
+  leaders 8 -> 52 a team; a bot with no room said so), the planner's
+  budget per 40 bots (bench map230: waiting for routes 33 -> 2%),
+  lib_bot's people_in with command_ups and afkick overrides,
+  player_properties idle with nobody to tell. Tried and dropped: World
+  Updates as unreliable fragments (worse under loss than reliable). Not
+  done, next: a route board shared by a team's bots (aosbot's; the
+  planner is ~90% of botd on a real map), sight shared by pairs or
+  staggered for far enemies (98% of a think on a flat field), the
+  world write's 12 API calls a player.
