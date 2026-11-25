@@ -71,6 +71,8 @@ assemble_scripts() {
 # <name>.vxl ..." -- which the server (vote_map) reads and loads. Polled
 # once a second; a game without vote_map never writes the request.
 map_helper() {
+	# the script is the inner shell's: its $1 is not ours to expand
+	# shellcheck disable=SC2016
 	su-exec lsd sh -c '
 		req="$1/rw/map_request"; res="$1/rw/map_result"
 		while :; do
