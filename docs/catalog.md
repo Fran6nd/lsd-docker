@@ -129,7 +129,7 @@ water to kill).
 
 ## Range
 
-A shooting range: one team, targets that never die, every target down
+A shooting range: one team against targets, every target down
 as fast as you can. One block is one metre. The map is generated
 (`catalog/core/range_map.lua`, from a seed) when the mode is chosen and
 is the only one in rotation: `lsdctl gamemode range`, or `lsdctl play
@@ -147,37 +147,57 @@ range`; `lsdctl map course [seed]` generates another.
   out and back in is another. Several lanes at once, one person a lane.
 - **The IPSC course**, one shooter at a time: a hall and three rooms
   behind walls 5 high, each wall with a door and a port (a window at eye
-  height), yellow shooting positions, ten targets (one on a rail).
-  `/ipsc` joins the queue (and leaves it), as does stepping onto the
-  orange waiting area by the door; the first in the queue is put in the
-  green start box when the course is free. The clock starts on leaving
-  the start box and stops in the blue end box once every target is hit
-  (in the end box with targets standing you are told how many, and the
-  clock runs on). Dying, leaving the course, leaving the server or 120 s
-  abandons the run and the next one goes in. Anybody else who gets in is
-  sent to the waiting area, and so joins the queue.
+  height), yellow shooting positions, ten targets (one on a rail) and
+  four no-shoots: men of your own team standing among the targets,
+  behind one or beside one, by the doors. `/ipsc` joins the queue (and
+  leaves it), as does stepping onto the orange waiting area by the door;
+  the first in the queue is put in the green start box, behind the start
+  wall, when the course is free. The wall comes down -- the server takes
+  its supports away and the rest falls, as every client sees -- once the
+  course is ready (every target standing in its place, nobody else
+  inside, 3 s given to the shooter), and the clock starts then. A target
+  hit goes down and stays down; the clock stops in the blue end box once
+  every target is down (in the end box with targets standing you are
+  told how many, and the clock runs on). Each hit on a no-shoot costs 10
+  s (`range_noshoot_penalty`), told at once ("No-shoot hit: +10 s") and
+  in the final time ("12.50 s + 10 s penalty = 22.50 s"); a no-shoot
+  never goes down. Dying, leaving the course, leaving the server or 120 s
+  from the wall's fall abandons the run. However a run ends, the course
+  is made ready at once -- every target stood up again where it was, the
+  wall built again -- and the next one goes in. Anybody else who gets in
+  is sent to the waiting area, and so joins the queue.
 
 A hit is a bullet (body or head; not a spade or a grenade), counted once
 a run, for the run the target is part of. Times are told, each person's
-best is kept on two boards (static, IPSC) and a record announced; `/best`
-lists them (kept by name through map restarts, not a restart of the
-server; another range starts them over). Health and ammunition are made
-full at the start and end of every run; the tent on the plaza restocks
-too. Nobody builds or digs.
+best is kept on two boards (static, IPSC; penalties included) and a
+record announced; `/best` lists them (kept by name through map restarts,
+not a restart of the server; another range starts them over). Health and
+ammunition are made full at the start and end of every run; the tent on
+the plaza restocks too. Nobody builds or digs, and nothing breaks the
+start wall (an edit refused is put back on the client; grenades make no
+craters). The range gives no rewards: the mode tells lib_rewards so
+(`gamemode_rewards = false`) while it is loaded; `rewards_enabled` is
+left as you set it.
 
-The targets are lib_bot bots on the other team (50 of them: 8 a lane and
-10 on the course), not the bot engine's: no tree, no `lsdctl bots`,
-nothing asked of botd. They never move of themselves and never die: a
-hit stops in the mode's damage hook, and the shooter is shown what it
-was worth through Damage Markers (installed with the mode), as for a
-man. Silent Player clients leave them out of the score and the roster.
-They take seats: 50 of the 255; on a server with fewer seats a person
-still always gets in (a target gives way and comes back when a seat is
-free). A map of your own can be a range: its `.txt` names the spawn,
-the lanes' bays, the course's area and boxes and the targets
-(`'range_spawn'`, `'range_lanes'`, `'range_ipsc'`, `'range_ipsc_start'`,
-`'range_ipsc_end'`, `'range_ipsc_wait'`, `'range_targets'`; the format is
-in `range_map.lua`).
+The targets are lib_bot bots (54 of them: 8 a lane, 10 on the course on
+the other team, 4 no-shoots on yours), not the bot engine's: no tree, no
+`lsdctl bots`, nothing asked of botd. They never move of themselves.
+What a hit does is each target's kind, in the map's data: a lane's
+(plate) never falls; a course target (popper) falls -- killed by nobody,
+as a fall: no kill, no score, no reward -- and is stood up again for the
+next run; a no-shoot costs the penalty. Every hit stops in the mode's
+damage hook, and the shooter is shown what it was worth through Damage
+Markers (installed with the mode), as for a man. Silent Player clients
+leave them out of the score, the roster and the kill feed. They take
+seats: 54 of the 255; on a server with fewer seats a person still always
+gets in (a target gives way and comes back when a seat is free). A map
+of your own can be a range: its `.txt` names the spawn, the lanes' bays,
+the course's area, boxes and start wall, and the targets
+(`'range_version'`, `'range_spawn'`, `'range_lanes'`, `'range_ipsc'`,
+`'range_ipsc_start'`, `'range_ipsc_end'`, `'range_ipsc_wait'`,
+`'range_ipsc_wall'`, `'range_targets'`; the format is in
+`range_map.lua`). A range generated before the no-shoots and the wall is
+refused, the log says so: `lsdctl map course` generates a new one.
 
 ## Bots: day and night
 

@@ -5,7 +5,7 @@
 -- numbers over a hit target are Damage Markers'.
 return Gamemode {
 	title = "Shooting range",
-	summary = "One team, targets that never die: a static range from 5 to 50 m and an IPSC course one shooter at a time, every target down as fast as you can.",
+	summary = "One team against targets: a static range from 5 to 50 m, and an IPSC course one shooter at a time behind a start wall, its targets dropping when hit and no-shoots costing time; every target down as fast as you can.",
 	base = "ctf",
 	rider = "range",
 	requires = {"bot", "damage_markers"},

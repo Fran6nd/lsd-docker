@@ -41,7 +41,7 @@ DONE (commit), BLOCKED (on what).
 | 7 | Bots stuck on a roof bridge or dig their way down (engine_bots_edit=all) | REVIEW (brain agent): planner can bridge, stair down and dig down from a roof at scale; `stranded` for the trees |
 | 8 | A babel tree, sent by babel_plus only when bots are added; no bots, no engine | TODO (brain agent) |
 | 9 | Remove battle_bots and the gamemodes bots, bots_rewards (setup, scripts, docs, migration of servers that run them) | TODO (after 0) |
-| 10 | Shooting range gamemode on a generated map: a static range (bots as targets from 5 to 50 m, standing or crouched, never dying, never moving, damage shown to the shooter; a target on a rail or one that blinks from place to place) and an IPSC course, one player at a time; all targets as fast as possible | REVIEW (range agent): branch commits; `lsdctl play range`; live run on lsd-range |
+| 10 | Shooting range gamemode on a generated map: a static range (bots as targets from 5 to 50 m, standing or crouched, never dying, never moving, damage shown to the shooter; a target on a rail or one that blinks from place to place) and an IPSC course, one player at a time; all targets as fast as possible; IPSC after the owner played it: targets drop, a start wall, no-shoots with a time penalty | REVIEW (range agent): branch commits; `lsdctl play range`; live runs on lsd-range |
 | 11 | Graphical node editor in tools/tree-editor (replaces its text-first phase 2) | REVIEW (editor agent): diagram A/B, edits through the engine, upload to chosen bots/team/kind, who-chooses-what; real run green. No live view (owner) |
 | 12 | Docs pass left unfinished by the tooling agent (bot/trees/README.md, TREES.md trimmed, docs/*, skills) | TODO |
 | 13 | A scenario test for the sniper role (tdm, ctf) | TODO |
@@ -345,3 +345,36 @@ DONE (commit), BLOCKED (on what).
   per 10 grenade edits has_quirk 314 000 -> 0 (Voxlap), 4 000 -> 0.
   Smoke OK, dev/test.sh passes. lib_bot's send_spawn_player split could
   now go (the core skips bots itself): not done, harmless.
+- 2026-11-25 (range agent, item 10, the owner's IPSC asks): what a hit
+  does is the target's KIND, in the map's data (range_targets gained a
+  field; range_version 2, an older range refused with a log line): plate
+  (the lanes: never falls), popper (the course: the hit that counts kills
+  it -- kill(pid, fall, itself): no kill, no score; out of the kill feed
+  by lib_bot's silent options -- it stays down, get_spawn_time 0 for every
+  target, and is stood up again when the run ends), noshoot (four on the
+  course, on the people's team, each by a target: behind a crouched one,
+  beside one by a door; a hit is +range_noshoot_penalty s, default 10,
+  told at once and in the final "15.50 s + 10 s penalty = 25.50 s"; the
+  boards rank by the total; never down). A same-team hit is dropped by the
+  core's on_hit team test: the range's late on_hit (the_fall's place)
+  sends it on to the damage hook, so every hit is decided there. The
+  START WALL ('range_ipsc_wall': voxels and colour, painted that colour in
+  the vxl) closes the start box from the hall; the server takes its
+  supports (both ends, then the bottom row) by single block_actions and
+  the rest is culled as floating -- every client drops it -- when the
+  course is ready (every course target up, nobody else in, 3 s given); the
+  clock starts then. A run's end, however it ends, stands the set's
+  poppers up and builds the wall again before the next is let in. No
+  rewards: lib_rewards reads gamemode_rewards (false while the range is
+  loaded), rewards_enabled untouched. No building is now in the late
+  chain and reverts the client's edit (map_layout.revert_action). Live
+  (lsd-range, two pyenet clients, 22 checks): 10 poppers team 2, 4
+  no-shoots team 1; a hit behind the wall counts for nothing; the wall
+  down with 32 destroys sent and 0/120 voxels left; each popper hit a
+  KillAction (itself, type 4) seen by both clients; a no-shoot hit "+10 s"
+  with a marker and no fall; "16.42 s + 10 s penalty = 26.42 s"; 120
+  builds and the ten stood up before the next shooter's wall fell; the
+  next shooter's course all up; a walk-out rebuilt it; scores 0, no
+  reward. Not seen: a real ZeroSpades client's hit on a teammate (the
+  scripted client sends what it is told; ffa.lua relies on clients
+  sending them) and the debris on a real screen.
