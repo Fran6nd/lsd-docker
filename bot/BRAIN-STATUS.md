@@ -475,13 +475,175 @@ docs/administer.md); at 100 bots four threads cost 6% of a core more for
 nothing measurable. Next, by these numbers: the slow round itself --
 which phase (decide, sight) makes botd's p99 30 ms at 200 -- and sight
 in two phases (the rays in parallel, the board in order), the one
-remaining piece that threads could speed on a flat field.
+remaining piece that threads could speed on a flat field. **(c4) found
+otherwise: the slow round IS the planner's** -- one long search spending
+the whole share of a think, which threads cannot cut; four threads left
+the p99 alone for that reason.
 
 **Found on the way** (fixed, its own commit): a botd killed and started
 again at once by the entrypoint (inside `botlink_stale`, 2 s) was never
 told the bots, the map or the settings -- lib_botlink only resynced an
 engine after a silence. Now a change of `engine_pid` is a new engine
 (tests/botlink_test.lua 9a).
+
+## (c4) THE SLOW ROUND: what made botd's p99 at 200 bots, and the planner's bound (2026-11-25, WORK.md item 24)
+
+The owner, on "every bot deciding in the same round, and sight":
+"multithreadable? optimizing it is top priority". Measured first; the
+guess was wrong.
+
+**How it was measured.** A profiling build (not in the repo: a clock
+around each phase of `bc_engine_think` and of botd's round, the totals
+printed with the health line) in a container of its own (lsd-p99: ctf,
+prisonbreakv1, engine_bots_edit=all, as in (c3)), a headless client on
+the Mac counting World Updates, 60 s a point after 65 s of play; and the
+bench with the same clock per think. Phases: world (copy, objectives,
+leaders), sight (the rays), tree (taking in what was seen, the board,
+the tree), plan (route searches), tactics (perch scan), act (follower,
+head, trigger); events (the server's records, before the think).
+
+**What made the slow round (master, live, 200 bots, the host quiet; a
+slow round is one over the 16.7 ms period: 210 of 3600 in the minute):**
+
+| | rounds | round ms | events | world | sight | tree | plan | tactics | act | bots deciding |
+|---|---|---|---|---|---|---|---|---|---|---|
+| every round | 3600 | 3.43 | 0.00 | 0.00 | 0.49 | 0.16 | 2.28 | 0.00 | 0.49 | 62 |
+| the slow ones | 210 | 25.4 | 0.00 | 0.00 | 1.07 | 0.34 | **22.95** | 0.00 | 0.99 | 127 |
+| the worst | 1 | 39.7 | 0.00 | 0.01 | 2.06 | 0.42 | **36.1** | 0.00 | 1.08 | 154 |
+
+At 100 bots the same: 38 slow rounds of 18.2 ms, 17.3 of them the
+planner; the worst 27.8 ms, 27.1 the planner. Three more minutes at 200
+(two of them on master after 4939f5f) gave 95 to 149 slow rounds, 90 to
+93% planner. **The slow round is the planner's.** Sight is about a
+millisecond of it, the trees a third of one; cover and perch searches,
+events and jolts (0.4 a round) are nothing to see. (c3)'s "not the
+planner" came from its p99 not moving with four threads: a slow round is
+ONE long search spending the think's whole share -- 75 x 200 = 15000
+expansions at about 1.6 us each -- and one search is one job, which
+threads do not cut.
+
+The bench says the same (map230:prisonbreakv1, 60 s, one thread): with
+edit=all as live the planner is 83% of a think and the p99 30 to 34 ms;
+without edits p99 9 ms (the planner 64% of the top 1%). On the flat
+arena230 the top 1% are the planner's too (2.1 of 6.3 ms), and sight is
+two thirds of an ordinary think.
+
+**What bunched, in the think's structure:**
+
+1. **The planner's budget is a count, and a round is a time.** An
+   expansion costs from under 1 us (a plain field) to over 2 (a real map,
+   bots that may dig and build: sees_edit, nav_move_fits), and a think's
+   share at 200 bots, spent by one long search, is 25 to 40 ms.
+2. **The decide phases collapsed.** A bot decided when a counter passed
+   DECIDE_PERIOD, four phases by slot; a counter more than a period ahead
+   (a round over about 33 ms, a map load) was reset to 0, and every bot so
+   reset decided with the others from then on. Four phases at 30 worlds
+   a second gave 50% or 75% of the bots in a think, even when whole.
+3. Every other round does nothing (the world comes at 30, botd thinks at
+   60, and a think without a new world leaves the intents as they are).
+   Spreading the planner over those rounds was built and measured: rounds
+   as short as with the bound, but ctf_test's six a side, at 8 seeds, went
+   from a capture in every game (53 to 141 s) to none in 2 -- planning
+   between worlds, at half the numbers to keep the rate, moved the routes
+   enough to matter. Taken out; the bound alone does it.
+
+**What was changed** (commits on the branch):
+
+1. SIGHT IN TWO HALVES (senses.h): `bc_senses_look` casts the rays for
+   one bot and writes only its own `bc_look`; `bc_senses_take` takes in
+   what it saw -- memory, the team's board, the alertness -- bot after bot
+   in slot order. The rays read only the map, the world and the bot's own
+   memory, which nothing writes during the pass, so the outcome is byte
+   for byte the old one (every deterministic line of the bench identical,
+   every scene; parallel_test's hashes master's). THE THINK'S WORK AS
+   JOBS (engine.h): one runner for both kinds the core hands out, sight (a
+   job a bot whose turn it is) and route searches; botd runs them on its
+   pool. The bench gives think p50/p99 and sight's share.
+2. TURNS AT A PHASE OF THEIR OWN (engine.c, THE THINK): a bot decides
+   DECIDE_PERIOD apart at a phase from its slot (the golden ratio's
+   sequence, so any number of bots spreads evenly: two thirds of them a
+   think at 30 worlds, give or take one), and the phase is a time, not a
+   count: after a late think each bot decides once and the next think is
+   back to its share.
+3. THE PLANNER'S BOUND (engine.h; botd.c): the core takes, as it takes
+   the budget, a bound on a think's expansions; botd keeps what an
+   expansion has been costing it (the planner's jobs' time over the
+   expansions they took, a moving mean) and bounds each think to what fits
+   in `--plan-ms` (8 of 16.7). Its health line says the bound, the least
+   it fell to in the window, and the cost.
+
+Not done, and why: **a pair's sight once for both** (the three rays go
+from an eye to a head, a chest and legs, so A-sees-B and B-sees-A are
+different rays: sharing them would change what bots see); **culling by
+a spatial grid** (the cheap tests before the rays are a field of view, a
+range and a team already, and live sight is under a millisecond a
+round); **the trees in parallel** (a third of a millisecond a round, and
+their words write shared state all over: the team's board and pings,
+perch claims, leaders, the unreachable memory, `hot`, `visit`, the route
+board through bc_move_to, the order of the actions to the server -- two
+phases for all of it would be a rewrite for nothing measurable).
+
+**Live, before -> after** (the same container and client; one thread
+unless said; "after" the branch as committed; 60 s a point, so botd's
+CPU and the share of bots holding keys, 74 to 90%, move from minute to
+minute in both):
+
+| bots | | botd % | round mean / p50 / p99 / worst ms | slow rounds a minute | server tick p99 ms | client updates/s min / med | plan bound (least) | us an expansion |
+|---|---|---|---|---|---|---|---|---|
+| 100 | before (master 28e28bb) | 18.3 | 2.67 / 0.1 / 16.9 / 27.8 | 38 | 1.85 | 59 / 60 | -- | -- |
+| 100 | before (master 4939f5f) | 7.2 | 1.01 / 0.3 / 14.0 / 29.5 | 14 | 2.55 | 59 / 60 | -- | -- |
+| 100 | **after** | 6.9 | 1.00 / 0.2 / **9.8** / 14.7 | 0 | 2.13 | 60 / 60 | 4665 (2310) | 1.71 |
+| 200 | before (28e28bb, two runs) | 24.9, 16.4 | 3.43, 2.79 mean; p99 30.2, 34.3; worst 39.7, 39.1 | 210, 149 | 3.1-3.4 | 59 / 60 | -- | -- |
+| 200 | before (4939f5f) | 15.5 | 2.39 / 1.1 / 30.9 / 48.5 | 95 | 3.93 | 59 / 60 | -- | -- |
+| 200 | **after** | 28.4 | 4.71 / 0.3 / **13.7** / 34.3 | 10 | 3.82 | 56 / 60 | 4149 (2495) | 1.93 |
+
+The "after" at 200 ran with the host at load 9 to 11 (the server's own
+ticks reached 84 ms in it, UPS 56 at worst, the client too): its worst
+round and botd's CPU are the host's. Earlier runs of the design that
+also planned between worlds, quieter, gave p99 11.7 to 13.9 ms at 200 and
+9.1 to 10.3 at 100. Runs with the host at load 17 to 54 (other agents'
+work, the owner's game) are not in the table: every phase of both
+processes five times slower, the server's UPS 32 to 49, the bound at its
+floor of 500 -- the VM starved, not botd's work.
+
+**The default thread count stays 1.** With the planner bounded, one
+thread holds the p99 under the period; four made no round shorter (p99
+13.9 and 12.6 against 12.5 and 13.7 in the runs measured side by side,
+worst 20.7 and 16.7 against 25.0 and 22.6: noise of the same size) and
+cost up to 5% of a core more. What threads buy now is more planning in a
+round -- the bound rose from about 4400 to 6900 expansions, the cost per
+expansion, threads and all, from 1.8 to 1.2 us -- that is, routes sooner
+when many bots need one; and in the bench sight on four threads halves a
+think on a flat field (arena230 1655 -> 852 us, p99 5.0 -> 2.9 ms). An
+operator with cores to spare and a crowded map may set botlink_threads 4.
+
+**Determinism.** tests/parallel_test.c hashes every intent of every think
+of a 20-a-side game with no runner and at 1 to 8 threads, the route
+board on and off, the budget shared and thin: the same hash every time
+(sight's jobs and the planner's both on the pool). Under ThreadSanitizer
+(gcc 14, Linux, -O1) it reports nothing. The bench's deterministic lines
+are identical at 1 and 4 threads (map230, arena230). The replay tests
+(engine_test, ctf_test) pass.
+
+**The bench, master (4939f5f) -> the branch** (the bench has no clock and
+so no bound: what moves its deterministic lines is the turns' phases;
+the think's time is the branch's own, master's was measured with the
+host loaded and is left out):
+
+| scene | think mean / p99 / worst us | plans | expansions | waiting % | no key % | longest idle s | head on % | kills |
+|---|---|---|---|---|---|---|---|---|
+| map230:prisonbreakv1 (60 s) | 2584 / 8400 / 9258 | 3869 -> 3929 | 17.9M -> 19.9M | 0.9 -> 1.1 | 22.1 -> 23.5 | 43.3 -> 44.6 | 86.3 -> 85.7 | 99 -> 114 |
+| the same, edit=all | 7335 / 32400 / 42695 | 5476 -> 5378 | 18.9M -> 16.8M | 3.9 -> 2.5 | 29.3 -> 31.2 | 30.9 -> 44.1 | 78.5 -> 78.6 | 151 -> 168 |
+| arena230 | 1071 / 3000 / 7813 | 5425 -> 5353 | 502k -> 502k | 5.1 -> 5.1 | 34.9 -> 35.9 | 39.2 -> 23.6 | 28.7 -> 10.4 | 807 -> 802 |
+| ctf:115 (4 games) | 1142 / 7800 / 12803 | | | 5.2 -> 5.2 | 22.6 -> 24.4 | | 67.4 -> 67.1 | 9440 -> 9298 |
+
+The default scenes move as a change of timing moves them: arena12/32/40
+no key 21.4/25.7/25.5 -> 24.3/25.9/26.5%, head on 57/32/13 -> 62/35/38%;
+fight6 to the last man 21.2 -> 15.6 s, fight20 32.6 -> 46.4 s (its
+longest idle 6.9 -> 38 s: a bot holding in cover); sea40 wading 24.9 ->
+30.6%; ctf:10 4 -> 2 captures in 4 games; nothing stuck anywhere.
+ctf_test's six a side, 8 seeds: a capture in all 8 on master (53 to 141
+s) and on the branch (48 to 215 s).
 
 ## (d) WHAT THE SERVER MAY SEND (BL_EV_SET, "key=value")
 

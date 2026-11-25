@@ -56,7 +56,7 @@ DONE (commit), BLOCKED (on what).
 | 22 | `/votepeace`: a vote toggles a peace where no player damage is done; bots stand down; on by default in every mode | DONE on master (28e28bb), not released yet |
 
 | 23 | Clients' UPS: large World Updates travel as reliable ENet fragments (flow control collapses on jitter); fix and measure under netem | PAUSED (UPS agent; findings in its report, scratchpad/ups/) |
-| 24 | botd's slow rounds at 200 bots (p99 27-31 ms): every bot deciding in one think, and sight; two-phase sight so it could thread | TODO |
+| 24 | botd's slow rounds at 200 bots (p99 27-31 ms): every bot deciding in one think, and sight; two-phase sight so it could thread | REVIEW (p99 agent's branch: the slow round was the planner; p99 at 200 now 11.7-13.7 ms; BRAIN-STATUS (c4)) |
 | 25 | Babel: carriers falling 26-30 voxels off their own stair's top under fire | TODO |
 | 26 | CI: bttree does not build on Ubuntu (upstream demoncore.c -Werror=address-of-packed-member), so bots_ctl_test skips there | TODO |
 | 27 | try_edit's top-band rule (no edits up into z < 3): same reasoning as the removed jump rule | TODO |
@@ -708,3 +708,29 @@ DONE (commit), BLOCKED (on what).
   side): captures 3/4/2 before, 2/4/2 after; carrier deaths 5/4/1
   before, 1/2/0 after. (The earlier 3-0, 1-0, 0-0 captures were one
   seed's noise: the three seeds of the old tree make 3, 4, 2.)
+- 2026-11-25 (p99 agent, item 24): "multithreadable? optimizing it is top
+  priority". MEASURED FIRST (a clock on each phase of a think and of
+  botd's round, live at 100 and 200 bots, ctf prisonbreakv1 edit=all, and
+  the bench): the slow round is THE PLANNER'S, 90-97% of it (200 bots:
+  95-210 rounds a minute over 16.7 ms, 23 of their 25 ms route searches;
+  sight 1 ms, trees 0.3, act 1, events, jolts and cover nothing) -- one
+  long search spending a think's whole share (75 x 200 expansions at 1.6
+  us), which threads cannot cut; (c3)'s "not the planner" read four
+  threads leaving the p99 alone. Also: the four decide phases collapsed
+  for good after any late round. CHANGED: sight in two halves (the rays
+  a job a bot, writing only its own look; memory and the team's board
+  taken in bot after bot: byte for byte the old bench) and the think's
+  work as jobs on botd's pool (sight and route searches, one runner);
+  turns at a fixed phase of each bot's own (a time, not a count);
+  botd bounds a think's planner to what fits in --plan-ms 8 from the
+  measured cost of an expansion (bc_engine_plan_bound). Tried and taken
+  out: planning between worlds too (as short rounds, but ctf_test's six
+  a side lost its capture in 2 seeds of 8). LIVE: 200 bots p99 30-34 ->
+  12-14 ms, slow rounds a minute 95-210 -> 2-10; 100 bots p99 14-17 ->
+  9-10; the client at 59-60 updates a second. Threads stay 1 by default:
+  four made no round shorter (they buy more planning a round). parallel_
+  test same intents at 0 and 1-8 threads, TSan clean. build_test now
+  tells a refusal for sight caused by a team-mate's edit in between from
+  the bot's own mistake. Open: a few rounds a minute still over the
+  period (the bound is a moving mean of a cost that varies); a loaded
+  host starves both processes whatever botd does.
