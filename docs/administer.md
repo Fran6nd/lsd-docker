@@ -72,9 +72,9 @@ its map page (`https://hosting.dgd.cx/map-search?map=Normandie`), or write
 setup, is picked from what the sites have: a source at random, its maps
 for the game (babel maps for babel, capture-the-flag maps for the rest),
 one of those at random -- and another, or the other source, when one
-fails. Parkour takes none of them: choosing it generates its course
-(`parkour.vxl`) and makes that the whole rotation; `lsdctl map course
-[seed]` generates another. A source says how to list its maps in its own entry
+fails. Parkour and range take none of them: choosing one generates its
+map (`parkour.vxl`, `range.vxl`) and makes that the whole rotation;
+`lsdctl map course [seed]` generates another. A source says how to list its maps in its own entry
 (`catalog/core/map_sources.lua`, `list`), so one of yours can too.
 Other sites that publish maps by id can be added beside them:
 

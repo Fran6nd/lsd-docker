@@ -1019,10 +1019,12 @@ local function generate_flat(name, height)
 	txt:close();
 end
 
--- A parkour course, generated from a seed (catalog/core/parkour_map.lua):
--- the map and the metadata naming its start, checkpoints and tent.
+-- The map of a game that plays a generated one, from a seed: its
+-- generator (GAMES, `generator`: a module of catalog/core with
+-- generate(seed), vxl(map) and meta(map, name) -- parkour_map's course,
+-- range_map's range) writes the map and the metadata naming its places.
 local function generate_course(name, seed)
-	local P = require "parkour_map";
+	local P = require(game(name).generator);
 	local c = P.generate(seed);
 	local path = MAPS .. "/" .. name .. ".vxl";
 	local f = assert(io.open(path .. ".tmp", "wb"));
@@ -1312,13 +1314,16 @@ end
 -- `maps` is the kind of map a random pick asks the map sources for
 -- (map_sources.lua, list): "ctf" -- two bases, a field between -- or
 -- "babel" -- or "generated": the game plays one map, made for it here
--- (generate_course), and none from the web. `bots`: the game the bot
--- engine has a tree for (bot/trees), so the short questions offer to add
--- some. `teams = 1`: everybody is on team 1, the bots too.
+-- by its `generator` (generate_course), and none from the web. `bots`:
+-- the game the bot engine has a tree for (bot/trees), so the short
+-- questions offer to add some. `teams = 1`: everybody is on team 1, the
+-- bots too (the range's targets are its own, not the engine's).
 local GAMES = {
 	{value = "tdm", label = "tdm", hint = "team deathmatch: every kill scores", maps = "ctf", bots = true},
 	{value = "parkour", label = "parkour", hint = "one team, no enemies: run a generated course against the clock",
-		maps = "generated", bots = true, teams = 1},
+		maps = "generated", generator = "parkour_map", bots = true, teams = 1},
+	{value = "range", label = "range", hint = "a shooting range: targets from 5 to 50 m and an IPSC course, against the clock",
+		maps = "generated", generator = "range_map", teams = 1},
 	{value = "ctf", label = "ctf", hint = "capture the flag", maps = "ctf", bots = true},
 	{value = "bots", label = "bots", hint = "team deathmatch with bots, day and night", maps = "ctf"},
 	{value = "bots_rewards", label = "bots_rewards", hint = "bots, with every reward free and unlimited", maps = "ctf"},
@@ -1554,7 +1559,7 @@ local function set_game_and_map(doc, mode, want, opts)
 	end
 end
 
-command("play", "play [tdm|parkour|ctf|bots|bots_rewards|babel] [random|<page|url|source:id>] [bots per team] [on|off|infinite]",
+command("play", "play [tdm|parkour|range|ctf|bots|bots_rewards|babel] [random|<page|url|source:id>] [bots per team] [on|off|infinite]",
 	"set up a casual game on a fresh container (the entrypoint's play runs it)",
 	function(args)
 		local words = parse_args(args, {});

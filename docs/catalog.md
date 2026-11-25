@@ -2,7 +2,7 @@
 
 | category | class | what | examples |
 |---|---|---|---|
-| gamemodes | `Gamemode` | exactly one runs; every one runs the map's layout (map_layout) | tdm, parkour, ctf, bots, bots_rewards, onectf, arena, babel, ffa, hostage, editor |
+| gamemodes | `Gamemode` | exactly one runs; every one runs the map's layout (map_layout) | tdm, parkour, range, ctf, bots, bots_rewards, onectf, arena, babel, ffa, hostage, editor |
 | extensions | `Extension` | protocol extensions; the setup also asks what a client lacking one costs | every extension in the [AoS protocol registry](https://github.com/zerospades/aosprotocol): player_properties, damage_markers, teamplay, pie_menu, night (daytime and flashlight), edit_mode, player_limit, message_types, kick_reason (UTF-8 chat is built into LSd); plus silent_player |
 | effects/player | `PlayerEffect` | change what a player's own actions do, or what happens around them when triggered; meant to be required by gamemodes, or forced on in setup | railgun, grenade_shotgun, pinning_smg, area_heal, area_hurt, medkit, nightvision, rocket, missile, grenade_launcher, airstrike, ammo_box |
 | effects/world | `WorldEffect` | change the map or the match for everybody; same | the_fall |
@@ -126,6 +126,58 @@ base"), so they run it too. A map of your own can be a course: its
 `.txt` names the places, as the generated one does (`'parkour_start'`,
 `'parkour_tent'`, `'parkour_checkpoints'`, and `'water_damage'` for the
 water to kill).
+
+## Range
+
+A shooting range: one team, targets that never die, every target down
+as fast as you can. One block is one metre. The map is generated
+(`catalog/core/range_map.lua`, from a seed) when the mode is chosen and
+is the only one in rotation: `lsdctl gamemode range`, or `lsdctl play
+range`; `lsdctl map course [seed]` generates another.
+
+- **The static range**: five lanes side by side, each between walls 3
+  high, a white line across every 5 m and an orange one every 10 (the
+  walls' tops too), the lane's number on the backstop. Each lane has the
+  same eight targets: at 5, 10, 15, 25, 35 and 50 m, standing or
+  crouched, some on red plinths; one on a rail at 20 m, going back and
+  forth across the lane at 2.5 m a second; one that blinks between 30, 40
+  and 45 m every 1.5 s. Step into a lane's firing position (the bay at the
+  line): the lane is yours, the clock starts 3 s later and stops when all
+  eight are hit. Stepping out of the bay before the end voids the run;
+  out and back in is another. Several lanes at once, one person a lane.
+- **The IPSC course**, one shooter at a time: a hall and three rooms
+  behind walls 5 high, each wall with a door and a port (a window at eye
+  height), yellow shooting positions, ten targets (one on a rail).
+  `/ipsc` joins the queue (and leaves it), as does stepping onto the
+  orange waiting area by the door; the first in the queue is put in the
+  green start box when the course is free. The clock starts on leaving
+  the start box and stops in the blue end box once every target is hit
+  (in the end box with targets standing you are told how many, and the
+  clock runs on). Dying, leaving the course, leaving the server or 120 s
+  abandons the run and the next one goes in. Anybody else who gets in is
+  sent to the waiting area, and so joins the queue.
+
+A hit is a bullet (body or head; not a spade or a grenade), counted once
+a run, for the run the target is part of. Times are told, each person's
+best is kept on two boards (static, IPSC) and a record announced; `/best`
+lists them (kept by name through map restarts, not a restart of the
+server; another range starts them over). Health and ammunition are made
+full at the start and end of every run; the tent on the plaza restocks
+too. Nobody builds or digs.
+
+The targets are lib_bot bots on the other team (50 of them: 8 a lane and
+10 on the course), not the bot engine's: no tree, no `lsdctl bots`,
+nothing asked of botd. They never move of themselves and never die: a
+hit stops in the mode's damage hook, and the shooter is shown what it
+was worth through Damage Markers (installed with the mode), as for a
+man. Silent Player clients leave them out of the score and the roster.
+They take seats: 50 of the 255; on a server with fewer seats a person
+still always gets in (a target gives way and comes back when a seat is
+free). A map of your own can be a range: its `.txt` names the spawn,
+the lanes' bays, the course's area and boxes and the targets
+(`'range_spawn'`, `'range_lanes'`, `'range_ipsc'`, `'range_ipsc_start'`,
+`'range_ipsc_end'`, `'range_ipsc_wait'`, `'range_targets'`; the format is
+in `range_map.lua`).
 
 ## Bots: day and night
 
