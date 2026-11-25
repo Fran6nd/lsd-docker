@@ -92,6 +92,7 @@ For `if` and `unless`: true or false.
 - **`their_intel_home`** -- the other team's intel lies where the server put it
 - **`their_intel_dropped`** -- the other team's intel lies where a carrier of this team fell
 - **`their_intel_carried`** -- a team-mate carries the other team's intel
+- **`escort_open`** -- a team-mate carries their intel, is going somewhere (not still for 4 s), and fewer than two escort him -- or this bot is one of them
 - **`our_intel_home`** -- this team's intel lies where the server put it
 - **`our_intel_dropped`** -- this team's intel lies where its thief fell (it cannot be picked up by its own team: it is guarded there)
 - **`our_intel_taken`** -- an enemy carries this team's intel (where he is is known to everybody: the place `thief`)
@@ -168,6 +169,7 @@ For `option <trait> <score>`: 0 to 1, how much the situation calls for the optio
 - **`their_intel_home`** -- 1 while the other team's intel lies where the server put it
 - **`their_intel_dropped`** -- 1 while it lies where a carrier fell
 - **`their_intel_carried`** -- 1 while a team-mate carries it
+- **`escort_open`** -- 1 while a team-mate carries their intel, going somewhere, with a place for this bot beside him (two escorts at most)
 - **`our_intel_home`** -- 1 while this team's intel lies where the server put it
 - **`our_intel_dropped`** -- 1 while it lies where its thief fell
 - **`our_intel_taken`** -- 1 while an enemy carries it

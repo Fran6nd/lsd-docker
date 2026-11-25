@@ -667,3 +667,25 @@ DONE (commit), BLOCKED (on what).
   sel.lua's admin edits run as "a script" (the protections hold against
   them); a decision for the owner whether an admin may edit protected
   blocks.
+- 2026-11-25 (brain agent): THE DEMO'S STUCK GREEN TEAM (babel, 15 a
+  side): its carrier "arrived" on a pile of blocks on its own tent, five
+  over it, out of what the server counts (lib_ctf's tent cylinder: the
+  eye from 4 over the tent's point to 1 under), with 11 team-mates
+  escorting it, packed on the base. (1) carry_home now goes to a floor at
+  the base inside that band -- one to stand on, else the highest solid
+  voxel in it, the route digging down to it -- strictly inside, not on
+  its edge. Three faults in reaching an exact floor, found on the way:
+  an exact goal arrived when the body was held a voxel over it by a
+  corner of the next column (the follower's "at rest a voxel above" is
+  for ordinary goals only), an empty plan for an exact goal was taken as
+  there (it is followed, off the corner and down), and an exact goal
+  once reached stayed "arrived" after the body left that floor (planned
+  again). (2) escorts: the score/condition `escort_open` -- a mate
+  carries their intel, is going somewhere (not still for 4 s, follow's
+  patience), and fewer than two escort him (a station each side), the
+  first two keeping it; the trees' escort options read it; near home
+  they stand beside him, not on him. ctf_test: a carrier digs into a
+  7x7 pile 5 high on its base and captures (5.5 s); 8 of a carrier's
+  team, at most 2 escort him, none once he has stood 7 s. build_cover's
+  side cells are judged from the bot's own eye (it waited on one it
+  could not see, to the word's 8 s): 5 of 6 builders hidden, was 4.

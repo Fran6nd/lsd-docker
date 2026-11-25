@@ -476,14 +476,17 @@ bt_status bc_do_build_cover(void *bot, const bt_args *a, float dt)
 	for (k = 0; k < 6; k++) {
 		int x, y, z;
 		bt_status r;
+		float eye[3];
 
 		cover_cell(b, k, &x, &y, &z);
 		if (!bc_map_in(x, y, z) || bc_map_solid(e->map, x, y, z))
 			continue;
-		/* a side it cannot make (no block left, a zone, out of its sight,
+		/* a side it cannot make (no block left, a zone, out of its own
+		 * eye's sight where it stands -- it does not move for a side --,
 		 * nothing to put it against): the wall is as wide as it gets */
+		eye[0] = me->pos.x; eye[1] = me->pos.y; eye[2] = me->pos.z;
 		if (k >= 2 && (me->blocks == 0 || zoned(b, x, y, 0) ||
-		               !bc_nav_sees_edit(e->map, b->bld.from, x, y, z, 1)))
+		               !bc_nav_sees_edit_from(e->map, b->bld.from, eye, x, y, z, 1)))
 			continue;
 		if (k < 2 && (me->blocks == 0 || zoned(b, x, y, 0) ||
 		              !bc_nav_sees_edit(e->map, b->bld.from, x, y, z, 1))) {

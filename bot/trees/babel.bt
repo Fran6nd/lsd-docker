@@ -52,7 +52,7 @@ select
 			tree babel_under_fire
 		option none enemy_visible 3 x5        # somebody in sight, or just gone behind something: the fight it is in
 			tree babel_contact
-		option teamwork their_intel_carried x1.5   # a mate carries it home: with him
+		option teamwork escort_open x1.5           # a mate carries it home, on his way, with room by him: with him
 			do escort
 		option aggression our_intel_taken x1.5     # one of theirs carries it: cut him off
 			do intercept

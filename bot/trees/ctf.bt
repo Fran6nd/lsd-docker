@@ -114,7 +114,7 @@ pick every=20 sticky=1.5 noise=0.3
 		do intercept
 	option objective our_intel_taken x1.2     # (the keen on the game too)
 		do intercept
-	option teamwork their_intel_carried x1.8  # a mate has theirs: go with him
+	option teamwork escort_open x1.8          # a mate has theirs, on his way, with room by him: go with him
 		do escort
 	option objective their_intel_dropped x2   # theirs lies where our carrier fell: pick it up
 		do fetch
@@ -187,7 +187,7 @@ pick every=1.5 sticky=0.3 noise=0.15
 		do intercept
 	option objective their_intel_home x1.1    # the keen on the game do not stop for a fight: on, shooting
 		do fetch
-	option teamwork their_intel_carried x1.4  # a mate carries theirs: stay by him, shooting
+	option teamwork escort_open x1.4          # a mate carries theirs, room by him: stay by him, shooting
 		do escort
 	option flank their_intel_home x0.9        # leave the fight to the others: round the side for their intel
 		tree ctf_round

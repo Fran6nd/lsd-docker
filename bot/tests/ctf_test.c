@@ -461,8 +461,81 @@ static void test_replay(void)
 	bs_free(s);
 }
 
+/* A pile of blocks on its own base, five high: on top, a carrier is out
+ * of what the server counts (its eye 4 over the base at most). It digs
+ * down to a floor that counts, and captures. (2026-11-25, the demo: a
+ * carrier on such a pile at its tent "arrived", for good.) */
+static void test_pile_on_the_base(void)
+{
+	bs_sim *s = pitch(4, 0);
+	int i, tx = (int)floorf(s->tent[0].x), ty = (int)floorf(s->tent[0].y), cap = -1;
+
+	printf("a pile of blocks on its base: the carrier digs down to where it counts\n");
+	bs_box(s, tx - 3, ty - 3, G - 5, tx + 3, ty + 3, G - 1, 1);    /* over all the base's cylinder (3 across) */
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "edit=all");
+	bs_set(s, BL_NO_PLAYER, "tree=ctf");
+	bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, 5, (float)tx + 20.5f, (float)ty + 0.5f, -1, 0);
+	s->intel_holder[1] = 0;
+	for (i = 0; i < 60 * 60 && cap < 0; i++) {
+		bs_step(s);
+		if (s->caps[1] > 0) cap = i;
+	}
+	{
+		int n = 0, x, y, z;
+
+		for (x = tx - 3; x <= tx + 3; x++)
+			for (y = ty - 3; y <= ty + 3; y++)
+				for (z = G - 5; z < G; z++)
+					n += bc_map_solid(s->truth, x, y, z);
+		printf("  captured after %.1f s (the pile: %d blocks left of 245)\n", cap / 60.0, n);
+	}
+	CHECK(cap > 0);
+	bs_free(s);
+}
+
+/* A man of theirs carries their intel home: two escort him, a side each,
+ * not the whole team; and when he stops for good, nobody stands by him. */
+static void test_escort_cap(void)
+{
+	bs_sim *s = pitch(12, 0);
+	char leaf[64];
+	int i, k, most = 0, after_stop = 0;
+
+	printf("escorts: two a carrier, and none for a carrier who has stopped\n");
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "leaders.per=0");
+	bs_set(s, BL_NO_PLAYER, "tree=ctf");
+	for (k = 0; k < 8; k++)
+		bs_add(s, k, 1, 1, 6, k % 3, 3000u + (uint32_t)k * 37u, 250.5f + (float)(k % 4) * 2.0f, 250.5f + (float)(k / 4) * 3.0f, -1, 0);
+	bs_add(s, 100, 0, 1, 5, BL_GUN_RIFLE, 1, 280.5f, 256.5f, -1, 0);
+	s->intel_holder[1] = 100;
+	s->p[100].ori.x = -1; s->p[100].ori.y = 0;
+	for (i = 0; i < 60 * 30; i++) {
+		int n = 0;
+
+		/* he walks home for 5 s, then stands out in the field, holding it */
+		s->p[100].script_keys = i < 60 * 5 ? BL_K_FORWARD : 0;
+		s->p[100].hp = 100;
+		bs_step(s);
+		if (i % 30) continue;
+		for (k = 0; k < 8; k++) {
+			leaf_of(s, k, leaf, sizeof leaf);
+			n += !strcmp(leaf, "escort");
+		}
+		if (i < 60 * 5 && n > most) most = n;
+		if (i > 60 * 12 && n > after_stop) after_stop = n;
+	}
+	printf("  8 of his team: at most %d escort him on his way; after he has stood 7 s or more: %d\n", most, after_stop);
+	CHECK(most >= 1 && most <= 2);
+	CHECK(after_stop == 0);
+	bs_free(s);
+}
+
 int main(void)
 {
+	test_pile_on_the_base();
+	test_escort_cap();
 	test_lone_capture();
 	test_six_a_side();
 	test_carrier_runs();

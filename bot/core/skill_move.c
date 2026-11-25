@@ -195,7 +195,10 @@ static int move_to(bc_bot *b, bl_vec3 pos, float radius, int raw)
 			mv->state = BC_MV_PLANNING;
 			mv->plan_since = e->now;
 			mv->partial_tries = 0;
-		} else if (mv->state == BC_MV_IDLE) {
+		} else if (mv->state == BC_MV_IDLE || (raw && mv->state == BC_MV_ARRIVED)) {
+			/* (an exact goal reached, and the body is not on that floor
+			 * now -- it was not "at hand" above: hopped out of the hole it
+			 * dug, pushed off: there again, not "arrived" for ever) */
 			mv->state = BC_MV_PLANNING;
 			mv->plan_since = e->now;
 		}
@@ -401,7 +404,11 @@ static void plan_done(bc_bot *b, int st)
 			if (dx * dx + dy * dy > 30 * 30 || abs(mv->route.steps[n - 1].to.z - mv->plan_from.z) > BC_NAV_DZ_MAX)
 				mv->stranded_until = 0.0;
 		}
-		if (n == 0) {
+		/* where it stands -- but an exact goal is that very floor, and a
+		 * body held a voxel over it by a corner of the next column (the
+		 * floor dug out from under it) is not on it: the empty route is
+		 * followed, and the follower takes it off the corner and down */
+		if (n == 0 && !mv->exact) {
 			mv->state = BC_MV_ARRIVED;
 			mv->has_route = 0;
 			return;

@@ -530,10 +530,15 @@ static int edit_tick(bc_nav_follow *f, const bc_nav_route *r, const bc_nav_moves
 		f->air_keys = xs.air_keys; f->xs_ticks = xs.ticks;
 		return res;
 	}
-	if (nav_at(b, st->to) && (st->dir != 8 || nav_on_floor(b, st->to.z)))
+	/* an edit's step is done on the floor the edit made: a body over the
+	 * column still held up by a corner of the next one (a pile dug into,
+	 * a tread beside) is not there yet -- on to the column's middle, off
+	 * the corner, and down (2026-11-25: a carrier "arrived" a voxel over
+	 * the floor it dug to, on its pile at its own tent) */
+	if (nav_at(b, st->to) && nav_on_floor(b, st->to.z))
 		return 1;
 	nav_law_steer(b, (float)st->to.x + 0.5f, (float)st->to.y + 0.5f, 0,
-	              st->dir == 8 || f->step == r->n - 1, keys, ori);
+	              st->dir == 8 || f->step == r->n - 1 || nav_at(b, st->to), keys, ori);
 	return 0;
 }
 
@@ -669,10 +674,15 @@ int bc_nav_follow_tick(bc_nav_follow *f, const bc_nav_route *r, const bc_nav_mov
 			 * up, and it comes down only within a twentieth of a voxel
 			 * of dead centre. It is in the column it was sent to; to
 			 * call that "not arrived" was to stand there until STUCK
-			 * (Temple, a goal in the inner corner of a terrace). */
+			 * (Temple, a goal in the inner corner of a terrace). Not for
+			 * an exact goal (policy.goal_exact_z): that floor is the
+			 * point -- a floor dug down to, one built -- and a body a
+			 * voxel over it has not got there (a carrier over the floor
+			 * its tent counts, on its pile) */
 			if (nav_at(b, last) && dx * dx + dy * dy < 0.4f * 0.4f &&
 			    (nav_on_floor(b, last.z) ||
-			     (nav_on_or_above(b, last.z) && !b->airborne && bc_body_speed(b) < 0.5f)))
+			     (!(pol && pol->goal_exact_z) && nav_on_or_above(b, last.z) && !b->airborne &&
+			      bc_body_speed(b) < 0.5f)))
 				return finish(f, r, m, b, out, BC_NAV_ARRIVED, 0);
 			ground_tick(r, m, r->n, b, &keys, &ori);
 			break;

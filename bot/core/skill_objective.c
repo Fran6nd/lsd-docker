@@ -128,6 +128,13 @@ void bc_objective_world(bc_engine *e)
 			}
 			state = BC_OBJ_CARRIED;
 			st->holder = o->holder;
+			{
+				/* moving: as `follow` takes a man to be going somewhere */
+				const bl_player *h = &e->w.players[o->holder];
+
+				if (st->state != BC_OBJ_CARRIED || h->vel.x * h->vel.x + h->vel.y * h->vel.y > 0.001f)
+					st->moved_at = e->now;
+			}
 		} else if (st->state == BC_OBJ_CARRIED) {
 			int ct = st->holder != BL_NO_PLAYER ? e->w.players[st->holder].team : 0;
 
@@ -280,6 +287,32 @@ bt_status bc_do_fetch(void *bot, const bt_args *a, float dt)
 	return BT_RUNNING;
 }
 
+/* THE FLOOR AT THE BASE THAT COUNTS. The server captures a carrier whose
+ * eye is from 4 over the base's point to 1 under it (lib_ctf's tent
+ * cylinder: top -4, bottom 1; 3 across). A floor raised there by blocks
+ * put on it is out of that: the goal is a floor in the band -- one to
+ * stand on if there is one, else the highest solid voxel in it, and the
+ * route digs down to it. 0: nothing solid there (then the base's point,
+ * snapped as any place is). */
+static int home_floor(const bc_engine *e, bl_vec3 tent, bc_nav_node *out)
+{
+	int x = (int)floorf(tent.x), y = (int)floorf(tent.y), z;
+	/* inside the band, not on its edge: an eye exactly 4 over is counted
+	 * or not by a hundredth of a voxel of settling */
+	int lo = (int)floorf(tent.z - 4.0f + 2.25f) + 1, hi = (int)ceilf(tent.z + 1.0f + 2.25f) - 1;
+	uint64_t st;
+
+	if (!bc_map_in(x, y, 0))
+		return 0;
+	st = bc_map_stand_bits(bc_map_col(e->map, x, y));
+	out->x = (int16_t)x; out->y = (int16_t)y;
+	for (z = lo; z <= hi; z++)
+		if (z >= 0 && z < BC_MAP_Z && ((st >> z) & 1)) { out->z = (int16_t)z; return 1; }
+	for (z = lo; z <= hi; z++)
+		if (bc_map_solid(e->map, x, y, z) && z < BC_MAP_GROUND_Z + 1) { out->z = (int16_t)z; return 1; }
+	return 0;
+}
+
 /* --- carry_home ----------------------------------------------------------- */
 
 bt_status bc_do_carry_home(void *bot, const bt_args *a, float dt)
@@ -332,7 +365,21 @@ bt_status bc_do_carry_home(void *bot, const bt_args *a, float dt)
 		b->carry.plan_at = e->now + 2.0;
 		bc_move_replan(b);
 	}
-	st = bc_move_to(b, home, 1.0f);
+	{
+		/* to a floor there the server counts it in on -- digging down to
+		 * it through blocks put on the base (2026-11-25: a carrier stood
+		 * on a pile at its own tent, 5 over it, "arrived", for ever) */
+		bc_nav_node f;
+
+		if (home_floor(e, home, &f)) {
+			bl_vec3 eye;
+
+			eye.x = (float)f.x + 0.5f; eye.y = (float)f.y + 0.5f; eye.z = (float)f.z - 2.25f;
+			st = bc_move_to_raw(b, eye, 1.0f);
+		} else {
+			st = bc_move_to(b, home, 1.0f);
+		}
+	}
 	/* it does not stop to duel: only a man it is about to run into */
 	if (s->nearest >= 0 && flat(s->k[s->nearest].pos, me->pos) < (a->count > 0 && a->num[0] > 0.0f ? a->num[0] : 14.0f))
 		bc_fire_at_will(b);
@@ -348,6 +395,35 @@ bt_status bc_do_carry_home(void *bot, const bt_args *a, float dt)
 
 /* --- escort --------------------------------------------------------------- */
 
+/* ESCORTS, AT MOST TWO A CARRIER -- a station each side of him -- and
+ * only while he is going somewhere: one who has stood still longer than
+ * `follow` waits for a man who stays put (4 s) is not escorted (he has
+ * no way, or is holding). The first two to have come keep it; a bot that
+ * is one of them is open to it. */
+enum { ESCORTS = 2 };
+static const double CARRIER_STILL = 4.0;
+
+int bc_escort_open(bc_bot *b)
+{
+	bc_engine *e = b->e;
+	int team = bc_me(b)->team, t = bc_obj_theirs(e, team), i, before = 0;
+	bl_vec3 c;
+
+	if (t < 0 || !bc_objective_place(b, "carrier", &c) || e->now - e->obj[t].moved_at > CARRIER_STILL)
+		return 0;
+	for (i = 0; i < e->max_bots; i++) {
+		const bc_bot *o = &e->bots[i];
+
+		if (!o->used || o == b || e->w.players[o->pid].team != team || e->now - o->esc.at > 0.5)
+			continue;
+		/* already with him, from before this bot (it was not): ahead of it */
+		if (e->now - b->esc.at > 0.5 || o->esc.since < b->esc.since ||
+		    (o->esc.since == b->esc.since && o->pid < b->pid))
+			before++;
+	}
+	return before < ESCORTS;
+}
+
 bt_status bc_do_escort(void *bot, const bt_args *a, float dt)
 {
 	bc_bot *b = bot;
@@ -358,8 +434,11 @@ bt_status bc_do_escort(void *bot, const bt_args *a, float dt)
 	float dx = 0.0f, dy = 0.0f, l, side;
 
 	(void)a; (void)dt;
-	if (!bc_objective_place(b, "carrier", &c))
+	if (!bc_escort_open(b) || !bc_objective_place(b, "carrier", &c))
 		return BT_FAILURE;
+	if (e->now - b->esc.at > 0.5)
+		b->esc.since = e->now;
+	b->esc.at = e->now;
 	bc_fire_at_will(b);
 	if (e->w.tent[team - 1].present) {
 		dx = e->w.tent[team - 1].pos.x - c.x;
@@ -372,8 +451,12 @@ bt_status bc_do_escort(void *bot, const bt_args *a, float dt)
 	station.x = c.x + dx / l * 6.0f - dy / l * side;
 	station.y = c.y + dy / l * 6.0f + dx / l * side;
 	station.z = c.z;
-	if (l < 8.0f)
-		station = c;            /* he is nearly home: with him */
+	if (l < 8.0f) {
+		/* he is nearly home: beside him -- not on him, nor on the base
+		 * he is to stand on */
+		station.x = c.x - dy / l * side;
+		station.y = c.y + dx / l * side;
+	}
 	if (flat(me->pos, station) < 3.0f) {
 		b->wish.move = BC_MOVE_NONE;
 		return BT_RUNNING;

@@ -296,6 +296,7 @@ typedef struct bc_bot {
 	struct { uint8_t n, pad_[7]; bc_nav_danger avoid[BC_AVOID_MAX]; double plan_at; } carry;
 	struct { uint8_t started, pad_[7]; double until; bl_vec3 spot, place; } guard;
 	struct { double stand_since; } fetch;
+	struct { double since, at; } esc;    /* escorting: since when, the last tick (skill_objective.c) */
 	struct { int16_t leader; uint8_t pad_[6]; double eval_at, still_since, off_until; bl_vec3 still_at; } squad;
 	uint32_t kills;         /* this life's */
 	double born_at;         /* when this life began */
@@ -344,6 +345,7 @@ typedef struct bc_objstate {
 	uint8_t state, holder, pad_[6];
 	bl_vec3 pos;
 	double since;
+	double moved_at;        /* its carrier last seen moving */
 	uint16_t score;         /* the carrier's team's, when he took it */
 } bc_objstate;
 
@@ -645,6 +647,9 @@ int bc_obj_state(const bc_bot *b, int own);
  * (skill_objective.c: two, or one that is both); -1 none */
 int bc_obj_theirs(const bc_engine *e, int team);
 int bc_obj_ours(const bc_engine *e, int team);
+/* a mate carries their intel, is going somewhere, and fewer than two
+ * escort him (or this bot is one of them): skill_objective.c */
+int bc_escort_open(bc_bot *b);
 int bc_carrying(const bc_bot *b);
 /* "thief" (who carries this team's), "carrier" (the team-mate who carries
  * the other's), "intercept" (where to cut the thief off) */

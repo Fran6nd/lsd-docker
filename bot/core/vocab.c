@@ -732,6 +732,8 @@ static float s_carrying_intel(void *bot, const bt_args *a) { return (float)c_car
 static float s_their_intel_home(void *bot, const bt_args *a) { return (float)c_their_intel_home(bot, a); }
 static float s_their_intel_dropped(void *bot, const bt_args *a) { return (float)c_their_intel_dropped(bot, a); }
 static float s_their_intel_carried(void *bot, const bt_args *a) { return (float)c_their_intel_carried(bot, a); }
+static int c_escort_open(void *bot, const bt_args *a) { (void)a; return bc_escort_open(bot); }
+static float s_escort_open(void *bot, const bt_args *a) { return (float)c_escort_open(bot, a); }
 static float s_our_intel_home(void *bot, const bt_args *a) { return (float)c_our_intel_home(bot, a); }
 static float s_our_intel_dropped(void *bot, const bt_args *a) { return (float)c_our_intel_dropped(bot, a); }
 static float s_our_intel_taken(void *bot, const bt_args *a) { return (float)c_our_intel_taken(bot, a); }
@@ -987,6 +989,7 @@ static const word WORDS[] = {
 	{ VK_C, "their_intel_home", NOARGS, "the other team's intel lies where the server put it", c_their_intel_home, NULL, NULL, NULL },
 	{ VK_C, "their_intel_dropped", NOARGS, "the other team's intel lies where a carrier of this team fell", c_their_intel_dropped, NULL, NULL, NULL },
 	{ VK_C, "their_intel_carried", NOARGS, "a team-mate carries the other team's intel", c_their_intel_carried, NULL, NULL, NULL },
+	{ VK_C, "escort_open", NOARGS, "a team-mate carries their intel, is going somewhere (not still for 4 s), and fewer than two escort him -- or this bot is one of them", c_escort_open, NULL, NULL, NULL },
 	{ VK_C, "our_intel_home", NOARGS, "this team's intel lies where the server put it", c_our_intel_home, NULL, NULL, NULL },
 	{ VK_C, "our_intel_dropped", NOARGS, "this team's intel lies where its thief fell (it cannot be picked up by its own team: it is guarded there)", c_our_intel_dropped, NULL, NULL, NULL },
 	{ VK_C, "our_intel_taken", NOARGS, "an enemy carries this team's intel (where he is is known to everybody: the place `thief`)", c_our_intel_taken, NULL, NULL, NULL },
@@ -997,6 +1000,7 @@ static const word WORDS[] = {
 	{ VK_S, "their_intel_home", NOARGS, "1 while the other team's intel lies where the server put it", NULL, s_their_intel_home, NULL, NULL },
 	{ VK_S, "their_intel_dropped", NOARGS, "1 while it lies where a carrier fell", NULL, s_their_intel_dropped, NULL, NULL },
 	{ VK_S, "their_intel_carried", NOARGS, "1 while a team-mate carries it", NULL, s_their_intel_carried, NULL, NULL },
+	{ VK_S, "escort_open", NOARGS, "1 while a team-mate carries their intel, going somewhere, with a place for this bot beside him (two escorts at most)", NULL, s_escort_open, NULL, NULL },
 	{ VK_S, "our_intel_home", NOARGS, "1 while this team's intel lies where the server put it", NULL, s_our_intel_home, NULL, NULL },
 	{ VK_S, "our_intel_dropped", NOARGS, "1 while it lies where its thief fell", NULL, s_our_intel_dropped, NULL, NULL },
 	{ VK_S, "our_intel_taken", NOARGS, "1 while an enemy carries it", NULL, s_our_intel_taken, NULL, NULL },
