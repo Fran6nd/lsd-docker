@@ -31,6 +31,8 @@ For `if` and `unless`: true or false.
   - `radius`: a number; left out: 20
 - **`health_below <hp>`** -- its health is under that (of 100)
   - `hp`: a number, 0 to 100; must be given
+- **`level_at_least <level>`** -- it is a bot of that level or better (1 to 10: how well it aims, how soon it reacts, how fast it turns)
+  - `level`: a number, 1 to 10; must be given
 - **`hurt_recently [secs]`** -- it lost health within that many seconds (default 3)
   - `secs`: a number; left out: 3
 - **`ammo_below <fraction>`** -- rounds left, magazine and reserve, are under that fraction of a full load
@@ -127,6 +129,7 @@ For `option <trait> <score>`: 0 to 1, how much the situation calls for the optio
 - **`hurt`** -- health lost: 0 unhurt, 1 nearly dead
 - **`hurt_in_fight`** -- health lost, counted only with an enemy in sight or a hit from somewhere in the last 3 s; 0 for 6 s after a retreat
 - **`healthy`** -- health left, 0 to 1
+- **`level`** -- how good the bot is: 0 at level 1, 1 at level 10 (an option the able lean to)
 - **`search`** -- how fresh the place most worth searching is: 1 just now, 0 none
 - **`ping_called`** -- 1 while a team-mate's ping is this bot's to answer
 - **`has_order`** -- 1 while an order stands

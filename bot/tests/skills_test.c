@@ -550,6 +550,36 @@ static void test_word_args(void)
 	}
 }
 
+/* a branch only the able take: `if level_at_least 8`; and the score
+ * `level` leaning a pick by it */
+static void test_level(void)
+{
+	static const int levels[2] = { 8, 3 };
+	int k, held[2], leaned[2];
+
+	printf("a branch for the able: if level_at_least 8\n");
+	for (k = 0; k < 2; k++) {
+		bs_sim *s = game();
+
+		bs_start(s);
+		bs_add(s, 0, 1, 1, levels[k], BL_GUN_RIFLE, 9, 220.5f, 256.5f, 1, 0);
+		bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tseq\n\t\tif level_at_least 8\n\t\tdo hold self 30\n\tdo look_around\n");
+		held[k] = seen_doing(s, 0, "hold", 1.0);
+		bs_free(s);
+		/* the score: 0 at level 1, 1 at 10 -- against an even 0.5 */
+		s = game();
+		bs_start(s);
+		bs_add(s, 0, 1, 1, levels[k], BL_GUN_RIFLE, 9, 220.5f, 256.5f, 1, 0);
+		bs_set(s, BL_NO_PLAYER, "tree=tree t:\npick every=1 noise=0\n\toption none level\n\t\tdo hold self 30\n\toption none always x0.5\n\t\tdo look_around\n");
+		leaned[k] = seen_doing(s, 0, "hold", 1.0);
+		bs_free(s);
+	}
+	printf("  level 8: held %d of 60 ticks; level 3: %d. The score against 0.5: level 8 held %d, level 3 %d\n",
+	       held[0], held[1], leaned[0], leaned[1]);
+	CHECK(held[0] > 30 && held[1] == 0);
+	CHECK(leaned[0] > 30 && leaned[1] == 0);
+}
+
 int main(void)
 {
 	test_kill_standing();
@@ -563,6 +593,7 @@ int main(void)
 	test_bridge_shot_out();
 	test_ping_once();
 	test_word_args();
+	test_level();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;
 }

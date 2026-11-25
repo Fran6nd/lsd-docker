@@ -217,6 +217,19 @@ static int c_outnumbered(void *bot, const bt_args *a)
 	return b->senses.n_visible > 1 + bc_mates_within(b, bc_me(b)->pos, arg(a, 0, 20.0f));
 }
 
+/* how good it is (1 to 10: aim, reaction, turn -- aim.h), for a branch
+ * only the able take: `if level_at_least 8` */
+static int c_level_at_least(void *bot, const bt_args *a)
+{
+	return (float)((bc_bot *)bot)->level >= arg(a, 0, 1.0f);
+}
+
+static float s_level(void *bot, const bt_args *a)
+{
+	(void)a;
+	return ((float)((bc_bot *)bot)->level - 1.0f) / 9.0f;
+}
+
 static int c_health_below(void *bot, const bt_args *a)
 {
 	bc_bot *b = bot;
@@ -879,6 +892,7 @@ static const word WORDS[] = {
 	{ VK_C, "target_in_cover", 1, { NOPT("secs", 5.0f) }, "the man being fought was seen under that many seconds ago (default 5) and is out of sight now", c_target_in_cover, NULL, NULL, NULL },
 	{ VK_C, "outnumbered", 1, { NOPT("radius", 20.0f) }, "more enemies in sight than team-mates within radius (default 20), itself included", c_outnumbered, NULL, NULL, NULL },
 	{ VK_C, "health_below", 1, { NRANGE("hp", 0.0f, 100.0f) }, "its health is under that (of 100)", c_health_below, NULL, NULL, NULL },
+	{ VK_C, "level_at_least", 1, { NRANGE("level", 1.0f, 10.0f) }, "it is a bot of that level or better (1 to 10: how well it aims, how soon it reacts, how fast it turns)", c_level_at_least, NULL, NULL, NULL },
 	{ VK_C, "hurt_recently", 1, { NOPT("secs", 3.0f) }, "it lost health within that many seconds (default 3)", c_hurt_recently, NULL, NULL, NULL },
 	{ VK_C, "ammo_below", 1, { NRANGE("fraction", 0.0f, 1.0f) }, "rounds left, magazine and reserve, are under that fraction of a full load", c_ammo_below, NULL, NULL, NULL },
 	{ VK_C, "ammo_out", NOARGS, "no round left at all", c_ammo_out, NULL, NULL, NULL },
@@ -915,6 +929,7 @@ static const word WORDS[] = {
 	{ VK_S, "hurt", NOARGS, "health lost: 0 unhurt, 1 nearly dead", NULL, s_hurt, NULL, NULL },
 	{ VK_S, "hurt_in_fight", NOARGS, "health lost, counted only with an enemy in sight or a hit from somewhere in the last 3 s; 0 for 6 s after a retreat", NULL, s_hurt_in_fight, NULL, NULL },
 	{ VK_S, "healthy", NOARGS, "health left, 0 to 1", NULL, s_healthy, NULL, NULL },
+	{ VK_S, "level", NOARGS, "how good the bot is: 0 at level 1, 1 at level 10 (an option the able lean to)", NULL, s_level, NULL, NULL },
 	{ VK_S, "search", NOARGS, "how fresh the place most worth searching is: 1 just now, 0 none", NULL, s_search, NULL, NULL },
 	{ VK_S, "ping_called", NOARGS, "1 while a team-mate's ping is this bot's to answer", NULL, s_ping_called, NULL, NULL },
 	{ VK_S, "has_order", NOARGS, "1 while an order stands", NULL, s_has_order, NULL, NULL },

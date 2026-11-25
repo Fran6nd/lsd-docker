@@ -982,6 +982,19 @@ jump, health are a player's). Operators choose levels with
 way: 2 by default, so levels 3 to 7); a script gives one bot its level
 with `botlink_add{level = n}`.
 
+A tree may gate a branch on the level -- what only the able should try:
+`if level_at_least 8` (a condition), or lean a pick with the score
+`level` (0 at level 1, 1 at level 10):
+
+```bt
+tree sniper_or_not:
+select
+	seq
+		if level_at_least 8                   # a long shot is for a good shot
+		do take_high_ground
+	do advance_by_cover enemy_base 45
+```
+
 ## 12. Writing your own
 
 Whoever you are, the loop is the same: write the text, `bttree --check`
