@@ -663,16 +663,31 @@ local function block(x, y, z, a)
 end
 engine_events();
 local refused0 = botlink_stats().ac_refused;
-block(202, 200, 33, 0);
+-- (on top of the block beside the one it stands on: the top face, seen)
+block(201, 200, 32, 0);
 step(1);
-check(SOLID[key(202, 200, 33)], "a build, next to a block, in reach, with blocks");
+check(SOLID[key(201, 200, 32)], "a build, next to a block, in reach, with blocks");
 local evs = engine_events();
 check(#of(evs, 2) == 1 and as(of(evs, 2)[1], "bl_ev_block").by == pid, "...announced as the bot's");
 step(1);
 check(world().players[pid].blocks == 49, "...and one block fewer");
-block(202, 200, 33, 0);
+block(201, 200, 32, 0);
 step(1);
 check(botlink_stats().ac_refused == refused0 + 1, "a build on a solid block: refused, counted");
+-- WHAT A PLAYER COULD NOT DO: build against a face it cannot see
+block(202, 200, 33, 0);
+step(10);
+check(not SOLID[key(202, 200, 33)] and botlink_stats().ac_refused == refused0 + 2,
+	"a build against the far side of a block (a face turned from the eye): refused, counted");
+block(200, 200, 34, 0);
+step(10);
+check(not SOLID[key(200, 200, 34)], "a block hung under the floor it stands on (nobody can aim there): refused");
+P[pid].pos = {x = 202.3, y = 200.5, z = 30};       -- over the edge, looking back down at that face
+block(202, 200, 33, 0);
+step(10);
+check(SOLID[key(202, 200, 33)], "...the same face, leaning over the edge: built");
+SOLID[key(202, 200, 33)] = nil;
+P[pid].pos = {x = 200.5, y = 200.5, z = 30};
 block(210, 200, 30, 0);
 step(10);
 check(not SOLID[key(210, 200, 30)], "a build out of reach: refused");
@@ -694,6 +709,19 @@ block(201, 200, 33, 1);
 step(10);
 check(SOLID[key(201, 200, 33)], "a dig may_break_block refuses: not done");
 may_break_block = nil;
+-- a voxel with no face open to the air, or none it can see: refused
+for _, c in ipairs{{210, 210, 40}, {211, 210, 40}, {209, 210, 40}, {210, 211, 40}, {210, 209, 40}, {210, 210, 39}, {210, 210, 41}} do
+	SOLID[key(c[1], c[2], c[3])] = true;
+end
+P[pid].pos = {x = 210.5, y = 208.5, z = 37.5};
+block(210, 210, 40, 1);
+step(10);
+check(SOLID[key(210, 210, 40)], "a dig of a buried voxel (no face open to the air): refused");
+SOLID[key(210, 209, 40)] = nil;
+block(210, 210, 40, 1);
+step(10);
+check(not SOLID[key(210, 210, 40)], "...its face opened toward the eye: dug");
+P[pid].pos = {x = 200.5, y = 200.5, z = 30};
 P[pid].tool = 1;
 block(201, 200, 33, 1);
 step(10);
@@ -701,11 +729,11 @@ check(SOLID[key(201, 200, 33)], "a dig with blocks in hand: refused");
 -- line
 P[pid].tool = 1;
 local al = ffi.new("bl_ac_line");
-al.x1, al.y1, al.z1, al.x2, al.y2, al.z2 = 201, 201, 33, 204, 201, 33;
-SOLID[key(200, 201, 33)] = true; SOLID[key(204, 202, 33)] = true;
+al.x1, al.y1, al.z1, al.x2, al.y2, al.z2 = 200, 201, 32, 203, 201, 32;
+SOLID[key(200, 201, 33)] = true; SOLID[key(203, 201, 33)] = true;
 act(2, pid, al);
 step(11);
-check(SOLID[key(204, 201, 33)], "a line");
+check(SOLID[key(203, 201, 32)], "a line (from the top of a block it sees)");
 check(#of(engine_events(), 3) == 1, "...announced");
 al.x2 = 400; act(2, pid, al); step(40);
 check(not SOLID[key(400, 201, 33)], "a line with more blocks than it holds (and out of reach): refused");

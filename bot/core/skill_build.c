@@ -12,8 +12,10 @@
  *                       eye at the place would stand on. Not snapped to
  *                       the nearest floor there is (go_to does that): a
  *                       floor that is not there is BUILT, by the route --
- *                       up a stair and one more step, a bridge, a stair
- *                       down. Needs the setting edit to allow building
+ *                       up a stair and one more step, a bridge: what a
+ *                       player could build from where it stands (a face
+ *                       it sees; lib_botlink holds a bot to that). Needs
+ *                       the setting edit to allow building
  *                       (and digging, where the way needs it). SUCCESS
  *                       standing there; FAILURE no such place, edits not
  *                       allowed, no way (the route's own failure).

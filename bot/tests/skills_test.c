@@ -373,6 +373,7 @@ static void test_edits(void)
 	CHECK(s->p[0].body.pos.x >= 250.0f);
 	CHECK(s->edits >= 4 && s->edits <= 12);
 	CHECK(s->refused <= s->edits);              /* paced to the server's rate, mostly */
+	CHECK(s->vis_refused == 0);                 /* nothing a player could not have dug from there */
 	CHECK(s->p[0].tool == BL_TOOL_SPADE || s->p[0].tool == BL_TOOL_GUN);
 	bs_free(s);
 
@@ -394,6 +395,7 @@ static void test_edits(void)
 	CHECK(s->p[0].body.pos.x >= 252.0f);
 	CHECK(50 - min_blocks >= 3 && 50 - min_blocks <= 14);    /* the rest of the way it jumps */
 	CHECK(bc_body_feet(&s->p[0].body) < (float)G + 0.5f);
+	CHECK(s->vis_refused == 0);                 /* each block against a face it saw, from the edge */
 	bs_free(s);
 
 	/* the server refuses the digs (and says nothing): the bot learns and stops */

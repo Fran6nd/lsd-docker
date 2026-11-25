@@ -1012,6 +1012,61 @@ local function within_reach(pid, x, y, z)
 	return dx * dx + dy * dy + dz * dz <= botlink_reach * botlink_reach;
 end
 
+-- WHAT A PLAYER COULD DO FROM THERE. LSd checks a client's block action
+-- for little more than "in the map, solid or not, a neighbour, blocks
+-- left" (funcs_packetrecv.c): no reach, no line of sight -- a client can
+-- only point at what it sees, and that is the whole of the rule. A bot
+-- has no client, so the rule is made here: a block goes in the air cell
+-- in front of a FACE of a solid voxel that faces the bot's eye, with a
+-- clear line from the eye to that face's middle (the cell it goes in
+-- excepted, air anyway); a dig takes a voxel one of whose faces is open
+-- to the air, faces the eye and is in its clear sight. So no block hung
+-- under the floor the bot stands on: nobody can aim at that.
+local FACES = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+
+-- the eye to (px, py, pz) through air; the cell (sx, sy, sz) is not looked at
+local function clear_line(e, px, py, pz, sx, sy, sz)
+	local dx, dy, dz = px - e.x, py - e.y, pz - e.z;
+	local len = math.sqrt(dx * dx + dy * dy + dz * dz);
+	local n = math.max(1, math.ceil(len / 0.1));
+	for i = 0, n - 1 do
+		local t = i / n;
+		local cx, cy, cz = math.floor(e.x + dx * t), math.floor(e.y + dy * t), math.floor(e.z + dz * t);
+		if (not (cx == sx and cy == sy and cz == sz) and bot_solid(cx, cy, cz)) then return false; end
+	end
+	return true;
+end
+
+-- a face of a solid neighbour of the air cell (x, y, z) that faces the
+-- eye and that the eye sees: a build there is a player's
+local function sees_build(e, x, y, z)
+	for _, d in ipairs(FACES) do
+		if (bot_solid(x + d[1], y + d[2], z + d[3])) then
+			local px, py, pz = x + 0.5 + 0.5 * d[1], y + 0.5 + 0.5 * d[2], z + 0.5 + 0.5 * d[3];
+			-- the eye on the cell's side of the face
+			if ((e.x - px) * -d[1] + (e.y - py) * -d[2] + (e.z - pz) * -d[3] > 0
+			    and clear_line(e, px, py, pz, x, y, z)) then
+				return true;
+			end
+		end
+	end
+	return false;
+end
+
+-- a face of the solid voxel (x, y, z) open to the air, facing the eye, seen
+local function sees_dig(e, x, y, z)
+	for _, d in ipairs(FACES) do
+		if (not bot_solid(x + d[1], y + d[2], z + d[3])) then
+			local px, py, pz = x + 0.5 + 0.5 * d[1], y + 0.5 + 0.5 * d[2], z + 0.5 + 0.5 * d[3];
+			if ((e.x - px) * d[1] + (e.y - py) * d[2] + (e.z - pz) * d[3] > 0
+			    and clear_line(e, px, py, pz, x, y, z)) then
+				return true;
+			end
+		end
+	end
+	return false;
+end
+
 local function do_block(pid)
 	local x, y, z, act = ac_block.x, ac_block.y, ac_block.z, ac_block.action;
 	if (not in_map(x, y, z) or act > 2) then return false; end
@@ -1022,14 +1077,15 @@ local function do_block(pid)
 	posbuf.x, posbuf.y, posbuf.z = x, y, z;
 
 	if (act == 0) then
-		if (tool ~= 1 or blocks[pid] <= 0 or bot_solid(x, y, z) or not neighbours(x, y, z)) then return false; end
+		if (tool ~= 1 or blocks[pid] <= 0 or bot_solid(x, y, z) or not neighbours(x, y, z)
+		    or not sees_build(get_position(pid), x, y, z)) then return false; end
 		next_block[pid] = now + botlink_build_secs;
 		blocks[pid] = blocks[pid] - 1;
 		on_block_action(pid, posbuf, 0);
 		return true;
 	end
 
-	if (tool ~= 0 or not bot_solid(x, y, z)) then return false; end
+	if (tool ~= 0 or not bot_solid(x, y, z) or not sees_dig(get_position(pid), x, y, z)) then return false; end
 	if (may_break_block ~= nil and not may_break_block(pid, posbuf, act)) then return false; end
 	next_block[pid] = now + (act == 1 and botlink_dig_secs or botlink_dig3_secs);
 	if (act == 1) then blocks[pid] = math.min(50, blocks[pid] + 1); end
@@ -1045,6 +1101,9 @@ local function do_line(pid)
 	local n = 1 + math.abs(x2 - x1) + math.abs(y2 - y1) + math.abs(z2 - z1);
 	if (n > blocks[pid] or not within_reach(pid, x1, y1, z1)) then return false; end
 	if (not neighbours(x1, y1, z1) or bot_solid(x2, y2, z2) or not neighbours(x2, y2, z2)) then return false; end
+	-- the line's start is a placement a player could make (where the drag
+	-- begins); the rest is the line tool's
+	if (not sees_build(get_position(pid), x1, y1, z1)) then return false; end
 	next_block[pid] = now + botlink_line_secs;
 	blocks[pid] = blocks[pid] - n;
 	posbuf.x, posbuf.y, posbuf.z = x1, y1, z1;

@@ -10,6 +10,7 @@
 #ifndef NAV_SIM_H
 #define NAV_SIM_H
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -55,6 +56,9 @@ typedef struct sim_result {
 	int max_still;
 	int damage;                 /* hit points lost to falls */
 	int edits;
+	int vis_refused;            /* edits the server refused: no face of it
+	                               in the eye's sight (what a player could
+	                               not do; lib_botlink refuses them) */
 	float max_feet;             /* the lowest the feet ever were (z grows down) */
 	float route_secs;           /* the first plan's cost */
 	float route_time;           /* ...and the part of it that is time: less
@@ -76,6 +80,46 @@ static double sim_now_us(void)
 
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return (double)ts.tv_sec * 1e6 + (double)ts.tv_nsec * 1e-3;
+}
+
+/* lib_botlink's rule (do_block): a build against a solid neighbour's face
+ * that faces the eye, a dig of a voxel with a face open to the air that
+ * faces it -- in clear sight from the eye, within 5 */
+static int sim_clear(const bc_map *m, bc_v3 e, float px, float py, float pz, int sx, int sy, int sz)
+{
+	float dx = px - e.x, dy = py - e.y, dz = pz - e.z, len = sqrtf(dx * dx + dy * dy + dz * dz);
+	int n = (int)ceilf(len / 0.1f), i;
+
+	if (n < 1) n = 1;
+	for (i = 0; i < n; i++) {
+		float t = (float)i / (float)n;
+		int x = (int)floorf(e.x + dx * t), y = (int)floorf(e.y + dy * t), z = (int)floorf(e.z + dz * t);
+
+		if (!(x == sx && y == sy && z == sz) && bc_map_in(x, y, z) && bc_map_solid(m, x, y, z))
+			return 0;
+	}
+	return 1;
+}
+
+static int sim_sees(const bc_map *m, bc_v3 e, int x, int y, int z, int build)
+{
+	static const int F[6][3] = { { 1, 0, 0 }, { -1, 0, 0 }, { 0, 1, 0 }, { 0, -1, 0 }, { 0, 0, 1 }, { 0, 0, -1 } };
+	float cx = (float)x + 0.5f - e.x, cy = (float)y + 0.5f - e.y, cz = (float)z + 0.5f - e.z;
+	int f;
+
+	if (cx * cx + cy * cy + cz * cz > 25.0f)
+		return 0;
+	for (f = 0; f < 6; f++) {
+		int nx = x + F[f][0], ny = y + F[f][1], nz = z + F[f][2];
+		int nb = bc_map_in(nx, ny, nz) && bc_map_solid(m, nx, ny, nz);
+		float px = (float)x + 0.5f + 0.5f * (float)F[f][0], py = (float)y + 0.5f + 0.5f * (float)F[f][1];
+		float pz = (float)z + 0.5f + 0.5f * (float)F[f][2];
+		float side = (e.x - px) * (float)F[f][0] + (e.y - py) * (float)F[f][1] + (e.z - pz) * (float)F[f][2];
+
+		if ((build ? (nb && side < 0.0f) : (!nb && side > 0.0f)) && sim_clear(m, e, px, py, pz, x, y, z))
+			return 1;
+	}
+	return 0;
 }
 
 static int sim_hits_body(const bc_body *b, int x, int y, int z)
@@ -281,6 +325,15 @@ static sim_result sim_run(sim_world *w, bc_nav_policy pol, bc_nav_node start, bc
 			int refused = w->srv_protect && cmd.ex >= w->sx0 && cmd.ex <= w->sx1 &&
 			              cmd.ey >= w->sy0 && cmd.ey <= w->sy1;
 
+			if (!refused && !sim_sees(w->m, b.pos, cmd.ex, cmd.ey, cmd.ez, cmd.edit == BC_NAV_EDIT_BUILD)) {
+				refused = 1;
+				R.vis_refused++;
+				if (w->verbose)
+					printf("  tick %d: %s %d %d %d refused: not in the eye's sight from (%.2f %.2f %.2f)\n", tick,
+					       cmd.edit == BC_NAV_EDIT_BUILD ? "build" : "dig", cmd.ex, cmd.ey, cmd.ez,
+					       (double)b.pos.x, (double)b.pos.y, (double)b.pos.z);
+				edit_cool = 6;
+			}
 			if (cmd.edit == BC_NAV_EDIT_DIG && !refused) {
 				sim_apply(w, BC_BLOCK_DESTROY, cmd.ex, cmd.ey, cmd.ez);
 				edit_cool = (int)(pol.dig_secs * 60.0f);

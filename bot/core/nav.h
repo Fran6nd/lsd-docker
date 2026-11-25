@@ -600,7 +600,9 @@ typedef struct bc_nav_follow {
 	uint8_t recentre;           /* ticks left of walking back to the
 	                               middle of the column stood in */
 	uint8_t recentred;          /* done once on this step already */
-	uint8_t pad_[3];
+	uint8_t edge;               /* this step's edits are made from the
+	                               edge of its floor (nav_edits) */
+	uint8_t pad_[2];
 	bc_v3 anchor;               /* where it last moved from */
 	bc_nav_node edit_vox;
 	bc_v3 last_ori;

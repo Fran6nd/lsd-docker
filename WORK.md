@@ -165,3 +165,13 @@ DONE (commit), BLOCKED (on what).
   floor; no walking on toward a goal far below while planning. Edit soak:
   lost 9 -> 0. Bench: ctf:10 4 -> 11 captures (4 of 4 games); the rest as
   before or within noise of the trees' new branch.
+- 2026-11-25 (brain agent): ONLY WHAT A PLAYER COULD DO (the owner's
+  rule). lib_botlink refuses a bot's build unless against a face that
+  faces its eye and is in clear sight, a dig unless of a voxel with a face
+  open to the air it sees (LSd checks a client for neither: no reach, no
+  sight); nav plans only such edits, from the middle of the floor or its
+  edge (a bridge's next block); the hung stair down is gone (a stair down
+  a wall stays). The simulations play the rule; none refused over every
+  scenario and the soak. keidoro's sky slab: no way a player could build
+  (the nearest top 20 under it) -- stranded, holds. Spawn on the slab and
+  the net's step-back off edges next.

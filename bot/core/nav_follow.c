@@ -111,6 +111,7 @@ static void set_step(bc_nav_follow *f, int i)
 	f->step = i;
 	f->step_ticks = 0;
 	f->edit_ticks = 0;
+	f->edge = 0;
 	f->phase = 0;
 	f->attempts = 0;
 	f->air_keys = 0;
@@ -428,11 +429,22 @@ static int edit_tick(bc_nav_follow *f, const bc_nav_route *r, const bc_nav_moves
 	bc_nav_node from = step_from(r, f->step);
 	bc_nav_node vox[8];
 	uint8_t op[8];
-	float cx = (float)from.x + 0.5f, cy = (float)from.y + 0.5f;
-	float dx = cx - b->pos.x, dy = cy - b->pos.y;
-	float off = sqrtf(dx * dx + dy * dy);
-	int n = nav_edits(t, m, NULL, from, st->to, vox, op, NULL, NULL);
-	int steady = nav_on_floor(b, from.z) && off < 0.3f && bc_body_speed(b) < 1.0f;
+	int edge = 0;
+	int n = nav_edits(t, m, NULL, from, st->to, vox, op, NULL, NULL, &edge);
+	/* where it stands to do the work: over the middle of the floor, or at
+	 * its edge to see the face a bridge's block goes on -- nav_edits says,
+	 * for what is LEFT to do: a stair's support is put in from the edge,
+	 * its step on top of it from the middle (at the edge the body is in
+	 * the step's cell) */
+	float cx, cy, dx, dy, off;
+	int steady;
+
+	f->edge = (uint8_t)edge;
+	cx = (float)from.x + 0.5f + (f->edge ? 0.75f * (float)(st->to.x - from.x) : 0.0f);
+	cy = (float)from.y + 0.5f + (f->edge ? 0.75f * (float)(st->to.y - from.y) : 0.0f);
+	dx = cx - b->pos.x; dy = cy - b->pos.y;
+	off = sqrtf(dx * dx + dy * dy);
+	steady = nav_on_floor(b, from.z) && off < (f->edge ? 0.15f : 0.3f) && bc_body_speed(b) < 1.0f;
 
 	if (n < 0)
 		return -BC_NAV_WHY_EDIT_REFUSED;
@@ -516,7 +528,7 @@ static int route_holds(const bc_nav_follow *f, const bc_nav_route *r, const bc_n
 		if (is_edit_kind(st->kind)) {
 			bc_nav_node vox[8];
 			uint8_t op[8];
-			int n = nav_edits(t, m, NULL, from, st->to, vox, op, NULL, NULL);
+			int n = nav_edits(t, m, NULL, from, st->to, vox, op, NULL, NULL, NULL);
 
 			if (n < 0)
 				return 0;

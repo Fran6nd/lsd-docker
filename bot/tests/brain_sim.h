@@ -98,6 +98,7 @@ typedef struct bs_sim {
 	bs_nade nade[BS_NADES];
 
 	int pings, ping_by[BL_MAX_PLAYERS], refused, edits, lines, kills[3], nades_thrown;
+	int vis_refused;            /* edits refused: no face of it in the eye's sight (lib_botlink's rule) */
 	char last_ping[64];
 	char log2[400];             /* the last level-2 line */
 	int log2_n, log1_n;
@@ -610,6 +611,43 @@ static inline int bs_reach(const bs_player *p, int x, int y, int z)
 
 static inline int bs_in(int x, int y, int z) { return x >= 0 && x < 512 && y >= 0 && y < 512 && z >= 0 && z < 62; }
 
+/* lib_botlink's rule (do_block): what a player could do from there -- a
+ * build against a solid neighbour's face that faces the eye, a dig of a
+ * voxel with a face open to the air that faces it, in clear sight */
+static inline int bs_clear(const bc_map *m, bc_v3 e, float px, float py, float pz, int sx, int sy, int sz)
+{
+	float dx = px - e.x, dy = py - e.y, dz = pz - e.z, len = sqrtf(dx * dx + dy * dy + dz * dz);
+	int n = (int)ceilf(len / 0.1f), i;
+
+	if (n < 1) n = 1;
+	for (i = 0; i < n; i++) {
+		float t = (float)i / (float)n;
+		int x = (int)floorf(e.x + dx * t), y = (int)floorf(e.y + dy * t), z = (int)floorf(e.z + dz * t);
+
+		if (!(x == sx && y == sy && z == sz) && bc_map_in(x, y, z) && bc_map_solid(m, x, y, z))
+			return 0;
+	}
+	return 1;
+}
+
+static inline int bs_sees(const bc_map *m, bc_v3 e, int x, int y, int z, int build)
+{
+	static const int F[6][3] = { { 1, 0, 0 }, { -1, 0, 0 }, { 0, 1, 0 }, { 0, -1, 0 }, { 0, 0, 1 }, { 0, 0, -1 } };
+	int f;
+
+	for (f = 0; f < 6; f++) {
+		int nx = x + F[f][0], ny = y + F[f][1], nz = z + F[f][2];
+		int nb = bc_map_in(nx, ny, nz) && bc_map_solid(m, nx, ny, nz);
+		float px = (float)x + 0.5f + 0.5f * (float)F[f][0], py = (float)y + 0.5f + 0.5f * (float)F[f][1];
+		float pz = (float)z + 0.5f + 0.5f * (float)F[f][2];
+		float side = (e.x - px) * (float)F[f][0] + (e.y - py) * (float)F[f][1] + (e.z - pz) * (float)F[f][2];
+
+		if ((build ? (nb && side < 0.0f) : (!nb && side > 0.0f)) && bs_clear(m, e, px, py, pz, x, y, z))
+			return 1;
+	}
+	return 0;
+}
+
 static inline int bs_do_action(bs_sim *s, const bs_action *a)
 {
 	bs_player *p = &s->p[a->pid];
@@ -622,6 +660,10 @@ static inline int bs_do_action(bs_sim *s, const bs_action *a)
 		memcpy(&b, a->data, sizeof b);
 		if (!bs_in(b.x, b.y, b.z) || b.action > 2 || s->time < p->block_at || !bs_reach(p, b.x, b.y, b.z))
 			return 0;
+		if (!bs_sees(s->truth, p->body.pos, b.x, b.y, b.z, b.action == BL_B_BUILD)) {
+			s->vis_refused++;
+			return 0;
+		}
 		if (b.action == BL_B_BUILD) {
 			if (p->tool != BL_TOOL_BLOCK || p->blocks <= 0 || bc_map_solid(s->truth, b.x, b.y, b.z) ||
 			    !bs_neigh(s->truth, b.x, b.y, b.z))
@@ -649,6 +691,10 @@ static inline int bs_do_action(bs_sim *s, const bs_action *a)
 		    p->tool != BL_TOOL_BLOCK)
 			return 0;
 		n = 1 + abs(l.x2 - l.x1) + abs(l.y2 - l.y1) + abs(l.z2 - l.z1);
+		if (!bs_sees(s->truth, p->body.pos, l.x1, l.y1, l.z1, 1)) {
+			s->vis_refused++;
+			return 0;
+		}
 		if (n > p->blocks || !bs_reach(p, l.x1, l.y1, l.z1) || !bs_neigh(s->truth, l.x1, l.y1, l.z1) ||
 		    bc_map_solid(s->truth, l.x2, l.y2, l.z2) || !bs_neigh(s->truth, l.x2, l.y2, l.z2))
 			return 0;

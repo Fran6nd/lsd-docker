@@ -103,6 +103,10 @@ static int begin(const char *name)
 	return 1;
 }
 
+/* every edit a route asked for that the server's rule refused (a face the
+ * eye could not see): none, over every scenario and the soak */
+static int all_vis_refused;
+
 static void report(const char *name, const sim_result *r)
 {
 	printf("  %-28s %s in %5.2fs (planned %5.2fs), %d plan(s), %u exp, kinds:", name,
@@ -117,7 +121,10 @@ static void report(const char *name, const sim_result *r)
 	}
 	if (r->step_fails || r->stale || r->off_route)
 		printf("  [%d step fail, %d stale, %d off]", r->step_fails, r->stale, r->off_route);
+	if (r->vis_refused)
+		printf("  [%d edits not in the eye's sight, refused]", r->vis_refused);
 	printf("\n");
+	all_vis_refused += r->vis_refused;
 }
 
 /* --- the table ---------------------------------------------------------- */
@@ -1160,17 +1167,27 @@ static void test_off_the_roof(void)
 		report("ceiling_slab (dig, drop)", &r);
 		CHECK(r.arrived && r.damage == 0);
 		CHECK(r.kinds & K(BC_NAV_DIG));
-		/* the ground 20 under it and nothing else, building too: a stair
-		 * down into the air (two blocks a step) to a safe drop. (40 under
-		 * it, as in keidoro, a stair would take 62 blocks: there it goes
-		 * to the nearest thing it can drop onto -- see NAV-STATUS.md) */
+		/* the ground 20 under it and nothing else, building too: no way.
+		 * A stair DOWN into the open cannot be built: its next step would
+		 * go against the underside of the floor stood on, which nobody
+		 * can aim at (the owner's rule; lib_botlink refuses it). It stays
+		 * up: stranded */
 		fresh(20);
 		box(W.m, 90, 90, 0, 120, 110, 0, 1);
 		pol.may_build = 1;
 		pol.blocks = 50;
 		pol.h_weight = 1.5f;
+		r = sim_run(&W, pol, node(118, 100, 0), node(150, 100, 20), 0, 600);
+		report("ceiling_slab (nothing under it within reach: stays)", &r);
+		CHECK(!r.arrived && r.damage == 0 && r.max_feet < 0.5f);
+		/* a tower whose top is 9 under the slab, 4 off its edge: a LEVEL
+		 * bridge at the slab's height to over it (each block against the
+		 * far face of the last, from the edge), and the drop */
+		fresh(20);
+		box(W.m, 90, 90, 0, 120, 110, 0, 1);
+		box(W.m, 125, 98, 9, 127, 102, 19, 1);
 		r = sim_run(&W, pol, node(118, 100, 0), node(150, 100, 20), 0, 60 * 90);
-		report("ceiling_slab (no floor under it: a stair down)", &r);
+		report("ceiling_slab (a tower 9 under it: bridge, drop)", &r);
 		CHECK(r.arrived && r.damage == 0);
 		CHECK(r.kinds & K(BC_NAV_BUILD));
 		bc_nav_policy_default(&pol);
@@ -1814,6 +1831,7 @@ static void soak_map(const char *dir, const char *file, int pairs, int latency, 
 		}
 		reachable++;
 		gave_up += r.gave_up;
+		all_vis_refused += r.vis_refused;
 		capped += r.plan_cap;
 		step_fails += r.step_fails;
 		stale += r.stale;
@@ -2012,6 +2030,11 @@ int main(int argc, char **argv)
 	test_spud();
 	if (!only)
 		soak();
+	/* what a player could do from where it stands, and nothing more: the
+	 * server's rule (lib_botlink do_block), played by the simulation */
+	printf("edits refused for not being in the eye's sight, every scenario%s: %d\n",
+	       getenv("BC_TEST_MAPS") ? " and the soak" : "", all_vis_refused);
+	CHECK(all_vis_refused == 0);
 
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;

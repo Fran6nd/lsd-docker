@@ -17,6 +17,48 @@ Real maps are not in the repo. Tests that want them read a directory of
 used below were copied out of the `lsd-demo` container
 (`docker cp lsd-demo:/data/maps/<name>.vxl <dir>/`).
 
+## Changed by the brain's agent (2026-11-25, later: only what a player could do)
+
+The owner: "stair down? not possible. you would need to place a block
+under the block you are on". A client places a block against a FACE it
+sees (the new block goes in the air in front of that face) and digs a
+voxel it sees a face of; LSd itself checks a client for no more than "in
+the map, solid or not, a neighbour, blocks left" (funcs_packetrecv.c: no
+reach, no sight). A bot has no client, so the rule is made explicit on
+both sides:
+
+- SERVER (lib_botlink do_block, do_line): a build only against a solid
+  neighbour's face that faces the eye, with a clear line from the eye to
+  that face's middle; a dig only of a voxel with a face open to the air
+  that faces the eye and is seen; reach 5 as before. A line's start the
+  same. Refusals are counted (ac_refused) and the engine hears them as
+  before (EDIT_REFUSED). botlink_test: a build against the far side of a
+  block refused; a block hung under the floor stood on refused; the same
+  face leaning over the edge built; a buried voxel's dig refused, the same
+  with a face opened toward the eye dug.
+- NAV (nav_plan.c, nav_edits): every edit of a step is checked the same
+  way from where the body will stand to make it -- over the middle of the
+  floor it starts from, or at its EDGE (0.75 on toward the step, the body
+  held up by a corner) for what is seen only from there: a bridge's next
+  block, against the far face of the block under it. The follower stands
+  where nav_edits says (nav_follow.c, edit_tick; bc_nav_follow.edge). The
+  map as it will be is used: earlier edits of the step, the floor stood
+  on, the body's own cells (an earlier step dug them). A pillar's block is
+  put in at the top of the jump, over the floor's top face.
+- The hung STAIR DOWN into the open is gone. A stair down a WALL (each
+  step against the wall's face) is still built.
+- The simulations play the server's rule too (nav_sim.h, brain_sim.h:
+  `vis_refused`), and every scenario and the soak assert none refused.
+
+What bots now do where the stair down was the way: `roof_stair_down`
+(edit=build, a hollow tower) builds its stair down the tower's outer wall;
+`ceiling_slab` with nothing within reach under it stays (stranded); with a
+tower 9 under it, 4 off its edge, a level bridge from the slab's edge and
+the drop; keidoro's sky slab (nothing within a safe drop of any bridge of
+16, the nearest top 20 under it) has no way a player could build: a bot
+there is stranded and holds (the spawn that puts it there is the next
+fix).
+
 ## Changed by the brain's agent (2026-11-25, off the roof: WORK.md item 7)
 
 The owner, on the demo with edit=all: bots on a roof do not try to get
@@ -45,9 +87,8 @@ nav_plan.c; nav_follow.c and nav_exec.c untouched):
   stair down of 8; a stair up only against something, never into the
   open. Without those bounds the edit soak ran out of nodes on Parkour2
   in 98 of 200 pairs.
-- A STAIR DOWN INTO THE OPEN: a block hung under the floor the body stands
-  on (the server takes a block with any face against another), then the
-  step beside it. Two blocks a step.
+- (A stair down into the open, a block hung under the floor stood on: done
+  here, and taken out the same day -- no player can aim there. Above.)
 - A step DOWN digs where the body comes to stand. The measured stride down
   ends with the body still on the tread above, so its mask left out the
   arrival: a step down out from under a roof was planned with the roof

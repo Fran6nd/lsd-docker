@@ -115,6 +115,9 @@ int nav_node_kind(const bc_map *m, int x, int y, int z);
  * -- if given -- refuses a voxel). */
 int nav_edits(const bc_nav_moves *t, const bc_map *m, const bc_nav_policy *pol,
               bc_nav_node from, bc_nav_node to,
-              bc_nav_node vox[8], uint8_t op[8], int *digs, int *builds);
+              bc_nav_node vox[8], uint8_t op[8], int *digs, int *builds, int *edge);
+/* (`edge`, when given: 1 if the body must stand at the edge of the floor
+ * it starts from, 0.75 on toward the step, to see what it builds -- a
+ * bridge's next block, against the far face of the block under it) */
 
 #endif /* BC_NAV_I_H */

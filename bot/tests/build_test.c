@@ -92,7 +92,9 @@ static void test_stair(void)
 	printf("  %d steps to build (%d up); four bots, edit=all: %d built, the stair whole after %.0f s; one on the platform after %.0f s (%d there at the end); %u edits, %u plans\n",
 	       base_k() + 1, G - 1 - PZ, built - built0, done_at, at / 60.0, top, (unsigned)bc_engine_stats_get(s->e)->edits,
 	       (unsigned)bc_engine_stats_get(s->e)->plans);
+	printf("  edits the server refused for not being in the bot's sight: %d\n", s->vis_refused);
 	CHECK(done_at > 0.0 && done_at < 150.0);
+	CHECK(s->vis_refused == 0);
 	CHECK(at > 0);
 	bs_free(s);
 }

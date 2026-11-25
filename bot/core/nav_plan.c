@@ -353,9 +353,9 @@ static int has_support(const bc_map *m, bc_nav_node from, int x, int y, int z)
 		op[n] = (OP); n++; \
 	} while (0)
 
-int nav_edits(const bc_nav_moves *t, const bc_map *m, const bc_nav_policy *pol,
-              bc_nav_node from, bc_nav_node to,
-              bc_nav_node vox[8], uint8_t op[8], int *digs, int *builds)
+static int edits_raw(const bc_nav_moves *t, const bc_map *m, const bc_nav_policy *pol,
+                     bc_nav_node from, bc_nav_node to,
+                     bc_nav_node vox[8], uint8_t op[8], int *digs, int *builds)
 {
 	int n = 0, nd = 0, nb = 0, k;
 	int bx = to.x, by = to.y, tz = to.z;
@@ -471,15 +471,11 @@ int nav_edits(const bc_nav_moves *t, const bc_map *m, const bc_nav_policy *pol,
 			if (may_edit(pol, bx, by, tz + 1, 0) && has_support(m, from, bx, by, tz + 1)) {
 				ADD_EDIT(bx, by, tz + 1, BC_BLOCK_BUILD);
 				nb++;
-			} else if (tz == from.z + 1 && !bc_map_solid(m, from.x, from.y, tz) && may_edit(pol, from.x, from.y, tz, 0)) {
-				/* A STAIR DOWN INTO THE OPEN: a block hung under the
-				 * floor it stands on (the server takes a block with any
-				 * face against another: lib_botlink's neighbours), and the
-				 * step beside it. Two blocks a step, each step hung from
-				 * the one before -- off a roof with nothing below. */
-				ADD_EDIT(from.x, from.y, tz, BC_BLOCK_BUILD);
-				nb++;
 			} else {
+				/* (no stair DOWN into the open: its block would go
+				 * against the underside of the floor stood on, which
+				 * nobody can aim at -- the owner, 2026-11-25. A stair
+				 * down beside a wall is built against the wall) */
 				return -1;
 			}
 		}
@@ -495,6 +491,112 @@ done:
 	return n;
 }
 
+/* WHAT A PLAYER COULD DO FROM THERE (the owner's rule, 2026-11-25; the
+ * server holds a bot to it: lib_botlink, do_block). A block goes in the
+ * air in front of a FACE of a solid voxel that faces the eye and that the
+ * eye sees through air; a dig takes a voxel with a face open to the air
+ * that faces the eye and is seen. Within the server's reach (5 of the
+ * eye, to the middle of the cell). The eye is where the body stands to do
+ * the step's edits: over the middle of the floor it starts from, or (a
+ * bridge: the far side face of the block under it is seen only so) at its
+ * EDGE, 0.75 on toward the step -- the body held up by a corner, looking
+ * back down at that face. A PILLAR's block is put in at the top of the
+ * jump, over the floor's top face. Each edit of the step is looked at as
+ * the map will be by then: earlier digs are air, earlier builds solid,
+ * the floor stood on solid. */
+static int now_solid(const bc_map *m, bc_nav_node from, const bc_nav_node *vox, const uint8_t *op, int k,
+                     int x, int y, int z)
+{
+	int j, s = (x == from.x && y == from.y && z == from.z) || (bc_map_in(x, y, z) && bc_map_solid(m, x, y, z));
+
+	/* where the body stands is air by then, whatever the unedited map
+	 * says (an earlier step of the route dug it) */
+	if (x == from.x && y == from.y && z >= from.z - 3 && z < from.z)
+		s = 0;
+	for (j = 0; j < k; j++)
+		if (vox[j].x == x && vox[j].y == y && vox[j].z == z)
+			s = op[j] == BC_BLOCK_BUILD;
+	return s;
+}
+
+static int clear_to(const bc_map *m, bc_nav_node from, const bc_nav_node *vox, const uint8_t *op, int k,
+                    const float e[3], const float p[3], int sx, int sy, int sz)
+{
+	float d[3] = { p[0] - e[0], p[1] - e[1], p[2] - e[2] };
+	float len = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+	int n = (int)ceilf(len / 0.1f), i;
+
+	if (n < 1) n = 1;
+	for (i = 0; i < n; i++) {
+		float t = (float)i / (float)n;
+		int x = (int)floorf(e[0] + d[0] * t), y = (int)floorf(e[1] + d[1] * t), z = (int)floorf(e[2] + d[2] * t);
+
+		if (!(x == sx && y == sy && z == sz) && now_solid(m, from, vox, op, k, x, y, z))
+			return 0;
+	}
+	return 1;
+}
+
+static int sees_edit(const bc_map *m, bc_nav_node from, const bc_nav_node *vox, const uint8_t *op, int k,
+                     const float e[3])
+{
+	static const int8_t F[6][3] = { { 1, 0, 0 }, { -1, 0, 0 }, { 0, 1, 0 }, { 0, -1, 0 }, { 0, 0, 1 }, { 0, 0, -1 } };
+	int x = vox[k].x, y = vox[k].y, z = vox[k].z, f, build = op[k] == BC_BLOCK_BUILD;
+	float cx = (float)x + 0.5f - e[0], cy = (float)y + 0.5f - e[1], cz = (float)z + 0.5f - e[2];
+
+	if (cx * cx + cy * cy + cz * cz > 5.0f * 5.0f)
+		return 0;
+	for (f = 0; f < 6; f++) {
+		int nb = now_solid(m, from, vox, op, k, x + F[f][0], y + F[f][1], z + F[f][2]);
+		float p[3] = { (float)x + 0.5f + 0.5f * (float)F[f][0], (float)y + 0.5f + 0.5f * (float)F[f][1],
+		               (float)z + 0.5f + 0.5f * (float)F[f][2] };
+		float side = (e[0] - p[0]) * (float)F[f][0] + (e[1] - p[1]) * (float)F[f][1] + (e[2] - p[2]) * (float)F[f][2];
+
+		/* a build: against a solid neighbour's face, the eye on this
+		 * cell's side of it; a dig: a face open to the air, the eye
+		 * outside it */
+		if (build ? (nb && side < 0.0f) : (!nb && side > 0.0f))
+			if (clear_to(m, from, vox, op, k, e, p, x, y, z))
+				return 1;
+	}
+	return 0;
+}
+
+int nav_edits(const bc_nav_moves *t, const bc_map *m, const bc_nav_policy *pol,
+              bc_nav_node from, bc_nav_node to,
+              bc_nav_node vox[8], uint8_t op[8], int *digs, int *builds, int *edge)
+{
+	int n = edits_raw(t, m, pol, from, to, vox, op, digs, builds), k, tries;
+
+	if (edge)
+		*edge = 0;
+	if (n <= 0)
+		return n;
+	for (tries = 0; tries < 2; tries++) {
+		float e[3];
+		int dx = to.x - from.x, dy = to.y - from.y;
+
+		e[0] = (float)from.x + 0.5f; e[1] = (float)from.y + 0.5f; e[2] = (float)from.z - 2.25f;
+		if (dx == 0 && dy == 0 && to.z < from.z)
+			e[2] -= 1.3f;               /* a pillar: at the top of the jump */
+		if (tries == 1) {
+			if (dx == 0 && dy == 0)
+				break;
+			e[0] += 0.75f * (float)dx; e[1] += 0.75f * (float)dy;
+		}
+		for (k = 0; k < n; k++)
+			if (!(vox[k].x == from.x && vox[k].y == from.y && vox[k].z >= from.z - 3 && vox[k].z < from.z) &&
+			    !sees_edit(m, from, vox, op, k, e))
+				break;          /* (a dig where the body stands is done by then: an earlier step's) */
+		if (k == n) {
+			if (edge)
+				*edge = tries;
+			return n;
+		}
+	}
+	return -1;
+}
+
 int bc_nav_step_edits(const bc_nav_route *r, int i, const bc_nav_moves *t, const bc_map *m,
                       bc_nav_node vox[8], uint8_t op[8])
 {
@@ -507,7 +609,7 @@ int bc_nav_step_edits(const bc_nav_route *r, int i, const bc_nav_moves *t, const
 	    r->steps[i].kind != BC_NAV_PILLAR)
 		return 0;
 	from = i ? r->steps[i - 1].to : r->start;
-	n = nav_edits(t, m, NULL, from, r->steps[i].to, vox, op, NULL, NULL);
+	n = nav_edits(t, m, NULL, from, r->steps[i].to, vox, op, NULL, NULL, NULL);
 	return n < 0 ? 0 : n;
 }
 
@@ -879,8 +981,8 @@ static void try_edit(bc_nav_search *s, uint32_t ci, bc_nav_node a, bc_nav_node t
 	int digs = 0, builds = 0, n;
 	float move_secs;
 
-	/* From a floor the search itself built (a bridge, a stair hung in the
-	 * air: the map does not have it), the building goes on STRAIGHT: a
+	/* From a floor the search itself built (a bridge: the map does not have
+	 * it), the building goes on STRAIGHT: a
 	 * bridge does not fan out into the void in every direction from each
 	 * of its blocks. Without this, edits planned across open space made
 	 * the soak's exact searches run out of nodes on Parkour2 (98 of 200
@@ -889,16 +991,21 @@ static void try_edit(bc_nav_search *s, uint32_t ci, bc_nav_node a, bc_nav_node t
 		uint32_t k = ci;
 		int built = 0;
 
-		if (s->recs[ci].parent == ci || dir != s->recs[ci].dir)
+		/* straight on -- or round a corner where the floor built leans on
+		 * something of the map's (a stair down a wall turns along it) */
+		if (s->recs[ci].parent == ci)
 			return;
-		/* and only so far: a bridge of 4 to the next roof, a stair down
-		 * 8 steps to where a drop is safe -- not a causeway across the
-		 * map, which every edge would then try. A stair UP is built
+		if (dir != s->recs[ci].dir && !(bc_map_solid(s->m, a.x + 1, a.y, a.z) || bc_map_solid(s->m, a.x - 1, a.y, a.z) ||
+		                                bc_map_solid(s->m, a.x, a.y + 1, a.z) || bc_map_solid(s->m, a.x, a.y - 1, a.z)))
+			return;
+		/* and only so far: a bridge of 4 to the next roof, a stair down a
+		 * wall 8 steps to where a drop is safe -- not a causeway across
+		 * the map, which every edge would then try. A stair UP is built
 		 * against something (a cliff), not into the open */
 		/* (a body that has no way down without them -- the caller set
 		 * descent_secs -- may go on further: off a slab at the top of the
-		 * map, a stair of a dozen steps and a bridge to what it can drop
-		 * onto; the search is greedy downward then, it does not fan out) */
+		 * map, a bridge of 16 to what it can drop onto; the search is
+		 * greedy downward then, it does not fan out) */
 		int far = s->pol->descent_secs > 0.0f;
 		int most = to.z > a.z ? (far ? 24 : 8) : (far ? 16 : 4);
 
@@ -914,7 +1021,7 @@ static void try_edit(bc_nav_search *s, uint32_t ci, bc_nav_node a, bc_nav_node t
 		if (built >= most)
 			return;
 	}
-	n = nav_edits(s->t, s->m, pol, a, to, vox, op, &digs, &builds);
+	n = nav_edits(s->t, s->m, pol, a, to, vox, op, &digs, &builds, NULL);
 	if (n <= 0)
 		return;
 	if ((digs && !pol->may_dig) || (builds && !pol->may_build))
@@ -990,7 +1097,7 @@ static int water_exit(bc_nav_search *s, uint32_t ci, bc_nav_node a, int dir)
 		int digs = 0, builds = 0, n;
 
 		to.x = (int16_t)bx; to.y = (int16_t)by; to.z = BC_MAP_WATER_Z - 1;
-		n = nav_edits(t, m, pol, a, to, vox, op, &digs, &builds);
+		n = nav_edits(t, m, pol, a, to, vox, op, &digs, &builds, NULL);
 		if (n <= 0 || builds)
 			return 0;
 		if (ci != NOWHERE) {
