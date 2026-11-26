@@ -32,6 +32,10 @@ select
 			tree ctf_under_fire
 		option none enemy_visible x5          # somebody in sight
 			tree ctf_contact
+		option none leader_ordered x2         # its leader (a person's build ping, or a bot leader) ordered a structure: a part of it each; none free for this one: by him
+			select
+				do build_part leader
+				do follow leader
 		option curiosity search x0.6          # a noise, a man just lost: a look, if it is very curious
 			do investigate
 		option none always                    # the game
@@ -134,6 +138,9 @@ pick every=20 sticky=1.5 noise=0.3
 		do follow leader
 	option none is_leader x2.5                # a leader goes for their intel: the squad is behind it
 		tree ctf_net
+	option caution is_leader x0.3             # a careful leader: a bunker for its squad by our intel, now and then
+		cooldown 300
+			do order_build bunker our_intel
 	option none always x0.25                  # nothing else: toward their intel
 		tree ctf_net
 

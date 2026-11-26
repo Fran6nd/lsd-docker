@@ -413,6 +413,14 @@ static int fill_policy(bc_bot *b, bc_nav_policy *p, bc_nav_danger *danger)
 	p->nzones = e->nzones;
 	p->team = (uint8_t)(team >= 1 && team <= 2 ? team : 0);
 	p->protect = &e->protect;
+	if (team >= 1 && team <= 2) {
+		/* the team's structures are built a part at a time, in order:
+		 * routes do not lay them, nor dig them -- but the one part this
+		 * route is to lay, the floor of its exact goal (build_part) */
+		p->parts = bc_parts_for(e, team);
+		if (b->mv.exact)
+			p->parts_but = b->mv.goal;
+	}
 	p->fail = &e->fail;
 	p->now = e->now;
 	if (team >= 1 && team <= 2)

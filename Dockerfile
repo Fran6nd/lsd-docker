@@ -126,16 +126,18 @@ RUN cc -O2 -fPIC -shared /deps/linenoise.c -o exec/liblinenoise.so \
 # the header it reads for the struct layouts, and botd, the host process
 # that runs beside the server (the entrypoint starts it). bot/ reaches
 # the server's source as ../lsd/src -- the patched tree built above.
-# botd exists only once bot/core/engine.c does; bot/trees/ may be empty.
+# botd exists only once bot/core/engine.c does; bot/trees/ and
+# bot/structures/ (the .kv6 models tools/mkstructures.py writes) may be empty.
 COPY bot/ /src/bot/
 RUN ln -s /build /src/lsd \
  && make -C /src/bot CFLAGS=-O2 all tools \
- && mkdir -p /out/bin /out/exec /out/trees \
+ && mkdir -p /out/bin /out/exec /out/trees /out/structures \
  && cp /src/bot/build/libbotlink.so /src/bot/link/botlink.h /out/exec/ \
  && if [ -f /src/bot/build/bin/botd ]; then cp /src/bot/build/bin/botd /out/bin/; fi \
  && if [ -f /src/bot/build/bin/bttree ]; then cp /src/bot/build/bin/bttree /out/bin/; fi \
  && if ls /src/bot/trees/*.bt >/dev/null 2>&1; then cp /src/bot/trees/*.bt /out/trees/; fi \
- && if [ -f /src/bot/trees/archetypes.txt ]; then cp /src/bot/trees/archetypes.txt /out/trees/; fi
+ && if [ -f /src/bot/trees/archetypes.txt ]; then cp /src/bot/trees/archetypes.txt /out/trees/; fi \
+ && if ls /src/bot/structures/*.kv6 >/dev/null 2>&1; then cp /src/bot/structures/*.kv6 /out/structures/; fi
 
 
 FROM alpine:3.22
@@ -156,6 +158,7 @@ COPY --from=build /build/exec ./exec
 COPY --from=build /out/exec/ ./exec/
 COPY --from=build /out/bin/ /usr/local/bin/
 COPY --from=build /out/trees/ /opt/botd/trees/
+COPY --from=build /out/structures/ /opt/botd/structures/
 # upstream's scripts, kept apart: the entrypoint assembles scripts/
 # from them, the catalog and the data volume at every start
 COPY --from=build /build/scripts ./scripts.dist

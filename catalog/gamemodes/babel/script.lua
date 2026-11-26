@@ -5,5 +5,6 @@ return Gamemode {
 	base = "babel",
 	rider = "babel_plus",
 	-- infinite_blocks: a tower is built, not rationed
-	requires = {"babel_protect", "teamplay", "infinite_blocks"},
+	-- stairs: the kinds of stair the bots are given to build (lib_stairs)
+	requires = {"babel_protect", "teamplay", "infinite_blocks", "stairs"},
 }

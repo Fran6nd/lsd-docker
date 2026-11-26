@@ -46,6 +46,7 @@ void bc_nav_policy_default(bc_nav_policy *p)
 	p->build_secs = 0.7f;
 	p->water_secs = 0.5f;
 	p->fail_secs = 20.0f;
+	p->parts_but.x = -1;
 }
 
 void bc_nav_protect_clear(bc_nav_protect *p)
@@ -328,6 +329,9 @@ static int may_edit(const bc_nav_policy *pol, int x, int y, int z, int dig)
 	if (!pol)
 		return 1;
 	if (zoned(pol, x, y, dig))
+		return 0;
+	if (pol->parts && bc_nav_protect_has(pol->parts, x, y, z) &&
+	    !(x == pol->parts_but.x && y == pol->parts_but.y && z == pol->parts_but.z))
 		return 0;
 	return !bc_nav_protect_has(pol->protect, x, y, z);
 }

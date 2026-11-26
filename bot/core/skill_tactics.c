@@ -47,6 +47,7 @@
  *    there is no way is run once, not once a bot.
  */
 #include <math.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -946,9 +947,51 @@ bc_blueprint *bc_blueprint_for(bc_bot *b, const char *name)
 
 	if (!e->blueprints)
 		return NULL;
+	if (!strcmp(name, "leader")) {
+		/* what its squad's leader ordered built (or it, a leader) */
+		int l = bc_is_leader(e, b->pid) ? b->pid : bc_leader_of(b);
+
+		if (l < 0)
+			return NULL;
+		snprintf(tn, sizeof tn, "order%d", l);
+		return bc_blueprint_get(e->blueprints, tn);
+	}
 	if (team == 1 || team == 2) {
 		snprintf(tn, sizeof tn, "%s@%d", name, team);
 		bp = bc_blueprint_get(e->blueprints, tn);
 	}
 	return bp ? bp : bc_blueprint_get(e->blueprints, name);
+}
+
+const bc_nav_protect *bc_parts_for(bc_engine *e, int team)
+{
+	int t, i, k;
+
+	if (!e->blueprints)
+		return NULL;
+	if (e->parts_version != e->blueprints->version + 1u) {
+		for (t = 0; t < 2; t++)
+			bc_nav_protect_clear(&e->parts[t]);
+		for (i = 0; i < BC_BLUEPRINTS_MAX; i++) {
+			const bc_blueprint *bp = &e->blueprints->bp[i];
+			const char *at = strrchr(bp->name, '@');
+			int only = 0;
+
+			if (!bp->name[0])
+				continue;
+			if (at)
+				only = atoi(at + 1);
+			else if (!strncmp(bp->name, "order", 5)) {
+				int l = atoi(bp->name + 5);
+
+				only = l >= 0 && l < BL_MAX_PLAYERS ? e->w.players[l].team : 0;
+			}
+			for (t = 0; t < 2; t++)
+				if (!only || only == t + 1)
+					for (k = 0; k < bp->n; k++)
+						bc_nav_protect_add(&e->parts[t], bp->cells[k].x, bp->cells[k].y, bp->cells[k].z);
+		}
+		e->parts_version = e->blueprints->version + 1u;
+	}
+	return team >= 1 && team <= 2 ? &e->parts[team - 1] : NULL;
 }

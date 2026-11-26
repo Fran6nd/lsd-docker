@@ -300,6 +300,22 @@ msgstr "Нужна помощь"
 msgid "Danger"
 msgstr "Опасность"
 
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Build mirador here"
+msgstr "Построить вышку здесь"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Your squad of bots builds a watchtower here"
+msgstr "Твой отряд ботов строит здесь сторожевую вышку"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Build bunker here"
+msgstr "Построить бункер здесь"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Your squad of bots builds a bunker here"
+msgstr "Твой отряд ботов строит здесь бункер"
+
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
 #: catalog/libs/callouts/callouts/range.lua
@@ -469,6 +485,10 @@ msgstr "Цель"
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Mark"
 msgstr "Метка"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Build"
+msgstr "Строить"
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Our intel is here"

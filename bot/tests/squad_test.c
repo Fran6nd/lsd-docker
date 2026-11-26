@@ -99,7 +99,6 @@ static void test_human(void)
 
 	printf("a person is a leader: bots fall in behind him\n");
 	bs_start(s);
-	bs_set(s, BL_NO_PLAYER, "leaders.human=1000");
 	bs_add(s, 9, 0, 1, 5, BL_GUN_RIFLE, 1, 205.5f, 256.5f, 1, 0);
 	for (i = 0; i < 5; i++) {
 		seed = seed_with(BC_T_TEAMWORK, 1.0f, 3.0f, seed + 1);
@@ -107,7 +106,7 @@ static void test_human(void)
 	}
 	bs_set(s, BL_NO_PLAYER, "tree=tdm");
 	bs_run(s, 1.5);
-	CHECK(s->e->lead[0].n == 1 && s->e->lead[0].pid[0] == 9);
+	CHECK(bc_is_leader(s->e, 9));                /* a person always leads (a bot may be drawn besides) */
 	s->p[9].script_keys = BL_K_FORWARD;         /* east, 60 voxels */
 	for (k = 0; k < 60 * 8; k++) {
 		bs_step(s);
@@ -186,7 +185,6 @@ static void test_still(void)
 
 	printf("a leader who stays put is left after a while\n");
 	bs_start(s);
-	bs_set(s, BL_NO_PLAYER, "leaders.human=1000");
 	bs_add(s, 9, 0, 1, 5, BL_GUN_RIFLE, 1, 215.5f, 256.5f, 1, 0);
 	for (i = 0; i < 4; i++) {
 		seed = seed_with(BC_T_TEAMWORK, 1.0f, 1.4f, seed + 1);
@@ -217,7 +215,6 @@ static void test_cover_by_leader(void)
 	printf("the leader stops: his squad takes what cover there is\n");
 	bs_box(s, 232, 257, G - 4, 232, 264, G - 1, 1);    /* a short wall beside where he stops */
 	bs_start(s);
-	bs_set(s, BL_NO_PLAYER, "leaders.human=1000");
 	bs_add(s, 9, 0, 1, 5, BL_GUN_RIFLE, 1, 226.5f, 254.5f, 1, 0);
 	for (i = 0; i < 4; i++) {
 		seed = seed_with(BC_T_TEAMWORK, 1.4f, 3.0f, seed + 1);

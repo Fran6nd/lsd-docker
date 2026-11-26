@@ -88,6 +88,12 @@ int bc_engine_trees(bc_engine *e, const char *text, char *err, size_t n)
 	return 1;
 }
 
+int bc_engine_structure(bc_engine *e, const char *name, const uint8_t *kv6, size_t bytes, char *err, size_t n)
+{
+	(void)e; (void)name; (void)kv6; (void)bytes; (void)err; (void)n;
+	return 1;
+}
+
 int bc_engine_kinds(bc_engine *e, const char *text, char *err, size_t n)
 {
 	(void)e; (void)err; (void)n;

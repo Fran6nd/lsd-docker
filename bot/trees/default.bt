@@ -109,3 +109,4 @@ select
 		do build_cover
 		do crouch 3
 	do take_cover in_view
+

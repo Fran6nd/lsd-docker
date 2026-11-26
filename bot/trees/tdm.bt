@@ -33,6 +33,10 @@ select
 			tree tdm_under_fire
 		option none enemy_visible x5          # somebody in sight
 			tree tdm_contact
+		option none leader_ordered x2         # its leader (a person's build ping, or a bot leader) ordered a structure: a part of it each; none free for this one: by him
+			select
+				do build_part leader
+				do follow leader
 		option none always                    # nobody in sight: its role (a searcher goes to look at a noise)
 			tree tdm_duty
 	limit 1
@@ -188,6 +192,9 @@ pick every=25 sticky=1.5 noise=0.35
 		do follow leader
 	option aggression is_leader x1.2          # a leader goes somewhere: the squad is behind it
 		do seek
+	option marksman is_leader x0.3            # a leader with an eye for it: a watchtower for its squad where it stands, now and then
+		cooldown 300
+			do order_build mirador
 	option teamwork mate_near 40 x0.3         # no leader: go with a team-mate a while
 		limit 20
 			do follow mate
@@ -265,3 +272,4 @@ select
 		do build_cover
 		do crouch 3
 	do take_cover in_view
+

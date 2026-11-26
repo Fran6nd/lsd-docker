@@ -90,6 +90,12 @@ int bc_engine_trees(bc_engine *e, const char *text, char *err, size_t err_size);
  * in err and the kinds as they were. */
 int bc_engine_kinds(bc_engine *e, const char *text, char *err, size_t err_size);
 
+/* A STRUCTURE a leader may order built (a prefab): the bytes of a .kv6
+ * (kv6.h), under `name` (the file's name without .kv6: "bunker"). The
+ * same name again replaces it. 1, or 0 with the fault in err and the
+ * structures as they were. 16 at most. */
+int bc_engine_structure(bc_engine *e, const char *name, const uint8_t *kv6, size_t bytes, char *err, size_t err_size);
+
 /* A map: the bytes of a .vxl, as the server's BL_EV_MAP named it. Every
  * bot forgets its route; what the fleet learned of the last map goes.
  * 0 if it is not a map. */

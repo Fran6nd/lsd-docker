@@ -282,7 +282,8 @@ typedef struct bc_bot {
 	/* looking, cover, and what a bot does with nothing known (skill_look.c,
 	 * skill_cover.c, skill_tactics.c) */
 	bc_gaze gaze;
-	struct { double until, edit_at; uint8_t started; int8_t dx, dy; uint8_t n_cut; uint8_t blast; uint8_t pad_[3];
+	struct { double until, edit_at; uint8_t started; int8_t dx, dy; uint8_t n_cut; uint8_t blast; uint8_t line; uint8_t pad_[2];
+	         bc_nav_node line_to;   /* line set: the build is a block line to here (build_part's runs) */
 	         bc_nav_node from; bc_nav_node cut[2]; } bld;    /* build_at, dig_at, build_perch, dig_weakest (skill_build.c) */
 	bc_cover_q cq;
 	struct { uint8_t phase, crouch, tries, peeking, has_peek, view, pad_[2];
@@ -300,6 +301,7 @@ typedef struct bc_bot {
 	struct { uint8_t started, pad_[7]; double until; bl_vec3 spot, place; } guard;
 	struct { double stand_since; } fetch;
 	struct { double since, at; } esc;    /* escorting: since when, the last tick (skill_objective.c) */
+	uint32_t rgb;               /* the colour it last asked to build in (BC_BP_RGB | 0xRRGGBB); 0: the server's, each life */
 	struct { char name[32]; double since, at; } slot;   /* the claim it holds: a duty for a few, a blueprint's part (bc_claim) */
 	struct { int16_t leader; uint8_t pad_[6]; double eval_at, still_since, off_until; bl_vec3 still_at; } squad;
 	uint32_t kills;         /* this life's */
@@ -431,6 +433,8 @@ struct bc_engine {
 	bc_nav_moves *moves;
 	bc_nav_fail fail;
 	bc_nav_protect protect;
+	bc_nav_protect parts[2];        /* each team's blueprints' voxels, for its routes (bc_parts_for) */
+	uint32_t parts_version;         /* the blueprints' version they were taken at, + 1 */
 	bc_nav_zone zones[BC_ZONES_MAX];
 	int nzones;
 	int nsearch;
@@ -463,7 +467,6 @@ struct bc_engine {
 	bc_rng rng;                 /* the engine's own dice: who leads */
 	double lead_at;
 	int lead_per;               /* leaders.per: members a leader (5; 0: none) */
-	float lead_human;           /* leaders.human: a person's weight in the draw (2) */
 	uint8_t hurt_by[BL_MAX_PLAYERS];    /* who last hurt each player, and when */
 	double hurt_at[BL_MAX_PLAYERS];
 	bc_unreach unreach[2][BC_UNREACH_MAX];
@@ -476,6 +479,7 @@ struct bc_engine {
 	bc_fact facts[BC_FACTS_MAX];        /* the world's (THE BRIDGE) */
 	bc_splace places[BC_SPLACES_MAX];
 	bc_blueprints *blueprints;      /* structures to build (blueprint.h) */
+	bc_structures *structures;      /* prefabs a leader may order (blueprint.h) */
 	/* a setting too long for one record, arriving in pieces (engine.c,
 	 * SETTINGS: "+key#total=..."): what has come so far */
 	struct {
@@ -673,8 +677,21 @@ int bc_escort_open(bc_bot *b);
  * this bot's already), it is this bot's: 1. A claim lapses 2 s after it
  * was last asked for; the first to come keep it. skill_tactics.c */
 int bc_claim(bc_bot *b, const char *name, int n, int take);
-/* the blueprint `name` for this bot: its team's ("name@1"), else the world's */
+/* the blueprint `name` for this bot: its team's ("name@1"), else the
+ * world's; "leader": what its squad's leader (or it, a leader) ordered */
 bc_blueprint *bc_blueprint_for(bc_bot *b, const char *name);
+/* the voxels of the blueprints a team builds -- its own ("@team"), the
+ * world's, its leaders' orders --, which its routes leave alone (nav.h,
+ * policy.parts); taken again when the blueprints change */
+const bc_nav_protect *bc_parts_for(bc_engine *e, int team);
+/* A LEADER's order of a structure (a prefab) at a point, its front
+ * toward him (look: the way he looks): the blueprint "order<pid>" his
+ * squad builds. 1 posted (skill_build.c). */
+int bc_order_build(bc_engine *e, int leader, const char *structure, bl_vec3 at, bl_vec3 look);
+/* a ping "Build <structure> [here]" naming a structure botd loaded: a
+ * leader's order there; 1 if it was such a ping (a non-leader's is
+ * ignored, and still 1: it is no place to go) */
+int bc_order_from_ping(bc_engine *e, int by, const char *reason, bl_vec3 at);
 int bc_carrying(const bc_bot *b);
 /* "thief" (who carries this team's), "carrier" (the team-mate who carries
  * the other's), "intercept" (where to cut the thief off) */

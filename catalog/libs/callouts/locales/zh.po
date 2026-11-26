@@ -300,6 +300,22 @@ msgstr "需要支援"
 msgid "Danger"
 msgstr "危险"
 
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Build mirador here"
+msgstr "在此建造瞭望塔"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Your squad of bots builds a watchtower here"
+msgstr "你的机器人小队在此建造瞭望塔"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Build bunker here"
+msgstr "在此建造碉堡"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Your squad of bots builds a bunker here"
+msgstr "你的机器人小队在此建造碉堡"
+
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
 #: catalog/libs/callouts/callouts/range.lua
@@ -469,6 +485,10 @@ msgstr "靶子"
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Mark"
 msgstr "标记"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Build"
+msgstr "建造"
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Our intel is here"

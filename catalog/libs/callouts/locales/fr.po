@@ -300,6 +300,22 @@ msgstr "Besoin d'aide"
 msgid "Danger"
 msgstr "Danger"
 
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Build mirador here"
+msgstr "Construire un mirador ici"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Your squad of bots builds a watchtower here"
+msgstr "Ton escouade de bots construit une tour de guet ici"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Build bunker here"
+msgstr "Construire un bunker ici"
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Your squad of bots builds a bunker here"
+msgstr "Ton escouade de bots construit un bunker ici"
+
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
 #: catalog/libs/callouts/callouts/range.lua
@@ -469,6 +485,10 @@ msgstr "Cible"
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Mark"
 msgstr "Marquer"
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Build"
+msgstr "Construire"
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Our intel is here"

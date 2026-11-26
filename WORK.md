@@ -64,6 +64,9 @@ DONE (commit), BLOCKED (on what).
 | 29 | One filter for every edit of the map (the owner: "all destruction effects must go through the gamemode's filter"): `may_edit_block`, asked at the engine's block_action_rm / block_action / block_line, answered once by each gamemode | DONE on the branch (lib_block_filter), not released |
 | 30 | "I ping from the pie menu and it does nothing" (babel, ZeroSpades): lib_bot's people_in compared get_team (1, 2) with the team a set holds (0, 1), so a team's people were the other team's and a ping, a team chat or a callout reached nobody it was for once bots were on the server | DONE (branch worktree-agent-ae2b8838b3487bc75; tests/pie_ping_test.lua) |
 | 31 | Shooting range: nobody but its targets on the green team (team 2): not at the join, a team change, /switch, team_balance or a held team released | DONE (range.lua late on_join/on_switch; tests/range_teams_test.lua) |
+| 32 | "On local babel lots of bots are stuck": tents on the islands' outer edges, half the spawn square in the sea at a 20-high cliff; bots dig into it and stay in crouch-only pockets (planner refuses the start) or in a notch whose plan starts from the water column under a corner | TODO, for the brain/nav agent (bot/tests/babel_stuck_open.c: 5 cases, all failing) |
+| 33 | "Do bots aim properly on crouched people?": no -- the spot went lower on a crouched man (in the ground at his feet); now on the body he has (1.35 under the eye crouched, what is over the sea wading) | REVIEW (aim.c; tests/stance_test.c) |
+| 34 | "Bots turn at team-mates' noise": every hearing path filtered mates but one -- a collapse a mate's dig caused was heard as from nobody | REVIEW (engine.c map_changed takes the edit's maker; tests/hearing_test.c) |
 
 ## Log
 
@@ -855,3 +858,99 @@ DONE (commit), BLOCKED (on what).
   sending, both sides timing out together -- read as Docker Desktop's
   port forwarding into a loaded VM, not proven (no capture). Next: a
   packet capture at the next disconnect.
+- 2026-11-26 (brain agent): STRUCTURES (prefabs), PEOPLE LEAD, SEGMENTS
+  AND LINKS. (A) KV6 PREFABS: bot/core/kv6.[ch] reads a .kv6 from bytes
+  (the game's format, its closed insides filled as the client does);
+  botd loads structures/*.kv6, built-in then the operator's (data
+  volume structures/, --user-structures), into bc_engine_structure.
+  bot/tools/mkstructures.py writes and checks the two shipped models,
+  bunker (7x7x4, 107 voxels: walls, slits, door, roof) and mirador
+  (5x5x9, 100: posts, platform, rail, steps round a pillar). A LEADER's
+  order (`order_build <structure> [place]`, or a build ping) sets one at
+  a point, front toward him, as the blueprint "order<pid>" in its
+  colours (the bot asks BL_AC_COLOR before a part), clipped by the zones
+  and the ground; his squad builds it (`build_part leader`; tdm/ctf:
+  `leader_ordered` -> tree squad_build); built whole -- or the rest
+  would float -- it is forgotten. tdm's marksman leaders order a
+  mirador now and then, ctf's careful ones a bunker by our intel. Not in
+  babel. (B) PEOPLE LEAD: every person on a team is a leader, always;
+  bots drawn make up `leaders.per`'s count; a bot falls in with a person
+  within 30 before any bot leader (`leaders.human` is gone). (C) THE
+  PIE: lib_callouts' Build pie ("Build mirador here", "Build bunker
+  here", translated; default.lua's, none in babel) pings through
+  /pingmark; lib_botlink tells the engine the English label
+  (callouts_canonical); the engine takes one from a leader as his order,
+  ignores a non-leader's. SEGMENTS: a part whose straight run of later
+  parts ends against something solid is laid as ONE block line (both
+  ends anchored, lib_botlink do_line's rule; one colour) -- six builders
+  on build_test's band 29 -> 18 s. Routes no longer lay or dig the
+  team's structures' parts (nav policy.parts, but the one part a route
+  is to lay: its exact goal), so nothing of a structure goes in out of
+  order or colour; a part is climbed only where one block from a floor
+  beside it lays it. LINKS (`brace <blueprint>`): where a cut of the
+  built structure would drop the most (bc_cull_would_drop), a vertical
+  block line from whatever is solid below up beside the middle of what
+  would fall, anchored outside it -- posted as "<name>.link" and built
+  as a part; worth it while that cut drops more than the link costs.
+  Babel's props are now the bots' links (babel_plus sends no prop).
+  Scenarios: prefab_test (a model placed and turned: every voxel,
+  coloured; a person joins: a leader, 4 of 4 close bots follow; his
+  build ping: 76 voxels of mirador, a nobuild strip clipped, built in 79
+  s, wrong colour 0, refused 0; a loner's ping: nothing); build_test
+  brace (worst cut 73 -> 18 in 120 s, 2 lines); kv6_test; callouts_test
+  Build pie. Babel harness, 3 seeds, props by the script -> links by the
+  bots: the worst single cut of a whole stair 0/10.3, 1.0/0, 0/10.1 on
+  average (at most 35, 2, 15) -> 0/2.5, 0/3.9, 2.0/- (at most 6, 6, 2);
+  stairs whole 212+90/139+62/224+301 -> 86+84/135+73/348+not in 600 s
+  (team 2 of seed 3 in a fight from 80 s at 21 of 27 steps). Tests
+  changed: squad_test "a person is a leader" no longer wants him the
+  only one; tactics_test and squad_test drop leaders.human=1000;
+  babel_test's prop checks become a link's; ctf_test's six a side asks
+  its capture of 2 matches of 3 (seed 0 lost its capture to changes that
+  touch no ctf decision; seeds 1-3 capture at 308, 60, 63 s); ctf_test's
+  spread puts its idle person past HUMAN_NEAR (close, he now leads).
+  STAIR KINDS: catalog/libs/stairs (lib_stairs, required by babel) lays
+  straight, tapered (a wedge, a line a level, long at the bottom),
+  switchback, spiral -- each climbable, support first, its top where
+  asked, off the platform (babel_test C, 4 kinds). babel_plus lays a
+  team's stairs with it and gives a SECOND stair (blueprint.stair2,
+  babel.bt `build_part stair2`) to a team of 6 bots or more, or one whose
+  stair was cut, a row apart from the first. But the bots finish only
+  the straight kind yet: babel harness, 2 seeds -- straight whole at
+  92+83 / 87+88 s (worst cut 16-19 on average); tapered (381 voxels)
+  never, it stalls at a level whose stand is not reached; spiral never;
+  switchback once in four (343 s). So babel_plus is given straight
+  stairs only until build_part lays the others (said in its comment).
+  Not done: build_part for wedges and spirals; two frontier claims per
+  stair (the stair's speed).
+- 2026-11-26 (live-debug agent, items 32-34): own container of lsd-docker:rel
+  (f80b3be), babel, 30 a team, level 10, map Nine-EyeBabel (aos.party).
+  32: over 2 min, 7 bots never moved (guards and holders aside); 28 of 60
+  were seen wading. Tents at 118,256 and 394,256 are on the islands' outer
+  cliffs; tentspawns' square of 20 is half sea. leave_water digs into the
+  cliff; four bots sat 10+ min crouched in two-high notches (nav refuses
+  the start: plan FAILED after 1 expansion, edits on; tree falls back on
+  hold), one in a notch whose plan started from the water column under its
+  corner (122,245,63; step 0 WALK never progresses). Replayed exactly in
+  bot/tests/babel_stuck_open.c (the live map's columns embedded; not run by
+  make test; all 5 fail). 33: stance_test, on-body share L1/L5/L10:
+  crouched of standing 0.63/0.45/0.26 -> 0.90/0.86/0.95, wading 0.45/0.58/
+  0.27 -> 0.72/0.78/0.93. 34: hearing_test, a mate's collapse drew a
+  holding bot's head 79% of the time -> 0%. make test: ctf_test:218 (6 v 6
+  first capture under 480 s, seed 0) now fails -- 469 s before, none after;
+  over 14 seeds 13 vs 12 capture: game noise on a marginal seed, left to the
+  brain agent; ctf_test:417, engine_test:228 and VOCAB.md fail without my
+  hunks (the brain agent's work in progress).
+  BUILDING IS A HELD FOCUS (the owner: "bots switch tool between each
+  block they place"): the wishes are the gun's by default each tick, and
+  a builder between two parts -- walking to the next stand, waiting for
+  its next block -- had nothing holding the block out. Now a building
+  skill (build_part, build_at, brace) holds the block while it runs, and
+  ONE place (skill_build.c focus_broken) says when the focus is broken:
+  an enemy in sight, shot at (under_fire's shot_at) within 2 s, an enemy
+  heard shooting or running within 15 within 2 s, a grenade that would
+  hurt it; then the gun and fire_at_will, and the edit waits. build_test
+  "held focus": 75 blocks, no enemy: the block put away 0 times; an
+  enemy in sight 3 s: once, then built to the end. Babel harness, seed 1,
+  300 s: the block put away while building 139 -> 107 times, of which 7
+  with no enemy in sight and nobody shooting (a route's dig: the spade).

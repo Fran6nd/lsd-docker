@@ -1322,7 +1322,7 @@ comment, SETTINGS, has the detail):
 | `night.sight` | `0`, `1`; `night.cone`, `night.reach`, `night.far` | night sight and lamps (the night script sets them) |
 | `night_vision` * | `0`, `1` | the bot sees by night as by day |
 | `sight`, `fov`, `notice`, `memory`, `relay`, `board`, `noise_secs` | numbers | the senses |
-| `leaders.per`, `leaders.human` | numbers | squads: one leader for every n; a person's weight in the draw |
+| `leaders.per` | a number | squads: one leader for every n of a team (0: no squads): every person on a team leads (the bots close to him), bots drawn make up the rest |
 | `plan.greed`, `plan.cap`, `plan.wait`, `plan.share` | | the route search (`plan.share=0`: no route board, every bot searches alone) |
 | `gaze` | `0`, `1` | a travelling bot's head is its own |
 | `ping_takers`, `ping_radius` | numbers | how many bots answer a ping, from how far |
@@ -1332,6 +1332,7 @@ comment, SETTINGS, has the detail):
 | `extra.<name>.tree` | | 3 above |
 | `fact.<name>` *, `place.<name>` * | | 8 and 9 below |
 | `blueprint.<name>` | `x y z; x y z; ...` (empty: forgotten) | a structure for the team to build, a part each (`build_part`, [VOCAB.md](VOCAB.md)): its voxels in the order they rest on each other, team-scoped as places are (`blueprint.stair@1`); 16, of 8192 voxels at most. The same text again changes nothing (who holds which part, what is left alone, stand) |
+| (structures) | botd's `structures/*.kv6`, then the operator's (`--user-structures`, the data volume's `structures/`) | PREFABS a leader orders built (`order_build <structure> [place]`, a tree's; or a person's build ping, "Build mirador here" from the pie's Build pie): set at the place, front toward him, as the blueprint `order<pid>` his squad builds (`build_part leader`, `leader_ordered`), in its colours; clipped by the zones; forgotten built whole. Every person on a team is a leader. Shipped: `bunker`, `mirador` (bot/tools/mkstructures.py writes them). Not in babel |
 | anything else | any text | kept, for a tree's `if setting <key> [value]`: how a mode's tree reads the mode's own rules |
 
 *Tested: `engine_test.c` ("settings", "traits"), `botlink_test.lua`

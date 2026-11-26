@@ -298,6 +298,22 @@ msgstr ""
 msgid "Danger"
 msgstr ""
 
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Build mirador here"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Your squad of bots builds a watchtower here"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Build bunker here"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/default.lua
+msgid "Your squad of bots builds a bunker here"
+msgstr ""
+
 #: catalog/libs/callouts/callouts/ffa.lua
 #: catalog/libs/callouts/callouts/parkour.lua
 #: catalog/libs/callouts/callouts/range.lua
@@ -466,6 +482,10 @@ msgstr ""
 
 #: catalog/libs/callouts/lib_callouts.lua
 msgid "Mark"
+msgstr ""
+
+#: catalog/libs/callouts/lib_callouts.lua
+msgid "Build"
 msgstr ""
 
 #: catalog/libs/callouts/lib_callouts.lua

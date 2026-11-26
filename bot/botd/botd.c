@@ -80,6 +80,9 @@
 #define U32(p) ((_Atomic uint32_t *)(p))
 
 enum { NAP_NS = 1000000, INODE_EVERY_MS = 250, MAX_MAP_BYTES = 64 << 20 };
+/* a structure at its largest (kv6.h: 64 a side, every cell listed) is
+ * 2 MB; room for SLAB6's palette after it and more */
+enum { MAX_KV6_BYTES = 4 << 20 };
 /* the health line's spread of round times: tenths of a millisecond, the
  * last bucket all from 200 ms up */
 enum { ROUND_BUCKETS = 2001 };
@@ -161,6 +164,7 @@ typedef struct session {
 	uint32_t ring_dropped_seen;
 	int bots;
 	int user_trees;         /* the operator's directory had trees at the last look */
+	int user_structures;    /* and his structures directory had structures */
 	int maps;
 	botd_watch watch;       /* the debug channel (watch.c) */
 	int watchers;
@@ -239,10 +243,32 @@ int botd_threads_auto(void)
 /* ------------------------------------------------------------------ */
 /* Trees                                                              */
 
-static int is_bt(const char *n)
+static int has_ext(const char *n, const char *ext)
 {
-	size_t l = strlen(n);
-	return l > 3 && !strcmp(n + l - 3, ".bt");
+	size_t l = strlen(n), e = strlen(ext);
+	return l > e && !strcmp(n + l - e, ext);
+}
+
+/* The operator's directory of a kind (`sub`: "trees", "structures"): the
+ * option's, else $LSD_DATA/<sub>, LSD_DATA defaulting to /data. */
+static void user_dir(char *out, size_t size, const char *opt, const char *sub)
+{
+	const char *data = getenv("LSD_DATA") && *getenv("LSD_DATA") ? getenv("LSD_DATA") : "/data";
+
+	if (opt) snprintf(out, size, "%s", opt);
+	else snprintf(out, size, "%s/%s", data, sub);
+}
+
+/* The built-in directory of a kind: the option's, else /opt/botd/<sub>
+ * (the image's), else ./<sub> (a build tree's). */
+static const char *builtin_dir(char *out, size_t size, const char *opt, const char *sub)
+{
+	struct stat st;
+
+	if (opt) return opt;
+	snprintf(out, size, "/opt/botd/%s", sub);
+	if (stat(out, &st) != 0 || !S_ISDIR(st.st_mode)) snprintf(out, size, "./%s", sub);
+	return out;
 }
 
 static int by_name(const void *a, const void *b)
@@ -323,14 +349,15 @@ static char *without_trees(const char *text, const char *drop)
 	return out;
 }
 
-/* The *.bt files of a directory, in name order. Returns how many. */
-static int list_bt(const char *dir, char **names, int max)
+/* The files of a directory ending in `ext` (".bt"), in name order.
+ * Returns how many, -1 if there is no such directory. */
+static int list_files(const char *dir, const char *ext, char **names, int max)
 {
 	DIR *d = opendir(dir);
 	int n = 0;
 	if (!d) return -1;
 	for (struct dirent *de; n < max && (de = readdir(d)) != NULL;)
-		if (is_bt(de->d_name)) names[n++] = strdup(de->d_name);
+		if (has_ext(de->d_name, ext)) names[n++] = strdup(de->d_name);
 	closedir(d);
 	qsort(names, (size_t)n, sizeof names[0], by_name);
 	return n;
@@ -393,18 +420,12 @@ static void load_kinds(bc_engine *e, const char *dir, const char *userdir)
 
 static int load_trees(bc_engine *e, const char *dir_opt, const char *user_opt)
 {
-	const char *dir = dir_opt;
-	char userdir[1024];
-	if (!dir) {
-		struct stat st;
-		dir = "/opt/botd/trees";
-		if (stat(dir, &st) != 0 || !S_ISDIR(st.st_mode)) dir = "./trees";
-	}
-	if (user_opt) snprintf(userdir, sizeof userdir, "%s", user_opt);
-	else snprintf(userdir, sizeof userdir, "%s/trees", getenv("LSD_DATA") && *getenv("LSD_DATA") ? getenv("LSD_DATA") : "/data");
+	char dirbuf[1024], userdir[1024];
+	const char *dir = builtin_dir(dirbuf, sizeof dirbuf, dir_opt, "trees");
+	user_dir(userdir, sizeof userdir, user_opt, "trees");
 
 	char *names[512];
-	int n = list_bt(dir, names, 512);
+	int n = list_files(dir, ".bt", names, 512);
 	char err[512];
 	char *all = calloc(1, 1);
 	size_t alen = 0;
@@ -429,7 +450,7 @@ static int load_trees(bc_engine *e, const char *dir_opt, const char *user_opt)
 
 	/* the operator's */
 	char *unames[512];
-	int un = list_bt(userdir, unames, 512), ugood = 0;
+	int un = list_files(userdir, ".bt", unames, 512), ugood = 0;
 	char *user = calloc(1, 1), loaded[600] = "";
 	size_t ulen = 0;
 	for (int i = 0; i < un && all && user; i++) {
@@ -502,6 +523,64 @@ static int load_trees(bc_engine *e, const char *dir_opt, const char *user_opt)
 }
 
 /* ------------------------------------------------------------------ */
+/* Structures                                                         */
+
+/* The *.kv6 of one directory, each given to the engine whole under its
+ * name (the file's, without .kv6). One that is refused is said and
+ * skipped. Returns how many the directory had; `loaded` gets the names
+ * of the ones taken, ", " between them. */
+static int load_structure_dir(bc_engine *e, const char *dir, char *loaded, size_t loaded_size)
+{
+	char *names[64];
+	int n = list_files(dir, ".kv6", names, 64);
+
+	loaded[0] = '\0';
+	for (int i = 0; i < n; i++) {
+		char path[1300], name[256], err[256];
+		size_t len;
+		char *bytes;
+
+		snprintf(path, sizeof path, "%s/%s", dir, names[i]);
+		snprintf(name, sizeof name, "%.*s", (int)(strlen(names[i]) - strlen(".kv6")), names[i]);
+		bytes = slurp(path, &len, MAX_KV6_BYTES);
+		if (!bytes) { say("structure error: %s: cannot read it", path); continue; }
+		err[0] = '\0';
+		if (!bc_engine_structure(e, name, (const uint8_t *)bytes, len, err, sizeof err))
+			say("structure error: %s: %s (skipped)", path, err);
+		else if (strlen(loaded) + strlen(name) + 3 < loaded_size)
+			snprintf(loaded + strlen(loaded), loaded_size - strlen(loaded), "%s%s", loaded[0] ? ", " : "", name);
+		free(bytes);
+	}
+	for (int i = 0; i < n; i++) free(names[i]);
+	return n;
+}
+
+/* THE STRUCTURES a leader may order built: every *.kv6 of the built-in
+ * directory, then THE OPERATOR'S ($LSD_DATA/structures, or
+ * --user-structures). The engine keeps one a name, so his file of a
+ * built-in's name, read after it, REPLACES it, and one he names anew is
+ * added; one that is refused is said and skipped, and the built-in of
+ * that name stays. Read with the trees, and like his trees his
+ * structures are read again at each map: the built-in ones first each
+ * time, so one he takes away gives the built-in back. Returns 1 if his
+ * directory had any *.kv6. */
+static int load_structures(bc_engine *e, const char *dir_opt, const char *user_opt)
+{
+	char dirbuf[1024], userdir[1024], loaded[600];
+	const char *dir = builtin_dir(dirbuf, sizeof dirbuf, dir_opt, "structures");
+	int n, un;
+
+	user_dir(userdir, sizeof userdir, user_opt, "structures");
+	n = load_structure_dir(e, dir, loaded, sizeof loaded);
+	if (n < 0) say("no structures directory (%s): nothing to order built", dir);
+	else if (loaded[0]) say("structures loaded from %s: %s", dir, loaded);
+	else say("no structures in %s", dir);
+	un = load_structure_dir(e, userdir, loaded, sizeof loaded);
+	if (loaded[0]) say("user structures loaded from %s: %s", userdir, loaded);
+	return un > 0;
+}
+
+/* ------------------------------------------------------------------ */
 /* The round                                                          */
 
 static void load_map(session *s, const bl_ev_map *m)
@@ -516,10 +595,17 @@ static void load_map(session *s, const bl_ev_map *m)
 	if (s->user_trees || s->maps > 0) {
 		struct stat st;
 		char userdir[1024];
-		if (s->o->user_trees) snprintf(userdir, sizeof userdir, "%s", s->o->user_trees);
-		else snprintf(userdir, sizeof userdir, "%s/trees", getenv("LSD_DATA") && *getenv("LSD_DATA") ? getenv("LSD_DATA") : "/data");
+		user_dir(userdir, sizeof userdir, s->o->user_trees, "trees");
 		if (s->user_trees || (stat(userdir, &st) == 0 && S_ISDIR(st.st_mode)))
 			s->user_trees = load_trees(s->e, s->o->trees, s->o->user_trees);
+	}
+	/* and his structures, the same way */
+	if (s->user_structures || s->maps > 0) {
+		struct stat st;
+		char userdir[1024];
+		user_dir(userdir, sizeof userdir, s->o->user_structures, "structures");
+		if (s->user_structures || (stat(userdir, &st) == 0 && S_ISDIR(st.st_mode)))
+			s->user_structures = load_structures(s->e, s->o->structures, s->o->user_structures);
 	}
 	s->maps++;
 	double t0 = now_s();
@@ -757,6 +843,7 @@ static int session_main(session *s)
 	s->plan_bound = s->bound_min = 0;
 	plan_bound(s);
 	s->user_trees = load_trees(s->e, s->o->trees, s->o->user_trees);
+	s->user_structures = load_structures(s->e, s->o->structures, s->o->user_structures);
 	{
 		char dir[512];
 		const char *data = getenv("LSD_DATA") && *getenv("LSD_DATA") ? getenv("LSD_DATA") : "/data";

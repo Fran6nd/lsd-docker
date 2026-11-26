@@ -46,6 +46,7 @@ enum { BS_EV_BYTES = 1 << 16, BS_AC_MAX = 256, BS_NADES = 16, BS_THINK_HIST = 10
 typedef struct bs_player {
 	int used, bot, team, gun, level, alive, hp, mag, reserve, blocks, grenades, tool, lamp;
 	uint32_t life, seed;
+	uint32_t color;             /* the colour it builds in (BL_AC_COLOR), 0x00RRGGBB */
 	bc_body body;
 	bl_vec3 ori, spawn;
 	double fire_at, swing_at, reload_at, respawn_at, block_at, ping_at;
@@ -109,6 +110,7 @@ typedef struct bs_sim {
 	char log2[400];             /* the last level-2 line */
 	int log2_n, log1_n;
 	void (*on_command)(struct bs_sim *s, int pid, const char *text);
+	void (*on_build)(struct bs_sim *s, int pid, int x, int y, int z, uint32_t color);    /* each block a bot puts */
 
 	/* think cost; think_hist: thinks by tenths of a millisecond (the last
 	 * holds the longer ones) */
@@ -691,6 +693,7 @@ static inline int bs_do_action(bs_sim *s, const bs_action *a)
 				return 0;
 			p->block_at = s->time + 0.1;
 			p->blocks--;
+			if (s->on_build) s->on_build(s, a->pid, b.x, b.y, b.z, p->color);
 		} else {
 			if (p->tool != BL_TOOL_SPADE || !bc_map_solid(s->truth, b.x, b.y, b.z)) return 0;
 			if (s->prot && b.x >= s->px0 && b.x <= s->px1 && b.y >= s->py0 && b.y <= s->py1) return 0;
@@ -701,6 +704,10 @@ static inline int bs_do_action(bs_sim *s, const bs_action *a)
 		s->edits++;
 		return 1;
 	}
+	case BL_AC_COLOR:
+		if (a->bytes < 4) return 0;
+		memcpy(&p->color, a->data, 4);
+		return 1;
 	case BL_AC_LINE: {
 		bl_ac_line l;
 		bl_ev_line e;
@@ -721,6 +728,14 @@ static inline int bs_do_action(bs_sim *s, const bs_action *a)
 			return 0;
 		p->block_at = s->time + 0.5;
 		p->blocks -= n;
+		if (s->on_build && (l.x1 != l.x2) + (l.y1 != l.y2) + (l.z1 != l.z2) <= 1) {
+			/* a straight line: each of its voxels, as a block put */
+			int k, dx = (l.x2 > l.x1) - (l.x2 < l.x1), dy = (l.y2 > l.y1) - (l.y2 < l.y1), dz = (l.z2 > l.z1) - (l.z2 < l.z1);
+
+			for (k = 0; k < n; k++)
+				if (!bc_map_solid(s->truth, l.x1 + dx * k, l.y1 + dy * k, l.z1 + dz * k))
+					s->on_build(s, a->pid, l.x1 + dx * k, l.y1 + dy * k, l.z1 + dz * k, p->color);
+		}
 		bc_map_line(s->truth, l.x1, l.y1, l.z1, l.x2, l.y2, l.z2, NULL);
 		memset(&e, 0, sizeof e);
 		e.x1 = l.x1; e.y1 = l.y1; e.z1 = l.z1; e.x2 = l.x2; e.y2 = l.y2; e.z2 = l.z2;

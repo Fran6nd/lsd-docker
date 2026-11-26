@@ -107,6 +107,7 @@ For `if` and `unless`: true or false.
   - `radius`: a number; must be given
   - `count`: a number; left out: 1
 - **`is_leader`** -- it is one of its team's leaders (drawn by lot by the engine; it is not told otherwise)
+- **`leader_ordered`** -- its squad's leader (or it, a leader) has ordered a structure built that is not whole yet (`build_part leader` builds it)
 - **`has_leader`** -- it follows a living leader of its team: a bot or a person, the nearest with room (a loner never does)
 - **`leader_near [voxels]`** -- its leader is within that (default 12)
   - `voxels`: a number; left out: 12
@@ -186,6 +187,7 @@ For `option <trait> <score>`: 0 to 1, how much the situation calls for the optio
 - **`mates_near <radius>`** -- 0 with no team-mate within radius, 1 with three or more
   - `radius`: a number; must be given
 - **`is_leader`** -- 1 for a leader, else 0: for a tree to lean a leader toward going somewhere
+- **`leader_ordered`** -- 1 while its squad's leader (or it, a leader) has a structure ordered that is not whole yet, else 0
 - **`has_leader`** -- 1 while it follows a living leader, else 0
 - **`quiet [secs]`** -- 1 once it has had no enemy in sight for that many seconds of this life (default 20), else 0
   - `secs`: a number; left out: 20
@@ -268,7 +270,12 @@ For `do`. Each says what it answers: RUNNING while it goes on, SUCCESS or FAILUR
   - `place`: a [place](#places); left out: `enemy_base`
 - **`dig_at <place>`** -- take away the block at the place (a script names a block: x y z): near enough to reach it, spade out, the head on it, dug at its cadence (the setting edit must allow digging). SUCCESS gone (or was); FAILURE no such place, digging not allowed, no way near, 15 s and still there
   - `place`: a [place](#places); must be given
-- **`build_part <blueprint>`** -- build a blueprint (a structure a script or a leader set out: blueprint.<name>, its team's or everybody's) with the rest of the team, a part at a time: the nearest block of it not yet there that can be put now, that nobody else has taken -- taken, put (from a floor that sees a face for it, else as a floor stood on, as build_at), and the next. A block nobody could put is left for 30 s. RUNNING while it builds; SUCCESS it is whole; FAILURE no such blueprint, building not allowed, no block, or nothing left for it
+- **`brace <blueprint>`** -- LINK a structure so that one cut does not drop it: where a cut of its built blocks would drop the most (the server's own collapse), a block line from the ground (or a pillar, another stair: whatever solid is under it) up beside the middle of what would fall, face to face -- the shortest such column outside the team's structures, built as a part of its own (`<name>.link`, one line from one stand). RUNNING while a link is built; FAILURE no such blueprint, no cut that drops more than a link costs, no column for one
+  - `blueprint`: a word; must be given
+- **`order_build <structure> [place]`** -- a LEADER's order: the structure (a prefab: a .kv6 of botd's structures, "bunker", "mirador") built at the place (default: where it stands), its front toward the leader, by its squad (`build_part leader`); a new order replaces its last. SUCCESS ordered; FAILURE not a leader, no such structure, no such place
+  - `structure`: a word; must be given
+  - `place`: a [place](#places); left out: `self`
+- **`build_part <blueprint>`** -- build a blueprint (a structure a script set out -- blueprint.<name>, its team's or everybody's -- or, named `leader`, the prefab its squad's leader ordered) with the rest of the team, a part at a time: the first block of it not yet there that can be put now, nothing of it still to come under it, that nobody else has taken -- claimed within reach of it, put (from a floor that sees a face for it; the first block left, as a floor stood on, as build_at), in its own colour if it has one, and the next. A block nobody could put is left for 30 s (one with no way to it, by the one who found none). RUNNING while it builds; SUCCESS it is whole (a leader's order, built whole, is forgotten); FAILURE no such blueprint, building not allowed, no block, or nothing left for it
   - `blueprint`: a word; must be given
 - **`build_cover`** -- shot at with no cover in view: a wall two high put up where it stands, in the column beside it toward the man who shot it -- the middle, then a column either side while it has the blocks (one to three wide): enough to hide it crouched. Each block as a player puts it, from where it stands (the setting edit must allow building; not where a zone forbids it). SUCCESS the middle stands; FAILURE nobody shot at it, fewer than 2 blocks, building not allowed, or the middle cannot be put there
 - **`put_at <place>`** -- put a block at the voxel at the place (a script names a block: x y z) as a player places one: against a solid neighbour's face it sees, within reach, standing on the nearest floor round it from which that is so -- for a block that is not a floor to stand on (a pillar under a stair, a second row beside one; build_at makes floors). The setting edit must allow building. SUCCESS there (or was); FAILURE no such place, building not allowed, no block in hand, nowhere to place it from, no way there, 15 s

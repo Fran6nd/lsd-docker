@@ -165,7 +165,8 @@ void bc_aim_snap(bc_aim *a, bc_aim_v3 ori);
 typedef struct bc_aim_target {
 	bc_aim_v3 pos;     /* the eye (reported position) of the target */
 	bc_aim_v3 vel;     /* its velocity, blocks/s: what is known of it */
-	int crouched;      /* lowers the body: the spot is moved down with it */
+	int crouched;      /* a shorter body under the eye (1.35, not 2.25): the spot is on it
+	                      (and on what is over the sea, of a man wading) */
 	int airborne;      /* skips the lead's staleness */
 	int id;            /* >= 0. A new id is a new engagement: a new aim spot */
 } bc_aim_target;

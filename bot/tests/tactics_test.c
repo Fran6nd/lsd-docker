@@ -472,7 +472,6 @@ static void test_split(void)
 	hill(s, 245, 240, 5);
 	hill(s, 250, 280, 5);
 	bs_start(s);
-	bs_set(s, BL_NO_PLAYER, "leaders.human=1000");
 	bs_set(s, BL_NO_PLAYER, "tree=tdm");
 	bs_add(s, 8, 0, 1, 5, 0, 1, 204.5f, 262.5f, 1, 0);      /* two team-mates: one of them leads */
 	bs_add(s, 9, 0, 1, 5, 0, 1, 206.5f, 250.5f, 1, 0);

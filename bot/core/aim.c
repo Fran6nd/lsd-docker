@@ -48,6 +48,16 @@
  * turn from the old bearing with a reaction delay. */
 #define RESYNC_DEG 60.0f
 
+/* A man's feet under his eye (the reported position), standing and
+ * crouched: the server's body (lsd demoncore.c boxclipmove: 0.9 + 1.35,
+ * 0.45 + 0.9). Where on the body a spot is is drawn on the standing one.
+ * The sea is the map's bottom layer, solid to a bullet, its top face at
+ * SEA_TOP: a man wading is in it to the knees (his feet at 64), and what
+ * is under that is not there to be shot. */
+#define BODY_STANDING 2.25f
+#define BODY_CROUCHED 1.35f
+#define SEA_TOP 63.0f
+
 /* ------------------------------------------------------------------------
  * THE LEVEL TABLE. The one place to tune how good a level is at aiming and
  * reacting: every per-level number aosbot has that concerns it. Monotonic
@@ -555,12 +565,22 @@ void bc_aim_step(bc_aim *a, bc_rng *rng, float dt, bc_aim_v3 eye,
 		float wide = 0.18f * spread * sinf(a->spot_wander_t * 0.70f + a->spot_phase * 1.7f);
 		float tall = 0.22f * spread * sinf(a->spot_wander_t * 0.90f + a->spot_phase);
 		float lead = a->lead_t * clampf(a->tune.track_error, 0.0f, 1.0f);
-		/* A crouched man is a shorter one: his silhouette sits lower
-		 * (aosbot does not know it; the caller here may). */
-		float lower = t->crouched ? 0.3f * spread : 0.0f;
+		/* The spot is drawn on a standing man, whose feet are 2.25 under
+		 * his eye; it is put at the same place on the body there is to
+		 * shoot at. A crouched man's eye is 0.9 lower and his feet where
+		 * they were: 1.35 under it (lsd demoncore.c, change_crouch and
+		 * boxclipmove) -- the spot is that much nearer his eye, not
+		 * lower, which was in the ground at his feet (aosbot does not
+		 * know crouching; the caller here does). A man in the sea shows
+		 * only what is over it. */
+		float under = t->crouched ? BODY_CROUCHED : BODY_STANDING;
+		float body;
+
+		if (SEA_TOP - t->pos.z < under) under = SEA_TOP - t->pos.z;
+		body = clampf(under, 0.3f, BODY_STANDING) / BODY_STANDING;
 		f.point = v3(t->pos.x + a->track_vel.x * lead + px * wide,
 		             t->pos.y + a->track_vel.y * lead + py * wide,
-		             t->pos.z + a->spot_z + lower + a->track_vel.z * lead + tall);
+		             t->pos.z + (a->spot_z + tall) * body + a->track_vel.z * lead);
 		f.have_point = 1;
 		f.have_want = 1;
 		f.want_dir = v3(f.point.x - eye.x, f.point.y - eye.y, f.point.z - eye.z);

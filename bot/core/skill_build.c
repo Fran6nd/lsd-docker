@@ -36,10 +36,9 @@
 
 /* a zone the server's rules keep this bot's hands off (the setting zone:
  * everybody's, or its team's) -- what the planner's routes respect too */
-static int zoned(const bc_bot *b, int x, int y, int dig)
+static int zoned_for(const bc_engine *e, int team, int x, int y, int dig)
 {
-	const bc_engine *e = b->e;
-	int i, team = bc_me(b)->team;
+	int i;
 
 	for (i = 0; i < e->nzones; i++) {
 		const bc_nav_zone *z = &e->zones[i];
@@ -49,6 +48,66 @@ static int zoned(const bc_bot *b, int x, int y, int dig)
 			return 1;
 	}
 	return 0;
+}
+
+static int zoned(const bc_bot *b, int x, int y, int dig)
+{
+	return zoned_for(b->e, bc_me(b)->team, x, y, dig);
+}
+
+/* BUILDING IS A HELD FOCUS (the owner: "bots switch tool between each
+ * block they place. ... when focusing on building, only an enemy
+ * running/shooting (heard close) or a grenade should distract them, or an
+ * enemy in their field of view"). The wishes are stated anew each tick,
+ * the gun by default (engine.c), and a builder walking from one part's
+ * stand to the next, or waiting for its next block, used to take the gun
+ * out between every two blocks. A skill that builds holds the block out
+ * the whole time (hold_block), and only this says when the focus is
+ * broken -- the one place:
+ *   - an enemy in sight (sight is the field of view: senses.c);
+ *   - shot at: hurt by somebody, a round close by, a team-mate killed by
+ *     it (senses' shot_at, `under_fire`'s), within FOCUS_SECS;
+ *   - an enemy heard close, shooting or running (a shot, a step), within
+ *     FOCUS_NEAR and FOCUS_SECS;
+ *   - a grenade it would be hurt by (as the jolt that wakes every pick,
+ *     engine.c: a threat of 25 or more).
+ * Then the wishes are the fight's (fire_at_will takes the gun out). */
+static const double FOCUS_SECS = 2.0;    /* a moment to look up and place it */
+static const float FOCUS_NEAR = 15.0f;   /* close: a sprint of two seconds */
+
+static int focus_broken(bc_bot *b)
+{
+	const bc_engine *e = b->e;
+	const bc_senses *s = &b->senses;
+	const bl_player *me = bc_me(b);
+
+	if (s->n_visible > 0 || e->now - s->shot_at < FOCUS_SECS || bc_grenade_threat(b, NULL) >= 25.0f)
+		return 1;
+	if (s->noise.valid && e->now - s->noise.at < FOCUS_SECS &&
+	    (s->noise.kind == BL_S_SHOT || s->noise.kind == BL_S_STEP) &&
+	    (s->noise.by == BL_NO_PLAYER || e->w.players[s->noise.by].team != me->team)) {
+		float dx = s->noise.pos.x - me->pos.x, dy = s->noise.pos.y - me->pos.y, dz = s->noise.pos.z - me->pos.z;
+
+		if (dx * dx + dy * dy + dz * dz <= FOCUS_NEAR * FOCUS_NEAR)
+			return 1;
+	}
+	return 0;
+}
+
+/* a building skill's tick done (r its status): while it goes on, the
+ * block in hand -- or, the focus broken, the gun, and what to shoot at
+ * (the edit waits: edit_voxel puts nothing but with the block out) */
+static bt_status hold_block(bc_bot *b, bt_status r)
+{
+	if (r != BT_RUNNING)
+		return r;
+	if (focus_broken(b)) {
+		b->wish.tool = BL_TOOL_GUN;
+		bc_fire_at_will(b);
+	} else {
+		b->wish.tool = BL_TOOL_BLOCK;
+	}
+	return r;
 }
 
 static int may_edit(const bc_bot *b, int dig)
@@ -71,7 +130,7 @@ bt_status bc_do_build_at(void *bot, const bt_args *a, float dt)
 		return BT_FAILURE;
 	st = bc_move_to_raw(b, p, 0.0f);
 	bc_fire_at_will(b);
-	return st == BC_MV_ARRIVED ? BT_SUCCESS : st == BC_MV_FAILED ? BT_FAILURE : BT_RUNNING;
+	return hold_block(b, st == BC_MV_ARRIVED ? BT_SUCCESS : st == BC_MV_FAILED ? BT_FAILURE : BT_RUNNING);
 }
 
 /* WHERE TO STAND for an edit of (x, y, z): the nearest floor (to the bot)
@@ -172,13 +231,24 @@ static bt_status edit_voxel(bc_bot *b, int x, int y, int z, int build, double se
 		return BT_RUNNING;
 	}
 	if (me->tool == (build ? BL_TOOL_BLOCK : BL_TOOL_SPADE) && e->now >= b->bld.edit_at) {
-		bl_ac_block ac;
+		if (build && b->bld.line) {
+			/* a block line from here (its start the placement a player
+			 * makes, where the drag begins) to the caller's end */
+			bl_ac_line ac;
 
-		memset(&ac, 0, sizeof ac);
-		ac.x = (int16_t)x; ac.y = (int16_t)y; ac.z = (int16_t)z;
-		ac.action = build ? BL_B_BUILD : BL_B_DESTROY;
-		if (e->host.action)
-			e->host.action(e->host.ctx, BL_AC_BLOCK, b->pid, &ac, sizeof ac);
+			ac.x1 = (int16_t)x; ac.y1 = (int16_t)y; ac.z1 = (int16_t)z;
+			ac.x2 = b->bld.line_to.x; ac.y2 = b->bld.line_to.y; ac.z2 = b->bld.line_to.z;
+			if (e->host.action)
+				e->host.action(e->host.ctx, BL_AC_LINE, b->pid, &ac, sizeof ac);
+		} else {
+			bl_ac_block ac;
+
+			memset(&ac, 0, sizeof ac);
+			ac.x = (int16_t)x; ac.y = (int16_t)y; ac.z = (int16_t)z;
+			ac.action = build ? BL_B_BUILD : BL_B_DESTROY;
+			if (e->host.action)
+				e->host.action(e->host.ctx, BL_AC_BLOCK, b->pid, &ac, sizeof ac);
+		}
 		e->stats.edits++;
 		b->bld.edit_at = e->now + (build ? 0.5 : 0.4);
 	}
@@ -680,10 +750,85 @@ static int step_off_parts(bc_bot *b, const bc_blueprint *bp)
 	return mv == BC_MV_PLANNING || mv == BC_MV_FOLLOWING;
 }
 
+/* THE PART AS A SEGMENT: from part i, the parts of the list that carry on
+ * straight from it along one axis -- not solid, free (nobody else's, not
+ * left alone) -- as far as one whose far side touches something solid
+ * already: the server's block line takes its end only where a block
+ * could go (lib_botlink do_line: a neighbour at each end), so a segment
+ * runs between two anchors -- a prop from the ground up to its step, a
+ * link from a pillar to a stair. As many as the blocks in hand. One line
+ * from one stand instead of a block at a time. 1 and its end, or 0 (a
+ * block alone). */
+static int part_run(const bc_bot *b, const bc_blueprint *bp, int i, bc_nav_node *end)
+{
+	static const int D[6][3] = { { 1, 0, 0 }, { -1, 0, 0 }, { 0, 1, 0 }, { 0, -1, 0 }, { 0, 0, 1 }, { 0, 0, -1 } };
+	const bc_engine *e = b->e;
+	const bc_bp_cell *c = &bp->cells[i];
+	uint64_t on[6] = { 0 };             /* bit k: a free part k along that axis */
+	int j, d, best = 0, most = bc_me(b)->blocks;
+
+	for (j = 0; j < bp->n; j++) {
+		const bc_bp_cell *o = &bp->cells[j];
+		int dx = o->x - c->x, dy = o->y - c->y, dz = o->z - c->z, k;
+		char name[48];
+
+		if (j == i || (!!dx + !!dy + !!dz) != 1 || o->rgb != c->rgb || bc_map_solid(e->map, o->x, o->y, o->z) ||
+		    e->now < o->bad_until)
+			continue;           /* (a line is one colour: the start's) */
+		k = abs(dx + dy + dz);
+		/* (one beside it with a part still to come under it would cover
+		 * that part; one over it in its own column covers only the run) */
+		if (k >= 64 || ((o->x != c->x || o->y != c->y) && waits_on_below(e, bp, j)))
+			continue;
+		part_name(bp, j, name, sizeof name);
+		if (!bc_claim((bc_bot *)b, name, 1, 0))
+			continue;
+		d = dx ? (dx > 0 ? 0 : 1) : dy ? (dy > 0 ? 2 : 3) : (dz > 0 ? 4 : 5);
+		on[d] |= (uint64_t)1 << k;
+	}
+	for (d = 0; d < 6; d++) {
+		int k;
+
+		for (k = 1; k < 64 && k < most && (on[d] >> k & 1u); k++) {
+			int x = c->x + D[d][0] * k, y = c->y + D[d][1] * k, z = c->z + D[d][2] * k, f, anchored = 0;
+
+			for (f = 0; f < 6; f++)
+				anchored |= bc_map_solid(e->map, x + D[f][0], y + D[f][1], z + D[f][2]);
+			if (anchored && k > best) {
+				best = k;
+				end->x = (int16_t)x; end->y = (int16_t)y; end->z = (int16_t)z;
+			}
+		}
+	}
+	return best > 0;
+}
+
+/* Can the part be made as a floor stood on with one block: air for a body
+ * over it, and a floor beside it level with it or one lower, from where
+ * the route lays it and steps on? (With none, the route would pillar up
+ * to it through what is under it -- other parts, out of their order and
+ * in this one's colour.) */
+static int laid_from_beside(const bc_map *m, const bc_bp_cell *c)
+{
+	static const int D[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+	int k;
+
+	if (bc_map_solid(m, c->x, c->y, c->z - 1) || bc_map_solid(m, c->x, c->y, c->z - 2))
+		return 0;
+	for (k = 0; k < 4; k++) {
+		uint64_t st = bc_map_stand_mask(m, c->x + D[k][0], c->y + D[k][1]);
+
+		if ((st >> c->z & 1u) || (c->z + 1 < 64 && (st >> (c->z + 1) & 1u)))
+			return 1;
+	}
+	return 0;
+}
+
 /* Start part i. The FIRST part left -- the structure's edge, that
- * nothing before it will make a floor for -- when it can be a floor (air
- * for a body over it) is made as build_at makes one: stood on, the route
- * building it as it climbs, the quickest way up a stair. Any other part
+ * nothing before it will make a floor for -- when it can be a floor laid
+ * with one block from a floor beside it (laid_from_beside) is made as
+ * build_at makes one: stood on, the route building it as it climbs, the
+ * quickest way up a stair. Any other part
  * is put from a floor that sees a face for it (edit_stand); the first too
  * when it cannot be a floor, or the way onto it was not found last time.
  * A later part no floor sees waits for the parts before it (not looked at
@@ -695,8 +840,7 @@ static int part_start(bc_bot *b, bc_blueprint *bp, int i, int first)
 	bc_bp_cell *c = &bp->cells[i];
 
 	b->bld.until = e->now + EDIT_SECS;
-	if (first && !c->climb_failed && !bc_map_solid(e->map, c->x, c->y, c->z - 1) &&
-	    !bc_map_solid(e->map, c->x, c->y, c->z - 2)) {
+	if (first && !c->climb_failed && laid_from_beside(e->map, c)) {
 		b->bld.started = 2;
 		return 1;
 	}
@@ -717,13 +861,19 @@ static int part_start(bc_bot *b, bc_blueprint *bp, int i, int first)
 	return 0;
 }
 
+static bt_status build_part_tick(bc_bot *b, const bt_args *a, float dt);
+
 bt_status bc_do_build_part(void *bot, const bt_args *a, float dt)
 {
-	bc_bot *b = bot;
+	return hold_block(bot, build_part_tick(bot, a, dt));
+}
+
+static bt_status build_part_tick(bc_bot *b, const bt_args *a, float dt)
+{
 	bc_engine *e = b->e;
 	bc_blueprint *bp;
 	char name[48];
-	int i, cur, first = -1, left = 0;
+	int i, cur, first = -1, left = 0, can = 0;
 
 	(void)dt;
 	if (a->count < 1 || !(bp = bc_blueprint_for(b, a->text[0])) || !e->have_map || !may_edit(b, 0) ||
@@ -743,6 +893,7 @@ bt_status bc_do_build_part(void *bot, const bt_args *a, float dt)
 			if (bc_map_solid(e->map, c->x, c->y, c->z))
 				continue;
 			left++;
+			can += face_neighbour(e->map, c->x, c->y, c->z);
 			if (cur >= 0 || e->now < c->bad_until)
 				continue;
 			if (first < 0)
@@ -755,6 +906,16 @@ bt_status bc_do_build_part(void *bot, const bt_args *a, float dt)
 			part_name(bp, i, name, sizeof name);
 			if (bc_claim(b, name, 1, 0) && part_start(b, bp, i, i == first))
 				cur = i;
+		}
+		if (cur < 0 && !can && !strncmp(bp->name, "order", 5)) {
+			char err[64];
+
+			/* a leader's order, built whole -- or all that is left of it
+			 * would float (what held it was no part of it: in a zone,
+			 * dug): forgotten, his next is a new one */
+			bc_engine_log(e, 0, "%s: %s", bp->name, left ? "the rest would float: left" : "built whole");
+			bc_blueprint_set(e->blueprints, bp->name, "", err, sizeof err);
+			return BT_SUCCESS;
 		}
 		if (cur < 0)
 			return !left ? BT_SUCCESS : step_off_parts(b, bp) ? BT_RUNNING : BT_FAILURE;
@@ -782,8 +943,18 @@ bt_status bc_do_build_part(void *bot, const bt_args *a, float dt)
 			part_let_go(b);
 			return BT_RUNNING;
 		}
+		/* in the part's own colour (a prefab's), asked once */
+		if ((c->rgb & BC_BP_RGB) && b->rgb != c->rgb) {
+			uint32_t col = c->rgb & 0xFFFFFFu;
+
+			if (e->host.action)
+				e->host.action(e->host.ctx, BL_AC_COLOR, b->pid, &col, sizeof col);
+			b->rgb = c->rgb;
+		}
 		if (b->bld.started == 1) {
+			b->bld.line = (uint8_t)part_run(b, bp, cur, &b->bld.line_to);
 			r = edit_voxel(b, c->x, c->y, c->z, 1, EDIT_SECS);
+			b->bld.line = 0;
 		} else {
 			bl_vec3 eye;
 			int st;
@@ -818,6 +989,271 @@ bt_status bc_do_build_part(void *bot, const bt_args *a, float dt)
 			part_let_go(b);         /* the next, at the next tick */
 		return BT_RUNNING;
 	}
+}
+
+/* --- brace <blueprint> -------------------------------------------------------
+ *
+ * LINKS (the owner: "tie a stair to the ground, to a pillar, or to another
+ * stair ... so a single cut cannot drop it"). Of the blueprint's voxels
+ * built, the one whose cut would drop the most (bc_cull_would_drop: the
+ * server's own flood); the mass that would drop (link_mass); in it, the
+ * voxel halfway along its longest stretch from the cut -- held there, the
+ * worst cut left drops half; beside that voxel, face to face, the
+ * shortest column of air down to something solid (the ground, a pillar,
+ * another stair) that is no part of the team's structures and not where
+ * it may not build: a LINK, one block line between two anchors. Posted
+ * as the blueprint "<name>.link" (its team's if the structure is) and
+ * built as any (build_part: the line from the bottom, from a stand that
+ * sees where it starts). Worth it while that cut drops more than the
+ * link costs in blocks. RUNNING while one is built; FAILURE no such
+ * blueprint, nothing worth a link, no column for one. */
+
+enum { LINK_MASS_MAX = 4096 };      /* a structure's mass looked at: more is "held" */
+
+/* the voxels that would fall if (cx, cy, cz) were dug -- the masses
+ * round it, each flooded through faces on its own, that do not reach the
+ * ground (one that does, or that is more than LINK_MASS_MAX, is held) --
+ * in flood order from the cut (depth[k]: steps from it). How many. */
+static int link_mass(const bc_map *m, int cx, int cy, int cz, bc_nav_node *out, uint16_t *depth)
+{
+	static const int F[6][3] = { { 1, 0, 0 }, { -1, 0, 0 }, { 0, 1, 0 }, { 0, -1, 0 }, { 0, 0, 1 }, { 0, 0, -1 } };
+	int n = 0, s, f, k;
+
+	for (s = 0; s < 6; s++) {
+		int sx = cx + F[s][0], sy = cy + F[s][1], sz = cz + F[s][2], n0 = n, head = n, held = 0, seen = 0;
+
+		if (!bc_map_in(sx, sy, sz) || !bc_map_solid(m, sx, sy, sz))
+			continue;
+		for (k = 0; k < n && !seen; k++)
+			seen = out[k].x == sx && out[k].y == sy && out[k].z == sz;
+		if (seen)
+			continue;               /* in a mass already found */
+		out[n].x = (int16_t)sx; out[n].y = (int16_t)sy; out[n].z = (int16_t)sz;
+		depth[n++] = 1;
+		while (head < n && !held) {
+			bc_nav_node v = out[head];
+
+			if (v.z >= BC_MAP_GROUND_Z) {
+				held = 1;           /* it reaches the ground */
+				break;
+			}
+			for (f = 0; f < 6 && !held; f++) {
+				int x = v.x + F[f][0], y = v.y + F[f][1], z = v.z + F[f][2];
+
+				if ((x == cx && y == cy && z == cz) || !bc_map_in(x, y, z) || !bc_map_solid(m, x, y, z))
+					continue;
+				for (k = n0, seen = 0; k < n && !seen; k++)
+					seen = out[k].x == x && out[k].y == y && out[k].z == z;
+				if (seen)
+					continue;
+				if (n == LINK_MASS_MAX) {
+					held = 1;       /* as good as held */
+					break;
+				}
+				out[n].x = (int16_t)x; out[n].y = (int16_t)y; out[n].z = (int16_t)z;
+				depth[n++] = (uint16_t)(depth[head] + 1);
+			}
+			head++;
+		}
+		if (held)
+			n = n0;
+	}
+	return n;
+}
+
+bt_status bc_do_brace(void *bot, const bt_args *a, float dt)
+{
+	static const int S[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+	bc_bot *b = bot;
+	bc_engine *e = b->e;
+	bc_blueprint *src, *link;
+	char lname[BC_BLUEPRINT_NAME], full[BC_BLUEPRINT_NAME + 4], err[96];
+	const bc_nav_protect *parts;
+	bc_nav_node *mass, cut, w;
+	uint16_t *depth;
+	bc_bp_cell cells[64];
+	int i, k, worst = 0, n, deepest = 0, best_len = 64, team = bc_me(b)->team, ncells = 0;
+	bt_args sub;
+
+	(void)dt;
+	memset(&cut, 0, sizeof cut);
+	if (a->count < 1 || !(src = bc_blueprint_for(b, a->text[0])) || !e->have_map || !may_edit(b, 0))
+		return BT_FAILURE;
+	if (snprintf(lname, sizeof lname, "%s.link", a->text[0]) >= (int)sizeof lname)
+		return BT_FAILURE;
+	/* the link being built: on with it */
+	if ((link = bc_blueprint_for(b, lname)) != NULL) {
+		for (i = 0; i < link->n && bc_map_solid(e->map, link->cells[i].x, link->cells[i].y, link->cells[i].z); i++) ;
+		if (i < link->n) {
+			sub = *a;
+			sub.text[0] = lname;
+			return bc_do_build_part(bot, &sub, dt);
+		}
+	}
+	/* the worst cut */
+	for (i = 0; i < src->n; i++) {
+		const bc_bp_cell *c = &src->cells[i];
+
+		if (!bc_map_solid(e->map, c->x, c->y, c->z))
+			continue;
+		n = bc_cull_would_drop(e->map, e->cull, c->x, c->y, c->z, -1, -1, -1);
+		if (n > worst) {
+			worst = n;
+			cut.x = c->x; cut.y = c->y; cut.z = c->z;
+		}
+	}
+	if (worst <= 1)
+		return BT_FAILURE;
+	/* (a decision now and then, not a tick's work: allocated for it) */
+	mass = malloc(LINK_MASS_MAX * sizeof *mass);
+	depth = malloc(LINK_MASS_MAX * sizeof *depth);
+	if (!mass || !depth) {
+		free(mass);
+		free(depth);
+		return BT_FAILURE;
+	}
+	n = link_mass(e->map, cut.x, cut.y, cut.z, mass, depth);
+	for (k = 0; k < n; k++)
+		if (depth[k] > deepest) deepest = depth[k];
+	parts = bc_parts_for(e, team);
+	/* halfway along the longest stretch: of the voxels at that depth, the
+	 * one with the shortest column beside it */
+	for (k = 0; k < n; k++) {
+		int sd;
+
+		if (depth[k] != (deepest + 1) / 2)
+			continue;
+		w = mass[k];
+		for (sd = 0; sd < 4; sd++) {
+			int px = w.x + S[sd][0], py = w.y + S[sd][1], g, z, ok = 1;
+
+			if (!bc_map_in(px, py, w.z) || bc_map_solid(e->map, px, py, w.z) || zoned(b, px, py, 0))
+				continue;
+			g = bc_map_floor_at_or_below(e->map, px, py, w.z + 1);
+			if (g >= 64 || g - w.z >= best_len || g - w.z > bc_me(b)->blocks)
+				continue;
+			/* its anchor below is no part of what would fall */
+			for (z = 0; z < n && ok; z++)
+				ok = !(mass[z].x == px && mass[z].y == py && mass[z].z == g);
+			if (!ok)
+				continue;
+			for (z = w.z; z < g && ok; z++)
+				ok = !(parts && bc_nav_protect_has(parts, px, py, z));
+			if (!ok)
+				continue;
+			best_len = g - w.z;
+			ncells = 0;
+			for (z = g - 1; z >= w.z; z--) {        /* from the bottom: what rests on what */
+				memset(&cells[ncells], 0, sizeof cells[ncells]);
+				cells[ncells].x = (int16_t)px; cells[ncells].y = (int16_t)py; cells[ncells].z = (int16_t)z;
+				ncells++;
+			}
+		}
+	}
+	free(mass);
+	free(depth);
+	if (!ncells || worst <= ncells)
+		return BT_FAILURE;          /* no column for one, or not worth its blocks */
+	if (strchr(src->name, '@') && (team == 1 || team == 2))
+		snprintf(full, sizeof full, "%s@%d", lname, team);
+	else
+		snprintf(full, sizeof full, "%s", lname);
+	if (!bc_blueprint_put(e->blueprints, full, cells, ncells, err, sizeof err)) {
+		bc_engine_log(e, 1, "bot #%d: brace %s: %s", b->pid, src->name, err);
+		return BT_FAILURE;
+	}
+	bc_engine_log(e, 0, "bot #%d: brace %s: a cut at %d %d %d drops %d: a link of %d up to %d %d %d", b->pid, src->name,
+	              cut.x, cut.y, cut.z, worst, ncells, cells[ncells - 1].x, cells[ncells - 1].y, cells[ncells - 1].z);
+	return hold_block(b, BT_RUNNING);
+}
+
+/* --- orders: a leader's prefab ---------------------------------------------
+ *
+ * A LEADER (skill_squad.c: every person, and the bots drawn) may order a
+ * structure (a prefab, blueprint.h) built: its voxels set on the map at a
+ * point, front turned toward him -- the bunker's door, the mirador's
+ * first step on his side, its back to where he looks --, as the
+ * blueprint "order<pid>", which his squad builds (`build_part leader`).
+ * A new order of his replaces the last; built whole, it is forgotten. */
+
+static void order_name(int leader, char *out, size_t n)
+{
+	snprintf(out, n, "order%d", leader);
+}
+
+int bc_order_build(bc_engine *e, int leader, const char *structure, bl_vec3 at, bl_vec3 look)
+{
+	bc_bp_cell *cells;
+	const bc_kv6 *m = e->structures ? bc_structure_get(e->structures, structure) : NULL;
+	char name[32], err[96];
+	int x = (int)floorf(at.x), y = (int)floorf(at.y), gz, quarter, n;
+
+	if (!m || !e->have_map || !e->blueprints || !bc_is_leader(e, leader) || !bc_map_in(x, y, 0))
+		return 0;
+	gz = bc_map_floor_at_or_below(e->map, x, y, (int)floorf(at.z) < 0 ? 0 : (int)floorf(at.z));
+	if (gz >= 64)
+		return 0;
+	/* his side: the quarter nearest the way back to him (against his look) */
+	quarter = fabsf(look.x) > fabsf(look.y) ? (look.x > 0.0f ? 1 : 3) : (look.y > 0.0f ? 2 : 0);
+	/* an order is rare (a person's ping, a tree's choice): its cells are
+	 * allocated for it, not kept */
+	if (!(cells = malloc((size_t)m->n * sizeof *cells)))
+		return 0;
+	n = bc_structure_cells(m, x, y, gz, quarter, cells, m->n);
+	{
+		/* what the server would refuse him is no part of it: where his
+		 * team may not build (the zones a script set: the filter's), and
+		 * what is solid already (the ground under an uneven footprint) */
+		int k, kept = 0, team = e->w.players[leader].team;
+
+		for (k = 0; k < n; k++)
+			if (!zoned_for(e, team, cells[k].x, cells[k].y, 0) && !bc_map_solid(e->map, cells[k].x, cells[k].y, cells[k].z))
+				cells[kept++] = cells[k];
+		n = kept;
+	}
+	order_name(leader, name, sizeof name);
+	if (n <= 0 || !bc_blueprint_put(e->blueprints, name, cells, n, err, sizeof err)) {
+		bc_engine_log(e, 1, "order of #%d: %s at %d %d %d: %s", leader, structure, x, y, gz, n <= 0 ? "off the map" : err);
+		free(cells);
+		return 0;
+	}
+	free(cells);
+	bc_engine_log(e, 0, "order of #%d: %s at %d %d %d, %d voxels", leader, structure, x, y, gz, n);
+	return 1;
+}
+
+int bc_order_from_ping(bc_engine *e, int by, const char *reason, bl_vec3 at)
+{
+	char word[BC_BLUEPRINT_NAME];
+	size_t i;
+
+	/* "Build <structure> [here]", as the pie's build wedges say it */
+	if (strncmp(reason, "Build ", 6) && strncmp(reason, "build ", 6))
+		return 0;
+	for (i = 0; reason[6 + i] && reason[6 + i] != ' ' && i + 1 < sizeof word; i++)
+		word[i] = (char)(reason[6 + i] >= 'A' && reason[6 + i] <= 'Z' ? reason[6 + i] - 'A' + 'a' : reason[6 + i]);
+	word[i] = 0;
+	if (!e->structures || !bc_structure_get(e->structures, word))
+		return 0;           /* "Build here" (babel's): a place, as any ping */
+	if (by < 0 || by >= BL_MAX_PLAYERS || !bc_is_leader(e, by)) {
+		bc_engine_log(e, 0, "build ping of #%d (%s) ignored: not a leader", by, word);
+		return 1;           /* a build call, not a place to go: nobody answers it */
+	}
+	bc_order_build(e, by, word, at, e->w.players[by].ori);
+	return 1;
+}
+
+/* --- order_build <structure> [place] ------------------------------------- */
+
+bt_status bc_do_order_build(void *bot, const bt_args *a, float dt)
+{
+	bc_bot *b = bot;
+	bl_vec3 p;
+
+	(void)dt;
+	if (a->count < 1 || !bc_place_of(b, a->count > 1 ? a->text[1] : "self", &p))
+		return BT_FAILURE;
+	return bc_order_build(b->e, b->pid, a->text[0], p, bc_me(b)->ori) ? BT_SUCCESS : BT_FAILURE;
 }
 
 /* --- put_at <place> -------------------------------------------------------

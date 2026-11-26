@@ -662,7 +662,6 @@ header is the full list; new since the first version in **bold**.
 | `water` | `lethal` / `safe` | |
 | **`water.damage`** | health a second | water that hurts: priced in routes by nav, and `leave_water` comes first. Lethal for routes at 30 or more, or when `water=lethal` and no damage is said. |
 | **`leaders.per`** | n | one leader for every n of a team (5; 0: none). |
-| **`leaders.human`** | weight | a person's weight in the draw, a bot's being about 1 (2). |
 | **`gaze`** | `0` / `1` | 0: heads follow the steering, as before (1). |
 | **`plan.cap`** | expansions | a search stops there and the partial route is walked (8000; 0: none). |
 | **`plan.greed`** | factor | nav's `h_weight` (1.5; 1: exact searches, water as land). |

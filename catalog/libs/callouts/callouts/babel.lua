@@ -23,4 +23,6 @@ return {
 		{key = "attack", label = {en = "Attack"}},
 		{key = "tower", label = {en = "Defend the tower"}},
 	},
+	-- no prefabs in babel: its building is the tower
+	builds = {},
 };

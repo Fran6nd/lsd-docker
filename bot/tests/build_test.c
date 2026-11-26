@@ -478,6 +478,121 @@ static void test_pillar(void)
 	bs_free(s);
 }
 
+/* BUILDING IS A HELD FOCUS: one builder on the band's second row, block
+ * after block -- the block stays in its hand from the first to the last
+ * (it used to take the gun out between every two); an enemy walks into
+ * sight a while: the gun out, once, and back to building when he is
+ * gone. */
+static void focus_pass(int distract, int *aways, int *made, int *total)
+{
+	bs_sim *s = tower_field();
+	int i, k, c, x, z, len = 0, had_block = 0;
+	char *text = calloc(1, 1 << 16), *msg;
+
+	lay_band(s, SY);
+	*total = 0;
+	for (k = base_k(); k >= 0; k--)
+		for (c = 1; c >= 0; c--) {
+			band_cells(k, c, &x, &z);
+			if (z >= G) continue;
+			len += snprintf(text + len, (1 << 16) - (size_t)len, "%s%d %d %d", *total ? "; " : "", x, SY + 1, z);
+			(*total)++;
+		}
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "edit=all");
+	bs_set(s, BL_NO_PLAYER, "leaders.per=0");
+	msg = malloc((size_t)len + 32);
+	sprintf(msg, "blueprint.row2@1=%s", text);
+	bs_set(s, BL_NO_PLAYER, msg);
+	free(msg); free(text);
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tdo build_part row2\n\twait 1\n");
+	bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, 500u, (float)(SX0 - base_k()) - 4.5f, (float)SY + 4.5f, 1, 0);
+	*aways = 0;
+	for (i = 0; i < 60 * 120 && band_solid(s, SY + 1) < *total; i++) {
+		s->p[0].blocks = 50;
+		if (distract && i == 60 * 12)          /* an enemy in sight of it, standing, for 3 s */
+			bs_add(s, 100, 0, 2, 5, BL_GUN_RIFLE, 1, s->p[0].body.pos.x + 12.0f, s->p[0].body.pos.y + 6.0f, -1, 0);
+		if (distract && i == 60 * 15)
+			s->p[100].alive = 0;
+		if (distract && i > 60 * 12) s->p[100].hp = 100;
+		bs_step(s);
+		if (s->p[0].tool == BL_TOOL_BLOCK) had_block = 1;
+		else if (had_block) { (*aways)++; had_block = 0; }
+	}
+	*made = band_solid(s, SY + 1);
+	bs_free(s);
+}
+
+static void test_focus(void)
+{
+	int aways0, aways1, made0, made1, total;
+
+	printf("building is a held focus: the block in hand from block to block; an enemy in sight takes it away once\n");
+	focus_pass(0, &aways0, &made0, &total);
+	focus_pass(1, &aways1, &made1, &total);
+	printf("  %d blocks: no enemy, %d built, the block put away %d times; an enemy in sight 3 s, %d built, put away %d times\n",
+	       total, made0, aways0, made1, aways1);
+	CHECK(made0 == total && aways0 == 0);
+	CHECK(made1 == total && aways1 == 1);
+}
+
+/* LINKS (brace): a stair stands on its foot only; two builders brace it --
+ * a line from the ground up beside the middle of what the worst cut would
+ * drop, chosen by the server's collapse -- once, twice: the worst single
+ * cut drops a fraction of what it did, each link one block line. */
+static int worst_cut(bs_sim *s, int y)
+{
+	int k, c, x, z, n, worst = 0;
+
+	for (k = 0; k <= base_k(); k++)
+		for (c = 0; c < 2; c++) {
+			band_cells(k, c, &x, &z);
+			if (z < G && (n = bc_cull_would_drop(s->truth, s->cull, x, y, z, -1, -1, -1)) > worst)
+				worst = n;
+		}
+	return worst;
+}
+
+static void test_brace(void)
+{
+	bs_sim *s = tower_field();
+	int i, k, x, z, c, len = 0, before, after, lines0;
+	char *text = calloc(1, 1 << 16), *msg;
+
+	printf("brace: links where a cut would drop the most, each one block line\n");
+	lay_band(s, SY);
+	before = worst_cut(s, SY);
+	for (k = base_k(); k >= 0; k--)
+		for (c = 1; c >= 0; c--) {
+			band_cells(k, c, &x, &z);
+			if (z < G)
+				len += snprintf(text + len, (1 << 16) - (size_t)len, "%s%d %d %d", len ? "; " : "", x, SY, z);
+		}
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "edit=all");
+	bs_set(s, BL_NO_PLAYER, "leaders.per=0");
+	msg = malloc((size_t)len + 32);
+	sprintf(msg, "blueprint.stair@1=%s", text);
+	bs_set(s, BL_NO_PLAYER, msg);
+	free(msg); free(text);
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tdo brace stair\n\twait 1\n");
+	for (i = 0; i < 2; i++)
+		bs_add(s, i, 1, 1, 6, BL_GUN_RIFLE, 900u + (uint32_t)i * 11u, (float)(SX0 - base_k()) - 4.5f + (float)i,
+		       (float)SY + 4.5f, 1, 0);
+	lines0 = s->lines;
+	for (i = 0; i < 60 * 120; i++) {
+		s->p[0].blocks = s->p[1].blocks = 50;
+		bs_step(s);
+	}
+	after = worst_cut(s, SY);
+	printf("  the worst single cut dropped %d; after 120 s of bracing, %d; %d block lines; refused for sight %d\n",
+	       before, after, s->lines - lines0, s->vis_refused);
+	CHECK(after <= before / 3);
+	CHECK(s->lines - lines0 >= 2);
+	CHECK(s->vis_refused == 0);
+	bs_free(s);
+}
+
 /* A prop holds the stair up only face to face: the server's collapse
  * floods through faces (cull.c), so a pillar beside a step at the same x
  * joins it, one a column over -- touching it by an edge only -- does not
@@ -723,6 +838,8 @@ int main(void)
 	test_prop_face();
 	test_platform_men();
 	test_blueprint();
+	test_focus();
+	test_brace();
 	test_repair();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;

@@ -2,25 +2,30 @@
  * Copyright (C) 2026 Fran6nd. GPL-3.0-or-later; see LICENSE.
  *
  * A team of bots that each go their own way reads as a crowd. So, per
- * team, the engine keeps a few LEADERS, drawn at random among the team's
- * members -- bots AND people alike. Nobody is told: a person who is one
- * simply finds a few bots going where he goes.
+ * team, the engine keeps LEADERS. EVERY PERSON on a team is one, always
+ * (the owner: "all real players are leaders of close bots"): a person
+ * finds the bots near him going where he goes, and may order them to
+ * build (a build ping, skill_build.c). Besides, a few BOTS are drawn:
  *
- *  - HOW MANY: one for every `leaders.per` members (5; 0: none), rounded,
- *    none for a team under three.
- *  - WHO: by lot. A person weighs `leaders.human` (2); a bot 0.5 + 0.4 x
- *    aggression + 0.3 x objective - 0.3 x caution (0.2 to 2): the bold
- *    lead, the careful follow.
- *  - HOW LONG: a term of 2 to 6 minutes, by lot; sooner if he leaves or
- *    changes team, dies twice within a minute, or (a bot) had to drop a
- *    goal it was stuck on (he is not leading anybody anywhere). Then
- *    another is drawn. Looked at twice a second.
+ *  - HOW MANY: one leader for every `leaders.per` members (5; 0: none,
+ *    and no squads at all), rounded, none for a team under three; the
+ *    people count first, the bots drawn make up the rest.
+ *  - WHO: by lot, a bot weighing 0.5 + 0.4 x aggression + 0.3 x
+ *    objective - 0.3 x caution (0.2 to 2): the bold lead, the careful
+ *    follow.
+ *  - HOW LONG: a bot, a term of 2 to 6 minutes, by lot; sooner if it
+ *    leaves or changes team, dies twice within a minute, or had to drop
+ *    a goal it was stuck on (it is not leading anybody anywhere). Then
+ *    another is drawn. A person, while he is on the team. Looked at twice
+ *    a second.
  *    The dice are the engine's own (seeded at each map): the same events
  *    and worlds draw the same leaders.
  *
  * FOLLOWERS. A bot that is no leader may attach to one: not at all with
- * teamwork under 0.75 (loners), else to the nearest living leader who has
- * fewer than 4 followers. It looks again every 8 s and when its leader
+ * teamwork under 0.75 (loners), else to the nearest living PERSON within
+ * HUMAN_NEAR who has fewer than 4 followers -- a person leads the bots
+ * close to him, before any bot leader, and no others --, else to the
+ * nearest living bot leader with room. It looks again every 8 s and when its leader
  * dies. A leader who stays put longer than the bot's patience (10 s + 15
  * x teamwork) is left for half a minute: a man sniping or gone from his
  * keyboard does not hold three bots for ever.
@@ -48,6 +53,11 @@
 #include <string.h>
 
 #include "brain.h"
+
+/* "close bots" (the owner): within this of a person, a bot falls in with
+ * him rather than with any bot leader -- a short run, about the reach of
+ * a squad's stations and the cover it takes round him */
+static const float HUMAN_NEAR = 30.0f;
 
 static float flat(bl_vec3 a, bl_vec3 b)
 {
@@ -105,7 +115,7 @@ void bc_leaders_think(bc_engine *e)
 	for (t = 0; t < 2; t++) {
 		bc_leaders *l = &e->lead[t];
 		float w[BL_MAX_PLAYERS], sum = 0.0f;
-		int members = 0, want;
+		int members = 0, want, bots;
 
 		for (i = 0; i < BL_MAX_PLAYERS; i++) {
 			const bl_player *p = &e->w.players[i];
@@ -114,9 +124,20 @@ void bc_leaders_think(bc_engine *e)
 			if (p->team != t + 1 || (p->state != BL_ALIVE && p->state != BL_DEAD))
 				continue;
 			members++;
+			if (!(p->flags & BL_F_BOT)) {
+				/* a person: a leader for as long as he is on the team */
+				if (!bc_is_leader(e, i) && e->lead_per > 0) {
+					l->pid[l->n] = (uint8_t)i;
+					l->until[l->n] = 1e300;
+					l->deaths[l->n] = 0;
+					l->died_at[l->n] = -1e9;
+					l->n++;
+				}
+				continue;
+			}
 			if (p->state != BL_ALIVE || bc_is_leader(e, i))
 				continue;
-			if (p->flags & BL_F_BOT) {
+			{
 				const bc_bot *b = bc_engine_bot(e, i);
 				const float *tr;
 
@@ -125,8 +146,6 @@ void bc_leaders_think(bc_engine *e)
 				w[i] = 0.5f + 0.4f * tr[BC_T_AGGRESSION] + 0.3f * tr[BC_T_OBJECTIVE] - 0.3f * tr[BC_T_CAUTION];
 				if (w[i] < 0.2f) w[i] = 0.2f;
 				if (w[i] > 2.0f) w[i] = 2.0f;
-			} else {
-				w[i] = e->lead_human;
 			}
 			sum += w[i];
 		}
@@ -136,15 +155,27 @@ void bc_leaders_think(bc_engine *e)
 		for (i = l->n - 1; i >= 0; i--) {
 			const bl_player *p = &e->w.players[l->pid[i]];
 			const bc_bot *lb = bc_engine_bot(e, l->pid[i]);
+			int bot = (p->flags & BL_F_BOT) != 0;
 
-			if (p->team != t + 1 || (p->state != BL_ALIVE && p->state != BL_DEAD) ||
-			    (lb && e->now - lb->stuck_out_at < 60.0) ||
-			    e->now >= l->until[i] || (l->deaths[i] >= 2 && e->now - l->died_at[i] < 60.0))
+			if (p->team != t + 1 || (p->state != BL_ALIVE && p->state != BL_DEAD) || e->lead_per <= 0 ||
+			    (bot && ((lb && e->now - lb->stuck_out_at < 60.0) || e->now >= l->until[i] ||
+			             (l->deaths[i] >= 2 && e->now - l->died_at[i] < 60.0))))
 				lead_remove(l, i);
 		}
-		while (l->n > want)
-			lead_remove(l, l->n - 1);
-		while (l->n < want && sum > 0.0f) {
+		/* the bots drawn: as many as the people leave of `want` (the people
+		 * are leaders whatever the count; a team of bots and few people
+		 * keeps its squads' size) */
+		bots = 0;
+		for (i = 0; i < l->n; i++)
+			bots += (e->w.players[l->pid[i]].flags & BL_F_BOT) != 0;
+		want -= l->n - bots;
+		if (want < 0) want = 0;
+		for (i = l->n - 1; i >= 0 && bots > want; i--)
+			if (e->w.players[l->pid[i]].flags & BL_F_BOT) {
+				lead_remove(l, i);
+				bots--;
+			}
+		while (bots < want && sum > 0.0f) {
 			float x = bc_rng_float(&e->rng) * sum;
 			int pick = -1;
 
@@ -163,6 +194,7 @@ void bc_leaders_think(bc_engine *e)
 			l->deaths[l->n] = 0;
 			l->died_at[l->n] = -1e9;
 			l->n++;
+			bots++;
 		}
 	}
 }
@@ -197,8 +229,8 @@ int bc_leader_of(bc_bot *b)
 	                 e->w.players[cur].team != team))
 		cur = -1;
 	if (cur < 0 || e->now >= b->squad.eval_at) {
-		float best = 1e30f;
-		int pick = -1;
+		float best = 1e30f, best_person = 1e30f;
+		int pick = -1, person = -1;
 
 		for (i = 0; i < l->n; i++) {
 			const bl_player *p = &e->w.players[l->pid[i]];
@@ -207,8 +239,20 @@ int bc_leader_of(bc_bot *b)
 			if (p->state != BL_ALIVE || followers_of(e, l->pid[i], b) >= 4)
 				continue;
 			d = flat(p->pos, me->pos) - (l->pid[i] == cur ? 15.0f : 0.0f);     /* the one it has, rather */
+			if (!(p->flags & BL_F_BOT)) {
+				/* a person leads the bots close to him, and only them */
+				if (flat(p->pos, me->pos) > HUMAN_NEAR)
+					continue;
+				if (d < best_person) {
+					best_person = d;
+					person = l->pid[i];
+				}
+				continue;
+			}
 			if (d < best) { best = d; pick = l->pid[i]; }
 		}
+		if (person >= 0)
+			pick = person;      /* a person close by, before any bot */
 		if (pick != cur)
 			b->squad.still_since = e->now;
 		cur = pick;

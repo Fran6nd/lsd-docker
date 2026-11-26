@@ -90,6 +90,28 @@ mod = dofile("catalog/libs/callouts/lib_callouts.lua");
 mod.on_load();
 check(added.callouts ~= nil and sliced.callouts_pings == nil, "a callouts pie, no pings");
 
+print("\n6. the Build pie: leaders' orders to their bots, as pings; none in babel");
+mod.on_unload();
+gamemode = "tdm";
+mod = dofile("catalog/libs/callouts/lib_callouts.lua");
+mod.on_load();
+local builds = sliced.callouts_builds;
+check(builds ~= nil and #builds == 2 and builds[1].pie.id == "build"
+	and builds[1].text.en == "/pingmark %h Build mirador here",
+	"tdm (no builds of its own): the default build wedges, through /pingmark");
+check(builds ~= nil and builds[2].show(0) == true and builds[2].show(1) == false, "shown only to a client with Teamplay");
+check(callouts_canonical("Build bunker here") == "Build bunker here", "an English reason is itself");
+check(callouts_canonical(l10n_get_str_lang("fr", {en = "Build mirador here"})) == "Build mirador here",
+	"a French player's build ping: its English label, for the bot engine",
+	callouts_canonical(l10n_get_str_lang("fr", {en = "Build mirador here"})));
+check(callouts_canonical("whatever he typed") == "whatever he typed", "a reason of nobody's: as it came");
+mod.on_unload();
+gamemode = "babel";
+package.loaded["callouts.babel"] = nil;
+mod = dofile("catalog/libs/callouts/lib_callouts.lua");
+mod.on_load();
+check(sliced.callouts_builds == nil, "babel: no Build pie (its building is the tower)");
+
 L.clean(check);
 print(string.format("\n%d checks, %d failed", passed + failed, failed));
 os.exit(failed == 0 and 0 or 1);

@@ -44,7 +44,18 @@
 --       {key = "intel", label = {en = "Intel here"}},
 --       ...
 --     },
+--     builds = {                       -- the Build pie, six at most:
+--       ...                            -- default.lua's when not said,
+--     },                               -- none with builds = {}
 --   }
+--
+-- BUILD PINGS: the Build pie's wedges are pings too, through the same
+-- /pingmark, "Build <structure> here" -- a structure the bot engine can
+-- build (bot/structures/*.kv6: "mirador", "bunker"). The engine takes
+-- one from a LEADER (every person on a team is one) as an order to his
+-- squad of bots to build that structure there (bot/core/skill_build.c).
+-- A ping's reason is in the pinger's language; callouts_canonical gives
+-- the English label back, which is what lib_botlink tells the engine.
 --
 -- EVENT PINGS: the gamemode pings for its players on its own events,
 -- again only to clients that speak Teamplay (callouts_event_pings).
@@ -68,8 +79,8 @@ getcfg("callouts_event_secs", 10,
 -- the callouts of the gamemode running, by key; nil if it has none
 local set = nil;
 local by_key = {};
--- its pings, or the default ones
-local pings = {};
+-- its pings, or the default ones; its build pings, or the default ones
+local pings, builds = {}, {};
 
 local function load(name)
 	local ok, s = pcall(require, "callouts." .. name);
@@ -77,7 +88,7 @@ local function load(name)
 end
 
 local function load_set()
-	set, by_key, pings = nil, {}, {};
+	set, by_key, pings, builds = nil, {}, {}, {};
 	local name = tostring(gamemode or "");
 	if (string.match(name, "^[%w_]+$") and name ~= "default") then
 		set = load(name);
@@ -89,6 +100,28 @@ local function load_set()
 		by_key[c.key] = c;
 	end
 	pings = set and set.pings or (load("default") or {}).pings or {};
+	builds = set and set.builds or (load("default") or {}).builds or {};
+end
+
+-- A ping's reason, said in any language, as its English label (what the
+-- bot engine reads); the reason itself if it is none of this mode's.
+function callouts_canonical(reason)
+	local text = string.lower(tostring(reason or ""));
+	for _, list in ipairs({pings, builds}) do
+		for _, p in ipairs(list) do
+			if (p.label ~= nil and p.label.en ~= nil) then
+				if (string.lower(p.label.en) == text) then return p.label.en; end
+				if (l10n_languages ~= nil and l10n_get_str_lang ~= nil) then
+					for _, lang in ipairs(l10n_languages()) do
+						if (string.lower(l10n_get_str_lang(lang, p.label)) == text) then
+							return p.label.en;
+						end
+					end
+				end
+			end
+		end
+	end
+	return reason;
 end
 
 -- The pie: a wedge per callout.
@@ -120,14 +153,17 @@ local function ping_text(p)
 	return t;
 end
 
-local function ping_slices()
+local function ping_slices(list, pie)
 	local out = {};
-	for i, p in ipairs(pings) do
-		out[i] = {pie = MARK, slot = i, text = ping_text(p),
+	for i, p in ipairs(list) do
+		out[i] = {pie = pie, slot = i, text = ping_text(p),
 			label = p.label, tooltip = p.tooltip, show = can_ping};
 	end
 	return out;
 end
+
+-- the Build pie: aiming at a block, where the structure goes
+local BUILD = {id = "build", theme = {en = "Build"}, when = "block"};
 
 -- in the pie menu whenever there is one, as the editor does it
 local pie_in = false;
@@ -139,7 +175,10 @@ local function add_pie()
 			pie_menu_add("callouts", pie(), 20);
 		end
 		if (#pings > 0) then
-			pie_menu_slice("callouts_pings", ping_slices(), 10);
+			pie_menu_slice("callouts_pings", ping_slices(pings, MARK), 10);
+		end
+		if (#builds > 0) then
+			pie_menu_slice("callouts_builds", ping_slices(builds, BUILD), 10);
 		end
 	elseif (pie_menu_add == nil) then
 		pie_in = false;
@@ -254,6 +293,7 @@ function mod.on_unload()
 	if (pie_menu_remove ~= nil) then
 		pie_menu_remove("callouts");
 		pie_menu_remove("callouts_pings");
+		pie_menu_remove("callouts_builds");
 	end
 	pie_in = false;
 end

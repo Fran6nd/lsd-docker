@@ -51,9 +51,8 @@
  *   protect=x y z            a voxel the server will refuse to change
  *   blueprint.<name>=x y z; ...   a structure the team builds a part each
  *                            (blueprint.h; name@team for a team's)
- *   leaders.per=<n>          one leader for every n of a team (5; 0: none)
- *   leaders.human=<weight>   a person's weight in the draw, a bot's being
- *                            about 1 (2): skill_squad.c
+ *   leaders.per=<n>          leaders: one for every n of a team (5; 0:
+ *                            no squads); every person leads, bots make up the rest
  *   plan.greed=<x>           how greedy a route search is (1.5; nav.h h_weight;
  *                            1: exact, and water searched as land is)
  *   plan.cap=<n>             expansions a search may take before the bot sets
@@ -653,6 +652,7 @@ bc_engine *bc_engine_new(const bc_engine_host *host, int max_bots)
 	e->map = malloc(sizeof *e->map);
 	e->cull = malloc(sizeof *e->cull);
 	e->blueprints = calloc(1, sizeof *e->blueprints);
+	e->structures = calloc(1, sizeof *e->structures);
 	e->moves = malloc(sizeof *e->moves);
 	e->vocab = bt_vocab_new();
 	e->nsearch = max_bots / 8;
@@ -699,7 +699,6 @@ bc_engine *bc_engine_new(const bc_engine_host *host, int max_bots)
 	e->plan_cap = 8000;
 	e->lead_per = 5;
 	bc_engine_plan_rate(e, BC_PLAN_RATE, 60);
-	e->lead_human = 2.0f;
 	bc_rng_seed(&e->rng, 0x6c656164, 1);
 	memset(e->hurt_by, BL_NO_PLAYER, sizeof e->hurt_by);
 	e->hot_at[0] = e->hot_at[1] = -1e9;
@@ -745,6 +744,10 @@ void bc_engine_free(bc_engine *e)
 	if (e->blueprints) {
 		bc_blueprints_free(e->blueprints);
 		free(e->blueprints);
+	}
+	if (e->structures) {
+		bc_structures_free(e->structures);
+		free(e->structures);
 	}
 	free(e->moves);
 	free(e);
@@ -841,6 +844,39 @@ int bc_engine_kinds(bc_engine *e, const char *text, char *err, size_t err_size)
 	return 1;
 }
 
+int bc_engine_structure(bc_engine *e, const char *name, const uint8_t *kv6, size_t bytes, char *err, size_t err_size)
+{
+	bc_structures *t = e->structures;
+	bc_kv6 m;
+	int i, slot = -1;
+
+	if (!t) {
+		snprintf(err, err_size, "no memory");
+		return 0;
+	}
+	if (!name[0] || strlen(name) >= BC_BLUEPRINT_NAME) {
+		snprintf(err, err_size, "a name of 1 to %d characters", BC_BLUEPRINT_NAME - 1);
+		return 0;
+	}
+	if (!bc_kv6_parse(kv6, bytes, &m, err, err_size))
+		return 0;
+	for (i = 0; i < BC_STRUCTURES_MAX && slot < 0; i++)
+		if (!strcmp(t->name[i], name))
+			slot = i;
+	for (i = 0; i < BC_STRUCTURES_MAX && slot < 0; i++)
+		if (!t->name[i][0])
+			slot = i;
+	if (slot < 0) {
+		bc_kv6_free(&m);
+		snprintf(err, err_size, "no room for another structure (%d at most)", BC_STRUCTURES_MAX);
+		return 0;
+	}
+	bc_kv6_free(&t->model[slot]);
+	t->model[slot] = m;
+	snprintf(t->name[slot], sizeof t->name[slot], "%s", name);
+	return 1;
+}
+
 const char *bc_engine_kind_name(const bc_engine *e, int kind)
 {
 	return kind >= 0 && kind < e->kinds.n ? e->kinds.k[kind].name : "?";
@@ -910,6 +946,7 @@ static void bot_new_life(bc_bot *b, const bl_player *p)
 
 	b->life = p->life;
 	b->alive = 1;
+	b->rgb = 0;                 /* the server sets a colour at each spawn */
 	bc_senses_reset(&b->senses);
 	bot_forget_route(b);
 	memset(&b->fight, 0, sizeof b->fight);
@@ -1552,9 +1589,6 @@ static void ev_set(bc_engine *e, int pid, const char *text)
 	} else if (!strcmp(key, "leaders.per")) {
 		e->lead_per = atoi(val);
 		e->lead_at = 0.0;
-	} else if (!strcmp(key, "leaders.human")) {
-		e->lead_human = (float)atof(val);
-		if (!(e->lead_human >= 0.0f)) e->lead_human = 0.0f;
 	} else if (!strcmp(key, "plan.greed")) {
 		e->plan_greed = (float)atof(val);
 	} else if (!strcmp(key, "plan.cap")) {
@@ -1635,8 +1669,10 @@ static void noise_for_all(bc_engine *e, int kind, bl_vec3 pos, int by)
 /* The map changed inside a box: routes through it are looked at again
  * (the follower does that on any change), and one that crossed a
  * COLLAPSE is planned again at once -- the follower checks the steps,
- * not that the ground a step lands on is still held up from below. */
-static void map_changed(bc_engine *e, const bc_map_change *c)
+ * not that the ground a step lands on is still held up from below.
+ * `by` made the edit (or BL_NO_PLAYER): the fall is his noise, so a
+ * team-mate's is no news (senses: hearing). */
+static void map_changed(bc_engine *e, const bc_map_change *c, int by)
 {
 	int i, k;
 
@@ -1648,7 +1684,7 @@ static void map_changed(bc_engine *e, const bc_map_change *c)
 		at.x = 0.5f * (float)(c->x0 + c->x1) + 0.5f;
 		at.y = 0.5f * (float)(c->y0 + c->y1) + 0.5f;
 		at.z = 0.5f * (float)(c->z0 + c->z1) + 0.5f;
-		noise_for_all(e, BL_S_BLAST, at, BL_NO_PLAYER);     /* a collapse is heard */
+		noise_for_all(e, BL_S_BLAST, at, by);     /* a collapse is heard */
 	}
 	for (i = 0; i < e->max_bots; i++) {
 		bc_bot *b = &e->bots[i];
@@ -1684,6 +1720,8 @@ static void ev_ping(bc_engine *e, int by, const bl_ev_ping *ev)
 	team = e->w.players[by].team;
 	memcpy(reason, ev->reason, 64);
 	reason[64] = 0;
+	if (bc_order_from_ping(e, by, reason, ev->pos))
+		return;                 /* a leader's build order, not a place to go */
 	kind = bc_ping_kind(reason);
 	if (kind == BC_PING_NONE || team < 1 || team > 2)
 		return;
@@ -1745,7 +1783,7 @@ void bc_engine_event(bc_engine *e, const bl_record *rec)
 		memcpy(&ev, pl, sizeof ev);
 		bc_map_change_init(&c, e->chg_cells, BC_CHANGE_CELLS);
 		bc_map_apply(e->map, e->cull, ev.action, ev.x, ev.y, ev.z, &c);
-		map_changed(e, &c);
+		map_changed(e, &c, ev.by);
 		break;
 	}
 	case BL_EV_LINE: {

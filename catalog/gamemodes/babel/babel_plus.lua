@@ -28,13 +28,13 @@
 --   zone=<platform> both; <each team's tower area> nodig for it and
 --                               nobuild for the other (babel_protect)
 --                               (babel refuses them there)
---   blueprint.stair, blueprint.widen, blueprint.prop   each team's
+--   blueprint.stair, blueprint.widen   each team's
 --                               structures, voxel by voxel from the ground
 --                               up: the bots share them out a part each
 --                               (`build_part`); said again only changed
 --   place.stair_top, place.stair_foot, place.breach   each team's, as the
 --                               world's "<name>@<team>"
---   fact.stair_done, fact.stair_high, fact.widen, fact.prop, fact.breach
+--   fact.stair_done, fact.stair_high, fact.widen, fact.breach
 --   place.intel, place.intel_home  for everybody (who carries it the engine
 --                               reads from the world: `carrying_intel`)
 -- The stair runs from the platform's corner side outward and down, one
@@ -161,8 +161,40 @@ end
 
 --============================ ENGINE BOTS ============================--
 local BOT_EVERY = 1;        -- seconds
+
+-- A SECOND STAIR for a team with this many engine bots or more. About two
+-- thirds of a team work on its stair until it is up (babel.bt's
+-- babel_role: the builders, masons and runners, and the platform men, who
+-- build as runners until then), so six put four on it: as many as one
+-- stair keeps busy -- it grows at its top, a step and its riser at a time,
+-- and along its second row. More wait their turn at the top; a second
+-- stair puts them to work.
+local SECOND_STAIR_BOTS = 6;
+
+-- WHICH KIND. lib_stairs lays four: straight, tapered (a wedge of lines,
+-- long at the bottom), switchback (in a few columns of the platform),
+-- spiral (round a pillar, 3 by 3). The bots build only the STRAIGHT one
+-- to the top yet: in the babel harness (blueresortbabel, 10 a side, 2
+-- seeds, 10 minutes) the straight stairs were whole at 83 to 92 s, while
+-- no tapered one was (a wedge of 381 voxels stalls at a level whose
+-- stand the builders cannot reach), nor a spiral, and one switchback of
+-- four (343 s). Until build_part lays those, a team is given straight
+-- stairs: the first where a row has room, the least in its way else, and
+-- its second (SECOND_STAIR_BOTS, or a cut) on another row apart from it
+-- -- what makes a second sturdy is that it stands apart: one cut does not
+-- drop both. Each list in the order a kind is preferred.
+local FIRST_KINDS = {"straight"};
+local STURDY_KINDS = {"straight"};
+
 local bots_next, bots_told = 0, false;
-local stairs = {};          -- team -> {steps = {{x, y, z}...} bottom first, foot = {x, y, z}}
+-- team -> {[1] its stair, [2] its second or nil (lib_stairs' stairs, each
+-- with `seen`: the steps seen built), second_tried: a second looked for}
+local stairs = {};
+-- the ground as it was when the stairs were first laid on this map, column
+-- by column: a stair laid again (another kind, after a cut) keeps its
+-- floors -- what the team built on the ground since would be ground to
+-- ground_at, and the stair would shrink under the builders' hands
+local laid_ground = {};
 
 local function engine_bot(pid)
 	local b = bot_get ~= nil and bot_get(pid) or nil;
@@ -177,6 +209,14 @@ local function engine_bots_here()
 	return false;
 end
 
+local function team_bots(team)
+	local n = 0;
+	for i in piditer(PID_BROADCAST) do
+		if (get_team(i) == team and engine_bot(i)) then n = n + 1; end
+	end
+	return n;
+end
+
 -- the top of the GROUND in a column: of the solid run that goes down to
 -- the bottom of the map (a tree, a rock arch or a floating island over
 -- it is not ground: a stair that started on one could not be got to)
@@ -187,59 +227,173 @@ local function ground_at(x, y)
 	return z;
 end
 
--- each team's stair: step k at (corner x -/+ k, edge row, babel_z + 1 + k)
--- from the top (k = 0, a step up from the platform's level) down to the
--- step that rests on the ground
--- One team's stair along row y, from the top down to the ground, and how
--- many voxels in its way: in a step's cell or the three over it (where a
--- body stands) and not the ground under the last step. A stair runs
--- through the team's own protected area, where babel_protect lets nobody
--- break his own team's blocks: what is in the way there stays in the way.
-local function stair_on_row(team, y)
-	local x0 = team == 1 and 255 - babel_width / 2 or 256 + babel_width / 2;
-	local dir = team == 1 and -1 or 1;
-	local steps, blocked = {}, 0;
-	for k = 0, 61 - babel_z do
-		local x, z = x0 + dir * k, babel_z + 1 + k;
-		if (x < 1 or x > 510) then break; end
-		local g = ground_at(x, y);
-		table.insert(steps, 1, {x = x, y = y, z = z});
-		for zz = z - 3, z do
-			if (zz >= 0 and zz < g and is_solid({x = x, y = y, z = zz})) then blocked = blocked + 1; end
-		end
-		if (z >= g - 1) then break; end
-	end
-	local b = steps[1];
-	return {steps = steps, foot = {x = b.x + dir, y = y, z = ground_at(b.x + dir, y)}}, blocked;
+local function laid_ground_at(x, y)
+	local k = y * 512 + x;
+	if (laid_ground[k] == nil) then laid_ground[k] = ground_at(x, y); end
+	return laid_ground[k];
 end
 
--- Each team's stair on the row beside the platform that has nothing in
--- its way, the nearest the platform's middle row first; on the one with
--- the least, if none is clear. Not the platform's two edge rows: the
--- protected areas' borders are painted on them (babel_protect).
+-- the rows a stair's top may take: beside the platform, but not its two
+-- edge rows (babel_protect paints the tower areas' borders on them); out
+-- from the middle row: 0, +1, -1, +2, ...
+local function stair_rows()
+	local y0, y1 = 256 - babel_height / 2 + 1, 255 + babel_height / 2 - 1;
+	local rows = {};
+	for i = 0, y1 - y0 do
+		local y = math.floor((y0 + y1) / 2) + (i % 2 == 0 and i / 2 or -(i + 1) / 2);
+		if (y >= y0 and y <= y1) then rows[#rows + 1] = y; end
+	end
+	return rows, y0, y1;
+end
+
+-- what one team's stair is laid on (lib_stairs): its top a step up from
+-- the platform's level at the platform's corner side -- team 1 west of
+-- it, team 2 east --, running down and away from it, on the ground as it
+-- was first laid; kept off the platform (babel refuses edits on and round
+-- it), off the rows past those a stair may take, and out of the other
+-- team's tower area (babel_protect: nobody builds there but its team)
+local function stair_spec(team, y, y2, wide)
+	local _, y0, y1 = stair_rows();
+	local ps = {x = 256 - babel_width / 2, y = 256 - babel_height / 2};
+	local pe = {x = 255 + babel_width / 2, y = 255 + babel_height / 2};
+	local theirs = (babel_protect_zones or {})[other(team)] or {};
+	return {
+		top = {x = team == 1 and ps.x - 1 or pe.x + 1, y = y, z = babel_z + 1},
+		dx = team == 1 and -1 or 1,
+		rows = {y, y2},
+		ground = laid_ground_at,
+		wide = wide,
+		refuse = function(x, y)
+			local pos = {x = x, y = y};
+			if (y < y0 or y > y1 or in_box(pos, ps, pe)) then return true; end
+			for _, zone in ipairs(theirs) do
+				if (in_box(pos, zone[1], zone[2])) then return true; end
+			end
+			return false;
+		end,
+	};
+end
+
+-- How many voxels are in a stair's way: solid, over the ground, in a
+-- floor or the three voxels over it (where a body stands). A stair runs
+-- through the team's own protected area, where babel_protect lets nobody
+-- break his own team's blocks: what is in the way there stays in the way.
+local function in_way(st)
+	local n = 0;
+	for _, p in ipairs(st.steps) do
+		local g = laid_ground_at(p.x, p.y);
+		for zz = p.z - 3, p.z do
+			if (zz >= 0 and zz < g and is_solid({x = p.x, y = p.y, z = zz})) then n = n + 1; end
+		end
+	end
+	return n;
+end
+
+-- the rows a stair takes, floors, voxels and what widens it
+local function rows_of(st)
+	local rows = {};
+	for _, list in ipairs({st.steps, st.cells, st.widen}) do
+		for _, c in ipairs(list) do rows[c.y] = true; end
+	end
+	return rows;
+end
+
+-- two stairs with a row at least between them, for the links of each
+-- (`brace`: a column beside a step)
+local function apart(a, b)
+	local rb = rows_of(b);
+	for y in pairs(rows_of(a)) do
+		if (rb[y - 1] or rb[y] or rb[y + 1]) then return false; end
+	end
+	return true;
+end
+
+-- The first place clear for one of `kinds`, in their order, each on the
+-- rows out from the middle (a switchback's second row on either side); a
+-- row apart from `away`, another stair of the team, if given. None clear:
+-- the one with the least in its way, the earlier on a tie. -> the stair
+-- and how much is in its way, or nil.
+local function find(team, kinds, away)
+	local best, least = nil, math.huge;
+	for _, kind in ipairs(kinds) do
+		for _, y in ipairs(stair_rows()) do
+			for _, side in ipairs(kind == "switchback" and {1, -1} or {0}) do
+				local st = stair_lay(kind, stair_spec(team, y, side ~= 0 and y + side or nil));
+				if (st ~= nil and (away == nil or apart(st, away))) then
+					local n = in_way(st);
+					if (n < least) then best, least = st, n; end
+					if (n == 0) then return st, 0; end
+				end
+			end
+		end
+	end
+	return best, least;
+end
+
+-- a straight stair WIDENED: its second row beside it, on the side with
+-- less in its way (inside the rows a stair may take); the other side is
+-- left for links
+local function widened(team, st)
+	local y = st.top.y;
+	local _, y0, y1 = stair_rows();
+	local function way(row)
+		local s = row >= y0 and row <= y1 and stair_lay("straight", stair_spec(team, row)) or nil;
+		return s ~= nil and in_way(s) or math.huge;
+	end
+	return stair_lay("straight", stair_spec(team, y, nil, way(y + 1) <= way(y - 1) and y + 1 or y - 1));
+end
+
+-- a team's stair laid (`which`: 1 its first, 2 its second), and said in
+-- the log with why that kind
+local function lay(team, which, st, why)
+	st.seen = {};
+	stairs[team][which] = st;
+	log("babel: team %d's %s stair is %s, from row %d, %d voxels: %s", team,
+		which == 1 and "first" or "second", st.kind, st.top.y, #st.cells, why);
+end
+
+local function first_stair(team)
+	local st, n = find(team, FIRST_KINDS);
+	if (st == nil) then
+		log("babel: team %d: no room for a stair of any kind", team);
+		return;
+	end
+	if (st.kind == "straight") then st = widened(team, st); end
+	lay(team, 1, st, n > 0 and string.format("no place is clear, the least in its way (%d voxels)", n)
+		or st.kind == "straight" and "its row is clear"
+		or st.kind == "switchback" and "every row has something in a straight stair's way"
+		or "neither a straight stair nor a switchback has a clear place");
+end
+
+-- looked for once a map: the room for it does not grow
+local function second_stair(team, why)
+	local t = stairs[team];
+	t.second_tried = true;
+	local st, n = find(team, STURDY_KINDS, t[1]);
+	if (st == nil) then
+		log("babel: team %d: no room for a second stair (%s)", team, why);
+		return;
+	end
+	lay(team, 2, st, n > 0 and string.format("%s; the least in its way (%d voxels)", why, n) or why);
+end
+
+-- A CUT -- a step that was built is air: the other team broke it
+-- (babel_protect lets nobody break his own) --: the team gets a second
+-- stair, apart from the first, if it has none (the first is mended where
+-- it was cut: build_part takes its missing parts again, from the bottom;
+-- and linked where a cut drops the most: `brace`). With a second stair
+-- for a growing team, the only time a team's stairs are laid again on a
+-- map.
+local function stair_cut(team)
+	local t = stairs[team];
+	if (t[2] == nil and not t.second_tried) then second_stair(team, "its stair was cut"); end
+end
+
 local function lay_stairs()
 	stairs = {};
 	for team = 1, 2 do
-		local best, least = nil, math.huge;
-		local y0, y1 = 256 - babel_height / 2 + 1, 255 + babel_height / 2 - 1;
-		for i = 0, y1 - y0 do
-			-- out from the middle row: 0, +1, -1, +2, ...
-			local y = math.floor((y0 + y1) / 2) + (i % 2 == 0 and i / 2 or -(i + 1) / 2);
-			if (y >= y0 and y <= y1) then
-				local st, blocked = stair_on_row(team, y);
-				if (blocked < least) then best, least = st, blocked; end
-				if (blocked == 0) then break; end
-			end
-		end
-		-- beside it, a second row to WIDEN it (the side with less in its
-		-- way, inside the rows a stair may take) and, on the other side,
-		-- the row its PROPS rise on
-		local y = best.steps[1].y;
-		local up = y + 1 <= y1 and select(2, stair_on_row(team, y + 1)) or math.huge;
-		local down = y - 1 >= y0 and select(2, stair_on_row(team, y - 1)) or math.huge;
-		best.wide_y = up <= down and y + 1 or y - 1;
-		best.prop_y = 2 * y - best.wide_y;
-		stairs[team] = best;
+		stairs[team] = {};
+		first_stair(team);
 	end
 end
 
@@ -253,56 +407,62 @@ local function eye(p) return point(p.x + 0.5, p.y + 0.5, p.z - 2.25); end
 local function block(p) return point(p.x + 0.5, p.y + 0.5, p.z + 0.5); end
 
 -- what a stair is now: the next step to build (nil: whole), the highest
--- built from the bottom, how many built
-local function stair_state(team)
-	local st = stairs[team];
-	local nextp, top, n = nil, nil, 0;
-	for _, p in ipairs(st.steps) do
+-- built from the bottom, how many built, and whether a step seen built is
+-- gone (a cut: said once)
+local function stair_state(st)
+	local nextp, top, n, cut = nil, nil, 0, false;
+	for i, p in ipairs(st.steps) do
 		if (is_solid(p)) then
+			st.seen[i] = true;
 			n = n + 1;
 			if (nextp == nil) then top = p; end
-		elseif (nextp == nil) then
-			nextp = p;
+		else
+			cut = cut or st.seen[i] == true;
+			st.seen[i] = nil;
+			if (nextp == nil) then nextp = p; end
 		end
 	end
-	return nextp, top, n;
+	return nextp, top, n, cut;
 end
 
--- THE STAIR AS BOTS BUILD IT is a band two voxels deep: each step and the
--- voxel under it (its riser), face to face with the next column's. Dug
--- anywhere it holds only by its foot, and all above the cut falls (the
--- server's cull). Two ways to make it hold:
---   WIDEN: the same band on the row beside it, bottom first: a block dug
---     from one row leaves the other holding it.
---   PROP: a pillar from the ground beside a column, up to its step's
---     level (where it meets the step face to face): a cut drops no more
---     than the stretch up to the next prop. The next prop goes under the
---     middle of the longest stretch with none -- a cut's worst, halved.
--- Each is a BLUEPRINT for the team's bots (the stair's band too): its
--- voxels in the order they rest on each other, which the bots share out
--- a part each, so that the team spreads over it instead of chasing one
--- next block together.
--- The other team's stair is broken where it is weakest: in the middle of
--- its longest stretch without a prop (the engine's dig_weakest picks the
--- block there whose removal drops the most).
-
--- one row's band, bottom first: {x, y, z} cells under the ground left out.
--- Laid out once, on the ground as the stair was laid on (what the team
--- builds on the ground would be ground to ground_at, and the band would
--- shrink under the builders' hands as they build it)
-local function band(st, y)
-	st.bands = st.bands or {};
-	if (st.bands[y] == nil) then
-		local cells = {};
-		for _, p in ipairs(st.steps) do
-			local g = ground_at(p.x, y);
-			if (p.z + 1 < g) then cells[#cells + 1] = {x = p.x, y = y, z = p.z + 1}; end
-			if (p.z < g) then cells[#cells + 1] = {x = p.x, y = y, z = p.z}; end
-		end
-		st.bands[y] = cells;
+-- a team's stairs as they are: its BEST, the furthest up (its first on a
+-- tie), stands for the team -- its top, its foot, how far up; done when
+-- any is whole; cut when any was
+local function team_state(team)
+	local s = {done = false, cut = false};
+	for _, st in ipairs(stairs[team]) do
+		local nextp, top, n, cut = stair_state(st);
+		local high = n / #st.steps;
+		if (s.st == nil or high > s.high) then s.st, s.top, s.n, s.high = st, top, n, high; end
+		s.done = s.done or nextp == nil;
+		s.cut = s.cut or cut;
 	end
-	return st.bands[y];
+	return s;
 end
+
+-- THE STAIRS AS BOTS BUILD THEM are BLUEPRINTS (lib_stairs lays them out):
+-- their voxels in the order they rest on each other, which the bots share
+-- out a part each, so that the team spreads over them instead of chasing
+-- one next block together. A straight stair is a band two voxels deep:
+-- each step and the voxel under it, face to face with the next column's.
+-- Dug anywhere it holds only by its foot, and all above the cut falls
+-- (the server's cull). What makes each kind hold:
+--   straight    WIDEN: the same band on the row beside it, bottom first: a
+--     block dug from one row leaves the other holding it.
+--   tapered     nothing more: every column of the wedge stands on the
+--     ground, so a cut drops what was over it in that column and no more.
+--   switchback  WIDEN: a pillar from the ground beside its outer landings,
+--     on which every leg hangs at its outer end.
+--   spiral      nothing more: its pillar, a part of it, holds the ring.
+-- And for every kind, LINKS: a column from the ground beside a step, up to
+-- its level (where it meets the step face to face): a cut drops no more
+-- than the stretch up to the next link. The bots choose where themselves
+-- (`brace stair`: where a cut would drop the most, by the server's own
+-- collapse, a block line beside the middle of what would fall).
+-- The other team's best stair is broken where it is weakest: in the
+-- middle of its longest stretch held by nothing but the stair under it
+-- (the engine's dig_weakest picks the block there whose removal drops the
+-- most).
 
 local function first_missing(cells)
 	for _, c in ipairs(cells) do
@@ -310,29 +470,24 @@ local function first_missing(cells)
 	end
 end
 
--- a prop's cells beside the step p, from the ground up to the step's
--- level; laid out once, as the band is (its own blocks are no ground)
-local function prop_cells(st, p)
-	st.props = st.props or {};
-	if (st.props[p.x] == nil) then
-		local cells = {};
-		for z = ground_at(p.x, st.prop_y) - 1, p.z, -1 do
-			cells[#cells + 1] = {x = p.x, y = st.prop_y, z = z};
-		end
-		st.props[p.x] = cells;
-	end
-	return st.props[p.x];
+-- a step linked: a solid column from the ground up to its level beside it
+-- (ground_at counts such a column as ground: its top is then at the
+-- step's level or above) -- a link, a straight stair's second row, the
+-- wedge's next column, a spiral's pillar, a switchback's
+local function linked(p)
+	return ground_at(p.x - 1, p.y) <= p.z or ground_at(p.x + 1, p.y) <= p.z
+		or ground_at(p.x, p.y - 1) <= p.z or ground_at(p.x, p.y + 1) <= p.z;
 end
 
 -- the step in the middle of the longest stretch of the stair as built
 -- that is held by nothing but the stair below it (a step is held when its
--- riser stands on the ground, or a whole prop stands beside it; one not
--- built yet is no part of it); nil when there is none
+-- riser stands on the ground, or a link stands beside it; one not built
+-- yet is no part of it); nil when there is none
 local function weakest_stretch(st)
 	local best, run, from = 0, 0, nil;
 	local mid = nil;
 	for i, p in ipairs(st.steps) do
-		local held = not is_solid(p) or p.z + 2 >= ground_at(p.x, p.y) or first_missing(prop_cells(st, p)) == nil;
+		local held = not is_solid(p) or p.z + 2 >= ground_at(p.x, p.y) or linked(p);
 		if (held) then
 			run = 0;
 		else
@@ -351,7 +506,8 @@ local function tell_team(team, key, value)
 end
 
 -- a blueprint, "x y z; x y z; ...", said when it changed (a stair's band
--- is a kilobyte and more: not again every second for nothing)
+-- is a kilobyte and more, a wedge ten: not again every second for
+-- nothing); none, an empty text, which the engine takes as "forget it"
 local told_blueprint = {};
 local function tell_blueprint(team, name, cells)
 	local parts = {};
@@ -383,11 +539,21 @@ local function tell_bots()
 		botlink_set("zone", table.concat(zones, "; "));
 	end
 	if (stairs[1] == nil) then lay_stairs(); end
-	local s = {};
+	-- laid again: a team's stair cut, a team grown to keep two busy
 	for team = 1, 2 do
-		local nextp, top, n = stair_state(team);
-		s[team] = {nextp = nextp, top = top, n = n, total = #stairs[team].steps};
+		local t = stairs[team];
+		if (t[1] ~= nil) then
+			if (team_state(team).cut) then stair_cut(team); end
+			if (t[2] == nil and not t.second_tried) then
+				local n = team_bots(team);
+				if (n >= SECOND_STAIR_BOTS) then
+					second_stair(team, string.format("%d engine bots on the team, more than one stair keeps busy", n));
+				end
+			end
+		end
 	end
+	local s = {};
+	for team = 1, 2 do s[team] = team_state(team); end
 	local il = get_1intel_loc ~= nil and get_1intel_loc() or nil;
 	local intel = type(il) == "number" and ("pid " .. il)
 		or type(il) == "table" and point(il.x, il.y, il.z - 2.25) or "";
@@ -395,25 +561,26 @@ local function tell_bots()
 	-- where it is put back (babel's putback: the platform's middle)
 	botlink_set("place.intel_home", point(256.5, 256.5, babel_z - 2.25));
 	for team = 1, 2 do
-		local me, them, st = s[team], s[other(team)], stairs[team];
-		tell_blueprint(team, "stair", band(st, st.steps[1].y));
-		tell_team(team, "place.stair_top", me.top and eye(me.top) or eye(st.foot));
-		tell_team(team, "place.stair_foot", eye(st.foot));
-		tell_team(team, "fact.stair_done", me.nextp == nil and 1 or 0);
-		tell_team(team, "fact.stair_high", me.total > 0 and me.n / me.total or 0);
-		-- ours: the second row, and the next prop
-		local wide = band(st, st.wide_y);
-		tell_blueprint(team, "widen", wide);
-		tell_team(team, "fact.widen", first_missing(wide) and 1 or 0);
-		local weak = weakest_stretch(st);
-		local prop = weak and prop_cells(st, weak) or {};
-		tell_blueprint(team, "prop", prop);
-		tell_team(team, "fact.prop", first_missing(prop) and 1 or 0);
-		-- theirs: where it is weakest (its foot, if every stretch is held)
-		local ts = stairs[other(team)];
-		local at = weakest_stretch(ts) or ts.steps[1];
-		tell_team(team, "place.breach", block(at));
-		tell_team(team, "fact.breach", them.n >= 3 and 1 or 0);
+		local t, me, them = stairs[team], s[team], s[other(team)];
+		if (me.st ~= nil) then
+			tell_blueprint(team, "stair", t[1].cells);
+			tell_blueprint(team, "stair2", t[2] ~= nil and t[2].cells or {});
+			tell_team(team, "place.stair_top", me.top and eye(me.top) or eye(me.st.foot));
+			tell_team(team, "place.stair_foot", eye(me.st.foot));
+			tell_team(team, "fact.stair_done", me.done and 1 or 0);
+			tell_team(team, "fact.stair_high", me.high);
+			-- ours: what widens the first (the links where a cut would drop
+			-- the most, the bots choose themselves: `brace stair`, by the
+			-- server's own collapse)
+			tell_blueprint(team, "widen", t[1].widen);
+			tell_team(team, "fact.widen", first_missing(t[1].widen) and 1 or 0);
+		end
+		-- theirs: their best stair where it is weakest (its foot, if every
+		-- stretch is held)
+		if (them.st ~= nil) then
+			tell_team(team, "place.breach", block(weakest_stretch(them.st) or them.st.steps[1]));
+			tell_team(team, "fact.breach", them.n >= 3 and 1 or 0);
+		end
 	end
 end
 
@@ -562,7 +729,7 @@ function mod.before.finish_map_load()
 	watch = {};
 	next_check = 0;
 	stairs, bots_next = {}, 0;     -- laid out again on the new map, when bots ask
-	told_blueprint = {};
+	told_blueprint, laid_ground = {}, {};
 end
 
 function mod.on_load()

@@ -69,7 +69,10 @@ function teamplay_mark(v, t, secs, o)
 	return true;
 end
 function teamplay_clear(v, t) LOG[#LOG+1] = {"clear", v, t}; end
+local LOGGED = {};
+function log(fmt, ...) LOGGED[#LOGGED+1] = string.format(fmt, ...); end
 
+dofile("catalog/libs/stairs/lib_stairs.lua");          -- its stairs (the gamemode requires it)
 local mod = dofile("catalog/gamemodes/babel/babel_plus.lua");
 mod.on_load();
 
@@ -266,8 +269,7 @@ do
 	eq(last("blueprint.stair", 0), nil, "nothing for one bot: a bot reads its team's");
 	eq(string.sub(last("blueprint.widen@1", nil), 1, 11), "158 256 49;", "the second row, beside the first, from its lowest block (the row up: as clear)");
 	eq(last("fact.widen@1", nil), "1", "a second row to build");
-	eq(last("blueprint.prop@1", nil), "", "nothing built: nothing to prop");
-	eq(last("fact.prop@1", nil), "0", "nothing built: nothing to prop");
+	eq(last("blueprint.prop@1", nil), nil, "no props laid out by the script: the bots link the stair themselves (`brace`)");
 	eq(last("fact.breach@2", nil), "0", "nothing of team 1's to break");
 	-- team 1 builds its three lowest steps
 	BUILT[k3(158, 255, 49)], BUILT[k3(159, 255, 48)], BUILT[k3(160, 255, 47)] = true, true, true;
@@ -278,14 +280,11 @@ do
 	eq(last("place.breach@2", nil), "160.50 255.50 47.50",
 		"where it is weakest: the step held by nothing but the stair (the two under it stand on the ground)");
 	eq(last("fact.breach@1", nil), "0", "team 1: nothing of team 2's to break");
-	eq(last("fact.prop@1", nil), "1", "team 1: a step to prop");
-	eq(last("blueprint.prop@1", nil), "160 254 49; 160 254 48; 160 254 47",
-		"its prop, from the ground up to the step, on the other side from the second row");
-	-- the prop stands: nothing left held by the stair alone
+	-- a link stands beside that step (a column from the ground up to its
+	-- level, as `brace` lays one): nothing left held by the stair alone
 	BUILT[k3(160, 254, 49)], BUILT[k3(160, 254, 48)], BUILT[k3(160, 254, 47)] = true, true, true;
 	run(17);
-	eq(last("fact.prop@1", nil), "0", "propped: no prop to build");
-	eq(last("place.breach@2", nil), "158.50 255.50 49.50", "and team 2 is pointed at its foot");
+	eq(last("place.breach@2", nil), "158.50 255.50 49.50", "linked: team 2 is pointed at its foot");
 	INTEL = 2;
 	run(18);
 	eq(last("place.intel", nil), "pid 2", "the intel: the man who carries it (who that is, the engine reads from the world)");
@@ -301,6 +300,20 @@ do
 	run(20);
 	eq(string.sub(last("blueprint.stair@1", nil), 1, 11), "158 254 49;", "a tree on the middle row: the stair on the next row out, clear");
 	eq(string.sub(last("blueprint.stair@2", nil), 1, 11), "353 255 49;", "team 2's row is clear: its own as it was");
+	-- RAIDERS: team 1's stair built three steps up, then one cut by team
+	-- 2: it gets a second stair, apart from the first; the first stays as
+	-- it was (mended where cut)
+	local first = last("blueprint.stair@1", nil);
+	BUILT[k3(158, 254, 49)], BUILT[k3(159, 254, 48)], BUILT[k3(160, 254, 47)] = true, true, true;
+	run(21);
+	BUILT[k3(159, 254, 48)] = nil;
+	run(22);
+	check(last("blueprint.stair@1", nil) == first, "cut: the first stair as it was");
+	local second = last("blueprint.stair2@1", nil);
+	check(second ~= nil and second ~= "" and not string.find(second, " 254 ", 1, true)
+		and not string.find(second, " 253 ", 1, true) and not string.find(second, " 255 ", 1, true),
+		"and a second stair for the team, a row apart at least", second and string.sub(second, 1, 24));
+	check(string.find(table.concat(LOGGED, "\n"), "was cut", 1, true) ~= nil, "said in the log, with why");
 	-- a bot builds: its blocks are given back (infinite_blocks refills
 	-- players behind the botlink's count)
 	local restocked = {};
@@ -316,6 +329,68 @@ do
 	eq(#restocked, 1, "a bot that builds is restocked; a person is not");
 	eq(hp_set, 70, "its health as it was");
 	eq(ammo_set, "3/20", "its ammunition as it was");
+end
+
+print("\nC. the kinds of stair (lib_stairs): each climbable, built support first, its top where asked");
+do
+	local function flat(x, y) return 50; end        -- the ground's top at z 50 everywhere
+	local function key(c) return c.x .. "," .. c.y .. "," .. c.z; end
+	local top = {x = 205, y = 255, z = 2};
+	local spec = {top = top, dx = -1, rows = {255, 256}, ground = flat};
+	for _, kind in ipairs(stair_kinds()) do
+		local st, why = stair_lay(kind, spec);
+		check(st ~= nil, kind .. ": laid on flat ground", why);
+		if (st ~= nil) then
+			local cells, climb, room, support, onmap = {}, true, true, true, true;
+			for _, c in ipairs(st.cells) do cells[key(c)] = true; end
+			-- floors: each beside the last, at most a voxel up, air for a body over it
+			for i, p in ipairs(st.steps) do
+				local q = st.steps[i - 1];
+				if (q ~= nil and (math.abs(p.x - q.x) + math.abs(p.y - q.y) ~= 1 or q.z - p.z > 1 or q.z - p.z < 0)) then
+					climb = false;
+				end
+				for z = p.z - 3, p.z - 1 do
+					if (cells[key({x = p.x, y = p.y, z = z})]) then room = false; end
+				end
+			end
+			-- support first: each cell touches the ground or one put before it
+			local put = {};
+			for _, c in ipairs(st.cells) do
+				local ok = c.z + 1 >= 50;
+				for _, d in ipairs({{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}}) do
+					if (put[key({x = c.x + d[1], y = c.y + d[2], z = c.z + d[3]})]) then ok = true; end
+				end
+				if (not ok) then support = false; end
+				put[key(c)] = true;
+				if (c.x >= 206 and c.x <= 305 and c.y >= 240 and c.y <= 271) then onmap = false; end
+			end
+			local last = st.steps[#st.steps];
+			check(climb, kind .. ": each floor beside the last, at most one voxel up");
+			check(room, kind .. ": three voxels of air over every floor");
+			check(support, kind .. ": every voxel touches the ground or one put before it");
+			check(last.x == top.x and last.y == top.y and last.z == top.z, kind .. ": its top where asked");
+			check(onmap, kind .. ": nothing on or round the platform");
+			print(string.format("    %s: %d floors, %d voxels to build, %d more to widen it", kind, #st.steps, #st.cells, #st.widen));
+			if (kind == "tapered") then
+				-- one run a level: the cells of a level come together, a straight line
+				local levels, runs = {}, true;
+				for i, c in ipairs(st.cells) do
+					local n = st.cells[i + 1];
+					if (n ~= nil and n.z == c.z and (n.x - c.x ~= 1 or n.y ~= c.y)) then runs = false; end
+					if (levels[c.z] == "done") then runs = false; end
+					if (n == nil or n.z ~= c.z) then levels[c.z] = "done"; end
+				end
+				check(runs, "tapered: each level one straight line, laid once");
+			end
+			if (kind == "switchback" or kind == "spiral") then
+				local far = 0;
+				for _, c in ipairs(st.cells) do far = math.max(far, top.x - c.x); end
+				check(far <= 5, kind .. ": in a few columns from the platform's edge (" .. far .. ")");
+			end
+		end
+	end
+	local _, why = stair_lay("switchback", {top = top, dx = -1, rows = {255}, ground = flat});
+	check(why ~= nil, "a switchback with no second row: not laid, and why", why);
 end
 
 print(string.format("\n%d checks, %d failed", checks, failures));

@@ -331,6 +331,12 @@ typedef struct bc_nav_policy {
 	const bc_nav_danger *danger;
 	int32_t ndanger;
 	const bc_nav_protect *protect;      /* or NULL */
+	/* A STRUCTURE'S PARTS (or NULL): voxels a route neither builds nor
+	 * digs -- what the team is building, a part at a time, in its order
+	 * and colours (blueprint.h); but `parts_but`, the one part the route
+	 * is to lay itself (its exact goal's floor; x -1: none) */
+	const bc_nav_protect *parts;
+	bc_nav_node parts_but;
 	const bc_nav_fail *fail;            /* or NULL */
 	double now;                         /* for `fail`'s expiries */
 	/* WATER THAT HURTS: health a second a wading body loses (the server's

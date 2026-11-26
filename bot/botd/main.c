@@ -7,13 +7,19 @@
 
 static void usage(FILE *f)
 {
-	fputs("usage: botd [--file PATH] [--trees DIR] [--user-trees DIR] [--hz N] [--budget N] [--plan-rate N]\n"
+	fputs("usage: botd [--file PATH] [--trees DIR] [--user-trees DIR] [--structures DIR]\n"
+	      "            [--user-structures DIR] [--hz N] [--budget N] [--plan-rate N]\n"
 	      "            [--plan-ms N] [--bots N] [--threads N] [--once]\n"
 	      "  --file PATH   the server's link file (default /dev/shm/lsd-botlink)\n"
 	      "  --trees DIR   behaviour trees, *.bt (default /opt/botd/trees, then ./trees)\n"
 	      "  --user-trees DIR  the operator's own *.bt, read after those and again at each\n"
 	      "                map: a tree of a built-in's name replaces it (default $LSD_DATA/trees,\n"
 	      "                LSD_DATA defaulting to /data)\n"
+	      "  --structures DIR  what a leader may order built, *.kv6, each under its file's\n"
+	      "                name (default /opt/botd/structures, then ./structures)\n"
+	      "  --user-structures DIR  the operator's own *.kv6, read after those and again at\n"
+	      "                each map: one of a built-in's name replaces it (default\n"
+	      "                $LSD_DATA/structures)\n"
 	      "  --debug-dir DIR  where a viewer asks what the bots think and is answered in\n"
 	      "                files (bttree --watch; default $LSD_DATA/rw/botdebug; `none`: nowhere)\n"
 	      "  --hz N        rounds a second (default 60)\n"
@@ -54,6 +60,8 @@ int main(int argc, char **argv)
 		else if (!strcmp(a, "--file") && more) o.file = argv[++i];
 		else if (!strcmp(a, "--trees") && more) o.trees = argv[++i];
 		else if (!strcmp(a, "--user-trees") && more) o.user_trees = argv[++i];
+		else if (!strcmp(a, "--structures") && more) o.structures = argv[++i];
+		else if (!strcmp(a, "--user-structures") && more) o.user_structures = argv[++i];
 		else if (!strcmp(a, "--debug-dir") && more) o.debug_dir = argv[++i];
 		else if (!strcmp(a, "--hz") && more) o.hz = number(argv[++i], 1, 1000, "--hz");
 		else if (!strcmp(a, "--budget") && more) o.budget = number(argv[++i], 0, 1000000, "--budget");

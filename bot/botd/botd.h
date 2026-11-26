@@ -13,6 +13,8 @@ typedef struct botd_opts {
 	const char *file;       /* the link file (default /dev/shm/lsd-botlink) */
 	const char *trees;      /* a directory of *.bt; NULL: /opt/botd/trees, then ./trees */
 	const char *user_trees; /* the operator's own *.bt, over those; NULL: $LSD_DATA/trees (LSD_DATA: /data) */
+	const char *structures; /* a directory of *.kv6; NULL: /opt/botd/structures, then ./structures */
+	const char *user_structures; /* the operator's own *.kv6, over those; NULL: $LSD_DATA/structures */
 	int hz;                 /* rounds a second (default 60) */
 	int budget;             /* planner expansions a think may always spend (default 3000) */
 	int plan_rate;          /* and each bot's share, expansions a second (BC_PLAN_RATE) */

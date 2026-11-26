@@ -508,8 +508,13 @@ local function hook_listeners()
 		shot_with = shot_listen;
 	end
 	if (teamplay_listen_ping ~= nil and ping_with ~= teamplay_listen_ping) then
+		-- a person's ping says its reason in his own language: the engine
+		-- is told the English label (lib_callouts), as bots ping in it --
+		-- "Build mirador here" from a leader is an order to his squad
 		teamplay_listen_ping("botlink", function(pid, pos, reason)
-			if (f ~= nil and attached) then ping_event(pid, pos, reason); end
+			if (f ~= nil and attached) then
+				ping_event(pid, pos, callouts_canonical ~= nil and callouts_canonical(reason) or reason);
+			end
 		end);
 		ping_with = teamplay_listen_ping;
 	end
