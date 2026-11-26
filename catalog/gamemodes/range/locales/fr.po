@@ -120,8 +120,8 @@ msgid "No building or digging on the range."
 msgstr "Pas de construction ni de creusage sur le stand."
 
 #: catalog/gamemodes/range/range.lua
-msgid "Everybody is on the same team here."
-msgstr "Tout le monde est dans la même équipe ici."
+msgid "%(team) is the targets' team: every player is on %(own) here."
+msgstr "%(team) est l'équipe des cibles : ici, tous les joueurs sont dans %(own)."
 
 #: catalog/gamemodes/range/range.lua
 msgid "Static range:"

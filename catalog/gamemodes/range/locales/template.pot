@@ -118,7 +118,7 @@ msgid "No building or digging on the range."
 msgstr ""
 
 #: catalog/gamemodes/range/range.lua
-msgid "Everybody is on the same team here."
+msgid "%(team) is the targets' team: every player is on %(own) here."
 msgstr ""
 
 #: catalog/gamemodes/range/range.lua

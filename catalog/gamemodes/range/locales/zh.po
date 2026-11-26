@@ -120,8 +120,8 @@ msgid "No building or digging on the range."
 msgstr "靶场内禁止建造或挖掘。"
 
 #: catalog/gamemodes/range/range.lua
-msgid "Everybody is on the same team here."
-msgstr "这里所有人都在同一队。"
+msgid "%(team) is the targets' team: every player is on %(own) here."
+msgstr "%(team)是靶子的队伍：这里所有玩家都在%(own)。"
 
 #: catalog/gamemodes/range/range.lua
 msgid "Static range:"

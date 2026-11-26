@@ -164,7 +164,7 @@ local too_long_msg = {en = "IPSC run abandoned: over %(limit) s."};
 local died_course_msg = {en = "IPSC run abandoned: you died."};
 local no_course_msg = {en = "This map has no IPSC course."};
 local no_build_msg = {en = "No building or digging on the range."};
-local one_team_msg = {en = "Everybody is on the same team here."};
+local targets_team_msg = {en = "%(team) is the targets' team: every player is on %(own) here."};
 local best_static_msg = {en = "Static range:"};
 local best_ipsc_msg = {en = "IPSC course:"};
 local best_line_msg = {en = "%(rank). %(name): %(time) s"};
@@ -1069,23 +1069,41 @@ function mod.after.on_disconnect(pid)
 end
 
 --============================== ONE TEAM ============================--
+-- Team 2 is the targets' (green, where the map does not say otherwise);
+-- every person is on team 1. Every way onto a team comes to the core
+-- through on_join or on_switch: the client's join (Existing Player), its
+-- team change (Change Team, Short Player Data), and every script that
+-- moves a player -- /switch, team_balance, a team held and released by
+-- lib_ext_policy or edit_mode. So the rule is these two hooks, in the
+-- LATE chain, the last word before the core (as the hit above): whatever
+-- a script above made of the request, the core is handed team 1, and
+-- the person is told why. A bot keeps the team it was made on (lib_bot
+-- registers it before its join), a spectator stays one.
+--
+-- Late, too, because a plain mod.on_join here would not survive the
+-- welcome's mod.after.on_join: core.lua's process_before_after puts the
+-- after form in its place, and a person joining on team 2 got there.
 
-function mod.on_join(pid, team, gun, name)
-	if (team ~= SPECTATOR and not is_bot(pid)) then
-		team = 1;
+local function team_for(pid, team)
+	if (team == SPECTATOR or team == 1 or is_bot(pid)) then
+		return team;
 	end
-	return mod.next.on_join(pid, team, gun, name);
+	tell(pid, targets_team_msg, {team = get_team_name(team), own = get_team_name(1)});
+	return 1;
 end
 
-function mod.on_switch(pid, team, gun)
-	if (team ~= SPECTATOR and team ~= 1 and not is_bot(pid)) then
-		l10n_send_chat(pid, one_team_msg);
-		team = 1;
-		if (get_team(pid) == 1 and gun == get_gun(pid)) then
-			return;
-		end
+function mod.late.on_join(pid, team, gun, name)
+	return mod.late.next.on_join(pid, team_for(pid, team), gun, name);
+end
+
+function mod.late.on_switch(pid, team, gun)
+	local use = team_for(pid, team);
+	-- already where the rule puts him, with the gun he has: nothing to do
+	-- (chained, it would be a gun change's death for nothing)
+	if (use ~= team and get_team(pid) == use and gun == get_gun(pid)) then
+		return;
 	end
-	return mod.next.on_switch(pid, team, gun);
+	return mod.late.next.on_switch(pid, use, gun);
 end
 
 -- not chaining is the veto: nobody gets an intel
@@ -1220,7 +1238,8 @@ function mod.on_load()
 	end
 	masterlist_set_gamemode("range");
 	-- one team is as unbalanced as teams get: team_balance, where it is
-	-- installed, would move people to the targets' side
+	-- installed, would refuse switches and tell people of a move to the
+	-- targets' side that the late on_join/on_switch below undo anyway
 	team_balance_max_diff = math.huge;
 	-- and one map: vote_map, in random mode, would fetch another from the web
 	map_web_random = false;

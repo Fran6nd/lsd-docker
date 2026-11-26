@@ -63,6 +63,7 @@ DONE (commit), BLOCKED (on what).
 | 28 | lib_bot's send_spawn_player split, redundant since patch 0002 | TODO |
 | 29 | One filter for every edit of the map (the owner: "all destruction effects must go through the gamemode's filter"): `may_edit_block`, asked at the engine's block_action_rm / block_action / block_line, answered once by each gamemode | DONE on the branch (lib_block_filter), not released |
 | 30 | "I ping from the pie menu and it does nothing" (babel, ZeroSpades): lib_bot's people_in compared get_team (1, 2) with the team a set holds (0, 1), so a team's people were the other team's and a ping, a team chat or a callout reached nobody it was for once bots were on the server | DONE (branch worktree-agent-ae2b8838b3487bc75; tests/pie_ping_test.lua) |
+| 31 | Shooting range: nobody but its targets on the green team (team 2): not at the join, a team change, /switch, team_balance or a held team released | DONE (range.lua late on_join/on_switch; tests/range_teams_test.lua) |
 
 ## Log
 
@@ -825,3 +826,20 @@ DONE (commit), BLOCKED (on what).
   home, 5 s on (was a fixed 25 s; his run moved with the bodies, and at
   25 s he was still running, his escort with him) -- two guard it, as
   before.
+- 2026-11-26 (item 31): "shooting range must prevent ppl from entering
+  green team". Cause: range.lua had both mod.on_join (team 1 for every
+  person) and mod.after.on_join (the welcome); core.lua's
+  process_before_after puts the after form in place of the plain one,
+  so the join's rule never ran and a person who picked green at the
+  join stayed there (the team change's rule was intact, and kept him
+  on green). No other module in the catalog or lsd/scripts has both
+  forms of one hook. CHANGED: the one-team rule is range.lua's
+  mod.late.on_join / mod.late.on_switch (one team_for), the last word
+  before the core: a person asking for team 2 by any path -- the join,
+  the client's Change Team / Short Player Data, /switch, team_balance
+  (whatever its max diff), a team held and released by lib_ext_policy
+  or edit_mode -- is handed to the core on team 1 and told why ("%(team)
+  is the targets' team: every player is on %(own) here.", fr/es/zh/ru);
+  bots keep their team, spectators stay. tests/range_teams_test.lua runs
+  the real core.lua chain with upstream team_balance and command_switch
+  under the mode (4 of 16 checks fail on the old code).
