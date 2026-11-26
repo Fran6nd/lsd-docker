@@ -655,6 +655,7 @@ static int step_off_parts(bc_bot *b, const bc_blueprint *bp)
 	here.x = (int16_t)x0; here.y = (int16_t)y0; here.z = (int16_t)floorf(me->pos.z + 2.25f + 0.5f);
 	if (!body_in_parts(e, bp, here))
 		return 0;
+	best = here;                    /* set by the scan below before it is read */
 	for (sy = y0 - 2; sy <= y0 + 2; sy++)
 		for (sx = x0 - 2; sx <= x0 + 2; sx++) {
 			uint64_t st = bc_map_stand_bits(bc_map_col(e->map, sx, sy));
