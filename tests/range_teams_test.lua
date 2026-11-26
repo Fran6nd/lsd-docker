@@ -71,9 +71,7 @@ function server.on_switch(pid, team, gun)
 	players[pid].team, players[pid].gun = team, gun;
 end
 
-local saved_path = package.path;
-dofile("lsd/scripts/core.lua");
-package.path = saved_path;
+dofile("tests/support/core_env.lua").load();
 SPECTATOR = 256;   -- lua.c's
 function log() end
 
