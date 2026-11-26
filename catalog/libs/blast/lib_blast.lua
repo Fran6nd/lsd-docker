@@ -88,11 +88,22 @@ local lit = {};
 
 local function key(x, y, z) return x .. "," .. y .. "," .. z; end
 
+-- Nor does a trail block share a face with a real one: taking it away
+-- would have every client look again at what hung from it, and the
+-- babel platform (and anything else held up by little) would fall on
+-- the clients' screens, whole, while the server keeps it.
+local function solid_at(x, y, z)
+	return z >= 0 and z <= 63 and x >= 0 and x <= MAP and y >= 0 and y <= MAP
+		and is_solid({x = x, y = y, z = z});
+end
+
 local function touches_lit(p)
 	local x, y, z = p.x, p.y, p.z;
 	return lit[key(x+1, y, z)] or lit[key(x-1, y, z)] or lit[key(x, y+1, z)]
 		or lit[key(x, y-1, z)] or lit[key(x, y, z+1)] or lit[key(x, y, z-1)]
-		or lit[key(x, y, z)];
+		or lit[key(x, y, z)]
+		or solid_at(x+1, y, z) or solid_at(x-1, y, z) or solid_at(x, y+1, z)
+		or solid_at(x, y-1, z) or solid_at(x, y, z+1) or solid_at(x, y, z-1);
 end
 
 local function show(p, color)
