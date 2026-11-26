@@ -1,14 +1,16 @@
-/* babel_stuck_open.c -- OPEN cases, for whoever fixes them: bots seen
- * staying put for minutes on a live babel server (2026-11-26: image of
- * f80b3be, 30 bots a team, level 10, map Nine-EyeBabel from aos.party).
+/* babel_stuck_test.c -- bots seen staying put for minutes on a live babel
+ * server (2026-11-26: image of f80b3be, 30 bots a team, level 10, map
+ * Nine-EyeBabel from aos.party), each replayed alone: now out of it.
+ *   build/tests/babel_stuck_test [case]   BC_STUCK_SHOW=1: the bot every 15 s
  *
- * Not a *_test.c: `make test` does not run it -- every case FAILS until it
- * is fixed; then it belongs in a test (nav_test, behaviour_test). From bot/,
- * after `make test` has built the objects:
- *   cc -O2 -std=c11 -Icore -Ilink -I../lsd/src -D_POSIX_C_SOURCE=200809L \
- *      tests/babel_stuck_open.c build/link/botlink.o build/botd/pool.o \
- *      build/libbotcore.a -lm -lpthread -o build/babel_stuck_open
- *   build/babel_stuck_open [case]        BC_STUCK_SHOW=1: the bot every 15 s
+ * FIXED (2026-11-26): where a body has no room to stand -- a notch two
+ * high, a voxel in its head -- it digs the voxels over its floor in its
+ * own column before any route (skill_move.c, dig_out), and a body on the
+ * ground none of whose columns is a node has no start, not the node of a
+ * column it is not in (nav_plan.c, bc_nav_node_of_body). And tentspawns
+ * no longer puts a man in the sea at a cliff's foot (catalog/overrides/
+ * tentspawns.lua: standable land near the tent's level). Out within
+ * 12 to 51 s; they were held 10 minutes and more.
  *
  * WHY THEY ARE THERE. The map's tents are on the islands' outer edges
  * (get_tentloc: 118,256,42 and 394,256,43), and tentspawns puts a man
@@ -417,7 +419,7 @@ int main(int argc, char **argv)
 {
 	size_t k;
 
-	printf("babel: bots stuck in the cliff at sea level, each replayed alone (OPEN)\n");
+	printf("babel: bots stuck in the cliff at sea level, each replayed alone\n");
 	for (k = 0; k < sizeof CASES / sizeof CASES[0]; k++) {
 		if (argc > 1 && strcmp(argv[1], CASES[k].name)) continue;
 		CHECK(run_case(&CASES[k]));

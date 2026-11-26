@@ -633,7 +633,7 @@ static int body_in(const bc_engine *e, const bc_bot *self, int x, int y, int z)
 	for (i = 0; i < BL_MAX_PLAYERS; i++) {
 		const bl_player *p = &e->w.players[i];
 
-		if (p->state != BL_ALIVE || i == self->pid)
+		if (p->state != BL_ALIVE || (self && i == self->pid))
 			continue;
 		if (p->pos.x + 0.45f > (float)x && p->pos.x - 0.45f < (float)x + 1.0f &&
 		    p->pos.y + 0.45f > (float)y && p->pos.y - 0.45f < (float)y + 1.0f &&
@@ -773,8 +773,8 @@ static int part_run(const bc_bot *b, const bc_blueprint *bp, int i, bc_nav_node 
 		char name[48];
 
 		if (j == i || (!!dx + !!dy + !!dz) != 1 || o->rgb != c->rgb || bc_map_solid(e->map, o->x, o->y, o->z) ||
-		    e->now < o->bad_until)
-			continue;           /* (a line is one colour: the start's) */
+		    e->now < o->bad_until || body_in(e, NULL, o->x, o->y, o->z))
+			continue;           /* (a line is one colour, the start's; and goes through nobody: not its own builder either) */
 		k = abs(dx + dy + dz);
 		/* (one beside it with a part still to come under it would cover
 		 * that part; one over it in its own column covers only the run) */

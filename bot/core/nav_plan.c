@@ -156,8 +156,12 @@ int bc_nav_node_of_body(const bc_map *m, const bc_body *b, bc_nav_node *out)
 
 	/* First what holds it up now -- the column under the centre, then
 	 * those under the corners (a body stands with its centre over
-	 * nothing) -- then, for a body in the air, what is below it. */
-	for (pass = 0; pass < 2; pass++)
+	 * nothing) -- then, for a body in the air, what is below it. A body
+	 * on the ground that none of its columns holds as a node is where no
+	 * node is (a voxel in its head): no start, rather than a column it is
+	 * not in (2026-11-26: a corner over the sea beside a tunnel, the water
+	 * node under it taken, a route from there walked for ten minutes) */
+	for (pass = 0; pass < (b->airborne ? 2 : 1); pass++)
 		for (i = 0; i < 5; i++) {
 			int x = (int)floorf(b->pos.x + ox[i]);
 			int y = (int)floorf(b->pos.y + oy[i]);

@@ -62,6 +62,25 @@ local function set_highest_point_spawn(pos, tent_z)   -- PATCHED (lsd-docker): t
 	pos.z = pos.z - 2.251;
 end
 
+-- PATCHED (lsd-docker): ON LAND NEAR THE TENT'S LEVEL. A tent on a
+-- cliff's edge (babel's islands: tents at the outer edges, the sea twenty
+-- voxels under) puts half the square of tentspawns_radius in the sea at
+-- the cliff's foot: a man there has no way up (2026-11-26: 28 of 60 bots
+-- in the water within two minutes, and the notches leave_water dug held
+-- some of them for good). A place is drawn again until it is LAND -- not
+-- the sea, the map's water at z 63 -- whose floor is no lower than the
+-- tent's by more than SAFE_DROP (from the tent, a drop that does not hurt
+-- gets there, and the way back is the slope that made it) and no higher
+-- than it by more than SAFE_DROP either (a hill one walks up); SPAWN_DRAWS
+-- draws at most, then the tent's own column, which is always land at its
+-- level. With half the square bad, 32 draws miss with a chance of one in
+-- four billion.
+local SPAWN_DRAWS = 32;
+local function near_tent_land(pos, tent_z)
+	local floor = pos.z + 2.251;        -- the floor the eye was put over
+	return floor < 63 and (tent_z == nil or math.abs(floor - tent_z) <= SAFE_DROP);
+end
+
 function mod.get_spawn_position(pid)
 	local team = get_next_team(pid);
 
@@ -75,12 +94,18 @@ function mod.get_spawn_position(pid)
 		return mod.next.get_spawn_position(pid);
 	end
 
-	local pos = {
-		x=math.random(math.floor(tentpos.x-tentspawns_radius), math.floor(tentpos.x-1+tentspawns_radius))+0.5,
-		y=math.random(math.floor(tentpos.y-tentspawns_radius), math.floor(tentpos.y-1+tentspawns_radius))+0.5
-	};
+	local pos;
+	for _ = 1, SPAWN_DRAWS do                    -- PATCHED (lsd-docker): on land near the tent's level
+		pos = {
+			x=math.random(math.floor(tentpos.x-tentspawns_radius), math.floor(tentpos.x-1+tentspawns_radius))+0.5,
+			y=math.random(math.floor(tentpos.y-tentspawns_radius), math.floor(tentpos.y-1+tentspawns_radius))+0.5
+		};
 
-	set_highest_point_spawn(pos, tentpos.z);   -- PATCHED (lsd-docker): the tent's level
+		set_highest_point_spawn(pos, tentpos.z);   -- PATCHED (lsd-docker): the tent's level
+		if (near_tent_land(pos, tentpos.z)) then return pos; end
+	end
+	pos = {x = math.floor(tentpos.x) + 0.5, y = math.floor(tentpos.y) + 0.5};
+	set_highest_point_spawn(pos, tentpos.z);
 
 	return pos;
 end

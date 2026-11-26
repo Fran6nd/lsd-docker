@@ -955,6 +955,22 @@ DONE (commit), BLOCKED (on what).
   enemy in sight 3 s: once, then built to the end. Babel harness, seed 1,
   300 s: the block put away while building 139 -> 107 times, of which 7
   with no enemy in sight and nobody shooting (a route's dig: the spade).
+- 2026-11-26 (brain agent, item 32): BABEL BOTS STUCK AT SPAWN
+  (bot/tests/babel_stuck_open.c, now babel_stuck_test.c and in `make
+  test`). Spawning: tentspawns (catalog/overrides) draws a place again
+  until it is LAND near the tent's level -- not the sea, its floor within
+  SAFE_DROP (9) of the tent's either way -- 32 draws, then the tent's own
+  column (tentspawns_test 5). The pocket: a body with no room to stand
+  (a notch two high, a voxel in its head) digs the voxels over its floor
+  in its own column with the spade before any route (skill_move.c
+  dig_out; not on a route, where crouching is the route's). The corner
+  start: a body on the ground none of whose columns is a node has no
+  start, not a neighbour column's node (nav_plan.c bc_nav_node_of_body:
+  the fallback below is for bodies in the air). All 5 cases out in 12 to
+  51 s (held 10 minutes and more before). Also: a segment (block line)
+  goes through nobody's body, its builder's either (a wedge's lines had
+  walled builders in: 373 of 741 for good; now 671, and still a stall
+  near its narrow top -- the stair kinds stay straight-only in babel).
 - 2026-11-26 (live-debug agent, items 33 and 35, on 653315b): 35: the
   judge on the server's body. stance_test hit rates hardly move (L10
   standing 99/80/46 -> 99/80/47 % at 10/30/60, crouched 98/77/42 ->

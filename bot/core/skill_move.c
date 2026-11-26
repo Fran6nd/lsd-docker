@@ -199,6 +199,76 @@ int bc_crowd_away(const bc_bot *b, float *mx, float *my)
 	return 0;
 }
 
+/* ENCLOSED: the body stands where a body has no room -- a notch two
+ * high, crouched; a corner of a tunnel with a voxel in its head (babel's
+ * spawns at the foot of a sea cliff, 2026-11-26: bots held there for ten
+ * minutes, the planner finding no start or the wrong one). A player digs
+ * the voxel over his head, or in his way, and stands. So does the bot,
+ * before any route: the solid voxels of the three over its floor, in its
+ * own column, dug one at a time with the spade, from the top -- what it
+ * sees from inside (its face toward the eye: lib_botlink's rule), where
+ * the team may dig. 1 while it digs (the caller waits), 0 standing room
+ * or nothing it may dig. */
+static int dig_out(bc_bot *b)
+{
+	bc_engine *e = b->e;
+	bc_mover *mv = &b->mv;
+	const bl_player *me = bc_me(b);
+	bc_body body;
+	bc_nav_node floor;
+	int x, y, z, k, dig = e->may_dig, team = me->team;
+	float eye[3];
+
+	if (b->edit >= 0)
+		dig = b->edit & 1;
+	/* (on a route it is the route's to say where a body crouches: a
+	 * passage two high is walked crouched, not dug) */
+	if (!dig || e->now < mv->noedit_until || !e->have_map || mv->has_route || mv->state == BC_MV_FOLLOWING)
+		return 0;
+	bc_body_of(me, &body);
+	if (body.airborne)
+		return 0;
+	x = (int)floorf(me->pos.x); y = (int)floorf(me->pos.y);
+	floor.x = (int16_t)x; floor.y = (int16_t)y;
+	floor.z = (int16_t)bc_map_floor_at_or_below(e->map, x, y, (int)floorf(bc_body_feet(&body) + 0.1f));
+	if (floor.z >= BC_MAP_WATER_Z || floor.z < 3)
+		return 0;
+	for (z = floor.z - 3; z < floor.z; z++) {
+		if (!bc_map_solid(e->map, x, y, z))
+			continue;
+		if (z < 1 || bc_nav_protect_has(&e->protect, x, y, z))
+			return 0;
+
+		for (k = 0; k < e->nzones; k++) {
+			const bc_nav_zone *zn = &e->zones[k];
+
+			if (x >= zn->x0 && x <= zn->x1 && y >= zn->y0 && y <= zn->y1 && zn->no_dig &&
+			    (zn->team == 0 || zn->team == team))
+				return 0;
+		}
+		eye[0] = me->pos.x; eye[1] = me->pos.y; eye[2] = me->pos.z;
+		if (!bc_nav_sees_edit_from(e->map, floor, eye, x, y, z, 0))
+			return 0;
+		b->wish.move = BC_MOVE_NONE;
+		b->wish.tool = BL_TOOL_SPADE;
+		b->wish.look = BC_LOOK_POINT;
+		b->wish.look_at.x = (float)x + 0.5f; b->wish.look_at.y = (float)y + 0.5f; b->wish.look_at.z = (float)z + 0.5f;
+		if (me->tool == BL_TOOL_SPADE && e->now >= mv->edit_at) {
+			bl_ac_block ac;
+
+			memset(&ac, 0, sizeof ac);
+			ac.x = (int16_t)x; ac.y = (int16_t)y; ac.z = (int16_t)z;
+			ac.action = BL_B_DESTROY;
+			if (e->host.action)
+				e->host.action(e->host.ctx, BL_AC_BLOCK, b->pid, &ac, sizeof ac);
+			e->stats.edits++;
+			mv->edit_at = e->now + 0.4;
+		}
+		return 1;
+	}
+	return 0;
+}
+
 static int move_to(bc_bot *b, bl_vec3 pos, float radius, int raw)
 {
 	bc_engine *e = b->e;
@@ -226,6 +296,11 @@ static int move_to(bc_bot *b, bl_vec3 pos, float radius, int raw)
 		         : fabsf(pos.z - me->pos.z) < 1.5f) &&
 		    !(mv->goal_set && mv->state == BC_MV_FOLLOWING))
 			return BC_MV_ARRIVED;
+		/* no room to stand where it is: out of it first */
+		if (dig_out(b)) {
+			b->wish.goal = pos;
+			return BC_MV_PLANNING;
+		}
 		/* a place a team-mate stands on is reached beside him (a body's
 		 * width more): two do not stand in one another, and the one
 		 * stepped aside does not come back into him (an exact goal is

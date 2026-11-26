@@ -23,7 +23,7 @@ local TENT = {x = 100, y = 100, z = 40};
 function get_tentloc() return {[1] = TENT}; end
 local SOLID = {};                -- column "x,y" -> function(z) -> bool
 local function col(f) SOLID = f; end
-function is_solid(p) return SOLID(p.z); end
+function is_solid(p) return SOLID(p.z, p); end
 math.random = function(a, b) return a; end
 
 local mod = dofile("catalog/overrides/tentspawns.lua");
@@ -48,6 +48,19 @@ col(function(z) return (z >= 20 and z <= 25) or z >= 40; end);
 check(math.abs(spawn_z() - 20) < 1e-6, "a thick block far up (a building, not a thin layer): on it", spawn_z());
 col(function(z) return z == 10 or z >= 16; end);
 check(math.abs(spawn_z() - 10) < 1e-6, "a thin layer with only 5 of air under it: on it", spawn_z());
+
+print("\n5. a tent on a cliff's edge: the square's half in the sea is drawn again (babel's islands)");
+-- x under 100: the sea (the map's water at 63) at the cliff's foot; from 100 on, the island at 40
+col(function(z, p) return p.x < 100 and z >= 63 or p.x >= 100 and z >= 40; end);
+local sp = mod.get_spawn_position(1);
+check(math.abs(sp.z + 2.251 - 40) < 1e-6 and sp.x >= 100, "not in the sea: on the island, at the tent's level",
+	string.format("%.1f %.1f %.1f", sp.x, sp.y, sp.z + 2.251));
+local draws, real = 0, math.random;
+math.random = function(a, b) draws = draws + 1; return draws <= 4 and a or b; end
+sp = mod.get_spawn_position(1);
+check(sp.x >= 100 and math.abs(sp.z + 2.251 - 40) < 1e-6 and draws == 6,
+	"a draw in the sea, then one on the island: taken (" .. draws / 2 .. " draws)");
+math.random = real;
 
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures == 0 and 0 or 1);
