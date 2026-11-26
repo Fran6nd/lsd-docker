@@ -32,10 +32,6 @@
 #include "map.h"
 #include "rng.h"
 
-static int checks, failed;
-#define CHECK(c) do { checks++; if (!(c)) { failed++; \
-	if (failed < 20) printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
-
 #if defined(__has_builtin)
 #if __has_builtin(__builtin_clzg) && __has_builtin(__builtin_ctzg)
 #define HAVE_PVX2 1
@@ -55,6 +51,10 @@ int main(void)
 #else
 
 #include <dirent.h>
+
+static int checks, failed;
+#define CHECK(c) do { checks++; if (!(c)) { failed++; \
+	if (failed < 20) printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
 
 /* the server's own, unmodified. It is not written to this engine's
  * -pedantic (it returns void expressions); that is its business. */

@@ -16,14 +16,18 @@
  * vocab.c -- each word with its arguments as data and its one line --
  * and what a person reads is written from that table, never by hand:
  *
- *     bot/VOCAB.md            every condition, score, action, trait,
- *                             archetype and place (`make -C bot doc`;
+ *     bot/VOCAB.md            every condition, score, action, value,
+ *                             trait, archetype and place (`make -C bot doc`;
  *                             `make -C bot test` fails when it is stale)
  *     bttree --words          the same, a word a line
  *     bttree --schema         the same as JSON, for an editor
  *
- * A word added to the table is in all three. The TRAITS and ARCHETYPES
- * are persona.c's tables, the PLACES skill_misc.c's (below: bc_place_at).
+ * A word added to the table is in all three. The VALUES -- the numbers a
+ * tree compares (`if enemy_distance < 5`) -- are a table beside it, and
+ * a condition or a score that asks the same as a comparison of one IS
+ * that comparison (its `short_for`): one reading of each thing sensed.
+ * The TRAITS and ARCHETYPES are persona.c's tables, the PLACES
+ * skill_misc.c's (below: bc_place_at).
  *
  * TWO TREES A BOT. The tree named by the setting `tree` (say "tdm") is
  * the bot's MAIN tree: what it is doing. If the same text also has a
@@ -65,12 +69,13 @@
 #include "bt.h"
 
 /* Register every word with its arguments (bt.h, bt_vocab_args: the
- * compiler then checks each use), the list of places, and persona.h's
- * traits, into `v`. 0 if one did not fit. */
+ * compiler then checks each use) -- a word that is short for a
+ * comparison as that (bt_vocab_short) --, every value, the list of
+ * places, and persona.h's traits, into `v`. 0 if one did not fit. */
 int bc_vocab_register(bt_vocab *v);
 
-/* The vocabulary as text, a word a line:
- *   "cond health_below <hp> -- its health is under that (of 100)"
+/* The words as text, a word a line (the values are not among them):
+ *   "cond health_below <hp> -- its health is under that (of 100) (short for `health < <hp>`)"
  * the usage written from the word's arguments (bc_vocab_usage).
  * Returns the length it has in full; writes at most out_size - 1. */
 size_t bc_vocab_dump(char *out, size_t out_size);
@@ -85,8 +90,32 @@ typedef struct bc_word {
 	const char *doc;            /* its one line */
 	int n_args;
 	const bt_arg_spec *args;    /* bt.h: name, type, required, default, range */
+	const char *short_for;      /* the comparison it is short for, as bt.h's
+	                               bt_vocab_short takes it ("health < $1"),
+	                               or NULL */
 } bc_word;
 int bc_vocab_word(int i, bc_word *out);
+
+/* What word i is short for, as a person reads it: "health < <hp>", the
+ * word's own arguments in place of $1..; "" (and 0) for a word that is
+ * not. Returns the length in full, as snprintf does. */
+size_t bc_vocab_short_for(int i, char *out, size_t out_size);
+
+/* THE VALUES a comparison compares, 0 <= i < bc_value_count(). */
+typedef struct bc_value {
+	const char *name;
+	const char *doc;            /* its one line: what it is, when unknown */
+	int n_args;
+	const bt_arg_spec *args;    /* its own arguments ("distance <place>") */
+	const bt_arg_spec *number;  /* what it is compared with: `name` its unit
+	                               ("voxels"), has_min/min, has_max/max the
+	                               range it keeps within */
+	bt_value_fn fn;
+} bc_value;
+int bc_value_count(void);
+int bc_value_at(int i, bc_value *out);
+/* its arguments as a person writes them, as bc_vocab_usage */
+size_t bc_value_usage(int i, char *out, size_t out_size);
 
 /* Its arguments as a person writes them: "<place> [radius]" -- <x> must
  * be given, [x] may be, a|b|c is one of those words, ... any number

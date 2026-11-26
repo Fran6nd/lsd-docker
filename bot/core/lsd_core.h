@@ -3,9 +3,9 @@
  *
  * WHAT. The server's physics and voxel walks live in one file,
  * lsd/src/demoncore.c: move_player, the crouch change, the block line's
- * DDA, the ray cast, the grenade's flight. lsd_core.c is that file,
- * #included whole and compiled against this engine's map instead of the
- * server's. Not a port, not a copy: the same source text, so the question
+ * DDA, the ray cast, the grenade's flight. The engine compiles that file
+ * as it stands, against this engine's map instead of the server's, and
+ * lsd_core.c wraps it. Not a port, not a copy: the same source text, so the question
  * "would the server let a body through there" is answered by the code that
  * will answer it.
  *
@@ -16,7 +16,7 @@
  * moves by calling it (nav.h).
  *
  * HOW IT IS CUT OUT. demoncore.c wants demoncore.h, which wants state.h
- * (ENet, the Lua state, 256 players). lsd_core.c supplies, in state.h's
+ * (ENet, the Lua state, 256 players). lsd_state.h supplies, in state.h's
  * place and under its include guard, the few things demoncore.c really
  * reads: the vector typedefs, `Map` as a `bc_map *`, libpvx2's four map
  * accessors as inline functions over bc_map, and a private `struct Player`
@@ -29,7 +29,14 @@
  * and map.c are its only users; everything else goes through body.h and
  * map.h.
  *
- * The file is built with -ffp-contract=off (bot/Makefile): without it a
+ * HOW IT IS BUILT (bot/Makefile). demoncore.c is upstream's file and is
+ * compiled as upstream compiles it: in a unit of its own, under
+ * lsd/Makefile's warnings, not the engine's -Werror -pedantic (gcc 13
+ * warns on one of its casts; that is upstream's to weigh, and a warning in
+ * upstream's code must not stop the engine building on one compiler and
+ * not another). lsd_state.h is given to it with -include.
+ *
+ * Both it and the core are built with -ffp-contract=off: without it a
  * compiler may fuse a multiply and an add, and the same inputs would give
  * trajectories that differ in the last bit from one machine to the next.
  * The server's own build is whatever its compiler does; the follower

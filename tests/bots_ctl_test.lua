@@ -73,13 +73,55 @@ print("\n1. schema: all a tree may be made of");
 do
 	local out, code = bots("schema");
 	local d = decode(out);
-	check(code == 0 and d ~= nil and d.format == "lsd-bt-schema" and d.version == 2, "it is JSON, named and versioned", code);
-	check(d ~= nil and #d.kinds == 14 and #d.conditions > 30 and #d.scores > 20 and #d.actions > 20 and #d.traits == 11
-		and #d.archetypes == 7 and #d.places > 20, "the kinds, the words, the traits, the archetypes, the places");
+	check(code == 0 and d ~= nil and d.format == "lsd-bt-schema" and d.version == 3, "it is JSON, named and versioned", code);
+	check(d ~= nil and #d.kinds == 15 and #d.conditions > 30 and #d.scores > 20 and #d.actions > 20 and #d.traits == 11
+		and #d.archetypes == 7 and #d.places > 20 and #d.values >= 15, "the kinds, the words, the values, the traits, the archetypes, the places");
 	local go;
 	for _, w in ipairs(d and d.actions or {}) do if (w.name == "go_to") then go = w; end end
 	check(go ~= nil and go.usage == "<place> [radius]" and go.args[1].type == "place" and go.args[1].required == true
 		and go.args[2].type == "number" and go.args[2].default == 2, "a word's arguments are data: type, required, default");
+	-- all an editor needs to draw and build every form, with no knowledge of its own
+	local kind = {};
+	for _, k in ipairs(d and d.kinds or {}) do kind[k.name] = k; end
+	local function param(k, name)
+		for _, p in ipairs(kind[k] and kind[k].params or {}) do if (p.name == name) then return p; end end
+	end
+	local value = {};
+	for _, v in ipairs(d and d.values or {}) do value[v.name] = v; end
+	check(value.enemy_distance ~= nil and value.enemy_distance.unit == "voxels" and value.enemy_distance.min == 0
+		and value.enemy_distance.max == nil and value.enemy_distance.doc:find("unknown", 1, true) ~= nil
+		and value.health ~= nil and value.health.min == 0 and value.health.max == 100
+		and value.distance ~= nil and value.distance.usage == "<place>" and value.distance.args[1].type == "place",
+		"the values: each with its arguments, unit, range and doc");
+	local ops = {};
+	for _, o in ipairs(d and d.operators or {}) do ops[#ops + 1] = o.op; end
+	check(table.concat(ops, " ") == "< <= > >=" and d.comparison ~= nil and d.comparison.unknown ~= nil and d.comparison.as_score ~= nil,
+		"the operators, and what a comparison answers");
+	local cond, score = param("if", "cond"), param("option", "score");
+	check(cond ~= nil and cond["or"] ~= nil and cond["or"].form == "comparison" and #cond["or"].params == 3
+		and cond["or"].params[1].type == "value" and cond["or"].params[2].values[4] == ">=" and cond["or"].params[3].type == "number"
+		and score ~= nil and score["or"] ~= nil and score["or"].form == "comparison" and param("unless", "cond")["or"] ~= nil,
+		"a guard takes a condition or a comparison, an option's score a score or a comparison");
+	local blk = kind["if"] and kind["if"].block;
+	check(blk ~= nil and blk.children == "many" and blk.tries == "all" and blk.roles[1].role == "then"
+		and blk.roles[2].role == "otherwise" and blk.roles[2].kind == "else" and blk.roles[2].optional == true
+		and kind["if"].children == "none" and kind["unless"].block ~= nil
+		and kind["else"] ~= nil and kind["else"].children == "many" and kind["else"].parent == "if"
+		and #kind["else"].parents == 2 and kind["else"].position == "last" and kind["else"].indent == "parent",
+		"the block form: which kinds hold children, how many, and the role of each child list");
+	check(kind.seq.tries == "all" and kind.select.tries == "first" and kind["if"].guard.negates == false
+		and kind.unless.guard.negates == true, "how a kind tries its children, and whether a guard negates");
+	local roll = param("pick", "roll");
+	check(roll ~= nil and #roll.leaves_out.once == 3 and #roll.leaves_out.life == 3 and #roll.leaves_out.each == 2
+		and roll.leaves_out.each[1] == "sticky", "which settings a roll leaves out");
+	local trees = {};
+	for _, t in ipairs(d and d.engine_trees or {}) do trees[t.name] = t.doc; end
+	check(trees.items ~= nil and trees.extras ~= nil and d.companion.suffix == "_also" and d.companion.doc ~= nil
+		and d.types.place.list == "places" and d.types.place.script.prefix == "@",
+		"the trees the engine writes, the companion tree, a script's place");
+	local short;
+	for _, w in ipairs(d and d.conditions or {}) do if (w.name == "health_below") then short = w.short_for; end end
+	check(short == "health < <hp>", "a condition short for a comparison says so", short);
 end
 
 print("\n2. trees: what there is, and one of them");
@@ -159,6 +201,28 @@ do
 	out, code = bots("format - --json", '{"trees": [{"name": "x", "root": {"kind": "do", "action": "figth"}}]}');
 	d = decode(out);
 	check(code == 1 and d ~= nil and d.format == "lsd-bt-error" and d.error:find("figth", 1, true) ~= nil, "nor a JSON tree with a word there is none of");
+	-- every form of the language, comments on the else lines too: text -> JSON (bttree --json) -> text
+	local FORMS = "# a decision\ntree duel:                                    # the owner's sentence\n"
+		.. "select\n\tif enemy_distance < 5                     # near: fire back\n\t\tdo fight\n"
+		.. "\t# else, hide\n\telse                                      # otherwise\n"
+		.. "\t\tunless health_below 30\n\t\t\tdo take_cover\n\t\telse\n\t\t\tpick every=1\n"
+		.. "\t\t\t\toption caution health < 40 x2\n\t\t\t\t\tdo retreat\n"
+		.. "\t\t\t\toption none distance @gate >= 2.5\n\t\t\t\t\tdo go_to @gate\n"
+		.. "\tdo seek\n";
+	out, code = bots("format -", FORMS);
+	check(code == 0 and out == FORMS, "if blocks, else, comparisons, a comparison as a score: canonical as written", out);
+	local f = io.open(DATA .. "/forms.bt", "wb");
+	f:write(FORMS);
+	f:close();
+	local json = sh(BTTREE .. " --json " .. DATA .. "/forms.bt");
+	d = decode(json);
+	local root = d and d.files[1].trees[1].root;
+	local blk = root and root.children[1];
+	check(blk ~= nil and blk.kind == "if" and blk.value == "enemy_distance" and blk.op == "<" and blk.number == 5
+		and blk.children[2].kind == "else" and blk.children[2].comment == "otherwise" and blk.children[2].above[1] == "# else, hide"
+		and blk.children[2].children[1].cond == "health_below", "as JSON: the comparison's fields, the else a last child with its comments", json:sub(1, 120));
+	out, code = bots("format -", json);
+	check(code == 0 and out == FORMS, "and back from JSON, the same text", out);
 end
 
 print("\n5. save: a text kept as an operator's tree");

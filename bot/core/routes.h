@@ -117,11 +117,12 @@ int bc_route_adoptable(const bc_route_key *mine, const bc_shared_route *r);
 uint32_t bc_routes_publish(bc_route_board *bd, const bc_route_key *k, const bc_nav_route *r,
                            int reached, double now);
 
-/* The route for a bot asking `k` from `start`: the live, adoptable one with
- * a place nearest `start` within BC_ROUTE_REACH (the furthest along of
- * equals), where it can stand now; its shared part still holds on `m` (one
- * that does not is taken off). Its id and, in *step, the index of the place
- * (-1: the route's own start); 0 if none. */
+/* The route for a bot asking `k` from `start`: of every live, adoptable
+ * route, the one with the place nearest `start` within BC_ROUTE_REACH
+ * where a body can stand now (on a route, the furthest along of equals;
+ * of routes, the first put up), whose shared part still holds on `m` (one
+ * that does not is taken off). Its id and, in *step, the index of the
+ * place (-1: the route's own start); 0 if none. */
 uint32_t bc_routes_find(bc_route_board *bd, const bc_route_key *k, bc_nav_node start, double now,
                         const bc_nav_moves *t, const bc_map *m, int *step);
 

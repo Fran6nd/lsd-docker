@@ -57,9 +57,9 @@ DONE (commit), BLOCKED (on what).
 
 | 23 | Clients' UPS: large World Updates travel as reliable ENet fragments (flow control collapses on jitter); fix and measure under netem | PAUSED (UPS agent; findings in its report, scratchpad/ups/) |
 | 24 | botd's slow rounds at 200 bots (p99 27-31 ms): every bot deciding in one think, and sight; two-phase sight so it could thread | REVIEW (p99 agent's branch: the slow round was the planner; p99 at 200 now 11.7-13.7 ms; BRAIN-STATUS (c4)) |
-| 25 | Babel: carriers falling 26-30 voxels off their own stair's top under fire | TODO |
-| 26 | CI: bttree does not build on Ubuntu (upstream demoncore.c -Werror=address-of-packed-member), so bots_ctl_test skips there | TODO |
-| 27 | try_edit's top-band rule (no edits up into z < 3): same reasoning as the removed jump rule | TODO |
+| 25 | Babel: carriers falling 26-30 voxels off their own stair's top under fire | OPEN (not reproduced; one footing rule for the engine's own unplanned steps, core/footing.h; the skills' walks still use walk_safe) |
+| 26 | CI: bttree does not build on Ubuntu (upstream demoncore.c -Werror=address-of-packed-member), so bots_ctl_test skips there | PARTLY (review batch 2: demoncore.c built as upstream's own unit; still open: skill_build.c's part name into slot.name, -Werror=format-truncation on Ubuntu) |
+| 27 | try_edit's top-band rule (no edits up into z < 3): same reasoning as the removed jump rule | REVIEW (removed: not the server's rule; nav_test over_the_top) |
 | 28 | lib_bot's send_spawn_player split, redundant since patch 0002 | REVIEW (removed; review batch 1) |
 | 29 | One filter for every edit of the map (the owner: "all destruction effects must go through the gamemode's filter"): `may_edit_block`, asked at the engine's block_action_rm / block_action / block_line, answered once by each gamemode | DONE on the branch (lib_block_filter), not released |
 | 30 | "I ping from the pie menu and it does nothing" (babel, ZeroSpades): lib_bot's people_in compared get_team (1, 2) with the team a set holds (0, 1), so a team's people were the other team's and a ping, a team chat or a callout reached nobody it was for once bots were on the server | DONE (branch worktree-agent-ae2b8838b3487bc75; tests/pie_ping_test.lua) |
@@ -1118,3 +1118,64 @@ DONE (commit), BLOCKED (on what).
   (items 25, 26, 27; routes, budget, threads, claims), after the brain
   agent's commit. bot/core/lsd_state.h is an unfinished start on item
   26, referenced by nothing.
+- 2026-11-27 (review of 25-26 Nov, batch 2: the tree language and the
+  engine's machinery; skill_*.c, the trees and the editor not touched).
+  THE LANGUAGE (the owner: "if enemy less than 5 meters away fire back,
+  otherwise hide"). A fourth kind of word, the VALUE: a number read from
+  the bot's situation, or unknown (16 in vocab.c's VALUES: enemy_distance,
+  enemies_in_sight, health, ammo, level, blocks, grenades, mates_within
+  <radius>, mate_distance, distance <place>, fact <name>, since_hurt /
+  shot_at / spotted_new / spawn / enemy_seen). A COMPARISON goes where a
+  condition goes -- `if enemy_distance < 5`, `unless health >= 50`; < <=
+  > >=, no == on floats; an unknown value compares false -- and where an
+  option's score goes (`option caution health < 40 x2`: 1 or 0). `if` /
+  `unless` WITH children is a BLOCK, `else` right after it its other
+  branch: asked when entered, the branch kept until it ends (as seq and
+  select remember), FAILURE when false with no else, so a select over
+  blocks is "the first that holds". One reading of each sense: 14
+  number conditions and scores (enemy_within, enemy_beyond,
+  health_below, ammo_below, level_at_least, hurt_recently, under_fire,
+  spotted_new, just_spawned, mate_within, alone, near_own_base,
+  near_their_base, quiet) are compiled INTO their comparison; 36 000
+  answers the same as before (values_test, against the old formulas),
+  the shipped trees byte for byte the same forest. Bug found by the
+  sweep: `enemy_within N` with N >= 1e9 was true with nobody in sight
+  (the "none" sentinel); its doc said "nearer than" for a <=. bttree:
+  format, JSON both ways, --split's sliders from a value's range,
+  VOCAB.md's Values; schema 2 -> 3 with the values, the operators, the
+  block's roles (then / otherwise), and what the editor hard-coded
+  (engine_trees, companion, @places, roll's leaves_out, tries).
+  TREES.md 5 ("Conditions on numbers", the block), 6, 13, 16-17;
+  trees/README.md's worked example is the owner's sentence. The
+  editor's 116 tests pass on the new schema unchanged; it does not DRAW
+  a block or a comparison natively yet (next). ENGINE: (1) item 26:
+  upstream's demoncore.c was compiled inside lsd_core.c under the
+  engine's -Werror -pedantic; now one rule -- a file of lsd/src is its
+  own unit with upstream's warnings (core/lsd_state.h in state.h's
+  place); body_test's trajectories unchanged. Ubuntu still stops at
+  skill_build.c (a 48-byte part name into slot.name[32],
+  -Werror=format-truncation): proposed BC_CLAIM_NAME in brain.h, not
+  applied (the live agent's files). (2) `--budget 0` planned nothing
+  though the bots' share should apply (engine_test test_budget). (3)
+  the route board gave the first route in reach, not the nearest
+  (routes_test). (4) botd took SIGSEGV for "file cut under us" and
+  re-attached for ever (botd_test test_crash): SIGBUS only, the session
+  thread's. (5) races on botd's stop flag (TSan on Ubuntu; parallel_test
+  and engine_test clean). (6) item 27: the top-band edit rule is not the
+  server's (LSd refuses only z >= 62): removed, nav_test over_the_top.
+  (7) item 25: NOT reproduced (0 falls on a one-wide stair under fire,
+  before and after); the engine's own steps with no route under them
+  (crowd, clear line, braking, unstick) go through one rule,
+  core/footing.h; the watchdog's copy is gone. (8) item 15: a roster
+  poll logs nothing. Makefile: link lines carry CFLAGS/LDFLAGS. Fuzz
+  (ASan/UBSan, Ubuntu): 3 000 settings and mutated kv6: nothing. GREEN:
+  make -C bot all tools test (Mac clang, Alpine gcc), dev/test.sh.
+  OPEN for the next batches: the editor drawing blocks and comparisons
+  from the schema (and its model.py constants read from it); the skills
+  pass (skill_build claims and blueprints, kv6, the trees, bc_walk_safe
+  and jump_safe onto bc_footing_keys, the "grenade at its feet" 25 in
+  six places, perches refused at z < 3 in skill_tactics, a claim name
+  over 31 characters never recognised by its claimer); entrypoint's
+  bot_threads over 64 makes botd exit 2; ci.yml could run make -C bot
+  all tools test once Ubuntu builds; nav lead 8 only partly read; and
+  batch 1's open list.

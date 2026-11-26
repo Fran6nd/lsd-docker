@@ -36,7 +36,9 @@
  *                             rumour=0.6 flank_open=1 "vantage rifle=1"
  *                     A word not given is 0 (a condition false, a score 0;
  *                     `always` is 1). A score takes 0 to 1, a condition
- *                     0 or 1, an action `run` (the default: it is what the
+ *                     0 or 1, a value its number (`enemy_distance=4`; not
+ *                     given, or `none`, it is unknown), an action `run`
+ *                     (the default: it is what the
  *                     bot is then doing), `ok` (done at once, the tree goes
  *                     on) or `fail`. "word arg=..." sets it for those
  *                     arguments only. The words asked and not given are
@@ -47,8 +49,8 @@
  *   --split --json    all of that as one JSON document ("lsd-bt-split"):
  *                     the outcomes with their shares in all and by kind,
  *                     every pick a bot came to (its file and source id, as
- *                     --json gives them) with its options, and the words
- *                     asked and not given
+ *                     --json gives them) with its options, the words
+ *                     asked and not given, and each value's unit and range
  *   --trace [WORD=VALUE]...
  *                     ONE bot (--as ARCHETYPE, --seed N, --level 5) in that
  *                     situation, ticked for --secs S (default: one tick),
@@ -69,9 +71,10 @@
  *   --format          the files as canonical text (what --from-json writes
  *                     for --json's output)
  *   --schema          everything a tree may be made of, as JSON: the node
- *                     kinds and their numbers, every condition, score and
- *                     action with its arguments, the traits, the
- *                     archetypes and their mean weights, the places
+ *                     kinds and their numbers, every condition, score,
+ *                     action and value with its arguments, the operators,
+ *                     the traits, the archetypes and their mean weights,
+ *                     the places
  *   --roundtrip       check that each file survives text -> JSON -> text
  *                     and compiles to the same forest either way
  *
@@ -209,12 +212,20 @@ static int has_tree(const bt_source *src, const char *name)
 	return -1;
 }
 
+/* the trees the engine writes, which a text may refer to and never holds:
+ * how the drawing says them, and what they are (--schema) */
+static const struct { const char *name, *drawn, *doc; } ENGINE_TREES[] = {
+	{ "items", "each inventory item's own rule", "written by the engine at run time: one rule for each inventory item, brought by whoever defined the item "
+	  "(a medkit when hurt, a missile at an enemy under open sky), as a select of seqs each beginning `if has_item <name>`; "
+	  "it fails at once for a bot with nothing to use" },
+	{ "extras", "what server scripts bring, e.g. night", "written by the engine at run time: what the server's scripts add to every bot that is not an item "
+	  "(night and flashlights first of all), each part ticked at every decision whatever the others answer" },
+};
+
 /* What the engine writes at run time (`items`, `extras`), empty here
  * unless the text has them: added to `text`, in its own indentation.
  * A text with no header at all is first made the tree "main"; returns
  * how many lines were put before it. */
-static const char *const STUB[2] = { "items", "extras" };
-
 static int add_stubs(char *text, const bt_source *src)
 {
 	const char *step = "\t";
@@ -232,9 +243,9 @@ static int add_stubs(char *text, const bt_source *src)
 		memcpy(text, "tree main:\n", 11);
 		shifted = 1;
 	}
-	for (int k = 0; k < 2; k++)
-		if (has_tree(src, STUB[k]) < 0)
-			sprintf(text + strlen(text), "\ntree %s:\nnever\n%sif enemy_visible\n", STUB[k], step);
+	for (size_t k = 0; k < sizeof ENGINE_TREES / sizeof *ENGINE_TREES; k++)
+		if (has_tree(src, ENGINE_TREES[k].name) < 0)
+			sprintf(text + strlen(text), "\ntree %s:\nnever\n%sif enemy_visible\n", ENGINE_TREES[k].name, step);
 	return shifted;
 }
 
@@ -498,47 +509,61 @@ static void archetype_means(int a, float *mean)
 	}
 }
 
-/* The node kinds. `children`: none, one, many, or options (a pick's). */
+/* The node kinds. `children`: none, one, many, or options (a pick's).
+ * `tries`: how a kind with several children tries them -- "all" in order
+ * while each succeeds (seq; the branch of an if block, an else), "first"
+ * until one does not fail (select). */
 typedef struct kparam { const char *name, *type, *form; int required; double def, min, max; const char *doc; } kparam;
-typedef struct kindspec { const char *name, *children, *answers, *doc; kparam p[4]; } kindspec;
+typedef struct kindspec { const char *name, *children, *tries, *answers, *doc; kparam p[4]; } kindspec;
 #define NOMAX 1e30
 static const kindspec KINDS[BT_K_COUNT] = {
-	{ "seq", "many", "FAILURE at the first child that fails, RUNNING while one is, SUCCESS when all have succeeded",
+	{ "seq", "many", "all", "FAILURE at the first child that fails, RUNNING while one is, SUCCESS when all have succeeded",
 	  "its children in order; resumes at the child that was RUNNING", {{0}} },
-	{ "select", "many", "the answer of the first child that does not fail; FAILURE when all fail",
+	{ "select", "many", "first", "the answer of the first child that does not fail; FAILURE when all fail",
 	  "its children in order, the first that does not fail: a priority list; resumes at the child that was RUNNING", {{0}} },
-	{ "pick", "options", "the answer of the option chosen; FAILURE when no option has a score above 0",
+	{ "pick", "options", NULL, "the answer of the option chosen; FAILURE when no option has a score above 0",
 	  "a weighed choice among its options: the one worth most to this bot (score x trait weight x factor x luck) is ticked",
 	  { { "roll", "enum", "roll=<weighed|once|life|each>", 0, 0, 0, 0, "weighed (the default): the option worth most, chosen again and again. once: an option DRAWN, each with a chance in proportion to its worth, the same for this bot for good -- a role. life: drawn anew each life. each: a lottery drawn again at every choice (every is kept; sticky and noise are not written). With once or life, every, sticky and noise are not written" },
 	    { "every", "number", "every=<secs>", 0, 2, 0, NOMAX, "seconds between two choices; it also chooses again whenever the option chosen ends" },
 	    { "sticky", "number", "sticky=<x>", 0, 0.25, 0, NOMAX, "the option being done is worth this much more, as a fraction of its own worth" },
 	    { "noise", "number", "noise=<x>", 0, 0.1, 0, 1, "luck: each option's worth is multiplied by a draw within 1 +- this" } } },
-	{ "option", "one", "its child's",
-	  "one choice of a pick: `option <trait> <score> [score's arguments] [x<factor>]`, only directly under a pick",
+	{ "option", "one", NULL, "its child's",
+	  "one choice of a pick: `option <trait> <score> [score's arguments] [x<factor>]`, or `option <trait> <value> [args] <op> <number> [x<factor>]`, only directly under a pick",
 	  { { "trait", "trait", "<trait>", 1, 0, 0, 0, "whose character weighs it: the bot's weight for this trait multiplies the score" },
-	    { "score", "score", "<score> [args]", 1, 0, 0, 0, "what bears on it: a score of the vocabulary, 0 to 1; at 0 the option cannot be chosen" },
+	    { "score", "score", "<score> [args]", 1, 0, 0, 0, "what bears on it: a score of the vocabulary, 0 to 1, or a comparison, 1 when it holds and 0 when not; at 0 the option cannot be chosen" },
 	    { "factor", "number", "x<factor>", 0, 1, 0, NOMAX, "the designer's thumb on the scale" } } },
-	{ "if", "none", "SUCCESS if the condition holds, else FAILURE", "a condition of the vocabulary, with its arguments",
+	{ "if", "none", NULL, "a leaf: SUCCESS if the condition holds, else FAILURE. A block: the answer of the branch chosen when it was entered (the children when the condition holds, the else's when not); FAILURE when it does not hold and there is no else",
+	  "a condition of the vocabulary with its arguments, or a comparison; with children, a decision (`else` for the other branch)",
 	  { { "cond", "cond", "<cond> [args]", 1, 0, 0, 0, "the condition" } } },
-	{ "unless", "none", "FAILURE if the condition holds, else SUCCESS", "a condition, the other way round",
+	{ "unless", "none", NULL, "as if, the condition turned: a leaf answers FAILURE if it holds, else SUCCESS; a block takes its children when it does NOT hold, the else's when it does",
+	  "a condition or a comparison, the other way round; with children, a decision",
 	  { { "cond", "cond", "<cond> [args]", 1, 0, 0, 0, "the condition" } } },
-	{ "do", "none", "the action's: RUNNING while it goes on, SUCCESS or FAILURE when it ends",
+	{ "do", "none", NULL, "the action's: RUNNING while it goes on, SUCCESS or FAILURE when it ends",
 	  "an action of the vocabulary, with its arguments; stopped (told once) if its branch is abandoned while it is RUNNING",
 	  { { "action", "action", "<action> [args]", 1, 0, 0, 0, "the action" } } },
-	{ "wait", "none", "RUNNING for that long, then SUCCESS", "let time pass",
+	{ "wait", "none", NULL, "RUNNING for that long, then SUCCESS", "let time pass",
 	  { { "seconds", "number", "<secs>", 1, 0, 0, NOMAX, "how long, from the first tick that reaches it" } } },
-	{ "invert", "one", "its child's turned: SUCCESS for FAILURE, FAILURE for SUCCESS; RUNNING stays", "turn the child's answer round", {{0}} },
-	{ "always", "one", "SUCCESS whatever the child answers; RUNNING stays", "do the child and go on whatever came of it", {{0}} },
-	{ "never", "one", "FAILURE whatever the child answers; RUNNING stays", "do the child and fail whatever came of it", {{0}} },
-	{ "cooldown", "one", "its child's; then FAILURE, without asking the child, for that long after the child ended",
+	{ "invert", "one", NULL, "its child's turned: SUCCESS for FAILURE, FAILURE for SUCCESS; RUNNING stays", "turn the child's answer round", {{0}} },
+	{ "always", "one", NULL, "SUCCESS whatever the child answers; RUNNING stays", "do the child and go on whatever came of it", {{0}} },
+	{ "never", "one", NULL, "FAILURE whatever the child answers; RUNNING stays", "do the child and fail whatever came of it", {{0}} },
+	{ "cooldown", "one", NULL, "its child's; then FAILURE, without asking the child, for that long after the child ended",
 	  "not more often than this",
 	  { { "seconds", "number", "<secs>", 1, 0, 0, NOMAX, "how long after the child answers SUCCESS or FAILURE" } } },
-	{ "limit", "one", "its child's; FAILURE if the child is still RUNNING after that long (the child is stopped)",
+	{ "limit", "one", NULL, "its child's; FAILURE if the child is still RUNNING after that long (the child is stopped)",
 	  "not longer than this",
 	  { { "seconds", "number", "<secs>", 1, 0, 0, NOMAX, "how long the child may stay RUNNING" } } },
-	{ "tree", "none", "the answer of the tree named", "another tree by name, as if written here; `items` and `extras` are written by the engine",
+	{ "tree", "none", NULL, "the answer of the tree named", "another tree by name, as if written here; `items` and `extras` are written by the engine",
 	  { { "ref", "tree", "<name>", 1, 0, 0, 0, "the tree's name" } } },
+	{ "else", "many", "all", "the answer of its children, as a seq's",
+	  "the other branch of an if or unless block: its last child, written at its indent; taken when the if's condition does not hold (the unless's does)", {{0}} },
 };
+
+/* which of a pick's settings a roll leaves out: they may not be written
+ * with it (bt.c, fill_node) */
+static const struct { const char *roll, *gone[3]; } LEAVES_OUT[] = {
+	{ "once", { "every", "sticky", "noise" } }, { "life", { "every", "sticky", "noise" } }, { "each", { "sticky", "noise" } },
+};
+
 
 static void json_list(FILE *o, const char *list)
 {
@@ -552,11 +577,11 @@ static void json_list(FILE *o, const char *list)
 	fputc(']', o);
 }
 
-static void schema_args(FILE *o, const bc_word *w, int pad)
+static void schema_args(FILE *o, const bt_arg_spec *args, int n_args, int pad)
 {
 	fputs("[", o);
-	for (int i = 0; i < w->n_args; i++) {
-		const bt_arg_spec *a = &w->args[i];
+	for (int i = 0; i < n_args; i++) {
+		const bt_arg_spec *a = &args[i];
 		if (i) fputc(',', o);
 		jpad(o, pad);
 		fputs("{", o);
@@ -573,7 +598,7 @@ static void schema_args(FILE *o, const bc_word *w, int pad)
 		if (a->def_note) { fputs(", ", o); jkv(o, "default_note", a->def_note); }
 		fputs("}", o);
 	}
-	if (w->n_args) jpad(o, pad - 1);
+	if (n_args) jpad(o, pad - 1);
 	fputs("]", o);
 }
 
@@ -582,18 +607,34 @@ static void schema_words(FILE *o, const char *key, int kind)
 	bc_word w;
 	jpad(o, 1); jkey(o, key); fputs("[", o);
 	for (int i = 0, n = 0; bc_vocab_word(i, &w); i++) {
-		char usage[128];
+		char usage[128], short_for[128];
 		if (w.kind != kind) continue;
 		bc_vocab_usage(i, usage, sizeof usage);
+		bc_vocab_short_for(i, short_for, sizeof short_for);
 		if (n++) fputc(',', o);
 		jpad(o, 2); fputs("{", o);
 		jkv(o, "name", w.name); fputs(", ", o);
 		jkv(o, "usage", usage); fputs(",", o);
-		jpad(o, 3); jkey(o, "args"); schema_args(o, &w, 5); fputs(",", o);
+		if (short_for[0]) { jpad(o, 3); jkv(o, "short_for", short_for); fputs(",", o); }
+		jpad(o, 3); jkey(o, "args"); schema_args(o, w.args, w.n_args, 5); fputs(",", o);
 		jpad(o, 3); jkv(o, "doc", w.doc);
 		jpad(o, 2); fputs("}", o);
 	}
 	jpad(o, 1); fputs("]", o);
+}
+
+/* the comparison a guard's condition or an option's score may be
+ * instead: what its three parts are (bt.h, CONDITIONS ON NUMBERS) */
+static void schema_comparison(FILE *o, int pad)
+{
+	fputs(", \"or\": {\"form\": \"comparison\", \"written\": \"<value> [args] <op> <number>\", \"params\": [", o);
+	jpad(o, pad); fputs("{\"name\": \"value\", \"type\": \"value\", \"written\": \"<value> [args]\", \"required\": true, "
+	                    "\"doc\": \"a value of the vocabulary (`values`), with its own arguments in `args`\"},", o);
+	jpad(o, pad); fputs("{\"name\": \"op\", \"type\": \"enum\", \"written\": \"<op>\", \"required\": true, \"values\": [", o);
+	for (int k = BT_OP_NONE + 1; k < BT_OP_COUNT; k++) { if (k > 1) fputs(", ", o); jstr(o, bt_op_name(k)); }
+	fputs("], \"doc\": \"the operator (`operators`)\"},", o);
+	jpad(o, pad); fputs("{\"name\": \"number\", \"type\": \"number\", \"written\": \"<number>\", \"required\": true, "
+	                    "\"doc\": \"what the value is compared with; within the value's `min` and `max`\"}]}", o);
 }
 
 static int schema(FILE *o)
@@ -601,17 +642,30 @@ static int schema(FILE *o)
 	float lo, hi;
 	bc_trait_range(&lo, &hi);
 	fputs("{", o);
-	jpad(o, 1); fputs("\"format\": \"lsd-bt-schema\", \"version\": 2,", o);
+	jpad(o, 1); fputs("\"format\": \"lsd-bt-schema\", \"version\": 3,", o);
 	jpad(o, 1); fprintf(o, "\"limits\": {\"args\": %d, \"name\": %d, \"depth\": %d, \"words_a_line\": 16},", BT_ARGS_MAX, BT_NAME_MAX - 1, BT_DEPTH_MAX);
 	jpad(o, 1); fputs("\"answers\": [\"SUCCESS\", \"FAILURE\", \"RUNNING\"],", o);
 	jpad(o, 1); fputs("\"kinds\": [", o);
 	for (int k = 0; k < BT_K_COUNT; k++) {
 		const kindspec *s = &KINDS[k];
+		int guard = k == BT_K_IF || k == BT_K_UNLESS;
 		if (k) fputc(',', o);
 		jpad(o, 2); fputs("{", o);
 		jkv(o, "name", s->name); fputs(", ", o);
 		jkv(o, "children", s->children);
-		if (k == BT_K_OPTION) fputs(", \"parent\": \"pick\"", o);
+		if (s->tries) { fputs(", ", o); jkv(o, "tries", s->tries); }
+		if (k == BT_K_OPTION) fputs(", \"parent\": \"pick\", \"parents\": [\"pick\"]", o);
+		if (k == BT_K_ELSE) fputs(", \"parent\": \"if\", \"parents\": [\"if\", \"unless\"], \"position\": \"last\", \"indent\": \"parent\"", o);
+		if (guard) {
+			fprintf(o, ",");
+			jpad(o, 3);
+			fprintf(o, "\"guard\": {\"negates\": %s},", k == BT_K_UNLESS ? "true" : "false");
+			jpad(o, 3);
+			fprintf(o, "\"block\": {\"children\": \"many\", \"tries\": \"all\", \"roles\": ["
+			        "{\"role\": \"then\", \"children\": \"many\", \"doc\": \"its children before the else: taken when the condition %s\"}, "
+			        "{\"role\": \"otherwise\", \"kind\": \"else\", \"optional\": true, \"doc\": \"an else, its last child: its children taken when %s\"}]}",
+			        k == BT_K_IF ? "holds" : "does not hold", k == BT_K_IF ? "it does not" : "it does");
+		}
 		fputs(",", o);
 		jpad(o, 3); jkey(o, "params"); fputs("[", o);
 		for (int i = 0; i < 4 && s->p[i].name; i++) {
@@ -622,12 +676,22 @@ static int schema(FILE *o)
 			jkv(o, "type", p->type); fputs(", ", o);
 			jkv(o, "written", p->form);
 			fprintf(o, ", \"required\": %s", p->required ? "true" : "false");
-			if (!strcmp(p->type, "enum")) fputs(", \"values\": [\"weighed\", \"once\", \"life\", \"each\"], \"default\": \"weighed\"", o);
+			if (!strcmp(p->name, "roll")) {
+				fputs(", \"values\": [\"weighed\", \"once\", \"life\", \"each\"], \"default\": \"weighed\", \"leaves_out\": {", o);
+				for (size_t r = 0; r < sizeof LEAVES_OUT / sizeof *LEAVES_OUT; r++) {
+					if (r) fputs(", ", o);
+					jkey(o, LEAVES_OUT[r].roll); fputc('[', o);
+					for (int g = 0; g < 3 && LEAVES_OUT[r].gone[g]; g++) { if (g) fputs(", ", o); jstr(o, LEAVES_OUT[r].gone[g]); }
+					fputc(']', o);
+				}
+				fputc('}', o);
+			}
 			if (!strcmp(p->type, "number")) {
 				if (!p->required) fprintf(o, ", \"default\": %s", num(p->def));
 				fprintf(o, ", \"min\": %s", num(p->min));
 				if (p->max < NOMAX) fprintf(o, ", \"max\": %s", num(p->max));
 			}
+			if (!strcmp(p->type, "cond") || !strcmp(p->type, "score")) schema_comparison(o, 5);
 			fputs(", ", o); jkv(o, "doc", p->doc);
 			fputs("}", o);
 		}
@@ -638,9 +702,34 @@ static int schema(FILE *o)
 		jpad(o, 2); fputs("}", o);
 	}
 	jpad(o, 1); fputs("],", o);
+	jpad(o, 1); fputs("\"operators\": [{\"op\": \"<\", \"doc\": \"less than\"}, {\"op\": \"<=\", \"doc\": \"less than or equal to\"}, "
+	                  "{\"op\": \">\", \"doc\": \"more than\"}, {\"op\": \">=\", \"doc\": \"more than or equal to\"}],", o);
+	jpad(o, 1); fputs("\"comparison\": {\"written\": \"<value> [args] <op> <number>\", "
+	                  "\"unknown\": \"a comparison of a value that is unknown now is false (so unless of it is true)\", "
+	                  "\"as_score\": \"an option's comparison is worth 1 when it holds, 0 when not\", "
+	                  "\"no_equal\": \"there is no == or !=: two measured numbers are never exactly equal; for a count, >= 2 with < 3 says exactly 2\"},", o);
 	schema_words(o, "conditions", BT_WORD_COND); fputs(",", o);
 	schema_words(o, "scores", BT_WORD_SCORE); fputs(",", o);
 	schema_words(o, "actions", BT_WORD_ACTION); fputs(",", o);
+	jpad(o, 1); fputs("\"values\": [", o);
+	for (int i = 0; i < bc_value_count(); i++) {
+		bc_value x;
+		char usage[128];
+		bc_value_at(i, &x);
+		bc_value_usage(i, usage, sizeof usage);
+		if (i) fputc(',', o);
+		jpad(o, 2); fputs("{", o);
+		jkv(o, "name", x.name); fputs(", ", o);
+		jkv(o, "usage", usage); fputs(", ", o);
+		jkv(o, "unit", x.number->name);
+		if (x.number->has_min) fprintf(o, ", \"min\": %s", num(x.number->min));
+		if (x.number->has_max) fprintf(o, ", \"max\": %s", num(x.number->max));
+		fputs(",", o);
+		jpad(o, 3); jkey(o, "args"); schema_args(o, x.args, x.n_args, 5); fputs(",", o);
+		jpad(o, 3); jkv(o, "doc", x.doc);
+		jpad(o, 2); fputs("}", o);
+	}
+	jpad(o, 1); fputs("],", o);
 	jpad(o, 1); fputs("\"traits\": [", o);
 	for (int t = 0; t < BC_T_COUNT; t++) {
 		if (t) fputc(',', o);
@@ -675,17 +764,53 @@ static int schema(FILE *o)
 		if (alias) { fputs(", ", o); jkv(o, "alias", alias); }
 		fputs(", ", o); jkv(o, "doc", doc); fputs("}", o);
 	}
-	jpad(o, 1); fputs("]", o);
+	jpad(o, 1); fputs("],", o);
+	jpad(o, 1); fputs("\"types\": {\"place\": {\"list\": \"places\", \"script\": {\"prefix\": \"@\", "
+	                  "\"doc\": \"a place a server script named (botlink_set(\\\"place.<name>\\\", ...)), written @<name> wherever a place goes: "
+	                  "letters, digits and _ after the @; it compiles before the script has said where it is\"}}},", o);
+	jpad(o, 1); fputs("\"engine_trees\": [", o);
+	for (size_t i = 0; i < sizeof ENGINE_TREES / sizeof *ENGINE_TREES; i++) {
+		if (i) fputc(',', o);
+		jpad(o, 2); fputs("{", o); jkv(o, "name", ENGINE_TREES[i].name); fputs(", ", o); jkv(o, "doc", ENGINE_TREES[i].doc); fputs("}", o);
+	}
+	jpad(o, 1); fputs("],", o);
+	jpad(o, 1); fputs("\"companion\": {\"suffix\": \"_also\", \"doc\": \"a tree named <name>_also beside the tree <name> a bot runs is ticked "
+	                  "just before it at every decision: where things done beside go (a lamp, a ping, an item); keep it to actions "
+	                  "that end at once\"}", o);
 	fputs("\n}\n", o);
 	return 0;
+}
+
+/* a word's arguments, one a line under it */
+static void md_args(FILE *o, const bt_arg_spec *args, int n_args)
+{
+	for (int j = 0; j < n_args; j++) {
+		const bt_arg_spec *a = &args[j];
+		fprintf(o, "  - `%s`: ", a->name);
+		if (a->type == BT_ARG_NUMBER) fputs("a number", o);
+		else if (a->type == BT_ARG_TEXT) fputs("a word", o);
+		else if (a->values && a->set) fprintf(o, "`%s`, or a [%s](#%ss)", a->values, a->set, a->set);
+		else if (a->set) fprintf(o, "a [%s](#%ss)", a->set, a->set);
+		else fprintf(o, "one of `%s`", a->values);
+		if (a->has_min && a->has_max) fprintf(o, ", %s to %s", num(a->min), num(a->max));
+		if (a->repeat) fputs("; may be given several times", o);
+		if (a->required) fputs("; must be given", o);
+		else if (a->has_default && a->def_note) fprintf(o, "; left out: %s (%s)", num(a->def), a->def_note);
+		else if (a->has_default) fprintf(o, "; left out: %s", num(a->def));
+		else if (a->def_text) fprintf(o, "; left out: `%s`", a->def_text);
+		else if (a->def_note) fprintf(o, "; left out: %s", a->def_note);
+		fputs("\n", o);
+	}
 }
 
 /* --words --md: the vocabulary as a page (bot/VOCAB.md) */
 static int words_md(FILE *o)
 {
 	static const char *const title[3][2] = {
-		{ "Conditions", "For `if` and `unless`: true or false." },
-		{ "Scores", "For `option <trait> <score>`: 0 to 1, how much the situation calls for the option. At 0 the option cannot be chosen." },
+		{ "Conditions", "For `if` and `unless`: true or false. One marked *short for* a comparison of a [value](#values) is "
+		  "that comparison, compiled as it: the same answer, always." },
+		{ "Scores", "For `option <trait> <score>`: 0 to 1, how much the situation calls for the option. At 0 the option cannot be chosen. "
+		  "One marked *short for* a comparison is 1 when it holds and 0 when not." },
 		{ "Actions", "For `do`. Each says what it answers: RUNNING while it goes on, SUCCESS or FAILURE when it ends." },
 	};
 	bc_word w;
@@ -704,28 +829,32 @@ static int words_md(FILE *o)
 	for (int k = 0; k < 3; k++) {
 		fprintf(o, "\n## %s\n\n%s\n\n", title[k][0], title[k][1]);
 		for (int i = 0; bc_vocab_word(i, &w); i++) {
-			char usage[128];
+			char usage[128], short_for[128];
 			if (w.kind != k) continue;
 			bc_vocab_usage(i, usage, sizeof usage);
-			fprintf(o, "- **`%s%s%s`** -- %s\n", w.name, usage[0] ? " " : "", usage, w.doc);
-			for (int j = 0; j < w.n_args; j++) {
-				const bt_arg_spec *a = &w.args[j];
-				fprintf(o, "  - `%s`: ", a->name);
-				if (a->type == BT_ARG_NUMBER) fputs("a number", o);
-				else if (a->type == BT_ARG_TEXT) fputs("a word", o);
-				else if (a->values && a->set) fprintf(o, "`%s`, or a [%s](#%ss)", a->values, a->set, a->set);
-				else if (a->set) fprintf(o, "a [%s](#%ss)", a->set, a->set);
-				else fprintf(o, "one of `%s`", a->values);
-				if (a->has_min && a->has_max) fprintf(o, ", %s to %s", num(a->min), num(a->max));
-				if (a->repeat) fputs("; may be given several times", o);
-				if (a->required) fputs("; must be given", o);
-				else if (a->has_default && a->def_note) fprintf(o, "; left out: %s (%s)", num(a->def), a->def_note);
-				else if (a->has_default) fprintf(o, "; left out: %s", num(a->def));
-				else if (a->def_text) fprintf(o, "; left out: `%s`", a->def_text);
-				else if (a->def_note) fprintf(o, "; left out: %s", a->def_note);
-				fputs("\n", o);
-			}
+			bc_vocab_short_for(i, short_for, sizeof short_for);
+			fprintf(o, "- **`%s%s%s`** -- %s", w.name, usage[0] ? " " : "", usage, w.doc);
+			if (short_for[0]) fprintf(o, ". *Short for* `%s`", short_for);
+			fputs("\n", o);
+			md_args(o, w.args, w.n_args);
 		}
+	}
+	fputs("\n## Values\n\nFor a comparison, wherever a condition goes (`if <value> [arguments] <op> <number>`, `unless ...`) "
+	      "and as an option's score (`option <trait> <value> [arguments] <op> <number>`: 1 when it holds, 0 when not). "
+	      "The operators are `<`, `<=`, `>` and `>=`. A value may be **unknown** now (no enemy in sight has no distance): "
+	      "a comparison of it is then false, so `unless` of it is true. The number compared must lie within the value's "
+	      "range, given here with its unit.\n\n", o);
+	for (int i = 0; i < bc_value_count(); i++) {
+		bc_value x;
+		char usage[128];
+		bc_value_at(i, &x);
+		bc_value_usage(i, usage, sizeof usage);
+		fprintf(o, "- **`%s%s%s`** -- %s. In %s", x.name, usage[0] ? " " : "", usage, x.doc, x.number->name);
+		if (x.number->has_min && x.number->has_max) fprintf(o, ", %s to %s", num(x.number->min), num(x.number->max));
+		else if (x.number->has_min) fprintf(o, ", %s or more", num(x.number->min));
+		else if (x.number->has_max) fprintf(o, ", %s or less", num(x.number->max));
+		fputs("\n", o);
+		md_args(o, x.args, x.n_args);
 	}
 	fprintf(o, "\n## Traits\n\nFor `option <trait> ...`: the bot's own weight for the trait multiplies the option's score.\n"
 	      "A weight is rolled once a bot, around its archetype's centre, and kept between %s and %s.\n\n", num(lo), num(hi));
@@ -784,9 +913,9 @@ static void json_node(FILE *o, const bt_source *src, int id, int pad)
 	}
 	case BT_K_OPTION:
 		fputs(", ", o); jkv(o, "trait", n.trait);
-		fputs(", ", o); jkv(o, "score", n.name);
+		fputs(", ", o); jkv(o, n.op ? "value" : "score", n.name);
 		break;
-	case BT_K_IF: case BT_K_UNLESS: fputs(", ", o); jkv(o, "cond", n.name); break;
+	case BT_K_IF: case BT_K_UNLESS: fputs(", ", o); jkv(o, n.op ? "value" : "cond", n.name); break;
 	case BT_K_DO: fputs(", ", o); jkv(o, "action", n.name); break;
 	case BT_K_WAIT: case BT_K_COOLDOWN: case BT_K_LIMIT: fprintf(o, ", \"seconds\": %s", num(n.secs)); break;
 	case BT_K_TREE:
@@ -799,6 +928,7 @@ static void json_node(FILE *o, const bt_source *src, int id, int pad)
 		for (int k = 0; k < n.args.count; k++) { if (k) fputs(", ", o); jstr(o, n.args.text[k]); }
 		fputc(']', o);
 	}
+	if (n.op) { fputs(", ", o); jkv(o, "op", bt_op_name(n.op)); fprintf(o, ", \"number\": %s", num(n.number)); }
 	if (n.kind == BT_K_OPTION)
 		fprintf(o, ", \"factor\": %s, \"defaults\": [%s]", num(n.factor), n.written & BT_W_FACTOR ? "" : "\"factor\"");
 	if (n.comment) { fputs(", ", o); jkv(o, "comment", n.comment); }
@@ -941,6 +1071,8 @@ static void sput_node(sb *b, const jv *node, int depth)
 {
 	const char *kind = jtext(node, "kind");
 	const jv *v;
+	int compared = kind && (!strcmp(kind, "if") || !strcmp(kind, "unless") || !strcmp(kind, "option")) &&
+	               jtext(node, "value") != NULL;      /* a comparison: value, args, op, number */
 	if (!kind) { fprintf(stderr, "bttree: --from-json: a node without a \"kind\"\n"); json_err = 1; return; }
 	sput_above(b, jget(node, "above"), depth);
 	for (int k = 0; k < depth; k++) sput(b, "\t");
@@ -958,9 +1090,9 @@ static void sput_node(sb *b, const jv *node, int depth)
 			}
 	} else if (!strcmp(kind, "option")) {
 		sput(b, " "); sput(b, jtext(node, "trait") ? jtext(node, "trait") : "?");
-		sput(b, " "); sput(b, jtext(node, "score") ? jtext(node, "score") : "?");
+		sput(b, " "); sput(b, jtext(node, compared ? "value" : "score") ? jtext(node, compared ? "value" : "score") : "?");
 	} else if (!strcmp(kind, "if") || !strcmp(kind, "unless")) {
-		sput(b, " "); sput(b, jtext(node, "cond") ? jtext(node, "cond") : "?");
+		sput(b, " "); sput(b, jtext(node, compared ? "value" : "cond") ? jtext(node, compared ? "value" : "cond") : "?");
 	} else if (!strcmp(kind, "do")) {
 		sput(b, " "); sput(b, jtext(node, "action") ? jtext(node, "action") : "?");
 	} else if (!strcmp(kind, "wait") || !strcmp(kind, "cooldown") || !strcmp(kind, "limit")) {
@@ -974,11 +1106,26 @@ static void sput_node(sb *b, const jv *node, int depth)
 		sput(b, " ");
 		sput(b, a->type == 's' ? a->text : a->type == '#' ? num(a->number) : "?");
 	}
+	if (compared) {                     /* <value> [args] <op> <number> */
+		v = jget(node, "number");
+		sput(b, " "); sput(b, jtext(node, "op") ? jtext(node, "op") : "?");
+		sput(b, " "); sput(b, v && v->type == '#' ? num(v->number) : v && v->type == 's' ? v->text : "?");
+	}
 	if (!strcmp(kind, "option") && !is_default(node, "factor", 1)) { sput(b, " x"); sput(b, num(jget(node, "factor")->number)); }
 	sput_comment(b, node);
 	sput(b, "\n");
+	/* an else is its if's last child, written at the if's indent */
 	v = jget(node, "children");
-	for (const jv *ch = v && v->type == 'a' ? v->kids : NULL; ch; ch = ch->next) sput_node(b, ch, depth + 1);
+	for (const jv *ch = v && v->type == 'a' ? v->kids : NULL; ch; ch = ch->next) {
+		const char *ck = jtext(ch, "kind");
+		int is_else = ck && !strcmp(ck, "else");
+		if (is_else && (ch->next || (strcmp(kind, "if") && strcmp(kind, "unless")))) {
+			fprintf(stderr, "bttree: --from-json: an else must be the last child of an if or unless\n");
+			json_err = 1;
+			return;
+		}
+		sput_node(b, ch, is_else ? depth : depth + 1);
+	}
 }
 
 /* one file of the JSON -> canonical text on `out`. 0 if it is not a tree. */
@@ -1152,11 +1299,12 @@ static void draw_node(const bt_source *src, int id, const char *prefix, int last
 	if (n.kind == BT_K_TREE) {              /* a reference: open it in place */
 		int t = has_tree(src, n.name), seen = 0;
 		for (int k = 0; k < n_open; k++) if (open[k] == t) seen = 1;
-		if (t < 0)
-			printf("%s%s%s(filled in at run time: %s)%s\n", DIM, deeper, end,
-				!strcmp(n.name, "items") ? "each inventory item's own rule"
-				: !strcmp(n.name, "extras") ? "what server scripts bring, e.g. night"
-				: "sent by the server", OFF);
+		if (t < 0) {
+			const char *what = "sent by the server";
+			for (size_t k = 0; k < sizeof ENGINE_TREES / sizeof *ENGINE_TREES; k++)
+				if (!strcmp(n.name, ENGINE_TREES[k].name)) what = ENGINE_TREES[k].drawn;
+			printf("%s%s%s(filled in at run time: %s)%s\n", DIM, deeper, end, what, OFF);
+		}
 		else if (seen || n_open == MAX_OPEN)
 			printf("%s%s%s(again: %s)%s\n", DIM, deeper, end, n.name, OFF);
 		else {
@@ -1193,13 +1341,15 @@ static int draw_all(const bt_source *src, const char *only)
 
 enum { MAX_WORDS = 160, MAX_SET = 128, MAX_OUT = 64 };
 
-static struct { char name[BT_NAME_MAX]; } words_[3 * MAX_WORDS];
-static int n_words[3];                          /* cond, score, action */
-static struct { char key[96]; char val[32]; int used; } set_[MAX_SET];
+static struct { char name[BT_NAME_MAX]; } words_[4 * MAX_WORDS];
+static int n_words[4];                          /* cond, score, action, value */
+static struct { char key[96]; char val[32]; int used, value; } set_[MAX_SET];   /* value: as asked */
 static int n_set;
 static char asked[256][96];
+static int asked_value[256];                    /* a value's index + 1, or 0 for a word */
 static int n_asked;
 static int quiet_ask;                           /* an action is not a question */
+static int asking_value;                        /* the value being asked, + 1 */
 
 static const char *word_name(int kind, int i) { return words_[kind * MAX_WORDS + i].name; }
 
@@ -1214,12 +1364,15 @@ static const char *given(const char *name, const bt_args *args)
 	for (int pass = 0; pass < 2; pass++) {
 		const char *k = pass ? name : key;
 		for (int i = 0; i < n_set; i++)
-			if (!strcmp(set_[i].key, k)) { set_[i].used = 1; return set_[i].val; }
+			if (!strcmp(set_[i].key, k)) { set_[i].used = 1; set_[i].value = asking_value; return set_[i].val; }
 	}
 	if (quiet_ask) return NULL;
 	for (int i = 0; i < n_asked; i++)
 		if (!strcmp(asked[i], key)) return NULL;
-	if (n_asked < 256) snprintf(asked[n_asked++], sizeof asked[0], "%s", key);
+	if (n_asked < 256) {
+		asked_value[n_asked] = asking_value;
+		snprintf(asked[n_asked++], sizeof asked[0], "%s", key);
+	}
 	return NULL;
 }
 
@@ -1232,6 +1385,20 @@ static float worth(const char *name, const bt_args *args)
 }
 
 static int split_cond(int i, const bt_args *a) { return worth(word_name(0, i), a) > 0.0f; }
+/* a value given is a number; not given (or `none`), it is unknown */
+static int split_value(int i, const bt_args *a, double *out)
+{
+	const char *v;
+	int x;
+	bc_value info;
+	for (x = 0; bc_value_at(x, &info) && strcmp(info.name, word_name(3, i)); x++) ;
+	asking_value = x + 1;
+	v = given(word_name(3, i), a);
+	asking_value = 0;
+	if (!v || !strcmp(v, "none") || !strcmp(v, "unknown")) return 0;
+	*out = atof(v);
+	return 1;
+}
 static float split_score(int i, const bt_args *a) { return worth(word_name(1, i), a); }
 static bt_status split_action(int i, const bt_args *a)
 {
@@ -1249,13 +1416,14 @@ static bt_status split_action(int i, const bt_args *a)
 #define LEAF(i) \
 	static int cf##i(void *b, const bt_args *a) { (void)b; return split_cond(i, a); } \
 	static float sf##i(void *b, const bt_args *a) { (void)b; return split_score(i, a); } \
-	static bt_status af##i(void *b, const bt_args *a, float dt) { (void)b; (void)dt; return split_action(i, a); }
+	static bt_status af##i(void *b, const bt_args *a, float dt) { (void)b; (void)dt; return split_action(i, a); } \
+	static int vf##i(void *b, const bt_args *a, double *out) { (void)b; return split_value(i, a, out); }
 #define L10(t) LEAF(t##0) LEAF(t##1) LEAF(t##2) LEAF(t##3) LEAF(t##4) LEAF(t##5) LEAF(t##6) LEAF(t##7) LEAF(t##8) LEAF(t##9)
 LEAF(0) LEAF(1) LEAF(2) LEAF(3) LEAF(4) LEAF(5) LEAF(6) LEAF(7) LEAF(8) LEAF(9)
 L10(1) L10(2) L10(3) L10(4) L10(5) L10(6) L10(7) L10(8) L10(9) L10(10) L10(11) L10(12) L10(13) L10(14) L10(15)
-#define P(i) {cf##i, sf##i, af##i},
+#define P(i) {cf##i, sf##i, af##i, vf##i},
 #define P10(t) P(t##0) P(t##1) P(t##2) P(t##3) P(t##4) P(t##5) P(t##6) P(t##7) P(t##8) P(t##9)
-static const struct { bt_cond_fn c; bt_score_fn s; bt_action_fn a; } leaf[MAX_WORDS] = {
+static const struct { bt_cond_fn c; bt_score_fn s; bt_action_fn a; bt_value_fn v; } leaf[MAX_WORDS] = {
 	P(0) P(1) P(2) P(3) P(4) P(5) P(6) P(7) P(8) P(9)
 	P10(1) P10(2) P10(3) P10(4) P10(5) P10(6) P10(7) P10(8) P10(9) P10(10) P10(11) P10(12) P10(13) P10(14) P10(15)
 };
@@ -1263,11 +1431,15 @@ static const struct { bt_cond_fn c; bt_score_fn s; bt_action_fn a; } leaf[MAX_WO
 static float split_random(void *bot) { return bc_rng_float((bc_rng *)bot); }
 
 /* The engine's words, each bound to a leaf that answers from what was
- * given. The names come from the engine's own table (bc_vocab_word). */
+ * given. The names come from the engine's own table (bc_vocab_word). A
+ * word that is short for a comparison is a word here like another (it is
+ * given as itself: `health_below 30=1`); a comparison written out asks
+ * its value (`enemy_distance=4`; not given, it is unknown). */
 static bt_vocab *split_vocab(void)
 {
 	bt_vocab *v = bt_vocab_new();
 	bc_word w;
+	bc_value x;
 	if (!v) return NULL;
 	for (int n = 0; bc_vocab_word(n, &w); n++) {
 		int k = w.kind;
@@ -1277,6 +1449,11 @@ static bt_vocab *split_vocab(void)
 		if (k == BT_WORD_COND) bt_vocab_cond(v, w.name, leaf[i].c);
 		else if (k == BT_WORD_SCORE) bt_vocab_score(v, w.name, leaf[i].s);
 		else bt_vocab_action(v, w.name, leaf[i].a, NULL);
+	}
+	for (int n = 0; bc_value_at(n, &x) && n_words[BT_WORD_VALUE] < MAX_WORDS; n++) {
+		int i = n_words[BT_WORD_VALUE]++;
+		snprintf(words_[BT_WORD_VALUE * MAX_WORDS + i].name, BT_NAME_MAX, "%s", x.name);
+		bt_vocab_value(v, x.name, leaf[i].v, x.number);
 	}
 	for (int t = 0; t < BC_T_COUNT; t++) bt_vocab_trait(v, bc_trait_name(t), t);
 	return v;
@@ -1297,13 +1474,15 @@ static bt_forest *split_forest(const char *only, int *tree, bt_vocab **vp)
 
 static void say_unasked(void)
 {
-	int head = 0;
-	for (int i = 0; i < n_asked; i++) {
-		if (!strcmp(asked[i], "always")) continue;
-		printf("%s%s%s", head++ ? ", " : "asked and not given (so 0): ", DIM, asked[i]);
-		printf("%s", OFF);
+	for (int pass = 0; pass < 2; pass++) {             /* the words, then the values */
+		int head = 0;
+		for (int i = 0; i < n_asked; i++) {
+			if (!strcmp(asked[i], "always") || !asked_value[i] != !pass) continue;
+			printf("%s%s%s", head++ ? ", " : pass ? "asked and not given (so unknown): " : "asked and not given (so 0): ", DIM, asked[i]);
+			printf("%s", OFF);
+		}
+		if (head) printf("\n");
 	}
-	if (head) printf("\n");
 	for (int i = 0; i < n_set; i++)
 		if (!set_[i].used) printf("given but never asked: %s\n", set_[i].key);
 }
@@ -1460,7 +1639,20 @@ static void split_json(const char *only, int n, int level, const bt_forest *f, c
 		if (!strcmp(asked[i], "always")) continue;
 		printf("%s", first ? "" : ", "); jstr(stdout, asked[i]); first = 0;
 	}
-	printf("],\n \"unused\": [");
+	printf("],\n \"values\": {");
+	first = 1;
+	for (int i = 0; i < n_asked + n_set; i++) {     /* a value asked, given or not: what a slider for it spans */
+		bc_value x;
+		int which = i < n_asked ? asked_value[i] : set_[i - n_asked].value;
+		if (!which || !bc_value_at(which - 1, &x)) continue;
+		printf("%s", first ? "" : ", "); jkey(stdout, i < n_asked ? asked[i] : set_[i - n_asked].key);
+		printf("{"); jkv(stdout, "unit", x.number->name);
+		if (x.number->has_min) printf(", \"min\": %s", num(x.number->min));
+		if (x.number->has_max) printf(", \"max\": %s", num(x.number->max));
+		printf("}");
+		first = 0;
+	}
+	printf("},\n \"unused\": [");
 	first = 1;
 	for (int i = 0; i < n_set; i++)
 		if (!set_[i].used) { printf("%s", first ? "" : ", "); jstr(stdout, set_[i].key); first = 0; }
@@ -2149,6 +2341,13 @@ int main(int argc, char **argv)
 		if (!buf) return 1;
 		fputs(buf, stdout);
 		free(buf);
+		for (int i = 0; i < bc_value_count(); i++) {
+			bc_value x;
+			char usage[128];
+			bc_value_at(i, &x);
+			bc_value_usage(i, usage, sizeof usage);
+			printf("value %s%s%s -- %s (%s)\n", x.name, usage[0] ? " " : "", usage, x.doc, x.number->name);
+		}
 		return 0;
 	}
 	if (do_schema) return schema(stdout);

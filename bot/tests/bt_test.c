@@ -17,6 +17,8 @@ typedef struct Bot {
 	float sc[N];
 	bt_status ret[N];
 	int calls[N], stops[N];
+	double val[N];          /* the value `v <i>`, */
+	int unknown[N];         /* or none now */
 	bc_rng rng;
 } Bot;
 
@@ -31,6 +33,14 @@ static bt_status a_act(void *b, const bt_args *a, float dt)
 	return bot->ret[i];
 }
 static void a_stop(void *b, const bt_args *a) { ((Bot *)b)->stops[(int)a->num[0]]++; }
+static int v_val(void *b, const bt_args *a, double *out)
+{
+	Bot *bot = b;
+	int i = (int)a->num[0];
+	if (bot->unknown[i]) return 0;
+	*out = bot->val[i];
+	return 1;
+}
 static float rnd(void *b) { return bc_rng_float(&((Bot *)b)->rng); }
 
 static bt_vocab *vocab;
@@ -858,6 +868,7 @@ static int same_forest(const bt_forest *a, const bt_forest *b)
 		if (x.kind != y.kind || x.parent != y.parent || x.n_children != y.n_children || x.tree != y.tree ||
 		    x.source != y.source || x.via != y.via || x.written != y.written || x.args.count != y.args.count ||
 		    x.secs != y.secs || x.every != y.every || x.sticky != y.sticky || x.noise != y.noise || x.factor != y.factor ||
+		    x.op != y.op || x.number != y.number ||
 		    !same(x.name, y.name) || !same(x.trait, y.trait) || !same(x.text, y.text) || !same(x.comment, y.comment))
 			return 0;
 		for (k = 0; k < x.args.count; k++) if (!same(x.args.text[k], y.args.text[k])) return 0;
@@ -1902,6 +1913,405 @@ static void bench_plain_pick(void)
 	rig_close(&r);
 }
 
+
+/* ---- conditions on numbers: a value, compared ------------------------ */
+
+/* `v <i>`: the test's value, 0 to 100; `v_below <i> [n]` is short for
+ * `v <i> < n` (n 50 if left out), `v_far <i> <n>` for `unless v <i> <=
+ * n`, and the score `v_high <i> <n>` for `v <i> >= n` */
+static const bt_arg_spec SPEC_V_IDX[1] = { { "i", BT_ARG_NUMBER, 1, 0, 0, 1, 1, NULL, NULL, 0, 0, N - 1, NULL, NULL } };
+static const bt_arg_spec SPEC_V_RANGE = { "units", BT_ARG_NUMBER, 1, 0, 0, 1, 1, NULL, NULL, 0, 0, 100, NULL, NULL };
+static const bt_arg_spec SPEC_V_BELOW[2] = {
+	{ "i", BT_ARG_NUMBER, 1, 0, 0, 1, 1, NULL, NULL, 0, 0, N - 1, NULL, NULL },
+	{ "n", BT_ARG_NUMBER, 0, 0, 1, 1, 1, NULL, NULL, 50, 0, 100, NULL, NULL },
+};
+static const bt_arg_spec SPEC_V_N[2] = {
+	{ "i", BT_ARG_NUMBER, 1, 0, 0, 1, 1, NULL, NULL, 0, 0, N - 1, NULL, NULL },
+	{ "n", BT_ARG_NUMBER, 1, 0, 0, 1, 1, NULL, NULL, 0, 0, 100, NULL, NULL },
+};
+
+static bt_status tick_once(const char *text, Bot *b)
+{
+	Rig r;
+	bt_status st = BT_FAILURE;
+	if (rig_open(&r, text, b)) { st = rig_tick(&r, 0.1f); rig_close(&r); }
+	return st;
+}
+
+static void test_compare(void)
+{
+	static const char *const OPS[4] = { "<", "<=", ">", ">=" };
+	static const double AT[3] = { 4.999, 5.0, 5.001 };
+	char text[100];
+	int o, k, neg;
+	Bot b;
+	bot_init(&b, 1);
+	/* every operator on both sides of its edge, as if and as unless */
+	for (o = 0; o < 4; o++)
+		for (k = 0; k < 3; k++)
+			for (neg = 0; neg < 2; neg++) {
+				double v = AT[k];
+				int want = o == 0 ? v < 5 : o == 1 ? v <= 5 : o == 2 ? v > 5 : v >= 5;
+				b.val[3] = v;
+				b.unknown[3] = 0;
+				snprintf(text, sizeof text, "%s v 3 %s 5\n", neg ? "unless" : "if", OPS[o]);
+				CHECK(tick_once(text, &b) == ((want ^ neg) ? BT_SUCCESS : BT_FAILURE));
+				/* unknown: the comparison is false whatever it says, so unless is true */
+				b.unknown[3] = 1;
+				CHECK(tick_once(text, &b) == (neg ? BT_SUCCESS : BT_FAILURE));
+			}
+	b.unknown[3] = 0;
+	/* the number may be any way a number is written; the source has it */
+	b.val[1] = 0.25;
+	CHECK(tick_once("if v 1 >= 2.5e-1\n", &b) == BT_SUCCESS);
+	CHECK(tick_once("if v 1 < .3\n", &b) == BT_SUCCESS);
+	{
+		bt_source *src = bt_parse(vocab, "if v 1 <= 7.5 # a comment\n", NULL);
+		bt_node n;
+		CHECK(src && bt_source_node(src, 0, &n));
+		if (src) {
+			CHECK(n.kind == BT_K_IF && n.op == BT_OP_LE && n.number == 7.5f && !strcmp(n.name, "v") && n.args.count == 1 &&
+			      !strcmp(n.args.text[0], "1") && !strcmp(n.text, "if v 1 <= 7.5") && !strcmp(n.comment, "a comment"));
+			CHECK(!strcmp(bt_op_name(n.op), "<=") && bt_op_name(BT_OP_NONE) == NULL && bt_op_name(BT_OP_COUNT) == NULL);
+		}
+		bt_source_free(src);
+	}
+	/* a word short for a comparison: the same answer as the comparison
+	 * written out, over a sweep; the source keeps the word as written */
+	for (k = 0; k <= 100; k++) {
+		char a[100], c[100];
+		b.val[2] = k * 0.5 + (k % 3 == 0 ? 0.0 : 0.25);
+		b.unknown[2] = k % 17 == 0;
+		snprintf(a, sizeof a, "if v_below 2 %d\n", 20 + k % 13);
+		snprintf(c, sizeof c, "if v 2 < %d\n", 20 + k % 13);
+		CHECK(tick_once(a, &b) == tick_once(c, &b));
+		CHECK(tick_once("unless v_below 2\n", &b) == tick_once("unless v 2 < 50\n", &b));     /* its default */
+		snprintf(a, sizeof a, "if v_far 2 %d\n", 20 + k % 13);
+		snprintf(c, sizeof c, "unless v 2 <= %d\n", 20 + k % 13);
+		CHECK(tick_once(a, &b) == tick_once(c, &b));
+		snprintf(a, sizeof a, "unless v_far 2 %d\n", 20 + k % 13);
+		snprintf(c, sizeof c, "if v 2 <= %d\n", 20 + k % 13);
+		CHECK(tick_once(a, &b) == tick_once(c, &b));
+	}
+	{
+		bt_source *src = bt_parse(vocab, "if v_below 2\n", NULL);
+		bt_node n;
+		CHECK(src && bt_source_node(src, 0, &n) && n.op == BT_OP_NONE && !strcmp(n.name, "v_below") &&
+		      n.args.count == 1 && !strcmp(n.text, "if v_below 2"));
+		bt_source_free(src);
+	}
+	/* its own arguments are checked as any word's */
+	bad("if v_below\n", 1, "<i> is missing");
+	bad("if v_below 2 300\n", 1, "between 0 and 100");
+	bad("if v_far 2\n", 1, "<n> is missing");
+}
+
+static void test_compare_errors(void)
+{
+	diag_is("select\n\tif v 1 <\n", 2, 9, "a number must follow the operator");
+	diag_is("select\n\tif w 1 < 3\n", 2, 5, "no value called w");
+	diag_is("select\n\tif flag 1 < 3\n", 2, 5, "flag is a condition");
+	diag_is("select\n\tif v 1\n", 2, 5, "v is a value: compare it");
+	diag_is("select\n\tif v 1 < 500\n", 2, 11, "between 0 and 100");
+	diag_is("select\n\tif v 1 >= -1\n", 2, 12, "between 0 and 100");
+	diag_is("select\n\tif v 1 == 3\n", 2, 9, "not an operator");
+	diag_is("select\n\tif v 1 != 3\n", 2, 9, "not an operator");
+	diag_is("select\n\tif v 1 = 3\n", 2, 9, "not an operator");
+	diag_is("select\n\tif v 1 < lots\n", 2, 11, "'lots' is not a number");
+	diag_is("select\n\tif v 1 < 3 4\n", 2, 13, "nothing may follow the number");
+	diag_is("select\n\tif v<3\n", 2, 5, "spaces round its operator");
+	diag_is("select\n\tif v 9 < 3\n", 2, 7, "<i> must be between 0 and 7");
+	diag_is("select\n\tif v < 3\n", 2, 5, "<i> is missing");
+	diag_is("pick\n\toption a v 1 < 500 x2\n\t\tdo act 0\n", 2, 17, "between 0 and 100");
+	diag_is("pick\n\toption a sc 0 < 5\n\t\tdo act 0\n", 2, 11, "sc is a score");
+	diag_is("pick\n\toption a v 1\n\t\tdo act 0\n", 2, 11, "v is a value");
+}
+
+/* the score form: 1 when it holds, 0 when not -- never chosen at 0 */
+static void test_compare_score(void)
+{
+	Rig r;
+	Bot b;
+	int i, n[2] = {0, 0};
+	bot_init(&b, 3);
+	b.sc[0] = 0.5f;
+	b.val[0] = 10;
+	if (rig_open(&r, "pick noise=0\n\toption a v 0 < 20 x2\n\t\tdo act 0\n\toption b sc 0\n\t\tdo act 1\n", &b)) {
+		b.ret[0] = b.ret[1] = BT_RUNNING;
+		CHECK(rig_tick(&r, 0.1f) == BT_RUNNING && b.calls[0] == 1);              /* 1 x 2 against 0.5 */
+		b.val[0] = 30;                                                          /* it no longer holds: 0 */
+		for (i = 0; i < 30; i++) rig_tick(&r, 0.1f);
+		CHECK(b.calls[1] > 0 && b.stops[0] == 1);
+		b.unknown[0] = 1;                                                       /* unknown: 0 too */
+		bt_reset(r.f, r.s, &r.ctx);
+		memset(b.calls, 0, sizeof b.calls);
+		for (i = 0; i < 30; i++) rig_tick(&r, 0.1f);
+		CHECK(b.calls[0] == 0 && b.calls[1] > 0);
+		rig_close(&r);
+	}
+	/* drawn in proportion to its worth in a lottery: x3 against x1 */
+	bot_init(&b, 4);
+	b.val[0] = 10;
+	b.sc[0] = 1;
+	if (rig_open(&r, "pick roll=each every=0\n\toption none v 0 >= 10 x3\n\t\tdo act 0\n\toption none sc 0\n\t\tdo act 1\n", &b)) {
+		for (i = 0; i < 4000; i++) rig_tick(&r, 0.1f);
+		n[0] = b.calls[0]; n[1] = b.calls[1];
+		CHECK(n[0] + n[1] == 4000 && n[0] > 2850 && n[0] < 3150);                /* 3 in 4 */
+		b.val[0] = 9.99;                                                        /* 0: never drawn */
+		memset(b.calls, 0, sizeof b.calls);
+		for (i = 0; i < 500; i++) rig_tick(&r, 0.1f);
+		CHECK(b.calls[0] == 0 && b.calls[1] == 500);
+		rig_close(&r);
+	}
+	/* a score short for a comparison is that comparison, as a score */
+	bot_init(&b, 5);
+	b.val[4] = 60;
+	b.sc[0] = 0.5f;
+	if (rig_open(&r, "pick noise=0\n\toption a v_high 4 50\n\t\tdo act 0\n\toption b sc 0\n\t\tdo act 1\n", &b)) {
+		bt_worth w[2];
+		bt_state_trace(r.s, 1);
+		CHECK(rig_tick(&r, 0.1f) == BT_SUCCESS && b.calls[0] == 1);
+		CHECK(bt_state_worths(r.f, r.s, 0, w, 2) == 2 && w[0].score == 1.0f && w[1].score == 0.5f);
+		b.val[4] = 49;
+		CHECK(rig_tick(&r, 0.1f) == BT_SUCCESS && b.calls[1] == 1);
+		CHECK(bt_state_worths(r.f, r.s, 0, w, 2) == 2 && w[0].score == 0.0f);
+		rig_close(&r);
+	}
+}
+
+/* ---- if as a block ---------------------------------------------------- */
+
+static void test_block(void)
+{
+	static const char IFELSE[] = "if flag 0\n\tdo act 0\n\tdo act 1\nelse\n\tdo act 2\n";
+	Rig r;
+	Bot b;
+	int x, y, z;
+	char d[200];
+	/* the condition is asked when it is entered, and the branch kept */
+	bot_init(&b, 1);
+	b.flag[0] = 1;
+	b.ret[0] = BT_RUNNING;
+	if (rig_open(&r, IFELSE, &b)) {
+		bt_node_state ns;
+		int path[BT_DEPTH_MAX];
+		CHECK(rig_tick(&r, 0.1f) == BT_RUNNING && b.calls[0] == 1);
+		CHECK(bt_state_node(r.f, r.s, 0, &ns) && ns.running && ns.child == 1);
+		CHECK(bt_state_running(r.f, r.s, 0, path, BT_DEPTH_MAX) == 2 && path[0] == 0 && path[1] == 1);
+		CHECK(bt_describe(r.f, r.s, d, sizeof d) && !strcmp(d, "act"));
+		b.flag[0] = 0;                                  /* it changes: the branch goes on */
+		CHECK(rig_tick(&r, 0.1f) == BT_RUNNING && b.calls[0] == 2 && b.calls[2] == 0);
+		b.ret[0] = BT_SUCCESS;                          /* the branch goes on in order, as a seq */
+		CHECK(rig_tick(&r, 0.1f) == BT_SUCCESS && b.calls[0] == 3 && b.calls[1] == 1 && b.calls[2] == 0);
+		CHECK(bt_state_node(r.f, r.s, 0, &ns) && !ns.running && ns.child == -1);
+		/* it ended: entered again, it asks again -- now the else */
+		b.ret[2] = BT_RUNNING;
+		CHECK(rig_tick(&r, 0.1f) == BT_RUNNING && b.calls[2] == 1 && b.calls[0] == 3);
+		CHECK(bt_state_node(r.f, r.s, 0, &ns) && ns.running && ns.child == 4);
+		/* the path goes from the if to the else's child, not through the else */
+		CHECK(bt_state_running(r.f, r.s, 0, path, BT_DEPTH_MAX) == 2 && path[0] == 0 && path[1] == 4);
+		b.flag[0] = 1;
+		CHECK(rig_tick(&r, 0.1f) == BT_RUNNING && b.calls[2] == 2 && b.calls[0] == 3);
+		/* a reset stops it, once, and forgets the branch */
+		bt_reset(r.f, r.s, &r.ctx);
+		CHECK(b.stops[2] == 1);
+		CHECK(rig_tick(&r, 0.1f) == BT_SUCCESS && b.calls[0] == 4 && b.calls[1] == 2);
+		/* and a restart the same */
+		b.flag[0] = 0;
+		CHECK(rig_tick(&r, 0.1f) == BT_RUNNING && b.calls[2] == 3);
+		bt_restart(r.f, r.s, &r.ctx);
+		CHECK(b.stops[2] == 2);
+		b.flag[0] = 1;
+		CHECK(rig_tick(&r, 0.1f) == BT_SUCCESS && b.calls[0] == 5);
+		/* a branch that fails: the block fails, the rest of it not ticked */
+		b.ret[0] = BT_FAILURE;
+		CHECK(rig_tick(&r, 0.1f) == BT_FAILURE && b.calls[0] == 6 && b.calls[1] == 3);
+		rig_close(&r);
+	}
+	/* no else, the condition false: FAILURE, nothing ticked; unless turned */
+	bot_init(&b, 1);
+	CHECK(tick_once("if flag 0\n\tdo act 0\n", &b) == BT_FAILURE && b.calls[0] == 0);
+	CHECK(tick_once("unless flag 0\n\tdo act 0\n", &b) == BT_SUCCESS && b.calls[0] == 1);
+	CHECK(tick_once("unless flag 0\n\tdo act 0\nelse\n\tdo act 1\n", &b) == BT_SUCCESS && b.calls[0] == 2 && b.calls[1] == 0);
+	b.flag[0] = 1;
+	CHECK(tick_once("unless flag 0\n\tdo act 0\nelse\n\tdo act 1\n", &b) == BT_SUCCESS && b.calls[1] == 1 && b.calls[0] == 2);
+	CHECK(tick_once("unless flag 0\n\tdo act 0\n", &b) == BT_FAILURE && b.calls[0] == 2);
+	/* a comparison as the block's condition */
+	b.val[0] = 4;
+	CHECK(tick_once("if v 0 < 5\n\tdo act 0\nelse\n\tdo act 1\n", &b) == BT_SUCCESS && b.calls[0] == 3);
+	b.unknown[0] = 1;
+	CHECK(tick_once("if v 0 < 5\n\tdo act 0\nelse\n\tdo act 1\n", &b) == BT_SUCCESS && b.calls[1] == 2);
+	/* the RUNNING action in the branch is stopped when its parent leaves
+	 * it: a pick choosing another option */
+	bot_init(&b, 1);
+	b.flag[0] = 1;
+	b.ret[0] = BT_RUNNING;
+	b.sc[0] = 1; b.sc[1] = 0.5f;
+	if (rig_open(&r, "pick every=1 noise=0 sticky=0\n\toption a sc 0\n\t\tif flag 0\n\t\t\tdo act 0\n\t\telse\n\t\t\tdo act 1\n"
+	                 "\toption b sc 1\n\t\tdo act 2\n", &b)) {
+		CHECK(rig_tick(&r, 0.1f) == BT_RUNNING && b.calls[0] == 1);
+		CHECK(bt_describe(r.f, r.s, d, sizeof d) && !strcmp(d, "pick:a > act"));
+		b.sc[1] = 2;
+		rig_tick(&r, 1.0f);
+		CHECK(b.stops[0] == 1 && b.calls[2] == 1);
+		/* chosen again: the block is entered afresh and asks again */
+		b.sc[1] = 0.1f;
+		b.flag[0] = 0;
+		b.ret[1] = BT_RUNNING;
+		rig_tick(&r, 1.0f);
+		CHECK(b.calls[1] == 1 && b.calls[0] == 1);
+		rig_close(&r);
+	}
+	/* "keep checking": under a limit, the block is entered again when it
+	 * runs out, and the condition asked again */
+	bot_init(&b, 1);
+	b.flag[0] = 1;
+	b.ret[0] = b.ret[1] = BT_RUNNING;
+	if (rig_open(&r, "select\n\tlimit 1\n\t\tif flag 0\n\t\t\tdo act 0\n\t\telse\n\t\t\tdo act 1\n\tdo act 2\n", &b)) {
+		int i;
+		CHECK(rig_tick(&r, 0.1f) == BT_RUNNING && b.calls[0] == 1);
+		b.flag[0] = 0;
+		for (i = 0; i < 9; i++) rig_tick(&r, 0.1f);
+		CHECK(b.calls[0] == 10 && b.calls[1] == 0);                     /* within the limit: the branch kept */
+		rig_tick(&r, 0.1f);
+		CHECK(b.stops[0] == 1 && b.calls[2] == 1);                      /* run out: stopped, the select goes on */
+		rig_tick(&r, 0.1f);                                             /* entered afresh: asked again */
+		CHECK(b.calls[1] == 1 && b.calls[0] == 11 && b.calls[2] == 1);   /* (the limit asks its child first) */
+		rig_close(&r);
+	}
+	/* nesting three deep, an else at each: every case to its own leaf */
+	for (x = 0; x < 2; x++)
+		for (y = 0; y < 2; y++)
+			for (z = 0; z < 2; z++) {
+				static const char T[] =
+					"if flag 0\n"
+					"\tif flag 1\n"
+					"\t\tif flag 2\n"
+					"\t\t\tdo act 0\n"
+					"\t\telse\n"
+					"\t\t\tdo act 1\n"
+					"\telse\n"
+					"\t\tunless flag 2\n"
+					"\t\t\tdo act 2\n"
+					"\t\telse\n"
+					"\t\t\tdo act 3\n"
+					"else\n"
+					"\tif flag 1\n"
+					"\t\tdo act 4\n"
+					"\telse\n"
+					"\t\tdo act 5\n";
+				int want = x ? (y ? (z ? 0 : 1) : (z ? 3 : 2)) : (y ? 4 : 5), k, others = 0;
+				bot_init(&b, 1);
+				b.flag[0] = x; b.flag[1] = y; b.flag[2] = z;
+				CHECK(tick_once(T, &b) == BT_SUCCESS);
+				for (k = 0; k < 6; k++) others += k != want && b.calls[k];
+				CHECK(b.calls[want] == 1 && others == 0);
+			}
+	/* around a pick, and the pick's own choice inside the branch */
+	bot_init(&b, 1);
+	b.flag[0] = 1;
+	b.sc[0] = 0.2f; b.sc[1] = 0.9f;
+	b.ret[1] = BT_RUNNING;
+	if (rig_open(&r, "if flag 0\n\tpick noise=0\n\t\toption a sc 0\n\t\t\tdo act 0\n\t\toption b sc 1\n\t\t\tdo act 1\nelse\n\tdo act 2\n", &b)) {
+		CHECK(rig_tick(&r, 0.1f) == BT_RUNNING && b.calls[1] == 1);
+		CHECK(bt_describe(r.f, r.s, d, sizeof d) && !strcmp(d, "pick:b > act"));
+		rig_close(&r);
+	}
+}
+
+static void test_block_errors(void)
+{
+	diag_is("select\n\telse\n\t\tdo act 0\n", 2, 2, "no if before it");
+	diag_is("else\n\tdo act 0\n", 1, 1, "no if before it");
+	diag_is("select\n\tif flag 0\n\telse\n\t\tdo act 1\n", 3, 2, "an if with no children");
+	diag_is("select\n\tdo act 0\n\telse\n\t\tdo act 1\n", 3, 2, "right after an if or unless");
+	diag_is("if flag 0\n\tdo act 0\nelse\n\tdo act 1\nelse\n\tdo act 2\n", 5, 1, "this is a second");
+	diag_is("select\n\tif flag 0\n\t\tdo act 0\n\telse flag 1\n\t\tdo act 1\n", 4, 7, "takes no words");
+	diag_is("select\n\tif flag 0\n\t\tdo act 0\n\telse\n", 4, 2, "'else' needs at least one child");
+	diag_is("select\n\tif flag 0\n\t\tdo act 0\n\t\telse\n\t\t\tdo act 1\n", 4, 3, "right after an if or unless");
+	diag_is("select\n\tif flag 0\n\t\tdo act 0\n\tdo act 2\n\telse\n\t\tdo act 1\n", 5, 2, "right after an if or unless");
+	diag_is("pick\n\toption a sc 0\n\t\tdo act 0\n\telse\n\t\tdo act 1\n", 4, 2, "right after an if or unless");
+	/* a block may not hold an option; a leaf below a leaf is still refused */
+	diag_is("if flag 0\n\toption a sc 0\n\t\tdo act 0\n", 2, 2, "under a pick");
+	diag_is("if flag 0\n\tdo act 0\n\t\tdo act 1\n", 3, 3, "takes no children");
+	/* every mistake at once, the lines under a dropped else not said */
+	{
+		bt_diag ds[8];
+		int n = bt_diagnose(vocab, "select\n\telse\n\t\tdo act 0\n\tif v 0 < 500\n\t\tdo act 1\n\telse\n\t\tdo act 2\n", 0, ds, 8);
+		CHECK(n == 2 && ds[0].line == 2 && ds[1].line == 4 && ds[1].column == 11);
+	}
+}
+
+/* the text of every form, comments on every line, written canonical
+ * and read back the same: source, forest, comments */
+static void test_block_text(void)
+{
+	static const char IN[] =
+		"# decisions\n"
+		"tree main:\n"
+		"select  # the top\n"
+		"    if v 0 < 5      # near\n"
+		"        do act 0\n"
+		"    # otherwise:\n"
+		"    else    # far\n"
+		"        unless v_below 1 20\n"
+		"            do act 1\n"
+		"        else\n"
+		"            pick roll=each\n"
+		"                option a v 2 >= 7.5 x2   # a comparison scored\n"
+		"                    do act 2\n"
+		"                option b v_high 3 40\n"
+		"                    do act 3\n"
+		"    do act 4\n";
+	static const char WANT[] =
+		"# decisions\n"
+		"tree main:\n"
+		"select                                        # the top\n"
+		"\tif v 0 < 5                                # near\n"
+		"\t\tdo act 0\n"
+		"\t# otherwise:\n"
+		"\telse                                      # far\n"
+		"\t\tunless v_below 1 20\n"
+		"\t\t\tdo act 1\n"
+		"\t\telse\n"
+		"\t\t\tpick roll=each\n"
+		"\t\t\t\toption a v 2 >= 7.5 x2        # a comparison scored\n"
+		"\t\t\t\t\tdo act 2\n"
+		"\t\t\t\toption b v_high 3 40\n"
+		"\t\t\t\t\tdo act 3\n"
+		"\tdo act 4\n";
+	int c1 = 0, c2 = 0;
+	char *one = canonical(vocab, IN, &c1), *two, err[200];
+	bt_forest *a, *b;
+	bt_source *src;
+	bt_node n;
+	CHECK(one && !strcmp(one, WANT));
+	if (one && strcmp(one, WANT)) printf("--- got\n%s--- wanted\n%s", one, WANT);
+	if (!one) return;
+	two = canonical(vocab, one, &c2);
+	CHECK(two && !strcmp(one, two) && c1 == 6 && c2 == c1);
+	a = bt_compile(vocab, IN, err, sizeof err);
+	b = bt_compile(vocab, one, err, sizeof err);
+	CHECK(a && b && same_forest(a, b));
+	/* the else: a child of its if, at its column, its comments its own */
+	src = bt_parse(vocab, one, NULL);
+	CHECK(src && bt_source_node(src, 3, &n));
+	if (src) {
+		CHECK(n.kind == BT_K_ELSE && n.parent == 1 && n.column == 2 && n.line == 7 && !strcmp(n.comment, "far") &&
+		      !strcmp(n.above, "# otherwise:\n") && n.next_sibling == -1 && n.n_children == 1);
+		CHECK(bt_source_node(src, 1, &n) && n.n_children == 2 && n.first_child == 2 && n.op == BT_OP_LT);
+		CHECK(bt_source_node(src, 2, &n) && n.next_sibling == 3);
+		CHECK(bt_source_node(src, 4, &n) && n.parent == 3 && n.kind == BT_K_UNLESS && n.op == BT_OP_NONE &&
+		      !strcmp(n.name, "v_below") && n.args.count == 2);
+		CHECK(bt_source_node(src, 8, &n) && n.kind == BT_K_OPTION && n.op == BT_OP_GE && n.number == 7.5f && n.factor == 2.0f &&
+		      !strcmp(n.name, "v") && !strcmp(n.trait, "a"));
+		CHECK(!strcmp(bt_kind_name(BT_K_ELSE), "else"));
+	}
+	bt_source_free(src);
+	bt_forest_free(a); bt_forest_free(b);
+	free(one); free(two);
+}
+
 int main(void)
 {
 	int i;
@@ -1912,6 +2322,14 @@ int main(void)
 	for (i = 0; i < BC_T_COUNT; i++) bt_vocab_trait(vocab, bc_trait_name(i), i);
 	bt_vocab_trait(vocab, "a", 1);
 	bt_vocab_trait(vocab, "b", 2);
+	bt_vocab_value(vocab, "v", v_val, &SPEC_V_RANGE);
+	bt_vocab_args(vocab, BT_WORD_VALUE, "v", SPEC_V_IDX, 1);
+	bt_vocab_short(vocab, BT_WORD_COND, "v_below", "v $1 < $2");
+	bt_vocab_args(vocab, BT_WORD_COND, "v_below", SPEC_V_BELOW, 2);
+	bt_vocab_short(vocab, BT_WORD_COND, "v_far", "unless v $1 <= $2");
+	bt_vocab_args(vocab, BT_WORD_COND, "v_far", SPEC_V_N, 2);
+	bt_vocab_short(vocab, BT_WORD_SCORE, "v_high", "v $1 >= $2");
+	bt_vocab_args(vocab, BT_WORD_SCORE, "v_high", SPEC_V_N, 2);
 
 	test_truth_tables();
 	test_resume();
@@ -1933,6 +2351,12 @@ int main(void)
 	test_diagnose();
 	test_roll();
 	test_roll_each();
+	test_compare();
+	test_compare_errors();
+	test_compare_score();
+	test_block();
+	test_block_errors();
+	test_block_text();
 	bench_plain_pick();
 	bt_vocab_free(vocab);
 	printf("%d checks, %d failed\n", checks, failed);

@@ -56,6 +56,11 @@ asked and not given (so 0): ping_called, vantage smg, has_leader, ...
 The SITUATION is yours to state, as `word=value`:
 - a **score** is 0 to 1 (read its line in `--words` for what 1 means);
   a **condition** 0 or 1; anything not given is 0 (`always` is 1);
+- a **value** a comparison asks (`if enemy_distance < 5`, `option caution
+  health < 40`) is given as its number, in its unit (`enemy_distance=4`,
+  `health=30`); not given, it is UNKNOWN and the comparison false -- the
+  line "asked and not given (so unknown)" lists those. A word short for a
+  comparison (`health_below 30`) is given as itself (`"health_below 30=1"`);
 - `"word arg=value"` sets it for those arguments only (`"enemy_far 70=0.8"`);
   plain `word=` covers every use of it;
 - an **action** is `run` by default (it is what the bot is then doing, and
@@ -142,6 +147,14 @@ An option's worth = `score x the bot's trait weight x factor x luck`.
   from the gamemode instead.
 - An option with score 0 is never taken; if all are 0 the pick fails:
   end a pick with `option none always x0.1` and a sane fallback.
+- **A decision on a number** is an `if` block: `if enemy_distance < 5` /
+  children / `else` / children (TREES.md section 5, "if, unless and
+  else"). It is decided when entered and kept until its branch ends, so
+  put it under a pick option (or a `limit`) to have it asked again. With
+  the value unknown (nobody in sight) the comparison is false and the
+  `else` is taken: guard it with `enemy_visible` above. **Weighed and
+  gated in one line**: a comparison as an option's score, 1 or 0
+  (`option caution health < 40 x2`); or a `pick` inside a branch.
 
 ## Shape of a good tree (see bot/trees/tdm.bt, ctf.bt)
 

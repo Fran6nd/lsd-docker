@@ -151,6 +151,100 @@ highest worth, every time; it does not draw lots. One bot in one
 situation chooses the same thing again and again. The variety comes
 from the bots being different.
 
+**A decision on a number.** "If the nearest enemy is nearer than 5:
+fight back, otherwise hide" is written as it is said. `enemy_distance`
+is a **value** -- a number read off the situation ([the
+values](../VOCAB.md#values)) -- compared with `<`, `<=`, `>` or `>=`;
+`if` with children is a decision, and `else` is the other way:
+
+```bt
+tree mine:
+pick every=1
+	option none enemy_visible                 # somebody in sight:
+		if enemy_distance < 5                 # nearer than 5: fire back
+			do fight
+		else                                  # otherwise: hide
+			do take_cover
+	option none always x0.1                   # nobody: go and find them
+		do seek
+```
+
+```
+$ bttree --plain --split mine.bt enemy_visible=1 enemy_distance=3
+700 bots, level 5, tree (the first)
+   all soldier  camper  pusher flanker support  sapper   scout
+100.0%    100%    100%    100%    100%    100%    100%    100%  pick:none > fight
+$ bttree --plain --split mine.bt enemy_visible=1 enemy_distance=12
+700 bots, level 5, tree (the first)
+   all soldier  camper  pusher flanker support  sapper   scout
+100.0%    100%    100%    100%    100%    100%    100%    100%  pick:none > take_cover
+```
+
+Two things to know. The decision is made **when the `if` is entered**,
+and its branch is kept until it ends -- so it sits under a pick that
+chooses every second: that is what asks it again. And with nobody in
+sight there is no distance: a comparison of it is then false, and the
+`else` is taken -- which is why the decision is under `option none
+enemy_visible`, not on its own.
+
+**Weighed inside a branch.** Each branch can be a choice of its own, by
+character -- the careful hide, the bold close in:
+
+```bt
+tree mine:
+pick every=1
+	option none enemy_visible
+		if enemy_distance < 5
+			do fight
+		else
+			pick every=2
+				option caution always         # the careful hide
+					do take_cover
+				option aggression always      # the bold close in
+					do advance_by_cover
+	option none always x0.1
+		do seek
+```
+
+```
+$ bttree --plain --split mine.bt enemy_visible=1 enemy_distance=12
+700 bots, level 5, tree (the first)
+   all soldier  camper  pusher flanker support  sapper   scout
+ 53.1%     49%    100%      1%     26%     81%     65%     50%  pick:none > pick:caution > take_cover
+ 46.9%     51%      0%     99%     74%     19%     35%     50%  pick:none > pick:aggression > advance_by_cover
+```
+
+**A weighed option, gated by a number.** A comparison can be an
+option's score: 1 when it holds, 0 -- out of the choice -- when not. One
+line says "only when hurt, and then by character":
+
+```bt
+tree mine:
+pick every=1
+	option caution health < 40 x2             # hurt: the careful get out; out of the choice when not
+		do retreat
+	option aggression enemy_visible           # somebody in sight: fight him
+		do fight
+	option none always x0.1
+		do seek
+```
+
+```
+$ bttree --plain --split mine.bt enemy_visible=1 health=30
+700 bots, level 5, tree (the first)
+   all soldier  camper  pusher flanker support  sapper   scout
+ 81.1%     93%    100%     19%     81%     96%     88%     91%  pick:caution > retreat
+ 18.9%      7%      0%     81%     19%      4%     12%      9%  pick:aggression > fight
+$ bttree --plain --split mine.bt enemy_visible=1 health=80
+700 bots, level 5, tree (the first)
+   all soldier  camper  pusher flanker support  sapper   scout
+100.0%    100%    100%    100%    100%    100%    100%    100%  pick:aggression > fight
+```
+
+Some conditions you will see in the shipped trees are short for a
+comparison: `health_below 30` is `health < 30`, `enemy_within 10` is
+`enemy_distance <= 10` -- the same answer either way.
+
 ## 4. See who does what, before running it
 
 ```sh

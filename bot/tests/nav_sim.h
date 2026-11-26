@@ -60,6 +60,7 @@ typedef struct sim_result {
 	                               in the eye's sight (what a player could
 	                               not do; lib_botlink refuses them) */
 	float max_feet;             /* the lowest the feet ever were (z grows down) */
+	float min_feet;             /* and the highest */
 	float route_secs;           /* the first plan's cost */
 	float route_time;           /* ...and the part of it that is time: less
 	                               what the policy charges for water */
@@ -158,6 +159,7 @@ static sim_result sim_run(sim_world *w, bc_nav_policy pol, bc_nav_node start, bc
 	pol.protect = &w->prot;
 	bc_body_place(&b, w->truth, (float)start.x + 0.5f, (float)start.y + 0.5f, start.z, 0);
 	R.max_feet = bc_body_feet(&b);
+	R.min_feet = R.max_feet;
 	still_at = b.pos;
 
 	while (tick < cap) {
@@ -378,6 +380,8 @@ static sim_result sim_run(sim_world *w, bc_nav_policy pol, bc_nav_node start, bc
 		}
 		if (bc_body_feet(&b) > R.max_feet)
 			R.max_feet = bc_body_feet(&b);
+		if (bc_body_feet(&b) < R.min_feet)
+			R.min_feet = bc_body_feet(&b);
 		tick++;
 
 		if ((w->destroy_tick && tick == w->destroy_tick) ||

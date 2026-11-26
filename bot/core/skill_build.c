@@ -770,7 +770,7 @@ static int part_run(const bc_bot *b, const bc_blueprint *bp, int i, bc_nav_node 
 	for (j = 0; j < bp->n; j++) {
 		const bc_bp_cell *o = &bp->cells[j];
 		int dx = o->x - c->x, dy = o->y - c->y, dz = o->z - c->z, k;
-		char name[48];
+		char name[BC_CLAIM_NAME];
 
 		if (j == i || (!!dx + !!dy + !!dz) != 1 || o->rgb != c->rgb || bc_map_solid(e->map, o->x, o->y, o->z) ||
 		    e->now < o->bad_until || body_in(e, NULL, o->x, o->y, o->z))
@@ -872,7 +872,7 @@ static bt_status build_part_tick(bc_bot *b, const bt_args *a, float dt)
 {
 	bc_engine *e = b->e;
 	bc_blueprint *bp;
-	char name[48];
+	char name[BC_CLAIM_NAME];
 	int i, cur, first = -1, left = 0, can = 0;
 
 	(void)dt;

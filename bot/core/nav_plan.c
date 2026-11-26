@@ -1090,11 +1090,9 @@ static void try_edit(bc_nav_search *s, uint32_t ci, bc_nav_node a, bc_nav_node t
 	e.digs = (uint8_t)digs;
 	e.builds = (uint8_t)builds;
 	e.move = -1;
-	/* not up into the top of the map (z under 3: a body's head over the
-	 * ceiling) unless that is where it is going: a route over the top of
-	 * the map was a way onto sky slabs with no way down (keidoro) */
-	if (to.z < 3 && to.z < a.z && s->goal.z >= 3)
-		return;
+	/* (the map's top band is no exception: a block may be put at z 0 to
+	 * 2 and a body stands on it, its head above the map -- nav_test's
+	 * over_the_top) */
 	if (dir == 8) {
 		e.kind = (uint8_t)(to.z < a.z ? BC_NAV_PILLAR : BC_NAV_DIG);
 		move_secs = to.z < a.z ? PILLAR_SECS : DIG_FALL_SECS + 0.05f * (float)(to.z - a.z - 1);  /* a jump; a fall */

@@ -32,8 +32,8 @@
  * could take SIGBUS the instant the server remakes it, or read a file
  * that is somebody else's now. Three guards: the path's inode is
  * compared every 250 ms; the header must still say magic and our own
- * pid in engine_pid (a remade file says 0); and SIGBUS itself is caught
- * and turned into a re-attach.
+ * pid in engine_pid (a remade file says 0); and SIGBUS itself, on the
+ * thread that reads the file, is caught and turned into a re-attach.
  *
  * THREADS. The core has none; what it offers is its heavy work cut into
  * jobs that may run at once -- the bots' sight and the route searches
@@ -90,9 +90,15 @@ enum { ROUND_BUCKETS = 2001 };
 /* ------------------------------------------------------------------ */
 /* Small things                                                       */
 
-static volatile sig_atomic_t stop_flag;
+/* Set by a signal or by another thread (botd_stop): an atomic, which a
+ * handler may write (it is lock-free) and another thread may read. */
+static atomic_int stop_flag;
 static sigjmp_buf bus_jmp;
-static volatile sig_atomic_t bus_armed;
+/* Armed on the thread that reads the mapping (the session's), and only
+ * there: a SIGBUS anywhere else, or a SIGSEGV anywhere, is a fault of the
+ * program's own and kills it like one (the entrypoint starts botd again)
+ * -- not a file cut under it, to re-attach to and fault again. */
+static _Thread_local volatile sig_atomic_t bus_armed;
 
 void botd_stop(void) { stop_flag = 1; }
 
@@ -100,9 +106,9 @@ static void on_term(int sig) { (void)sig; stop_flag = 1; }
 
 static void on_bus(int sig)
 {
-	(void)sig;
 	if (bus_armed) siglongjmp(bus_jmp, 1);
-	_exit(70);
+	signal(sig, SIG_DFL);       /* a fault: the program dies of it */
+	raise(sig);
 }
 
 static double now_s(void)
@@ -167,7 +173,7 @@ typedef struct session {
 	int user_structures;    /* and his structures directory had structures */
 	int maps;
 	botd_watch watch;       /* the debug channel (watch.c) */
-	int watchers;
+	int asked;              /* what the debug channel's requests watch (botd_watch_asked) */
 	/* THE PLANNER'S BOUND: this round's planner time; the cost of an
 	 * expansion (us, a moving mean); the bound it gives */
 	double plan_s, exp_us;
@@ -775,13 +781,17 @@ static int run_session(session *s)
 			s->world_misses++;
 		}
 		{
-			/* whoever asks what the bots think is answered here, between thinks */
-			int watchers = botd_watch_round(&s->watch, s->e, start);
-			if (watchers != s->watchers) {
-				if (watchers) say("debug: %d request%s in %s: %s at %d a second", watchers, watchers == 1 ? "" : "s",
-				                  s->watch.dir, s->watch.all ? "every bot watched" : "watching what they name", s->watch.hz);
+			/* whoever asks what the bots think is answered here, between
+			 * thinks. Said when how much is watched changes -- not for a viewer
+			 * that only reads the roster: the editor polls it every few
+			 * seconds, and each poll was two lines of the log (WORK.md
+			 * item 15) */
+			int watchers = botd_watch_round(&s->watch, s->e, start), asked = botd_watch_asked(&s->watch);
+			if (asked != s->asked) {
+				if (asked) say("debug: %d request%s in %s: %s at %d a second", watchers, watchers == 1 ? "" : "s",
+				               s->watch.dir, asked < 0 ? "every bot watched" : "watching what they name", s->watch.hz);
 				else say("debug: nobody watches any more");
-				s->watchers = watchers;
+				s->asked = asked;
 			}
 		}
 		int bots = bc_engine_bots(s->e);
@@ -850,7 +860,7 @@ static int session_main(session *s)
 		if (s->o->debug_dir) snprintf(dir, sizeof dir, "%s", s->o->debug_dir);
 		else snprintf(dir, sizeof dir, "%s/rw/botdebug", data);
 		botd_watch_init(&s->watch, dir);
-		s->watchers = 0;
+		s->asked = 0;
 	}
 	why = run_session(s);
 	botd_watch_end(&s->watch, s->e);
@@ -870,7 +880,6 @@ int botd_run(const botd_opts *o)
 	sigaction(SIGINT, &sa, NULL);
 	sa.sa_handler = on_bus;
 	sigaction(SIGBUS, &sa, NULL);
-	sigaction(SIGSEGV, &sa, NULL);
 
 	if (!bl_layout_ok()) { say("this build lays the link out differently from botlink.h"); return 1; }
 	int hz = o->hz > 0 ? o->hz : 60;

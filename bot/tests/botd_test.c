@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 #include <utime.h>
@@ -45,9 +46,9 @@ static struct {
 	int map_n; uint32_t map_seq; size_t map_bytes; uint8_t map_head[16];
 	char trees[4096]; int trees_calls;
 	char kinds[1024]; int kinds_calls;
-	bl_intent *intents_ptr;
+	_Atomic(bl_intent *) intents_ptr;   /* (written by botd's thread, read by the test's) */
 	bc_engine_host host;
-	float last_dt;
+	_Atomic float last_dt;
 	_Atomic int plan_bound;      /* what botd bounds the planner to (THE PLANNER'S BOUND) */
 	uint32_t life_seen;
 } fake;
@@ -125,9 +126,13 @@ void bc_engine_event(bc_engine *e, const bl_record *rec)
 	pthread_mutex_unlock(&mu);
 }
 
+static int fake_crash;          /* a fault in the engine's think (test_crash) */
+
 void bc_engine_think(bc_engine *e, const bl_world *w, bl_intent *intents, float dt, int budget)
 {
 	(void)e; (void)budget;
+	if (fake_crash)
+		raise(SIGSEGV);
 	int n = atomic_fetch_add(&fake.thinks, 1) + 1;
 	fake.intents_ptr = intents;
 	fake.last_dt = dt;
@@ -309,7 +314,7 @@ static void test_session(void)
 	snprintf(mapfile, sizeof mapfile, "%s.map.vxl", s.path);
 	write_file(mapfile, vxl, sizeof vxl);
 	bl_ev_map em; memset(&em, 0, sizeof em);
-	em.map_seq = 5; snprintf(em.path, sizeof em.path, "%s", mapfile);
+	em.map_seq = 5; CHECK(snprintf(em.path, sizeof em.path, "%s", mapfile) < (int)sizeof em.path);
 	bl_ev_bot eb = { 5, BL_GUN_SMG, { 0, 0 }, 99 };
 	bl_ev_block blk = { 1, 2, 3, BL_B_BUILD, 3, 0x123456 };
 	push_ev(&s, BL_EV_MAP, BL_NO_PLAYER, &em, sizeof em);
@@ -331,7 +336,8 @@ static void test_session(void)
 	bl_intent got = s.f->intents[3];
 	CHECK(got.life == 7 && (got.flags & BL_I_VALID) && got.keys >= 1 && got.keys <= 100);
 	CHECK(got.ori.y == 1.0f && got.mouse == BL_M_PRIMARY && got.tool == BL_TOOL_GUN);
-	CHECK(fake.intents_ptr != NULL && fake.intents_ptr != s.f->intents);
+	bl_intent *handed = atomic_load(&fake.intents_ptr);
+	CHECK(handed != NULL && handed != s.f->intents);
 	CHECK(s.f->intents[4].flags == 0);            /* nobody else's touched */
 
 	/* actions reached the ring, in order, from the right bot */
@@ -353,7 +359,8 @@ static void test_session(void)
 	double rate = (atomic_load(&fake.thinks) - t0) / dt;
 	printf("   round rate %.1f/s (asked %d)\n", rate, r.o.hz);
 	CHECK(rate > r.o.hz * 0.96 && rate < r.o.hz * 1.04);
-	CHECK(fake.last_dt > 0.012f && fake.last_dt < 0.03f);
+	float last_dt = atomic_load(&fake.last_dt);
+	CHECK(last_dt > 0.012f && last_dt < 0.03f);
 	/* a planner that spends nothing tells no cost: the bound is --plan-ms at
 	 * the cost botd assumes (2 us an expansion) */
 	CHECK(atomic_load(&fake.plan_bound) == r.o.plan_ms * 500);
@@ -511,7 +518,7 @@ static void test_user_trees(void)
 	snprintf(mapfile, sizeof mapfile, "%s.map.vxl", s.path);
 	write_file(mapfile, vxl, sizeof vxl);
 	bl_ev_map em; memset(&em, 0, sizeof em);
-	em.map_seq = 6; snprintf(em.path, sizeof em.path, "%s", mapfile);
+	em.map_seq = 6; CHECK(snprintf(em.path, sizeof em.path, "%s", mapfile) < (int)sizeof em.path);
 	push_ev(&s, BL_EV_MAP, BL_NO_PLAYER, &em, sizeof em);
 	CHECK(wait_for(c_edited, NULL, 2000));
 	pthread_mutex_lock(&mu);
@@ -654,6 +661,44 @@ static void test_watch(void)
 	debug_dir = "none";
 }
 
+/* a fault in the engine is a crash -- botd dies of it, as any program, and
+ * the entrypoint starts it again -- not a file cut under it (SIGBUS, the
+ * only signal that is), re-attached to again and again */
+static void test_crash(void)
+{
+	pid_t child = fork();
+
+	if (child == 0) {
+		server s;
+		botd_opts o;
+
+		fake_crash = 1;
+		server_make(&s, "crash");
+		server_start(&s);
+		botd_opts_default(&o);
+		o.file = s.path; o.trees = treedir; o.poll_ms = 50; o.stale_ms = 400; o.health_s = 1;
+		o.user_trees = user_trees; o.debug_dir = "none";
+		botd_run(&o);
+		_exit(0);
+	}
+	int status = 0, gone = 0;
+	double t = now_s();
+	while (now_s() - t < 5.0 && !(gone = waitpid(child, &status, WNOHANG) == child))
+		sleep_ms(10);
+	if (!gone) {
+		kill(child, SIGKILL);
+		waitpid(child, &status, 0);
+	}
+	/* it died of it (by the signal; under a sanitizer, which catches it
+	 * first, by an exit that is no success) */
+	CHECK(gone);
+	CHECK(gone && ((WIFSIGNALED(status) && WTERMSIG(status) == SIGSEGV) ||
+	               (WIFEXITED(status) && WEXITSTATUS(status) != 0)));
+	char p[300];
+	snprintf(p, sizeof p, "%s/botd_test_%d_crash", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp", (int)child);
+	unlink(p);
+}
+
 int main(void)
 {
 	make_trees();
@@ -669,6 +714,8 @@ int main(void)
 	test_reattach(0);
 	printf("-- the file replaced\n");
 	test_reattach(1);
+	printf("-- a fault in the engine\n");
+	test_crash();
 	printf("-- the operator's trees\n");
 	test_user_trees();
 	printf("-- the debug channel\n");

@@ -15,11 +15,18 @@ CC ?= cc
 CFLAGS ?= -O2 -g
 STRICT = -std=c11 -Wall -Wextra -Werror -pedantic
 INC = -Icore -Ilink -I../lsd/src
-# The core holds the server's physics (core/lsd_core.c compiles
-# ../lsd/src/demoncore.c). A fused multiply-add would make a trajectory
+# The core holds the server's physics (../lsd/src/demoncore.c, below). A
+# fused multiply-add would make a trajectory
 # differ in its last bit from one compiler or machine to the next, and the
 # core's tests pin trajectories exactly: no contraction anywhere in it.
 CORE_FP = -ffp-contract=off
+# A file of ../lsd/src is upstream's: it is compiled as upstream compiles
+# it, in a unit of its own, under lsd/Makefile's warnings -- never under
+# STRICT (its warnings differ from one compiler to the next, and they are
+# upstream's to weigh). What it needs from the server's state.h is given
+# by the header named for it (core/lsd_state.h for demoncore.c).
+UPSTREAM_WARN = -Wall -Wextra -Wno-type-limits
+UPSTREAM = $(B)/lsd/demoncore.o
 B = build
 
 CORE = $(wildcard core/*.c)
@@ -44,22 +51,25 @@ $(B)/botd/%.o: botd/%.c $(wildcard botd/*.h core/*.h link/*.h)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(STRICT) $(INC) -D_POSIX_C_SOURCE=200809L -c $< -o $@
 
-$(B)/libbotcore.a: $(patsubst core/%.c,$(B)/core/%.o,$(CORE))
+$(B)/lsd/demoncore.o: ../lsd/src/demoncore.c $(wildcard ../lsd/src/*.h) core/lsd_state.h core/map.h
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(UPSTREAM_WARN) $(CORE_FP) $(INC) -include core/lsd_state.h -c $< -o $@
+
+$(B)/libbotcore.a: $(patsubst core/%.c,$(B)/core/%.o,$(CORE)) $(UPSTREAM)
 	@mkdir -p $(@D)
 	rm -f $@ && ar rcs $@ $^
 
 $(B)/libbotlink.so: $(patsubst link/%.c,$(B)/link/%.o,$(LINK))
-	$(CC) -shared -o $@ $^
+	$(CC) $(CFLAGS) $(LDFLAGS) -shared -o $@ $^
 
 $(B)/bin/botd: $(patsubst botd/%.c,$(B)/botd/%.o,$(BOTD)) $(LINK_OBJ) $(B)/libbotcore.a
 	@mkdir -p $(@D)
-	@mkdir -p $(@D)
-	$(CC) -o $@ $^ -lm -lpthread
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ -lm -lpthread
 
 # a tool is one file with its own main(), over the core
 $(B)/bin/%: tools/%.c $(B)/libbotcore.a
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(STRICT) $(INC) -D_POSIX_C_SOURCE=200809L $< $(B)/libbotcore.a -lm -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) $(STRICT) $(INC) -D_POSIX_C_SOURCE=200809L $< $(B)/libbotcore.a -lm -o $@
 
 tools: $(TOOLS)
 
@@ -67,13 +77,13 @@ tools: $(TOOLS)
 # files but main.c, the link, and no libbotcore.a
 $(B)/tests/botd_test: tests/botd_test.c $(BOTD_LIB) $(LINK_OBJ) $(wildcard tests/*.h)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(STRICT) $(INC) -Ibotd -D_POSIX_C_SOURCE=200809L $< $(BOTD_LIB) $(LINK_OBJ) -lm -lpthread -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) $(STRICT) $(INC) -Ibotd -D_POSIX_C_SOURCE=200809L $< $(BOTD_LIB) $(LINK_OBJ) -lm -lpthread -o $@
 
 # (and botd's pool: the bench and parallel_test run the planner's units on
 # threads as botd does)
 $(B)/tests/%: tests/%.c $(B)/libbotcore.a $(patsubst link/%.c,$(B)/link/%.o,$(LINK)) $(B)/botd/pool.o $(wildcard tests/*.h)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(STRICT) $(INC) -D_POSIX_C_SOURCE=200809L $< $(patsubst link/%.c,$(B)/link/%.o,$(LINK)) $(B)/botd/pool.o $(B)/libbotcore.a -lm -lpthread -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) $(STRICT) $(INC) -D_POSIX_C_SOURCE=200809L $< $(patsubst link/%.c,$(B)/link/%.o,$(LINK)) $(B)/botd/pool.o $(B)/libbotcore.a -lm -lpthread -o $@
 
 # VOCAB.md is written by the tool from the words the core has
 doc: $(B)/bin/bttree

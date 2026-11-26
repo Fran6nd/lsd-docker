@@ -144,17 +144,19 @@ where they were at the next tick.
 
 ## 5. Every node
 
-Fourteen keywords. Composites have any number of children, decorators
-exactly one, leaves none.
+Fifteen keywords. Composites have any number of children, decorators
+exactly one, leaves none; `if` and `unless` are leaves, or blocks with
+children.
 
 | keyword | children | written |
 |---|---|---|
 | [`seq`](#seq) | 1 or more | `seq` |
 | [`select`](#select) | 1 or more | `select` |
 | [`pick`](#pick-and-option) | 1 or more, all `option` | `pick [every=<secs>] [sticky=<x>] [noise=<x>]`, or `pick roll=once`, `pick roll=life`, `pick roll=each [every=<secs>]` |
-| [`option`](#pick-and-option) | 1 | `option <trait> <score> [score's arguments] [x<factor>]` |
-| [`if`](#if-and-unless) | none | `if <condition> [arguments]` |
-| [`unless`](#if-and-unless) | none | `unless <condition> [arguments]` |
+| [`option`](#pick-and-option) | 1 | `option <trait> <score> [score's arguments] [x<factor>]`, or `option <trait> <value> [arguments] <op> <number> [x<factor>]` |
+| [`if`](#if-unless-and-else) | none, or 1 or more (a block) | `if <condition> [arguments]`, or `if <value> [arguments] <op> <number>` |
+| [`unless`](#if-unless-and-else) | none, or 1 or more (a block) | `unless <condition> [arguments]`, or `unless <value> [arguments] <op> <number>` |
+| [`else`](#if-unless-and-else) | 1 or more | `else`, at the indent of the `if` block it follows |
 | [`do`](#do) | none | `do <action> [arguments]` |
 | [`wait`](#wait) | none | `wait <secs>` |
 | [`invert`](#invert-always-never) | 1 | `invert` |
@@ -245,20 +247,24 @@ An option is `option <trait> <score> [arguments of the score] [x<factor>]`:
   [traits](VOCAB.md#traits). `none` weighs the same for every bot.
 - `<score>`: what bears on it -- one of the [scores](VOCAB.md#scores), a
   number from 0 to 1 read off the situation, with its arguments if it
-  takes any (`enemy_near 40`).
+  takes any (`enemy_near 40`); or a [comparison](#conditions-on-numbers),
+  1 when it holds and 0 when not (`option caution health < 40 x2`).
 - `x<factor>`: the designer's thumb on the scale. Default `x1`. It is
   the last word, an `x` and a number of 0 or more (`x1.5`, `x100`).
 
 All the numbers, their defaults, and the sum: [section 6](#6-pick-in-full).
 
-### if and unless
+### if, unless and else
 
-A condition of the [vocabulary](VOCAB.md#conditions), with its arguments.
+A condition of the [vocabulary](VOCAB.md#conditions) with its arguments,
+or a comparison of a number ([below](#conditions-on-numbers)).
+
+**As a leaf** (no children):
 
 - `if`: SUCCESS if the condition holds, FAILURE if not.
 - `unless`: the other way round.
 
-Never RUNNING. They are for the top of a `seq`.
+Never RUNNING. As a leaf they are for the top of a `seq`.
 
 ```bt
 seq
@@ -266,6 +272,112 @@ seq
 	unless enemy_within 10
 	do take_cover
 ```
+
+**As a block** (with children) they are a decision: "if this, do that,
+otherwise do the other".
+
+```bt
+if enemy_distance < 5         # near: fire back
+	do fight
+else                          # otherwise: hide
+	do take_cover
+```
+
+- The condition is asked **when the block is entered** -- when it was
+  not RUNNING. If it holds, its children are the branch; if not, the
+  `else`'s children are (`unless`: the other way round).
+- The branch's children are ticked **in order, as a `seq`'s**, and the
+  branch is kept **until it ends**: while one of its children is
+  RUNNING the block answers RUNNING and resumes there, without asking
+  the condition again. The block answers what the branch answers.
+- The condition does not hold and there is no `else`: FAILURE (as the
+  leaf `if` answers), and nothing is ticked.
+- `else` is written at the indent of its `if`, right after the `if`'s
+  children, and has children of its own. An `else` anywhere else -- with
+  no `if` block just above it at its indent, after an `if` with no
+  children, a second one -- is a mistake, said with its line.
+- A RUNNING action in the branch is [stopped](#7-when-an-action-is-stopped)
+  when the node above leaves the block, as anywhere else.
+
+**When is it asked again?** When the block is entered afresh: after its
+branch ended, or when whatever is above it enters it again -- a `pick`
+choosing (every `every` seconds), a `limit` running out, the bot being
+startled. So a block decides what to begin; it does not watch. For
+"keep checking", put it where it is entered again often: under a pick
+option, or a `limit`:
+
+```bt
+tree duel:
+pick every=1                  # chosen again every second, so the if is asked again
+	option none enemy_visible
+		if enemy_distance < 5
+			do fight
+		else
+			do take_cover
+	option none always
+		do seek
+```
+
+**Three ways and more.** A `select` of blocks is "the first that holds",
+and a plain last child is "otherwise":
+
+```bt
+select
+	if health < 30            # badly hurt: get out
+		do retreat
+	if enemy_distance < 8     # close: fight
+		do fight
+	do take_cover             # otherwise: cover
+```
+
+(a block whose condition does not hold fails, so the `select` goes on to
+the next.)
+
+### Conditions on numbers
+
+A **value** is a named number read off the bot's situation: how far the
+nearest enemy in sight is (`enemy_distance`), its health, its ammunition,
+how many team-mates are near, how far a place is, a fact a server script
+set. The table is in [VOCAB.md](VOCAB.md#values), each with its unit and
+its range. Wherever a condition goes, a value may be compared:
+
+```
+if <value> [arguments] <op> <number>
+unless <value> [arguments] <op> <number>
+```
+
+```bt
+seq
+	if enemy_distance < 5
+	unless health >= 50
+	if distance own_base < 20
+	if fact alarm >= 1
+	if mates_within 15 >= 2
+	do fight
+```
+
+- The operators are `<`, `<=`, `>` and `>=`, with a space on each side.
+  There is no `==` or `!=`: two numbers that come from measuring are
+  never exactly equal. For a count, `>= 2` together with `< 3` says
+  "exactly 2".
+- **A value may be unknown** now: no enemy in sight has no distance, a
+  place it does not know has none, a fact nobody set has no number. A
+  comparison of an unknown value is **false** -- so `unless` of it is
+  true. `if enemy_distance < 5` is false with nobody in sight, and
+  `unless enemy_distance < 5` is true then: write `if enemy_visible`
+  above it when "nobody" should not count as "far".
+- The compiler checks the value's name, its arguments, the operator,
+  the number, and that the number is within the value's range:
+  `health < 500` is a mistake (health is 0 to 100), said with its line
+  and column.
+- Some conditions are **short for** a comparison, and are compiled as
+  it: `health_below 30` is `health < 30`, `enemy_within 10` is
+  `enemy_distance <= 10`, `alone 25` is `unless mate_distance <= 25`
+  ([VOCAB.md](VOCAB.md#conditions) marks each). Both ways of writing it
+  give the same answer, always: there is one reading of each thing
+  sensed.
+- As an option's score, a comparison is worth 1 when it holds and 0 when
+  not ([section 6](#what-an-option-is-worth)).
 
 ### do
 
@@ -384,7 +496,8 @@ worth = score  x  the bot's weight for <trait>  x  factor  x  luck  [x (1 + stic
 
 - **score**: the named score, asked of the situation as this bot
   perceives it; 0 to 1. At 0 or less the option is out, whatever the
-  rest.
+  rest. A comparison as the score is 1 when it holds, 0 when not (or
+  when its value is unknown).
 - **weight**: the bot's own weight for the trait, 0.2 to 3, about 1 for a
   trait its kind does not care about. `none` is always 1.
 - **factor**: the option's `x<factor>`.
@@ -692,6 +805,38 @@ pick ticks its one best option and answers with it: an option that wins
 and then fails at once is chosen again at the next tick, and the bot
 stands.
 
+### Weighed and conditional, together
+
+A choice may be weighed AND conditional, two ways.
+
+**A comparison as the score**, in one line: the option is worth its
+factor x the bot's weight when the comparison holds, and cannot be
+chosen when it does not.
+
+```bt
+pick every=1
+	option caution health < 40 x2         # hurt: worth 2 to a bot of caution 1; out when not
+		do retreat
+	option aggression enemy_visible
+		do fight
+	option none always x0.2
+		do seek
+```
+
+**A weighed choice inside a branch**, by nesting: the decision first,
+then each bot's character within it.
+
+```bt
+if enemy_distance < 20
+	pick every=2
+		option aggression always              # near: the bold close in
+			do fight
+		option caution always                 # the careful take cover
+			do take_cover
+else
+	do seek
+```
+
 ## 7. When an action is stopped
 
 An action that is RUNNING holds things: a route, a key pressed, a claim
@@ -817,10 +962,15 @@ text ──lines──▶ words ──nodes──▶ trees as written ──refe
    and one too many or too few, a word where a number goes, a number out
    of its range, a place there is none of, a word that is not one of
    those allowed are refused -- `line 5: go_to: no place called
-   nowhere`. The node is placed under the
-   last node one step less indented, and the shape is checked: a leaf
-   takes no children, a decorator exactly one, an `option` sits directly
-   under a `pick` and a `pick` has only options.
+   nowhere`. A comparison is checked the same way: the value, its
+   arguments, the operator, the number and its range. A word that is
+   short for a comparison is compiled as that comparison. The node is
+   placed under the last node one step less indented -- an `else` under
+   the `if` block just above it at its own indent, as that block's last
+   child -- and the shape is checked: a leaf takes no children, a
+   decorator exactly one, an `option` sits directly under a `pick` and a
+   `pick` has only options, an `else` follows an `if` or `unless` that
+   has children, and has children itself.
 4. **Trees as written** -- the *source*: every tree, each node with its
    words, its line and column, and its comments. This is what an editor
    reads and writes.
@@ -862,8 +1012,8 @@ the engine:
 3. ticks `<name>_also`, if there is one;
 4. ticks the main tree `<name>`, from its root.
 
-A tick walks down from the root: a `seq` or a `select` goes straight to
-the child it was waiting on; a `pick` goes straight to the option it
+A tick walks down from the root: a `seq`, a `select` or an `if` block
+goes straight to the child it was waiting on; a `pick` goes straight to the option it
 holds unless it is time to choose; a leaf calls its C function. So most
 ticks touch one path of the tree, a handful of nodes, and call one
 action. The actions state what the bot wishes (go there, look there,
@@ -1382,8 +1532,10 @@ botlink_set("fact.alarm", "");             -- forgotten
 ```
 
 In a tree: the condition `if fact alarm` (set, and above 0), `if fact
-alarm 0.5` (at least that), and the score `option none fact alarm` (its
-value, kept within 0 to 1; 0 when nobody set it). A fact is a number
+alarm 0.5` (at least that), the comparison `if fact alarm >= 2` (any
+number: a fact is a [value](#conditions-on-numbers), unknown -- so the
+comparison false -- while nobody set it), and the score `option none
+fact alarm` (its value, kept within 0 to 1; 0 when nobody set it). A fact is a number
 and a name of the script's choosing: letters, digits and `_`, 23 at
 most. 64 for the world and 8 a bot; one more, a bad name or a value that
 is not a number is refused and said in the engine's log, never silently.
@@ -1410,16 +1562,16 @@ script has said where it is. Until it is set (and while the player it
 follows is dead) `knows @name` is false and going there fails, as for
 any place there is none of. 32 for the world, 4 a bot.
 
-**A team's own.** A mode with one of a thing for each team (a stair, a
-gate) tells it once for the team, not once for every bot: a world fact
-or place whose name ends in `@1` or `@2` is read by that team's bots
-under the bare name. A bot looks for its own first, then its team's,
-then the world's:
+**A team's own.** A mode with one of a thing for each team (a gate, a
+flag to defend) tells it once for the team, not once for every bot: a
+world fact or place whose name ends in `@1` or `@2` is read by that
+team's bots under the bare name. A bot looks for its own first, then
+its team's, then the world's:
 
 ```lua
-botlink_set("place.stair@1", "158.5 255.5 46.8");   -- team 1's bots: `@stair`
-botlink_set("place.stair@2", "353.5 255.5 46.8");   -- team 2's: the same name, their own
-botlink_set("fact.stair_done@1", 0);                -- `if fact stair_done`
+botlink_set("place.gate@1", "158.5 255.5 46.8");    -- team 1's bots: `@gate`
+botlink_set("place.gate@2", "353.5 255.5 46.8");    -- team 2's: the same name, their own
+botlink_set("fact.gate_open@1", 0);                 -- `if fact gate_open`
 ```
 
 ### 10. A word a tree says back: `do tell`
@@ -1526,6 +1678,11 @@ counted, in all and by kind of bot.
 
 - a **score** is given 0 to 1; a **condition** 0 or 1; a word not given
   is 0 (`always` is 1);
+- a **value** a comparison asks is given as its number, in its unit
+  (`enemy_distance=4`, `"distance own_base=30"`); not given, or given
+  `none`, it is unknown (so the comparison is false). A word that is
+  short for a comparison is given as itself, as any condition
+  (`"health_below 30=1"`);
 - `"word arg=value"` sets it for those arguments only (`"enemy_far
   70=0.8"`, `"fact alarm=1"`, `"gun_is rifle=1"`); plain `word=` covers
   every use of it;
@@ -1536,8 +1693,11 @@ counted, in all and by kind of bot.
   identity, so a `pick roll=once` shows its real shares -- give it a
   larger `--n` (7000) to see them to the percent. A `pick roll=each` is drawn once by each bot of the crowd: the shares come out as the odds of one bot's choice;
 - the line **"asked and not given (so 0)"** is every word the tree
-  consulted that was left at 0; "given but never asked" is a typo, or a
-  branch that was not reached;
+  consulted that was left at 0, and **"(so unknown)"** every value;
+  "given but never asked" is a typo, or a branch that was not reached.
+  With `--json` (`lsd-bt-split`), `values` gives each value asked or
+  given, by the key it was asked with, its `unit`, `min` and `max`: what
+  a slider for it spans;
 - `--why` adds, for every pick a bot came to, the mean of each option's
   score, weight and worth over the crowd and how many chose it
   ([section 6](#a-worked-example) has one).
@@ -1694,7 +1854,7 @@ without it, so a reader ignores what it does not know.
 | format | version | what | who writes it |
 |---|---|---|---|
 | `lsd-bt` | 1 | trees as written: an editor's document | `bttree --json`, `lsdctl bots tree --json` |
-| `lsd-bt-schema` | 2 | all a tree may be made of | `bttree --schema`, `lsdctl bots schema` |
+| `lsd-bt-schema` | 3 | all a tree may be made of | `bttree --schema`, `lsdctl bots schema` |
 | `lsd-bt-trees` | 1 | the trees there are | `bttree --list --json`, `lsdctl bots trees --json` |
 | `lsd-bt-check` | 1 | every mistake of a text | `lsdctl bots check --json` |
 | `lsd-bt-text` | 1 | a canonical text | `lsdctl bots format --json` |
@@ -1756,7 +1916,7 @@ a viewer knows its picture of the nodes is stale.
 | field | on | meaning |
 |---|---|---|
 | `id` | every node | its id in its file's source |
-| `kind` | every node | the keyword: `seq`, `select`, `pick`, `option`, `if`, `unless`, `do`, `wait`, `invert`, `always`, `never`, `cooldown`, `limit`, `tree` |
+| `kind` | every node | the keyword: `seq`, `select`, `pick`, `option`, `if`, `unless`, `do`, `wait`, `invert`, `always`, `never`, `cooldown`, `limit`, `tree`, `else` |
 | `line`, `column` | every node | where it is written, from 1 (a tab is one column) |
 | `text` | every node | its words as written, one space apart. For reading only |
 | `comment` | any node, any tree | the comment on its line, without the `#` |
@@ -1765,7 +1925,10 @@ a viewer knows its picture of the nodes is stale.
 | `roll` | `pick` | `weighed` (the default), `once`, `life` or `each` ([section 6](#a-role-drawn-and-kept-pick-rollonce-pick-rolllife), [each](#a-lottery-at-every-choice-pick-rolleach)) |
 | `every`, `sticky`, `noise` | `pick` | the numbers in force (not written for a pick that rolls once or per life; with `each`, `every` is, `sticky` and `noise` are not) |
 | `trait`, `score`, `args`, `factor` | `option` | `args` are the score's, as written (strings) |
-| `cond`, `args` | `if`, `unless` | |
+| `trait`, `value`, `args`, `op`, `number`, `factor` | `option` whose score is a comparison | in place of `score`: the value, its own `args`, the operator (`<`, `<=`, `>`, `>=`) and the number |
+| `cond`, `args` | `if`, `unless` | a word that is short for a comparison stays a `cond`, as written |
+| `value`, `args`, `op`, `number` | `if`, `unless` comparing | in place of `cond` |
+| `children` | `if`, `unless` as a block | its branch, in order, and last, if it has one, the `else` (whose `children` are the other branch) |
 | `action`, `args` | `do` | |
 | `seconds` | `wait`, `cooldown`, `limit` | |
 | `ref` | `tree` | the name referred to |
@@ -1796,6 +1959,12 @@ through `--from-json`: it never writes tree text itself.
   editor need not maintain `defaults`.
 - `above` lines that do not begin with `#` are made comments. `comment`
   is written after the node.
+- A node with a `value` (an `if`, `unless` or `option`) is written as a
+  comparison: `<value> <args...> <op> <number>`; one without, with its
+  `cond` or `score`.
+- An `else` is written at its `if`'s indent, its children under it; it
+  must be the last child of an `if` or `unless` (anything else is
+  refused, and nothing written).
 - The text is then read by the engine's parser. If it is not a tree
   (an unknown word, a wrong argument, a child under a leaf),
   `--from-json` writes nothing, says what is wrong and which node line,
@@ -1820,22 +1989,51 @@ Everything an editor's palette and property panel need, as JSON (here
 shortened to one entry of each list):
 
 ```json
-{"format": "lsd-bt-schema", "version": 2,
+{"format": "lsd-bt-schema", "version": 3,
  "limits": {"args": 4, "name": 31, "depth": 32, "words_a_line": 16},
  "answers": ["SUCCESS", "FAILURE", "RUNNING"],
  "kinds": [
+   {"name": "select", "children": "many", "tries": "first", "params": [], "answers": "...", "doc": "..."},
    {"name": "pick", "children": "options",
     "params": [
+      {"name": "roll", "type": "enum", "written": "roll=<weighed|once|life|each>", "required": false,
+       "values": ["weighed", "once", "life", "each"], "default": "weighed",
+       "leaves_out": {"once": ["every", "sticky", "noise"], "life": ["every", "sticky", "noise"], "each": ["sticky", "noise"]}, "doc": "..."},
       {"name": "every", "type": "number", "written": "every=<secs>", "required": false, "default": 2, "min": 0, "doc": "..."},
       {"name": "sticky", "type": "number", "written": "sticky=<x>", "required": false, "default": 0.25, "min": 0, "doc": "..."},
       {"name": "noise", "type": "number", "written": "noise=<x>", "required": false, "default": 0.1, "min": 0, "max": 1, "doc": "..."}],
-    "answers": "...", "doc": "..."}],
+    "answers": "...", "doc": "..."},
+   {"name": "if", "children": "none",
+    "guard": {"negates": false},
+    "block": {"children": "many", "tries": "all", "roles": [
+      {"role": "then", "children": "many", "doc": "its children before the else: taken when the condition holds"},
+      {"role": "otherwise", "kind": "else", "optional": true, "doc": "an else, its last child: its children taken when it does not"}]},
+    "params": [
+      {"name": "cond", "type": "cond", "written": "<cond> [args]", "required": true,
+       "or": {"form": "comparison", "written": "<value> [args] <op> <number>", "params": [
+         {"name": "value", "type": "value", "written": "<value> [args]", "required": true, "doc": "..."},
+         {"name": "op", "type": "enum", "written": "<op>", "required": true, "values": ["<", "<=", ">", ">="], "doc": "..."},
+         {"name": "number", "type": "number", "written": "<number>", "required": true, "doc": "..."}]},
+       "doc": "the condition"}],
+    "answers": "...", "doc": "..."},
+   {"name": "else", "children": "many", "tries": "all", "parent": "if", "parents": ["if", "unless"],
+    "position": "last", "indent": "parent", "params": [], "answers": "...", "doc": "..."}],
+ "operators": [{"op": "<", "doc": "less than"}, {"op": "<=", "doc": "less than or equal to"},
+               {"op": ">", "doc": "more than"}, {"op": ">=", "doc": "more than or equal to"}],
+ "comparison": {"written": "<value> [args] <op> <number>", "unknown": "...", "as_score": "...", "no_equal": "..."},
  "conditions": [
    {"name": "at", "usage": "<place> [voxels]",
     "args": [{"name": "place", "required": true, "type": "place"},
              {"name": "voxels", "required": false, "type": "number", "min": 0, "default": 4}],
-    "doc": "it is within that of the place (default 4)"}],
+    "doc": "it is within that of the place (default 4)"},
+   {"name": "health_below", "usage": "<hp>", "short_for": "health < <hp>",
+    "args": [{"name": "hp", "required": true, "type": "number", "min": 0, "max": 100}],
+    "doc": "its health is under that (of 100)"}],
  "scores": [],
+ "values": [
+   {"name": "distance", "usage": "<place>", "unit": "voxels", "min": 0,
+    "args": [{"name": "place", "required": true, "type": "place"}],
+    "doc": "how far the place is, across the ground (height left out); unknown when it knows of no such place now"}],
  "actions": [
    {"name": "follow", "usage": "[mate|caller|order|leader]",
     "args": [{"name": "who", "required": false, "type": "enum", "values": ["mate", "caller", "order", "leader"], "default": "mate"}],
@@ -1849,11 +2047,43 @@ shortened to one entry of each list):
  "archetypes": [{"name": "camper", "doc": "careful and a marksman: ...",
                  "weights": {"none": 1, "aggression": 0.5, "caution": 1.8},
                  "spread": {"none": 0, "aggression": 0.3, "caution": 0.4}}],
- "places": [{"name": "own_intel", "alias": "our_intel", "doc": "its team's intel, where it is now"}]}
+ "places": [{"name": "own_intel", "alias": "our_intel", "doc": "its team's intel, where it is now"}],
+ "types": {"place": {"list": "places", "script": {"prefix": "@", "doc": "..."}}},
+ "engine_trees": [{"name": "items", "doc": "..."}, {"name": "extras", "doc": "..."}],
+ "companion": {"suffix": "_also", "doc": "..."}}
 ```
 
 - `kinds[].children` is `none`, `one`, `many` or `options` (a pick's:
-  only `option` nodes); `option` has `"parent": "pick"`.
+  only `option` nodes); `option` has `"parent": "pick"`, and `"parents"`
+  the list of the kinds it may go under. `tries`, on a kind with several
+  children: `all` (in order, while each succeeds: `seq`, an `else`, an if
+  block's branch) or `first` (until one does not fail: `select`).
+- **`if` and `unless`** have `guard` (`negates`: `unless` turns the
+  condition) and `block`: with children they are a decision, its
+  children the branch `then`, and an optional last child of the kind
+  `else`, the branch `otherwise`. Their `children` stays `none` (the
+  leaf needs none); `block` says what they may hold. `else` has
+  `"parent": "if"`, `"parents": ["if", "unless"]`, `"position": "last"`
+  and `"indent": "parent"`: it is written at its if's indent.
+- **A param that may be a comparison instead** -- the `cond` of `if` and
+  `unless`, the `score` of `option` -- has `or`: the comparison's three
+  params `value` (a name of `values`, with that value's own `args`),
+  `op` (one of `operators`) and `number` (within the value's `min` and
+  `max`). A node so written has those fields in `lsd-bt` in place of
+  `cond` or `score`.
+- **`values`**: each with its `usage`, `args`, `unit`, `min` and `max`
+  (either may be absent: no bound), and `doc`, which says when it is
+  unknown. `comparison` says, in words, what a comparison answers.
+- A condition or a score that is short for a comparison has `short_for`,
+  as a person reads it.
+- A pick's `roll` has `leaves_out`: for each roll, the settings it may
+  not be written with.
+- `types.place.script`: a place may also be written `@<name>`, a place a
+  server script named ([section 13](#9-a-place-of-the-scripts-naming)).
+- `engine_trees`: the trees the engine writes, which a text may refer to
+  and never holds (`items`, `extras`), each with its doc.
+  `companion`: a tree named `<name>` + `suffix` is ticked beside
+  `<name>` ([section 9](#name_also-what-is-done-beside)).
 - A word's `args[]`, in order: `type` is `number`, `place` (one of
   `places`, by `name` or `alias`), `enum` (one of `values`) or `text`
   (any word); `required`; `repeat` when it may be given several times;
@@ -1870,7 +2100,12 @@ shortened to one entry of each list):
 version 1 guessed them from the usage text; the type `string` is now
 `text`; an enum-or-place is gone, those arguments are places; an
 archetype has `doc` and `spread`, and its `weights` are the exact
-centres, not a sample's mean.)
+centres, not a sample's mean. Version 3: the kind `else`, and an `if` or
+`unless` may have children (`block`), so a reader that took `children:
+none` for "never has any" must read `block`; and `values`, `operators`,
+`comparison`, the `or` of a param, `short_for`, `tries`, `guard`,
+`parents`, `leaves_out`, `types`, `engine_trees` and `companion` are
+added.)
 
 ### `lsd-bt-trees`: the trees there are (`bttree --list --json FILE...`)
 
@@ -1974,7 +2209,7 @@ another, and `--once --json` gives one.
 | node `kind`, `text`, `comment` | as in `lsd-bt` |
 | node `line` | its line in the text the engine compiled (the files one after another, then what it wrote): good for order, not for opening a file |
 | node `running` | it is on a RUNNING path |
-| node `child` | a `seq` or `select`: the child it will resume at; a `pick`: the option it holds (for a pick that rolls: its role, RUNNING or not) |
+| node `child` | a `seq`, a `select` or an `if` block: the child it will resume at (for the `else` branch, a child of the `else`); a `pick`: the option it holds (for a pick that rolls: its role, RUNNING or not) |
 | node `roll` | a pick that rolls: `once`, `life` or `each` |
 | node `elapsed`, `remaining` | seconds: a RUNNING `pick` (since it chose; until it chooses again), `wait`, `limit`; `remaining` alone on a `cooldown` that is cooling |
 | node `worth` | an `option` its pick has weighed since the watching began: `score`, `weight`, `factor`, `luck`, `sticky` (1, or 1 + the pick's sticky if it was the one held), `worth` (their product), `held` (it is the one the pick holds now). Under a pick that rolls: `share` (its part of the lottery, 0 to 1) and `draw` (the number drawn, the same for every option; for `each`, the last one); `luck` and `sticky` are 1 |
@@ -2056,19 +2291,26 @@ For a tool that links the core rather than calling `bttree`.
 | `bt_state_running`, `bt_state_node` | which nodes are RUNNING; what one remembers |
 | `bt_state_trace`, `bt_state_worths` | have one bot's picks note what they weighed; read it |
 | `bt_vocab_args(vocab, kind, name, specs, n)`, `bt_vocab_set(vocab, name, "a\|b\|c")` | what a word takes, said by the host: the compiler then checks every use |
-| `bt_kind_name` | the keyword of a kind |
+| `bt_vocab_value(vocab, name, fn, number)`, `bt_vocab_short(vocab, kind, name, "health < $1")` | a value (its function gives a number or says it is unknown; `number` its unit and range), and a condition or a score that is short for a comparison |
+| `bt_kind_name`, `bt_op_name` | the keyword of a kind; an operator as written |
 
 A `bt_node` has: `id`, `kind`, `tree`, `parent`, `first_child`,
 `next_sibling`, `n_children`, `source`, `via`, `line`, `column`, `text`,
 `name`, `trait`, `args`, `secs`, `every`, `sticky`, `noise`, `factor`,
-`written` (which of the four numbers the text gave), `comment`, `above`.
+`op` and `number` (a comparison: `name` is then the value, `args` its
+own), `written` (which of the four numbers the text gave), `comment`,
+`above`. An `else` is a node of the kind `BT_K_ELSE`, its if's last
+child.
 A `bt_arg_spec` has: `name`, `type` (number, one of, text), `required`,
 `repeat`, `has_default` and `def`, `has_min`/`min`, `has_max`/`max`,
 `values`, `set` (a named list), `def_text`, `def_note`.
 
 `bot/core/vocab.h`, `persona.h` (the engine's words, as data):
 `bc_vocab_count`, `bc_vocab_word(i, &word)` (kind, name, doc, its
-argument specs), `bc_vocab_usage`, `bc_place_count`, `bc_place_at`,
+argument specs, what it is short for), `bc_vocab_usage`,
+`bc_vocab_short_for`, `bc_value_count`, `bc_value_at(i, &value)` (name,
+doc, its arguments, the number it is compared with), `bc_value_usage`,
+`bc_place_count`, `bc_place_at`,
 `bc_trait_name`, `bc_trait_doc`, `bc_archetype_name`,
 `bc_archetype_doc`, `bc_archetype_trait` (centre and spread),
 `bc_trait_range`.
@@ -2113,7 +2355,7 @@ Common to all:
 ### The operations
 
 **schema** -- `lsdctl bots schema` → `lsd-bt-schema`
-([section 15](#lsd-bt-schema-what-a-tree-may-be-made-of-bttree---schema)),
+([section 16](#lsd-bt-schema-what-a-tree-may-be-made-of-bttree---schema)),
 from the engine of the image that is running.
 
 **trees** -- `lsdctl bots trees --json` → the trees of the built-in
@@ -2154,7 +2396,7 @@ alone, with `items` and `extras`.
 compile is not formatted: an error with its diagnostics.
 
 **bots** -- `lsdctl bots list --json` → `lsd-bt-bots`
-([section 15](#lsd-bt-bots-the-engines-bots-now)).
+([section 16](#lsd-bt-bots-the-engines-bots-now)).
 
 **watch** -- `lsdctl bots watch [<name or id>] --once --json` → one
 `lsd-bt-snapshot`; without `--once`, a stream of them, one after

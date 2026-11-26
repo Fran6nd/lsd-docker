@@ -184,6 +184,7 @@
 #include <string.h>
 
 #include "brain.h"
+#include "footing.h"
 #include "vocab.h"
 
 static const double DECIDE_PERIOD = 0.05;       /* about 20 a second */
@@ -2365,24 +2366,9 @@ static void watchdog(bc_engine *e, bc_bot *b, const bc_body *body, int nav, cons
 			if (b->unstick.until - e->now > 0.45)
 				*keys |= BL_K_JUMP;
 		}
-		{
-			/* not off an edge: the way these keys take the body, for the
-			 * facing it has, must keep its feet up (a step back off a
-			 * slab's edge killed a bot, 2026-11-25) -- else it stands */
-			float fx = me->ori.x, fy = me->ori.y, fl = sqrtf(fx * fx + fy * fy);
-			float f = (float)((*keys & BL_K_FORWARD) != 0) - (float)((*keys & BL_K_BACK) != 0);
-			float r = (float)((*keys & BL_K_RIGHT) != 0) - (float)((*keys & BL_K_LEFT) != 0);
-
-			if (fl > 1e-4f && (f != 0.0f || r != 0.0f)) {
-				float mx, my;
-
-				fx /= fl; fy /= fl;
-				mx = fx * f - fy * r;
-				my = fy * f + fx * r;
-				if (!bc_walk_safe(b, mx, my))
-					*keys &= (uint8_t)~(15 | BL_K_JUMP);
-			}
-		}
+		/* (not off an edge: these keys are no planned step, and act holds
+		 * them to the footing rule like any other -- a step back off a
+		 * slab's edge killed a bot, 2026-11-25) */
 	}
 }
 
@@ -2437,7 +2423,12 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 	bl_vec3 ori, look_at = b->wish.look_at;
 	uint8_t keys = 0, mouse = 0, flags = BL_I_VALID, tool = b->wish.tool;
 	int nav, precise = 0, flying = 0, look = b->wish.look, look_pid = b->wish.look_pid, on_target = 0, heading = 0;
+	/* wished: the keys are the tree's own walk (BC_MOVE_FREE), which the
+	 * skill that asked for it answers for (FOOTING, below) */
+	int wished = 0;
+	uint8_t keys_before;
 	float dist = 1e9f, dx, dy, dz, wx = 0.0f, wy = 0.0f;
+	bc_v3 face;
 
 	memset(&out, 0, sizeof out);
 	bc_body_of(me, &body);
@@ -2552,6 +2543,7 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 			keys = bc_keys_toward(b->wish.mx, b->wish.my, ori, b->keys_prev);
 			if (b->wish.sprint && keys == BL_K_FORWARD)
 				keys |= BL_K_SPRINT;
+			wished = 1;
 		} else if (waiting_for_route(b, &body, &wx, &wy)) {
 			/* WAITING FOR A ROUTE is not standing: on toward the goal */
 			keys = bc_keys_toward(wx, wy, ori, b->keys_prev);
@@ -2581,7 +2573,6 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 		}
 	}
 	b->wish.jump = 0;
-	b->keys_prev = keys;
 
 	/* --- the tool, the trigger */
 	if (nav && cmd.edit != BC_NAV_EDIT_NONE)
@@ -2602,7 +2593,22 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 	if (e->w.night && b->lamp != BC_LAMP_OFF)
 		flags |= BL_I_LAMP;         /* never by day; and never unless a tree lit it */
 
+	keys_before = keys;
 	watchdog(e, b, &body, nav, &cmd, &keys);
+	if (keys != keys_before)
+		nav = wished = 0;           /* the net's keys, not the route's or the tree's */
+
+	/* FOOTING (footing.h): the keys the engine presses of its own, with no
+	 * route under them -- the walk on while a route is searched, the step
+	 * out of a team-mate or across his line of fire, the stop, the net's
+	 * tries -- keep the feet, or the body stands. (A route's step is the
+	 * follower's, which reads the body every tick and stops at the edge it
+	 * builds from; a tree's own walk is its skill's to check, by the same
+	 * rule.) */
+	face.x = ori.x; face.y = ori.y; face.z = ori.z;
+	if (!nav && !wished && e->have_map && !bc_footing_keys(e->map, &body, keys, face))
+		keys &= (uint8_t)~(15 | BL_K_JUMP | BL_K_SPRINT);
+	b->keys_prev = keys;
 
 	b->out.life = me->life;
 	b->out.keys = keys;
@@ -2697,7 +2703,7 @@ void bc_engine_think(bc_engine *e, const bl_world *world, bl_intent *intents,
 		long long share = (long long)e->plan_per_bot * bc_engine_bots(e);
 
 		e->budget_left = budget > 0 ? budget : 0;
-		if (budget > 0 && share > e->budget_left)
+		if (share > e->budget_left)
 			e->budget_left = share > INT32_MAX ? INT32_MAX : (int)share;
 		if (e->plan_bound > 0 && e->budget_left > e->plan_bound)
 			e->budget_left = e->plan_bound;

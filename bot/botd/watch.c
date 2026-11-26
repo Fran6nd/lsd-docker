@@ -214,6 +214,19 @@ int botd_watch_round(botd_watch *w, bc_engine *e, double now)
 	return w->live;
 }
 
+int botd_watch_asked(const botd_watch *w)
+{
+	int n = 0;
+
+	if (!w->live)
+		return 0;
+	if (w->all)
+		return -1;
+	for (int pid = 0; pid < 256; pid++)
+		n += w->want[pid] != 0;
+	return n;
+}
+
 void botd_watch_end(botd_watch *w, bc_engine *e)
 {
 	if (w->dir[0]) {

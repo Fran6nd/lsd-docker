@@ -590,9 +590,8 @@ static void test_night_is_day_by_default(void)
 static void test_persona_spread(void)
 {
 	bs_sim *s = arena(4);
-	struct { char name[32]; int n; } opt[16];
+	struct { char name[64]; int n; } opt[16];   /* a leaf's name whole, as leaf_of gives it */
 	int nopt = 0, i, k, big = 0, shown = 0;
-	char line[400] = "";
 
 	printf("500 characters on the tdm tree, one situation\n");
 	bs_start(s);
@@ -600,7 +599,7 @@ static void test_persona_spread(void)
 	bs_add(s, 9, 0, 1, 5, 0, 1, 180.5f, 300.5f, 1, 0);         /* a team-mate, far, who calls */
 	memset(opt, 0, sizeof opt);
 	for (k = 0; k < 500; k++) {
-		char leaf[64];
+		char leaf[sizeof opt[0].name];
 
 		/* hurt, a man in sight 45 away with a friend beside him, a
 		 * team-mate calling, the others far */
@@ -620,12 +619,13 @@ static void test_persona_spread(void)
 		if (i == nopt && nopt < 16) snprintf(opt[nopt++].name, sizeof opt[0].name, "%s", leaf);
 		if (i < 16) opt[i].n++;
 	}
+	printf(" ");
 	for (i = 0; i < nopt; i++) {
-		snprintf(line + strlen(line), sizeof line - strlen(line), "%s %d  ", opt[i].name, opt[i].n);
+		printf(" %s %d ", opt[i].name, opt[i].n);
 		if (opt[i].n >= 25) shown++;
 		if (opt[i].n > big) big = opt[i].n;
 	}
-	printf("  %s\n", line);
+	printf("\n");
 	CHECK(shown >= 3);                          /* at least three things each done by 5% or more */
 	CHECK(big < 400);                           /* and nothing done by four in five */
 	bs_free(s);
@@ -884,6 +884,47 @@ static void test_settings(void)
 	bc_engine_think(s->e, &s->w, s->intents, 0.016f, 1000);
 	CHECK(s->intents[0].keys == 0 && !b->alive);
 	bs_free(s);
+}
+
+/* --- THE PLANNER'S BUDGET (engine.h): the larger of the think's own and
+ * the bots' share, and no more than the host's bound --- */
+
+static void test_budget(void)
+{
+	static const struct { int budget, rate, bound, spent_least, spent_most; } c[] = {
+		{ 3000, 0, 0, 1, 3000 },        /* the think's own */
+		{ 0, 60 * 200, 0, 1, 4 * 200 },   /* none of its own: the share, 200 a bot */
+		{ 0, 0, 0, 0, 0 },              /* neither: nothing is planned */
+		{ 3000, 0, 30, 1, 30 },         /* the bound: a search goes on over thinks */
+	};
+	int k;
+
+	printf("the planner's budget: the think's own or the bots' share, under the bound\n");
+	for (k = 0; k < (int)(sizeof c / sizeof c[0]); k++) {
+		bs_sim *s = arena(4);
+		const bc_engine_stats *st = bc_engine_stats_get(s->e);
+		uint32_t most = 0;
+		int i, planned = 0;
+
+		s->budget = c[k].budget;
+		bc_engine_plan_rate(s->e, c[k].rate, 60);
+		bc_engine_plan_bound(s->e, c[k].bound);
+		bs_start(s);
+		bs_set(s, BL_NO_PLAYER, "place.far=290.5 300.5 37.75");
+		bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tdo go_to @far\n\twait 60\n");
+		for (i = 0; i < 4; i++)
+			bs_add(s, i, 1, 1, 5, 0, 40u + (uint32_t)i, 210.5f, 240.5f + 5.0f * (float)i, 1, 0);
+		for (i = 0; i < 120; i++) {
+			bs_step(s);
+			if (bc_engine_plan_spent(s->e) > most) most = bc_engine_plan_spent(s->e);
+		}
+		planned = st->plans + st->route_joins > 0;
+		printf("  budget %d, rate %d, bound %d: the most a think spent %u, %u searches\n", c[k].budget,
+		       c[k].rate, c[k].bound, (unsigned)most, (unsigned)st->plans);
+		CHECK(planned == (c[k].spent_most > 0));
+		CHECK(most >= (uint32_t)c[k].spent_least && most <= (uint32_t)c[k].spent_most);
+		bs_free(s);
+	}
 }
 
 /* --- a bot with a tree of its own (a gamemode's NPC), changed in play --- */
@@ -1731,6 +1772,7 @@ int main(void)
 	test_replay();
 	test_items();
 	test_settings();
+	test_budget();
 	test_own_tree();
 	test_traits();
 	test_long_setting();

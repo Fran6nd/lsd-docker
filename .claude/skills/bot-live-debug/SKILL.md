@@ -74,6 +74,42 @@ with a module on `mod.xearly.before/after.tick` and LuaJIT's
 `jit.profile` (see `patches/lsd/0001-steady-tick.patch` for what was
 found: sleeps wake late on Docker Desktop).
 
+## 4b. Measure it live, repeatably (and as a person)
+
+`dev/live-babel.sh <map.vxl>` is the live end-to-end check: a server of
+its own (container and volume `lsd-live-<pid>`, the first free port from
+32890; built from the working tree, or `IMAGE=lsd-docker:demo` for what
+the demo runs), babel on that map, `BOTS` (20) a team at `LEVEL` (10),
+for `MINUTES` (10). It loads `dev/live/probe.lua` into the server (it
+counts blocks placed and captures per team, and walks the map: a
+column's ground, whether a body can climb from the ground to a voxel)
+and samples every bot's running leaf (`lsdctl bots list`) and place. A
+SCRIPTED PERSON (`dev/person/`: a real 0.75 client over ENet, claiming
+Teamplay and Player Limit) joins team 1 and, case after case (`CASES`),
+stands where a case says and sends `/pingmark <spot> Build stairs here`,
+as the pie menu does. It prints the share of each leaf, idle
+bot-samples (holding, or not moved over two samples while not
+fighting), blocks a minute per team, each case's order as the engine
+logged it, and checks: idle <= `IDLE_MAX`, blocks >= `BLOCKS_MIN`, each
+ordered stair climbable from the ground to its top within `STAIR_SECS`,
+no Lua error or engine trouble in the log. Everything it saw stays in
+`OUT` (samples.txt, server.log, person-<case>.log, climb.txt). Run it
+before and after a change to bots, and give both numbers.
+
+The person alone, on any running server (its options in
+`dev/person/person.c`'s header):
+
+```sh
+dev/person/run.sh <container> --name Tester --team 0 --at 200 243 29 \
+    --look 207.78 242.63 2.00 --say "/pingmark 207.78 242.63 2.00 Build stairs here" --stay 60
+```
+
+`--team` is the wire's (0 is Lua's team 1); `--at` names the voxel the
+feet stand on. A ping lands ON A FACE (x, y or z a whole number): a sim
+test that pings a voxel's middle does not test what a client sends.
+`map_rotation` is a string (`lsdctl set map_rotation <name>`): a list
+there is ignored and the map folder's name order plays instead.
+
 ## 5. Reproduce before fixing
 
 Every live bug becomes a scenario that fails first: navigation in

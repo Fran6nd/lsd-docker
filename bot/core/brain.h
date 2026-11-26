@@ -225,6 +225,9 @@ typedef struct bc_splace {
 	bl_vec3 pos;
 } bc_splace;
 
+/* a claim's name (bc_claim, a bot's slot): a part's name is made to fit it */
+enum { BC_CLAIM_NAME = 32 };
+
 typedef struct bc_bot {
 	struct bc_engine *e;
 	uint8_t used, pid, level, gun;
@@ -303,7 +306,7 @@ typedef struct bc_bot {
 	struct { double stand_since; } fetch;
 	struct { double since, at; } esc;    /* escorting: since when, the last tick (skill_objective.c) */
 	uint32_t rgb;               /* the colour it last asked to build in (BC_BP_RGB | 0xRRGGBB); 0: the server's, each life */
-	struct { char name[32]; double since, at; } slot;   /* the claim it holds: a duty for a few, a blueprint's part (bc_claim) */
+	struct { char name[BC_CLAIM_NAME]; double since, at; } slot;   /* the claim it holds: a duty for a few, a blueprint's part (bc_claim) */
 	struct { int16_t leader; uint8_t pad_[6]; double eval_at, still_since, off_until; bl_vec3 still_at; } squad;
 	uint32_t kills;         /* this life's */
 	double born_at;         /* when this life began */

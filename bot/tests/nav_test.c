@@ -1223,6 +1223,35 @@ static void test_off_the_roof(void)
 		pol.may_dig = pol.may_build = 1;
 		pol.blocks = 50;
 	}
+	if (begin("over_the_top")) {
+		/* THE MAP'S TOP BAND is a place like any other: a block may be put
+		 * at z 0, 1 or 2 (the server refuses only 62 and 63, under the
+		 * sea: lsd/src/funcs_packetrecv.c, BlockAction) and a body stands
+		 * on one with its head above the map, which is air to the physics
+		 * (demoncore.c phys_solid). A slab near the top (floor 4), a ring
+		 * wall on it to the map's top round the bot, no digging: the one
+		 * way out is a stair up the wall's inside to its top -- the last
+		 * steps in the top band -- and the drop outside. A player builds it; so does a
+		 * bot. (A rule refused edits up into z under 3 "unless that is
+		 * where it is going", for keidoro's sky slabs; no case needed it
+		 * -- ceiling_slab is that slab -- and it shut this one in.) */
+		fresh(G);
+		box(W.m, 80, 80, 4, 140, 120, 10, 1);
+		box(W.m, 95, 95, 0, 115, 105, 3, 1);
+		box(W.m, 96, 96, 0, 114, 104, 3, 0);
+		bc_nav_policy_default(&pol);
+		pol.may_build = 1;
+		pol.blocks = 50;
+		pol.ascent_secs = bc_nav_climb_secs(&pol);
+		r = sim_run(&W, pol, node(100, 100, 4), node(125, 100, 4), 0, 60 * 60);
+		report("over_the_top (build: the stair over the ring)", &r);
+		CHECK(r.arrived && r.damage == 0);
+		CHECK(r.kinds & K(BC_NAV_BUILD));
+		CHECK(r.min_feet < 2.5f);      /* it went over the top */
+		bc_nav_policy_default(&pol);
+		pol.may_dig = pol.may_build = 1;
+		pol.blocks = 50;
+	}
 	if (begin("roof_no_edits")) {
 		/* the same tower, nothing allowed: it stays up, and the search
 		 * that proves there is no way is small (the roof) */

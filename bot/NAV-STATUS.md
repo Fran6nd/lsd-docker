@@ -17,6 +17,31 @@ Real maps are not in the repo. Tests that want them read a directory of
 used below were copied out of the `lsd-demo` container
 (`docker cp lsd-demo:/data/maps/<name>.vxl <dir>/`).
 
+## The review of 25-26 Nov (2026-11-26)
+
+- THE MAP'S TOP BAND (WORK.md item 27): try_edit no longer refuses an
+  edit up into z 0 to 2 when the goal is lower. It was not the server's
+  rule -- LSd refuses a block only at z 62 and 63 (funcs_packetrecv.c,
+  BlockAction), and above the map is air to the physics -- and no test
+  moved without it (every deterministic line of the suite the same). It
+  shut a bot in a ring walled to the map's top: `over_the_top` (a stair
+  up the wall's inside, the last steps in the band, and the drop out).
+  keidoro's slab is still `ceiling_slab`.
+- FOOTING (core/footing.h, WORK.md item 25): one rule, "do these keys,
+  for this facing, keep the feet", for the keys the engine presses of its
+  own with no route under them: the walk on while a route is searched, the
+  step out of a team-mate or across his line of fire, the stop, the net's
+  step back and sidestep. engine.c act holds every such key to it at the
+  end (the net's own copy of the test is gone); a tree's walk is its
+  skill's to check (skill_move.c bc_walk_safe, to be rebased on it). A
+  route's step is not: the follower reads the body every tick, and walks
+  to the very edge it builds from, which a third of a second of the keys
+  would call a fall (prefab_test's mirador: 63 of 76 built in 240 s with
+  route steps held to it, 76 in 23 s without). tests/footing_test.c.
+- THE ROUTE BOARD: a bot takes, of every route it may, the one with a
+  place nearest it (it took the first of the board's slots with any place
+  in reach). routes_test.
+
 ## Changed by the brain's agent (2026-11-25, later: only what a player could do)
 
 The owner: "stair down? not possible. you would need to place a block

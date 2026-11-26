@@ -66,12 +66,17 @@ from one mode to the next is data, and comes over the link:
   function (`do tell <name>`). The engine carries the names and knows
   none of them.
 
-**The vocabulary** -- the conditions, scores and actions a tree may name
--- is the engine's whole interface to behaviour, so it is kept small,
-named for what it does and not for who uses it (`enemy_near`, never
-`tdm_enemy_near`), and documented in one place (`core/vocab.h`). A new
-mode that needs a new word adds it there, neutral, with a test; it does
-not add an `if (mode == ...)` anywhere.
+**The vocabulary** -- the conditions, scores and actions a tree may name,
+and the values it may compare (`if enemy_distance < 5`, `unless health
+>= 50`; a condition such as `health_below 30` is short for the
+comparison and compiled as it) -- is the engine's whole interface to
+behaviour, so it is kept small, named for what it does and not for who
+uses it (`enemy_near`, never `tdm_enemy_near`), and documented in one
+place (`core/vocab.h`; the words themselves are the tables of
+`core/vocab.c`, and `VOCAB.md` is written from them). A tree decides
+with `if`/`else` blocks and weighs with `pick`, the two composed
+(TREES.md, section 5). A new mode that needs a new word adds it there,
+neutral, with a test; it does not add an `if (mode == ...)` anywhere.
 
 ## Rules for every file in `core/`
 

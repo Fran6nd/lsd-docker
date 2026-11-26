@@ -31,6 +31,31 @@
  *                           after that long (and it is stopped)
  *   tree <name>             another tree, by name, as if written here
  *
+ * CONDITIONS ON NUMBERS. A VALUE is a named number read off the bot's
+ * situation (how far the nearest enemy is, its health), or UNKNOWN (no
+ * enemy in sight has no distance). Wherever a condition goes, a
+ * comparison may:
+ *
+ *   if <value> [args...] <op> <number>       op: <  <=  >  >=
+ *   unless <value> [args...] <op> <number>
+ *
+ * A comparison with an unknown value is false (so `unless` of it is
+ * true). A condition may be SHORT for a comparison (bt_vocab_short):
+ * `if health_below 30` is `if health < 30`, compiled as that.
+ *
+ * IF AS A BLOCK. `if` and `unless` with children are a decision:
+ *
+ *   if enemy_distance < 5
+ *       do fight
+ *   else
+ *       do take_cover
+ *
+ * The condition is asked when the node is entered (it was not RUNNING);
+ * the branch chosen -- its children, in order, as a seq's -- is ticked
+ * until it ends, and the node answers what it answers. False with no
+ * `else`: FAILURE, as the leaf. `else` is written at the if's indent,
+ * right after its children, and holds the other branch.
+ *
  * PICK, and why no two bots choose alike. Each option is
  *
  *   option <trait> <score> [x<factor>]
@@ -45,7 +70,8 @@
  * bot's own, rolled when it was made (persona.h); luck is a draw from
  * its own randomness, within +-`noise`. The best option is ticked. So
  * the tree says what CAN be done and what bears on it; the character
- * says what THIS bot would rather.
+ * says what THIS bot would rather. A comparison may stand for the score
+ * (`option caution health < 40 x2`): 1 when it holds, 0 when not.
  *
  *   pick [every=<secs>] [sticky=<x>] [noise=<x>]
  *
@@ -110,7 +136,8 @@
  *       do roam                      # nothing else to do
  *
  * LEAVES are named, and the host says what each name is (bt_vocab): a
- * condition, a score or an action, each a C function given the bot. A
+ * condition, a score, an action or a value, each a C function given the
+ * bot. A
  * tree that names a leaf nobody registered does not compile, and the
  * error says which line. An action that is RUNNING when its branch
  * stops being chosen is told so (stop), once, so it can let go of what
@@ -139,6 +166,8 @@ typedef int (*bt_cond_fn)(void *bot, const bt_args *args);
 typedef float (*bt_score_fn)(void *bot, const bt_args *args);
 typedef bt_status (*bt_action_fn)(void *bot, const bt_args *args, float dt);
 typedef void (*bt_stop_fn)(void *bot, const bt_args *args);
+/* a value: 1 with the number in *out, or 0 when it is unknown now */
+typedef int (*bt_value_fn)(void *bot, const bt_args *args, double *out);
 
 /* The names a tree may use. Filled once by the host, before any tree is
  * compiled, and kept as long as the trees are. */
@@ -165,7 +194,7 @@ int bt_vocab_trait(bt_vocab *v, const char *name, int index);
  * `specs` is kept by pointer, as long as the vocabulary: n of them, at
  * most BT_ARGS_MAX, the required ones first. Only the last may repeat. */
 enum { BT_ARG_NUMBER, BT_ARG_ONE_OF, BT_ARG_TEXT };
-enum { BT_WORD_COND, BT_WORD_SCORE, BT_WORD_ACTION };
+enum { BT_WORD_COND, BT_WORD_SCORE, BT_WORD_ACTION, BT_WORD_VALUE };
 
 typedef struct bt_arg_spec {
 	const char *name;           /* "voxels": what it is called in the usage */
@@ -194,6 +223,22 @@ int bt_vocab_args(bt_vocab *v, int kind, const char *name, const bt_arg_spec *sp
  * as a name: for words the host cannot list when the tree is compiled */
 int bt_vocab_set(bt_vocab *v, const char *name, const char *values);
 const char *bt_vocab_set_values(const bt_vocab *v, const char *name);
+
+/* A VALUE (a comparison's left side). `number` says what a number it is
+ * compared with is: its `name` is the unit ("voxels"), its has_min/min
+ * and has_max/max the range the value keeps within -- a number written
+ * outside it is a mistake (`health < 500`). Kept by pointer, as specs
+ * are. Its own arguments, if any: bt_vocab_args(v, BT_WORD_VALUE, ...). */
+int bt_vocab_value(bt_vocab *v, const char *name, bt_value_fn fn, const bt_arg_spec *number);
+
+/* A condition or a score (kind BT_WORD_COND, BT_WORD_SCORE) that is
+ * SHORT for a comparison, and is compiled as it: `comparison` is one, as
+ * a tree writes it, with $1..$4 for the word's own arguments ("health <
+ * $1"; an argument left out is its spec's default), and for a condition
+ * it may begin with `unless` ("unless mate_distance <= $1"). A score so
+ * is 1 when it holds and 0 when not. The word's own arguments are
+ * checked as any word's (bt_vocab_args). Kept by pointer. */
+int bt_vocab_short(bt_vocab *v, int kind, const char *name, const char *comparison);
 
 /* Compiled trees: every `tree <name>:` of one text. Immutable, shared. */
 typedef struct bt_forest bt_forest;
@@ -277,10 +322,21 @@ size_t bt_describe(const bt_forest *f, const bt_state *s, char *out, size_t out_
 typedef enum bt_kind {
 	BT_K_SEQ, BT_K_SELECT, BT_K_PICK, BT_K_OPTION, BT_K_IF, BT_K_UNLESS, BT_K_DO,
 	BT_K_WAIT, BT_K_INVERT, BT_K_ALWAYS, BT_K_NEVER, BT_K_COOLDOWN, BT_K_LIMIT,
-	BT_K_TREE, BT_K_COUNT
+	BT_K_TREE, BT_K_ELSE, BT_K_COUNT
 } bt_kind;
-/* "seq" ... "tree": the word the text uses; NULL for no such kind */
+/* "seq" ... "else": the word the text uses; NULL for no such kind */
 const char *bt_kind_name(int kind);
+
+/* AN ELSE is a node of its own: the last child of its `if` or `unless`
+ * (its parent), its children the branch taken when the condition does
+ * not hold. It is written at its if's indent, so its `column` is the
+ * if's; a tick never stops at it (it goes on to its children). */
+
+/* a comparison's operator; BT_OP_NONE: the node names a condition or a
+ * score, not a value */
+enum { BT_OP_NONE, BT_OP_LT, BT_OP_LE, BT_OP_GT, BT_OP_GE, BT_OP_COUNT };
+/* "<", "<=", ">", ">="; NULL for none */
+const char *bt_op_name(int op);
 
 /* which of a node's numbers the text gave (the others are the defaults) */
 enum { BT_W_EVERY = 1, BT_W_STICKY = 2, BT_W_NOISE = 4, BT_W_FACTOR = 8, BT_W_ROLL = 16 };
@@ -305,9 +361,14 @@ typedef struct bt_node {
 	const char *text;           /* its words as written, one space apart */
 	const char *name;           /* if, unless: the condition; do: the action;
 	                               option: the score; tree: the tree named;
-	                               else NULL */
+	                               if, unless, option with an `op`: the value
+	                               compared; else NULL */
 	const char *trait;          /* option; else NULL */
-	bt_args args;               /* what follows the name, as written */
+	bt_args args;               /* what follows the name, as written (a
+	                               comparison: the value's own, before the
+	                               operator) */
+	int op;                     /* if, unless, option: BT_OP_* of a comparison */
+	float number;               /* a comparison's number */
 	float secs;                 /* wait, cooldown, limit */
 	float every, sticky, noise; /* pick */
 	float factor;               /* option */
@@ -389,11 +450,14 @@ int bt_forest_node(const bt_forest *f, int i, bt_node *out);
 
 /* What one node remembers. */
 typedef struct bt_node_state {
-	int running;        /* it answered RUNNING at its last tick: a seq or a
-	                       select waiting on a child, a pick holding an
-	                       option, a do, a wait or a limit under way */
-	int child;          /* seq, select: the child it will resume at; pick:
-	                       the option it holds; -1 for none */
+	int running;        /* it answered RUNNING at its last tick: a seq, a
+	                       select or an if block waiting on a child, a pick
+	                       holding an option, a do, a wait or a limit
+	                       under way */
+	int child;          /* seq, select, an if block: the child it will
+	                       resume at (for the branch of an `else`, a child
+	                       of the else); pick: the option it holds; -1
+	                       for none */
 	float elapsed;      /* wait, limit: seconds since it began; pick: since
 	                       it last chose; else 0 */
 	float remaining;    /* wait, limit: seconds before it ends; pick: before
@@ -404,7 +468,8 @@ int bt_state_node(const bt_forest *f, const bt_state *s, int i, bt_node_state *o
 
 /* The nodes of tree `tree` that are RUNNING after the last tick, from
  * the root down to the action (or the wait) the bot is in: a single
- * path, decorators and the option held included. Returns how many
+ * path, decorators and the option held included (an `else` is not: the
+ * path goes from the if to the child of the else). Returns how many
  * (never more than BT_DEPTH_MAX), 0 when the tree is not RUNNING;
  * writes at most `max` ids. */
 int bt_state_running(const bt_forest *f, const bt_state *s, int tree, int *out, int max);

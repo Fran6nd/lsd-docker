@@ -147,36 +147,58 @@ static int stands(const bc_map *m, bc_nav_node n)
 	return bc_nav_snap(m, n.x, n.y, n.z, 0, &s) && s.z == n.z;
 }
 
+/* The place of `sr` nearest `start` within BC_ROUTE_REACH where a body can
+ * stand now (the furthest along of equals), and its squared distance;
+ * -2 for none. */
+static int nearest_place(const bc_shared_route *sr, bc_nav_node start, const bc_map *m, int *dist)
+{
+	int j, best = -2, best_d = BC_ROUTE_REACH * BC_ROUTE_REACH + 1;
+
+	for (j = -1; j < sr->route.n; j++) {
+		bc_nav_node p = bc_route_place(&sr->route, j);
+		int dx = p.x - start.x, dy = p.y - start.y, dz = p.z - start.z, d = dx * dx + dy * dy + dz * dz;
+
+		if (d <= best_d && stands(m, p)) {     /* <=: the furthest along of equals */
+			best_d = d;
+			best = j;
+		}
+	}
+	*dist = best_d;
+	return best;
+}
+
 uint32_t bc_routes_find(bc_route_board *bd, const bc_route_key *k, bc_nav_node start, double now,
                         const bc_nav_moves *t, const bc_map *m, int *step)
 {
-	int i;
+	for (;;) {
+		/* the nearest of every route that may be taken (the first put up
+		 * of equals); then whether its shared part still holds -- one an
+		 * edit broke goes, and the next nearest is looked at */
+		bc_shared_route *win = NULL;
+		int i, at = -2, at_d = 0;
 
-	for (i = 0; i < BC_ROUTES_MAX; i++) {
-		bc_shared_route *sr = &bd->r[i];
-		int j, best = -2, best_d = BC_ROUTE_REACH * BC_ROUTE_REACH + 1;
+		for (i = 0; i < BC_ROUTES_MAX; i++) {
+			bc_shared_route *sr = &bd->r[i];
+			int d, j;
 
-		if (sr->id == 0 || now - sr->at > BC_ROUTE_TTL || !bc_route_adoptable(k, sr))
-			continue;
-		for (j = -1; j < sr->route.n; j++) {
-			bc_nav_node p = bc_route_place(&sr->route, j);
-			int dx = p.x - start.x, dy = p.y - start.y, dz = p.z - start.z, d = dx * dx + dy * dy + dz * dz;
-
-			if (d <= best_d && stands(m, p)) {     /* <=: the furthest along of equals */
-				best_d = d;
-				best = j;
-			}
+			if (sr->id == 0 || now - sr->at > BC_ROUTE_TTL || !bc_route_adoptable(k, sr))
+				continue;
+			j = nearest_place(sr, start, m, &d);
+			if (j < -1 || (win && (d > at_d || (d == at_d && sr->id > win->id))))
+				continue;
+			win = sr;
+			at = j;
+			at_d = d;
 		}
-		if (best < -1)
-			continue;
-		if (sr->route.map_rev != m->rev && !bc_nav_route_holds(&sr->route, best + 1, sr->route.n, t, m)) {
-			sr->id = 0;     /* an edit broke it: off the board */
+		if (!win)
+			return 0;
+		if (win->route.map_rev != m->rev && !bc_nav_route_holds(&win->route, at + 1, win->route.n, t, m)) {
+			win->id = 0;    /* an edit broke it: off the board */
 			continue;
 		}
-		*step = best;
-		return sr->id;
+		*step = at;
+		return win->id;
 	}
-	return 0;
 }
 
 void bc_routes_splice(bc_nav_route *join, const bc_shared_route *r, int step, uint32_t rev)

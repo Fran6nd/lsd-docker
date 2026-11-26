@@ -12,6 +12,17 @@
  * RUNNING actions are stop()ed, once, and everything remembered under it
  * is forgotten.
  *
+ * An if BLOCK (`if`/`unless` with children) remembers the same way: its
+ * condition is asked when it is entered, and the branch chosen is a seq
+ * that is resumed until it ends. It never changes branch while one is
+ * RUNNING; the node above it entering it afresh is what asks again.
+ *
+ * A COMPARISON is a leaf like a condition: the value's function, then
+ * the operator, in double (a value of a float is compared exactly as the
+ * float was). Unknown is false. A word that is short for a comparison
+ * (bt_vocab_short) is compiled into one when its line is read: the
+ * source keeps the word as written, the forest runs the comparison.
+ *
  * The same goes for every way a branch can stop being ticked: a pick
  * changing its choice (or finding nothing to choose), a `limit` firing,
  * bt_reset. Every action RUNNING under the branch gets stop() exactly
@@ -56,16 +67,20 @@
 
 /* the same numbers as bt.h's bt_kind, K_REF being BT_K_TREE */
 enum { K_SEQ, K_SELECT, K_PICK, K_OPTION, K_IF, K_UNLESS, K_DO, K_WAIT,
-       K_INVERT, K_ALWAYS, K_NEVER, K_COOLDOWN, K_LIMIT, K_REF };
+       K_INVERT, K_ALWAYS, K_NEVER, K_COOLDOWN, K_LIMIT, K_REF, K_ELSE };
 
 static const char *const kw[] = { "seq", "select", "pick", "option", "if", "unless",
-	"do", "wait", "invert", "always", "never", "cooldown", "limit", "tree" };
+	"do", "wait", "invert", "always", "never", "cooldown", "limit", "tree", "else" };
+
+/* bt.h's BT_OP_*, as written */
+static const char *const ops[BT_OP_COUNT] = { NULL, "<", "<=", ">", ">=" };
 
 enum { VOCAB_MAX = 512, TOKENS_MAX = 16, NODES_MAX = 1 << 18 };
 
 /* ---- the vocabulary -------------------------------------------------- */
 
-enum { VK_COND, VK_SCORE, VK_ACTION, VK_TRAIT };
+/* the same numbers as bt.h's BT_WORD_*, and the traits */
+enum { VK_COND, VK_SCORE, VK_ACTION, VK_VALUE, VK_TRAIT };
 
 typedef struct ventry {
 	int kind;
@@ -74,6 +89,10 @@ typedef struct ventry {
 	bt_score_fn score;
 	bt_action_fn action;
 	bt_stop_fn stop;
+	bt_value_fn value;
+	const bt_arg_spec *number;  /* a value: what it is compared with */
+	const char *short_for;      /* a condition or a score that is short for
+	                               this comparison (bt_vocab_short) */
 	int trait;
 	const bt_arg_spec *specs;   /* its arguments, if the host said (bt_vocab_args) */
 	int nspecs;                 /* -1: it did not, and nothing is checked */
@@ -149,11 +168,28 @@ int bt_vocab_trait(bt_vocab *v, const char *name, int index)
 	return 1;
 }
 
+int bt_vocab_value(bt_vocab *v, const char *name, bt_value_fn fn, const bt_arg_spec *number)
+{
+	ventry *e;
+	if (!fn || !number || number->type != BT_ARG_NUMBER || !(e = vadd(v, VK_VALUE, name))) return 0;
+	e->value = fn;
+	e->number = number;
+	return 1;
+}
+
+int bt_vocab_short(bt_vocab *v, int kind, const char *name, const char *comparison)
+{
+	ventry *e;
+	if (!comparison || (kind != BT_WORD_COND && kind != BT_WORD_SCORE) || !(e = vadd(v, kind, name))) return 0;
+	e->short_for = comparison;
+	return 1;
+}
+
 int bt_vocab_args(bt_vocab *v, int kind, const char *name, const bt_arg_spec *specs, int n)
 {
 	int i;
 	if (!v || !name || n < 0 || n > BT_ARGS_MAX || (n && !specs)) return 0;
-	if (kind != BT_WORD_COND && kind != BT_WORD_SCORE && kind != BT_WORD_ACTION) return 0;
+	if (kind != BT_WORD_COND && kind != BT_WORD_SCORE && kind != BT_WORD_ACTION && kind != BT_WORD_VALUE) return 0;
 	for (i = 0; i < v->n; i++)
 		if (v->e[i].kind == kind && strcmp(v->e[i].name, name) == 0) {
 			v->e[i].specs = specs;
@@ -197,19 +233,27 @@ const char *bt_vocab_set_values(const bt_vocab *v, const char *name)
 typedef struct bnode {
 	uint8_t kind;
 	uint8_t roll;           /* pick: BT_ROLL_* */
+	uint8_t op;             /* if, unless, option: a comparison's BT_OP_* */
+	uint8_t neg;            /* a comparison: its answer turned (a word that
+	                           is short for `unless ...`) */
 	int32_t end;            /* index one past this node's subtree */
+	int32_t alt;            /* an if block: its else's index, or `end` when
+	                           it has none */
 	int32_t trait;          /* option: index into the weights; a pick that
 	                           rolls: its key (the same wherever and however
 	                           often its tree is compiled) */
 	int32_t line;
-	const char *name;       /* leaf name; option: its score's name */
+	const char *name;       /* leaf name; option: its score's name; a
+	                           comparison: the value's */
 	const char *trait_name; /* option */
-	bt_args args;
+	bt_args args;           /* a comparison: the value's */
 	bt_cond_fn cond;
 	bt_score_fn score;
 	bt_action_fn action;
 	bt_stop_fn stop;
+	bt_value_fn value;
 	float secs, every, sticky, noise, factor;
+	float number;           /* a comparison's */
 } bnode;
 
 typedef struct ftree { char name[BT_NAME_MAX]; int32_t root; } ftree;
@@ -219,7 +263,8 @@ typedef struct fmeta { int32_t src, via, parent; } fmeta;
 
 /* the text as written: bt.h, "the source" */
 typedef struct snode {
-	uint8_t kind, written, roll;
+	uint8_t kind, written, roll, op;
+	float number;
 	int32_t end;            /* index one past its subtree, in the source */
 	int32_t parent, tree, line, col, depth, nchild;
 	const char *text, *name, *trait, *note, *above;
@@ -266,10 +311,12 @@ int bt_forest_find(const bt_forest *f, const char *name)
 
 typedef struct pnode {
 	bnode n;
+	bt_args sargs;          /* its arguments as written (n.args: as run) */
 	int parent, nchild, ref;
 	char *refname;
 	int col, depth, written;
 	int bad;                /* its words were wrong: kept for its place, checked no further */
+	int expanded;           /* a word short for a comparison: n runs that */
 	char *text, *note, *above;
 } pnode;
 
@@ -290,8 +337,9 @@ typedef struct P {
 	int failed;             /* stop reading: maxd mistakes, or no memory */
 	int lost;               /* a line was dropped for a mistake: what follows
 	                           from it (a child with no parent) is not said */
-	const char *lstart;     /* the line being read, and the column of the */
-	int col;                /* word a mistake found now would be about */
+	const char *lstart;     /* the line being read (to lend), and the column */
+	const char *lend;       /* of the word a mistake found now would be */
+	int col;                /* about */
 	char *ab;               /* comments and empty lines met since the last node */
 	size_t nab, capab;
 	fmeta *ex; size_t capex;        /* beside em, node for node */
@@ -350,8 +398,13 @@ static char *dups(P *p, const char *s, size_t n)
 	return d;
 }
 
-/* a mistake found from here on is about this word */
-static void at(P *p, tok t) { p->col = (int)(t.s - p->lstart) + 1; }
+/* a mistake found from here on is about this word. A word that is not
+ * of the line (the comparison a word is short for) leaves it where it
+ * was: on the word written */
+static void at(P *p, tok t)
+{
+	if (t.s >= p->lstart && t.s < p->lend) p->col = (int)(t.s - p->lstart) + 1;
+}
 
 static int tokeq(tok t, const char *s) { return strlen(s) == t.n && memcmp(t.s, s, t.n) == 0; }
 
@@ -367,7 +420,11 @@ static int tonum(const char *s, float *out)
 	return 1;
 }
 
-static int is_leaf(int k) { return k == K_IF || k == K_UNLESS || k == K_DO || k == K_WAIT || k == K_REF; }
+/* (an if or unless with children is a block, not a leaf) */
+static int is_leaf(int k) { return k == K_DO || k == K_WAIT || k == K_REF; }
+/* the kinds that remember the child they wait on (slot.cur) and resume
+ * at it: seq, select, an if block (a leaf if never waits) */
+static int resumes(int k) { return k == K_SEQ || k == K_SELECT || k == K_IF || k == K_UNLESS; }
 static int is_decor(int k) { return k == K_INVERT || k == K_ALWAYS || k == K_NEVER || k == K_COOLDOWN || k == K_LIMIT; }
 
 /* is the word one of "a|b|c"? An entry that ends in `*` ("@*") is any
@@ -460,6 +517,142 @@ static int set_args(P *p, bnode *b, const ventry *e, const tok *t, int from, int
 	return 1;
 }
 
+/* ---- comparisons ---- */
+
+static int op_of(tok t)
+{
+	int k;
+	for (k = 1; k < BT_OP_COUNT; k++)
+		if (tokeq(t, ops[k])) return k;
+	return BT_OP_NONE;
+}
+
+/* an operator, or a word a person may have meant as one */
+static int looks_op(tok t)
+{
+	return op_of(t) || tokeq(t, "=") || tokeq(t, "==") || tokeq(t, "!=") || tokeq(t, "=<") ||
+	       tokeq(t, "=>") || tokeq(t, "<>");
+}
+
+static int find_op(const tok *t, int from, int to)
+{
+	int k;
+	for (k = from; k < to; k++)
+		if (looks_op(t[k])) return k;
+	return -1;
+}
+
+/* a word written where a value goes that is not one: say what it is */
+static void no_value(P *p, tok w, int line)
+{
+	char nm[BT_NAME_MAX];
+	const ventry *e = NULL;
+	snprintf(nm, sizeof nm, "%.*s", (int)(w.n < BT_NAME_MAX ? w.n : BT_NAME_MAX - 1), w.s);
+	if (w.n < BT_NAME_MAX && ((e = vfind(p->v, VK_COND, nm)) || (e = vfind(p->v, VK_SCORE, nm))))
+		fail(p, line, "no value called %s (%s is a %s: it is written with no operator)", nm, nm,
+		     e->kind == VK_COND ? "condition" : "score");
+	else
+		fail(p, line, "no value called %.*s", (int)w.n, w.s);
+}
+
+/* `<value> [args...] <op> <number>`, the words t[from] to t[to - 1], into
+ * b: its function, its arguments, the operator and the number */
+static int fill_cmp(P *p, bnode *b, const tok *t, int from, int to, int line)
+{
+	char nm[BT_NAME_MAX], word[48];
+	const ventry *e;
+	const bt_arg_spec *s;
+	int o = find_op(t, from + 1, to);
+	float v;
+	at(p, t[from]);
+	snprintf(nm, sizeof nm, "%.*s", (int)(t[from].n < BT_NAME_MAX ? t[from].n : BT_NAME_MAX - 1), t[from].s);
+	e = t[from].n < BT_NAME_MAX ? vfind(p->v, VK_VALUE, nm) : NULL;
+	if (!e) { no_value(p, t[from], line); return 0; }
+	if (o < 0) { fail(p, line, "%s: a comparison is <value> [arguments] <op> <number>", nm); return 0; }
+	if (!set_args(p, b, e, t, from + 1, o, line)) return 0;
+	at(p, t[o]);
+	b->op = (uint8_t)op_of(t[o]);
+	if (!b->op) {
+		fail(p, line, "'%.*s' is not an operator: <, <=, > or >= (two measured numbers are never exactly equal; "
+		     "for a count, '>= 2' with '< 3' is exactly 2)", (int)t[o].n, t[o].s);
+		return 0;
+	}
+	if (o + 1 >= to) { fail(p, line, "%s %s: a number must follow the operator", nm, ops[b->op]); return 0; }
+	at(p, t[o + 1]);
+	snprintf(word, sizeof word, "%.*s", (int)(t[o + 1].n < sizeof word ? t[o + 1].n : sizeof word - 1), t[o + 1].s);
+	if (t[o + 1].n >= sizeof word || !tonum(word, &v)) {
+		fail(p, line, "%s %s: '%s' is not a number", nm, ops[b->op], word);
+		return 0;
+	}
+	s = e->number;
+	if ((s->has_min && v < s->min) || (s->has_max && v > s->max)) {
+		if (s->has_min && s->has_max)
+			fail(p, line, "%s is between %g and %g (%s): not %s", nm, (double)s->min, (double)s->max, s->name, word);
+		else if (s->has_min)
+			fail(p, line, "%s is %g or more (%s): not %s", nm, (double)s->min, s->name, word);
+		else
+			fail(p, line, "%s is %g or less (%s): not %s", nm, (double)s->max, s->name, word);
+		return 0;
+	}
+	if (o + 2 < to) { at(p, t[o + 2]); fail(p, line, "%s %s %s: nothing may follow the number", nm, ops[b->op], word); return 0; }
+	b->number = v;
+	b->value = e->value;
+	return 1;
+}
+
+/* A word that is short for a comparison, its own arguments read (in
+ * b->args): the comparison, with them for $1..$4, into b -- which then
+ * runs it; the source keeps the word and its arguments (pn->sargs). */
+static int expand(P *p, pnode *pn, const ventry *e, int line)
+{
+	bnode *b = &pn->n;
+	char buf[256], num[32];
+	tok t[TOKENS_MAX];
+	const char *q = e->short_for, *name = b->name;
+	size_t n = 0;
+	int nt = 0, from = 0;
+	pn->sargs = b->args;
+	pn->expanded = 1;
+	while (*q) {
+		const char *w, *s;
+		size_t len, k;
+		while (*q == ' ') q++;
+		if (!*q) break;
+		for (w = q; *q && *q != ' '; q++) ;
+		len = (size_t)(q - w);
+		s = w;
+		if (len == 2 && w[0] == '$' && w[1] >= '1' && w[1] <= '0' + BT_ARGS_MAX) {
+			int a = w[1] - '1';
+			const bt_arg_spec *sp = a < e->nspecs ? &e->specs[a] : NULL;
+			if (a < b->args.count) s = b->args.text[a];
+			else if (sp && sp->has_default) { snprintf(num, sizeof num, "%.9g", (double)sp->def); s = num; }
+			else if (sp && sp->def_text) s = sp->def_text;
+			else { fail(p, line, "%s is short for '%s', and $%d is neither given nor has a default", e->name, e->short_for, a + 1); return 0; }
+			len = strlen(s);
+		}
+		if (nt == TOKENS_MAX || n + len + 1 > sizeof buf) { fail(p, line, "%s: '%s' is too long", e->name, e->short_for); return 0; }
+		memcpy(buf + n, s, len);
+		t[nt].s = buf + n;
+		t[nt++].n = len;
+		n += len;
+		buf[n++] = ' ';
+		for (k = 0; k < len; k++) if (s[k] == ' ') { fail(p, line, "%s: an argument with a space", e->name); return 0; }
+	}
+	if (nt && tokeq(t[0], "unless")) {
+		if (e->kind != VK_COND) { fail(p, line, "%s: a score cannot be short for 'unless ...'", e->name); return 0; }
+		b->neg = 1;
+		from = 1;
+	}
+	if (nt - from < 3 || find_op(t, from + 1, nt) < 0) {
+		fail(p, line, "%s is short for '%s', which is not a comparison", e->name, e->short_for);
+		return 0;
+	}
+	memset(&b->args, 0, sizeof b->args);
+	if (!fill_cmp(p, b, t, from, nt, line)) return 0;
+	b->name = name;
+	return 1;
+}
+
 static int valid_name(const tok t)
 {
 	size_t i;
@@ -496,6 +689,9 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 	switch (b->kind) {
 	case K_SEQ: case K_SELECT: case K_INVERT: case K_ALWAYS: case K_NEVER:
 		if (nt != 1) { fail(p, line, "'%s' takes no arguments", kw[b->kind]); return 0; }
+		return 1;
+	case K_ELSE:
+		if (nt != 1) { at(p, t[1]); fail(p, line, "'else' takes no words: its condition is its if's"); return 0; }
 		return 1;
 	case K_PICK:
 		for (i = 1; i < nt; i++) {
@@ -553,37 +749,58 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 		if (!tr) { fail(p, line, "no trait called %.*s", (int)t[1].n, t[1].s); return 0; }
 		b->trait = tr->trait;
 		b->trait_name = dups(p, t[1].s, t[1].n);
-		snprintf(nm, sizeof nm, "%.*s", (int)(t[2].n < BT_NAME_MAX ? t[2].n : BT_NAME_MAX - 1), t[2].s);
-		e = t[2].n < BT_NAME_MAX ? vfind(p->v, VK_SCORE, nm) : NULL;
-		at(p, t[2]);
-		if (!e) { fail(p, line, "no score called %.*s", (int)t[2].n, t[2].s); return 0; }
-		b->score = e->score;
-		b->name = dups(p, t[2].s, t[2].n);
+		if (!b->trait_name) return 0;
 		if (last > 3 && t[last - 1].s[0] == 'x') {      /* a trailing x<number> is the factor */
 			char *fs = dups(p, t[last - 1].s + 1, t[last - 1].n - 1);
 			float fv;
 			if (fs && tonum(fs, &fv) && fv >= 0) { b->factor = fv; pn->written |= BT_W_FACTOR; last--; }
 		}
+		b->name = dups(p, t[2].s, t[2].n);
+		if (!b->name) return 0;
+		if (find_op(t, 3, last) >= 0) return fill_cmp(p, b, t, 2, last, line);    /* a comparison: 1 or 0 */
+		snprintf(nm, sizeof nm, "%.*s", (int)(t[2].n < BT_NAME_MAX ? t[2].n : BT_NAME_MAX - 1), t[2].s);
+		e = t[2].n < BT_NAME_MAX ? vfind(p->v, VK_SCORE, nm) : NULL;
+		at(p, t[2]);
+		if (!e) {
+			if (t[2].n < BT_NAME_MAX && vfind(p->v, VK_VALUE, nm))
+				fail(p, line, "no score called %s (%s is a value: compare it, as 'option %s %s < <number>')", nm, nm,
+				     b->trait_name, nm);
+			else
+				fail(p, line, "no score called %.*s", (int)t[2].n, t[2].s);
+			return 0;
+		}
+		b->score = e->score;
 		if (last > 3) at(p, t[3]);
-		return b->trait_name && b->name && set_args(p, b, e, t, 3, last, line);
+		if (!set_args(p, b, e, t, 3, last, line)) return 0;
+		return !e->short_for || expand(p, pn, e, line);
 	}
 	case K_IF: case K_UNLESS: case K_DO:
 		if (nt < 2) {
 			fail(p, line, "'%s' needs %s name", kw[b->kind], b->kind == K_DO ? "an action" : "a condition");
 			return 0;
 		}
+		b->name = dups(p, t[1].s, t[1].n);
+		if (!b->name) return 0;
+		if (b->kind != K_DO && find_op(t, 2, nt) >= 0) return fill_cmp(p, b, t, 1, nt, line);
 		snprintf(nm, sizeof nm, "%.*s", (int)(t[1].n < BT_NAME_MAX ? t[1].n : BT_NAME_MAX - 1), t[1].s);
 		e = t[1].n < BT_NAME_MAX ? vfind(p->v, b->kind == K_DO ? VK_ACTION : VK_COND, nm) : NULL;
 		at(p, t[1]);
 		if (!e) {
-			fail(p, line, "no %s called %.*s", b->kind == K_DO ? "action" : "condition", (int)t[1].n, t[1].s);
+			if (b->kind != K_DO && (memchr(t[1].s, '<', t[1].n) || memchr(t[1].s, '>', t[1].n)))
+				fail(p, line, "no condition called %.*s (a comparison has spaces round its operator: 'health < 40')",
+				     (int)t[1].n, t[1].s);
+			else if (b->kind != K_DO && t[1].n < BT_NAME_MAX && vfind(p->v, VK_VALUE, nm))
+				fail(p, line, "no condition called %s (%s is a value: compare it, as '%s %s < <number>')", nm, nm,
+				     kw[b->kind], nm);
+			else
+				fail(p, line, "no %s called %.*s", b->kind == K_DO ? "action" : "condition", (int)t[1].n, t[1].s);
 			return 0;
 		}
 		b->cond = e->cond;
 		b->action = e->action;
 		b->stop = e->stop;
-		b->name = dups(p, t[1].s, t[1].n);
-		return b->name && set_args(p, b, e, t, 2, nt, line);
+		if (!set_args(p, b, e, t, 2, nt, line)) return 0;
+		return !e->short_for || expand(p, pn, e, line);
 	case K_WAIT: case K_COOLDOWN: case K_LIMIT: {
 		char *s;
 		if (nt != 2) { fail(p, line, "'%s' takes one number of seconds", kw[b->kind]); return 0; }
@@ -605,6 +822,14 @@ static int fill_node(P *p, pnode *pn, const tok *t, int nt, int line)
 	}
 }
 
+/* node k's subtree ends before node `end`; an else's ends its if's too
+ * (the else is the if's last child) */
+static void close_node(P *p, int k, size_t end)
+{
+	p->pn[k].n.end = (int32_t)end;
+	if (p->pn[k].n.kind == K_ELSE) p->pn[p->pn[k].parent].n.end = (int32_t)end;
+}
+
 /* the arity rules that need the whole subtree, checked when a tree ends */
 static void finish_tree(P *p)
 {
@@ -613,7 +838,7 @@ static void finish_tree(P *p)
 	int k;
 	if (p->npt == 0 || p->failed) return;
 	tr = &p->pt[p->npt - 1];
-	for (k = 0; k < p->sp; k++) p->pn[p->stack[k]].n.end = (int32_t)p->npn;
+	for (k = p->sp - 1; k >= 0; k--) close_node(p, p->stack[k], p->npn);
 	p->sp = 0;
 	p->col = 1;
 	if ((size_t)tr->first == p->npn) { SHAPE(p, tr->hline, "tree '%s' is empty", tr->name); return; }
@@ -622,7 +847,7 @@ static void finish_tree(P *p)
 		int kind = pn->n.kind;
 		p->col = pn->col;
 		if (pn->bad || pn->nchild) continue;
-		if (kind == K_SEQ || kind == K_SELECT || kind == K_PICK)
+		if (kind == K_SEQ || kind == K_SELECT || kind == K_PICK || kind == K_ELSE)
 			SHAPE(p, pn->n.line, "'%s' needs at least one child", kw[kind]);
 		else if (is_decor(kind) || kind == K_OPTION)
 			SHAPE(p, pn->n.line, "'%s' needs a child", kw[kind]);
@@ -652,12 +877,13 @@ static void parse_line(P *p, const char *q, size_t len, int line)
 {
 	size_t i, nspace = 0, ntab = 0, full = len, hash, tl = 0;
 	tok t[TOKENS_MAX];
-	int nt = 0, level = 0, rel, parent, header = 0;
+	int nt = 0, level = 0, rel, parent = -1, header = 0;
 	pnode pn;
 	ptree *tr;
 	char *note = NULL, *above;
 
 	p->lstart = q;
+	p->lend = q + len;
 	p->col = 1;
 	for (i = 0; i < len; i++) if (q[i] == '#') { len = i; break; }
 	hash = len;
@@ -773,8 +999,32 @@ static void parse_line(P *p, const char *q, size_t len, int line)
 		pn.text[tl++] = ' ';
 	}
 	pn.text[tl - 1] = 0;
+	if (!pn.expanded) pn.sargs = pn.n.args;
 
-	if ((size_t)tr->first == p->npn) {
+	if (pn.n.kind == K_ELSE) {
+		/* the other branch of the if block just above at its indent: the
+		 * if's last child, the lines under it its children */
+		const pnode *pp;
+		rel = level - tr->base;
+		if ((size_t)tr->first == p->npn || rel < 0 || rel >= p->sp) {
+			SHAPE(p, line, "'else' with no if before it at its indent");
+			return;
+		}
+		parent = p->stack[rel];
+		pp = &p->pn[parent];
+		if (pp->bad) {
+			;                       /* what it is is not known: its shape is not judged */
+		} else if (pp->n.kind == K_ELSE) {
+			SHAPE(p, line, "an if has one else: this is a second");
+			return;
+		} else if (pp->n.kind != K_IF && pp->n.kind != K_UNLESS) {
+			SHAPE(p, line, "'else' belongs right after an if or unless block, at its indent");
+			return;
+		} else if (!pp->nchild) {
+			SHAPE(p, line, "'else' after an if with no children: the branch taken when it holds goes under the if, indented");
+			return;
+		}
+	} else if ((size_t)tr->first == p->npn) {
 		tr->base = level;
 		rel = 0;
 		p->sp = 0;
@@ -785,9 +1035,9 @@ static void parse_line(P *p, const char *q, size_t len, int line)
 	}
 	if (rel > p->sp) { SHAPE(p, line, "indented too deep: one level at a time"); return; }
 	if (rel >= BT_DEPTH_MAX) { fail(p, line, "nested deeper than %d levels", BT_DEPTH_MAX); return; }
-	parent = rel ? p->stack[rel - 1] : -1;
-	if (pn.bad || (parent >= 0 && p->pn[parent].bad)) {
-		;                       /* what it is is not known: its shape is not judged */
+	if (pn.n.kind != K_ELSE) parent = rel ? p->stack[rel - 1] : -1;
+	if (pn.n.kind == K_ELSE || pn.bad || (parent >= 0 && p->pn[parent].bad)) {
+		;                       /* judged above; or what it is is not known: its shape is not judged */
 	} else if (parent >= 0) {
 		const pnode *pp = &p->pn[parent];
 		int pk = pp->n.kind;
@@ -805,7 +1055,8 @@ static void parse_line(P *p, const char *q, size_t len, int line)
 	p->pn = grow(p, p->pn, &p->cappn, p->npn + 1, sizeof *p->pn);
 	above = take_above(p);
 	if (p->failed) return;
-	for (i = (size_t)rel; i < (size_t)p->sp; i++) p->pn[p->stack[i]].n.end = (int32_t)p->npn;
+	/* what ends here; an else does not end its if, it goes on with it */
+	for (i = (size_t)p->sp; i-- > (size_t)rel + (pn.n.kind == K_ELSE);) close_node(p, p->stack[i], p->npn);
 	pn.above = above;
 	pn.depth = rel;
 	pn.parent = parent;
@@ -856,9 +1107,15 @@ static int emit_node(P *p, int i, int depth, int via, int parent)
 	p->ex[me].src = i;
 	p->ex[me].via = via;
 	p->ex[me].parent = parent;
-	for (c = i + 1; c < pn->n.end; c = p->pn[c].n.end)
-		if (!emit_node(p, c, depth + 1, -1, (int)me)) return 0;
+	p->em[me].alt = -1;
+	for (c = i + 1; c < pn->n.end; c = p->pn[c].n.end) {
+		/* an else is the if's last child, written at its indent: its
+		 * children are as deep as the if's own */
+		if (p->pn[c].n.kind == K_ELSE) p->em[me].alt = (int32_t)p->nem;
+		if (!emit_node(p, c, pn->n.kind == K_ELSE ? depth : depth + 1, -1, (int)me)) return 0;
+	}
 	p->em[me].end = (int32_t)p->nem;
+	if (p->em[me].alt < 0) p->em[me].alt = p->em[me].end;
 	return 1;
 }
 
@@ -923,7 +1180,7 @@ static bt_source *build_source(P *p)
 		const pnode *pn = &p->pn[i];
 		strs += slen(pn->text) + slen(pn->note) + slen(pn->above) + slen(pn->n.name) +
 		        slen(pn->n.trait_name) + slen(pn->refname);
-		for (k = 0; k < pn->n.args.count; k++) strs += slen(pn->n.args.text[k]);
+		for (k = 0; k < pn->sargs.count; k++) strs += slen(pn->sargs.text[k]);
 	}
 	for (t = 0; t < p->npt; t++) strs += slen(p->pt[t].note) + slen(p->pt[t].above);
 	strs += p->nab + 1;
@@ -965,8 +1222,10 @@ static bt_source *build_source(P *p)
 		sn->trait = skeep(&arena, pn->n.trait_name);
 		sn->note = skeep(&arena, pn->note);
 		sn->above = skeep(&arena, pn->above);
-		sn->args = pn->n.args;
-		for (k = 0; k < sn->args.count; k++) sn->args.text[k] = skeep(&arena, pn->n.args.text[k]);
+		sn->args = pn->sargs;           /* as written: a word, not what it is short for */
+		for (k = 0; k < sn->args.count; k++) sn->args.text[k] = skeep(&arena, pn->sargs.text[k]);
+		sn->op = pn->expanded ? BT_OP_NONE : pn->n.op;
+		sn->number = pn->expanded ? 0.0f : pn->n.number;
 		sn->secs = pn->n.secs;
 		sn->every = pn->n.every;
 		sn->sticky = pn->n.sticky;
@@ -977,8 +1236,6 @@ static bt_source *build_source(P *p)
 	return src;
 }
 
-/* the text into p->pn and p->pt: all that bt_parse does, and the first
- * half of bt_compile */
 /* the text into p->pn and p->pt: all that bt_parse does, and the first
  * half of bt_compile. Mistakes go to `out`, at most `max` of them. */
 static void parse_text(P *p, const bt_vocab *v, const char *text, bt_diag *out, int max)
@@ -1144,6 +1401,34 @@ static void stop_range(const bt_forest *f, int i, bt_state *s, const bt_ctx *c, 
 
 static float draw(const bt_ctx *c) { return c->random ? c->random(c->bot) : 0.5f; }
 
+/* a comparison: unknown is false; then turned, for a word short for
+ * `unless ...` */
+static int compare(const bnode *n, const bt_ctx *c)
+{
+	double v, x = (double)n->number;
+	int h = 0;
+	if (n->value(c->bot, &n->args, &v))
+		switch (n->op) {
+		case BT_OP_LT: h = v < x; break;
+		case BT_OP_LE: h = v <= x; break;
+		case BT_OP_GT: h = v > x; break;
+		default: h = v >= x; break;
+		}
+	return h ^ n->neg;
+}
+
+/* does the condition of an if or unless (before it is turned) hold */
+static int holds(const bnode *n, const bt_ctx *c)
+{
+	return n->op ? compare(n, c) : n->cond(c->bot, &n->args) != 0;
+}
+
+/* an option's score: a comparison's is 1 or 0 */
+static float score_of(const bnode *on, const bt_ctx *c)
+{
+	return on->op ? (compare(on, c) ? 1.0f : 0.0f) : on->score(c->bot, &on->args);
+}
+
 static float weight_of(const bt_ctx *c, int trait)
 {
 	if (trait >= 0 && c->weights && trait < c->n_weights) return c->weights[trait];
@@ -1168,7 +1453,7 @@ static int pick_choose(const bt_forest *f, int i, bt_state *s, const bt_ctx *c)
 	double bw = 0;
 	for (o = i + 1; o < n->end; o = f->nodes[o].end) {
 		const bnode *on = &f->nodes[o];
-		float sc = on->score(c->bot, &on->args);
+		float sc = score_of(on, c);
 		double w, luck, held = 1.0;
 		if (!(sc > 0)) {
 			if (s->trace) note_worth(s, o, sc, weight_of(c, on->trait), 0.0, 1.0);
@@ -1207,7 +1492,7 @@ static int roll_choose(const bt_forest *f, int i, bt_state *s, const bt_ctx *c, 
 	int o, last = -1;
 	for (o = i + 1; o < n->end; o = f->nodes[o].end) {
 		const bnode *on = &f->nodes[o];
-		float sc = on->score(c->bot, &on->args);
+		float sc = score_of(on, c);
 		if (s->trace) note_worth(s, o, sc, weight_of(c, on->trait), *u < 0 ? 0.0 : *u, 1.0);
 		if (sc > 0) { sum += (double)sc * weight_of(c, on->trait) * on->factor; last = o; }
 	}
@@ -1225,7 +1510,7 @@ static int roll_choose(const bt_forest *f, int i, bt_state *s, const bt_ctx *c, 
 	/* (the scores are asked a second time: once a choice, and they are facts) */
 	for (o = i + 1; o < n->end; o = f->nodes[o].end) {
 		const bnode *on = &f->nodes[o];
-		float sc = on->score(c->bot, &on->args);
+		float sc = score_of(on, c);
 		if (!(sc > 0)) continue;
 		acc += (double)sc * weight_of(c, on->trait) * on->factor;
 		if (*u * sum < acc) return o;
@@ -1293,10 +1578,23 @@ static bt_status tick(const bt_forest *f, int i, bt_state *s, const bt_ctx *c)
 		if (r != BT_RUNNING) sl->cur = 0;
 		return r;
 	}
-	case K_IF:
-		return n->cond(c->bot, &n->args) ? BT_SUCCESS : BT_FAILURE;
-	case K_UNLESS:
-		return n->cond(c->bot, &n->args) ? BT_FAILURE : BT_SUCCESS;
+	case K_IF: case K_UNLESS: {
+		int to, yes = n->kind == K_IF;
+		if (n->end == i + 1) return holds(n, c) == yes ? BT_SUCCESS : BT_FAILURE;
+		/* a block: the branch is chosen when it is entered, and resumed,
+		 * as a seq is, until it ends (n->alt: its else, or its end) */
+		if (sl->cur) k = sl->cur - 1;
+		else if (holds(n, c) == yes) k = i + 1;
+		else if (n->alt < n->end) k = n->alt + 1;
+		else return BT_FAILURE;
+		for (to = k < n->alt ? n->alt : n->end; k < to; k = f->nodes[k].end) {
+			r = tick(f, k, s, c);
+			if (r == BT_RUNNING) { sl->cur = k + 1; return r; }
+			if (r != BT_SUCCESS) { sl->cur = 0; return BT_FAILURE; }
+		}
+		sl->cur = 0;
+		return BT_SUCCESS;
+	}
 	case K_DO:
 		r = n->action(c->bot, &n->args, c->dt);
 		if (r != BT_SUCCESS && r != BT_RUNNING) r = BT_FAILURE;
@@ -1393,7 +1691,7 @@ size_t bt_describe(const bt_forest *f, const bt_state *s, char *out, size_t out_
 		for (;;) {
 			const bnode *n = &f->nodes[i];
 			const slot *sl = &s->s[i];
-			if (n->kind == K_SEQ || n->kind == K_SELECT) {
+			if (resumes(n->kind)) {
 				if (!sl->cur) break;
 				i = sl->cur - 1;
 			} else if (n->kind == K_PICK) {
@@ -1420,6 +1718,11 @@ const char *bt_kind_name(int kind)
 	return kind >= 0 && kind < (int)(sizeof kw / sizeof *kw) ? kw[kind] : NULL;
 }
 
+const char *bt_op_name(int op)
+{
+	return op > BT_OP_NONE && op < BT_OP_COUNT ? ops[op] : NULL;
+}
+
 static void node_out(const snode *sn, bt_node *out)
 {
 	memset(out, 0, sizeof *out);
@@ -1435,6 +1738,8 @@ static void node_out(const snode *sn, bt_node *out)
 	out->sticky = sn->sticky;
 	out->noise = sn->noise;
 	out->factor = sn->factor;
+	out->op = sn->op;
+	out->number = sn->number;
 	out->written = sn->written;
 	out->roll = sn->roll;
 	out->comment = sn->note;
@@ -1588,7 +1893,7 @@ int bt_state_node(const bt_forest *f, const bt_state *s, int i, bt_node_state *o
 	memset(out, 0, sizeof *out);
 	out->child = -1;
 	switch (n->kind) {
-	case K_SEQ: case K_SELECT:
+	case K_SEQ: case K_SELECT: case K_IF: case K_UNLESS:
 		out->running = sl->cur != 0;
 		out->child = sl->cur - 1;
 		break;
@@ -1624,7 +1929,7 @@ int bt_state_running(const bt_forest *f, const bt_state *s, int tree, int *out, 
 		const bnode *b = &f->nodes[i];
 		const slot *sl = &s->s[i];
 		path[n++] = i;
-		if (b->kind == K_SEQ || b->kind == K_SELECT) {
+		if (resumes(b->kind)) {
 			if (!sl->cur) return 0;
 			i = sl->cur - 1;
 		} else if (b->kind == K_PICK) {

@@ -64,6 +64,9 @@ void botd_watch_init(botd_watch *w, const char *dir);
 /* Once a round, with the host's clock (seconds). Cheap when nobody
  * asks. Returns how many requests are alive. */
 int botd_watch_round(botd_watch *w, struct bc_engine *e, double now);
+/* What the live requests ask to watch: how many pids they name, -1 for
+ * every bot, 0 for none (a roster poll names none). */
+int botd_watch_asked(const botd_watch *w);
 /* The session is over: nobody is watched, the files are gone. */
 void botd_watch_end(botd_watch *w, struct bc_engine *e);
 

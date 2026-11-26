@@ -186,6 +186,26 @@ static void test_board(void)
 		mine.blocks = 5;
 		CHECK(sh && bc_route_adoptable(&mine, sh));
 	}
+	{
+		/* two routes for the same question: the bot joins the one with a
+		 * place nearest it, whichever was put up first (a route 13 away
+		 * from it, then one from its very column) */
+		static bc_route_board two;
+		static bc_nav_route r2;
+		bc_nav_node c = { 100, 112, G }, by_c = { 100, 113, G };
+		uint32_t first, second;
+
+		CHECK(bc_nav_plan_begin(sr, t, m, &p, c, b, 0));
+		CHECK(bc_nav_plan_step(sr, 100000) == BC_NAV_DONE);
+		bc_nav_plan_route(sr, &r2);
+		bc_routes_clear(&two);
+		first = bc_routes_publish(&two, &k, &r, 1, 10.0);
+		second = bc_routes_publish(&two, &k, &r2, 1, 10.0);
+		mine = k;
+		CHECK(bc_routes_find(&two, &mine, by_c, 11.0, t, m, &step) == second);
+		CHECK(step == -1);              /* its start, a column off */
+		CHECK(first != second);
+	}
 	/* a wall across it: the route no longer holds, and goes */
 	for (z = G - 3; z < G; z++)
 		bc_map_set(m, 120, 100, z, 1);

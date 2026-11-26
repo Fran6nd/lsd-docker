@@ -14,13 +14,13 @@ line and column.
 
 ## Conditions
 
-For `if` and `unless`: true or false.
+For `if` and `unless`: true or false. One marked *short for* a comparison of a [value](#values) is that comparison, compiled as it: the same answer, always.
 
 - **`enemy_visible`** -- an enemy is in this bot's sight now
 - **`enemy_known`** -- an enemy is in sight, remembered, or told of by the team
-- **`enemy_within <voxels>`** -- the nearest enemy in sight is nearer than that
+- **`enemy_within <voxels>`** -- the nearest enemy in sight is that near or nearer. *Short for* `enemy_distance <= <voxels>`
   - `voxels`: a number; must be given
-- **`enemy_beyond <voxels>`** -- an enemy is in sight and the nearest is farther than that
+- **`enemy_beyond <voxels>`** -- an enemy is in sight and the nearest is farther than that. *Short for* `enemy_distance > <voxels>`
   - `voxels`: a number; must be given
 - **`enemies_grouped <count> <radius>`** -- that many known enemies stand within radius of one another
   - `count`: a number; must be given
@@ -29,13 +29,13 @@ For `if` and `unless`: true or false.
   - `secs`: a number; left out: 5
 - **`outnumbered [radius]`** -- more enemies in sight than team-mates within radius (default 20), itself included
   - `radius`: a number; left out: 20
-- **`health_below <hp>`** -- its health is under that (of 100)
+- **`health_below <hp>`** -- its health is under that (of 100). *Short for* `health < <hp>`
   - `hp`: a number, 0 to 100; must be given
-- **`level_at_least <level>`** -- it is a bot of that level or better (1 to 10: how well it aims, how soon it reacts, how fast it turns)
+- **`level_at_least <level>`** -- it is a bot of that level or better (1 to 10: how well it aims, how soon it reacts, how fast it turns). *Short for* `level >= <level>`
   - `level`: a number, 1 to 10; must be given
-- **`hurt_recently [secs]`** -- it lost health within that many seconds (default 3)
+- **`hurt_recently [secs]`** -- it lost health within that many seconds (default 3). *Short for* `since_hurt < [secs]`
   - `secs`: a number; left out: 3
-- **`ammo_below <fraction>`** -- rounds left, magazine and reserve, are under that fraction of a full load
+- **`ammo_below <fraction>`** -- rounds left, magazine and reserve, are under that fraction of a full load. *Short for* `ammo < <fraction>`
   - `fraction`: a number, 0 to 1; must be given
 - **`ammo_out`** -- no round left at all
 - **`has_grenade`** -- it carries a grenade
@@ -58,11 +58,11 @@ For `if` and `unless`: true or false.
 - **`allies_hurt_near <radius> [hp]`** -- a team-mate under hp health (default 50) is within radius
   - `radius`: a number; must be given
   - `hp`: a number; left out: 50
-- **`mate_within <voxels>`** -- a live team-mate is that near
+- **`mate_within <voxels>`** -- a live team-mate is that near. *Short for* `mate_distance <= <voxels>`
   - `voxels`: a number; must be given
-- **`alone [voxels]`** -- no live team-mate within that (default 25)
+- **`alone [voxels]`** -- no live team-mate within that (default 25). *Short for* `unless mate_distance <= [voxels]`
   - `voxels`: a number; left out: 25
-- **`spotted_new [secs]`** -- it has seen, within that many seconds (default 2), an enemy its team did not know of
+- **`spotted_new [secs]`** -- it has seen, within that many seconds (default 2), an enemy its team did not know of. *Short for* `since_spotted_new < [secs]`
   - `secs`: a number; left out: 2
 - **`losing`** -- it is in a fight, under 45 health and outnumbered, or under 30 and just hit
 - **`sniped [voxels] [secs]`** -- it was hit within secs (default 3) from farther than voxels (default 50)
@@ -80,7 +80,7 @@ For `if` and `unless`: true or false.
   - `voxels`: a number; left out: 4
 - **`gun_is <rifle|smg|shotgun>...`** -- its gun is one of those named
   - `gun`: one of `rifle|smg|shotgun`; may be given several times; must be given
-- **`under_fire [secs]`** -- it was shot at within that many seconds (default 3): hurt by somebody, a round that passed within 2.5 voxels, a team-mate killed within 12
+- **`under_fire [secs]`** -- it was shot at within that many seconds (default 3): hurt by somebody, a round that passed within 2.5 voxels, a team-mate killed within 12. *Short for* `since_shot_at < [secs]`
   - `secs`: a number; left out: 3
 - **`in_cover`** -- what threatens it (the man it fights, where a hit came from) has no line of sight to its body as it stands
 - **`stranded`** -- it has no way from where it is to anywhere it was sent: three searches in a row found none (a roof with no way down and no edits, a closed room). While so no route is asked for; a goal where it stands is reached. What it does meanwhile is the tree's: hold and watch, shoot from there
@@ -99,15 +99,15 @@ For `if` and `unless`: true or false.
 - **`our_intel_home`** -- this team's intel lies where the server put it
 - **`our_intel_dropped`** -- this team's intel lies where its thief fell (it cannot be picked up by its own team: it is guarded there)
 - **`our_intel_taken`** -- an enemy carries this team's intel (where he is is known to everybody: the place `thief`)
-- **`near_own_base [voxels]`** -- it is within that of its team's base (default 20)
+- **`near_own_base [voxels]`** -- it is within that of its team's base (default 20). *Short for* `distance own_base < [voxels]`
   - `voxels`: a number; left out: 20
-- **`near_their_base [voxels]`** -- it is within that of the other team's base (default 20)
+- **`near_their_base [voxels]`** -- it is within that of the other team's base (default 20). *Short for* `distance enemy_base < [voxels]`
   - `voxels`: a number; left out: 20
-- **`mates_near <radius> [count]`** -- that many live team-mates (default 1) are within radius
+- **`mates_near <radius> [count]`** -- that many live team-mates (default 1) are within radius (for a whole count, `mates_within <radius> >= <count>`)
   - `radius`: a number; must be given
   - `count`: a number; left out: 1
 - **`is_leader`** -- it is one of its team's leaders (drawn by lot by the engine; it is not told otherwise)
-- **`just_spawned [secs]`** -- its life began within that many seconds (default 4)
+- **`just_spawned [secs]`** -- its life began within that many seconds (default 4). *Short for* `since_spawn < [secs]`
   - `secs`: a number; left out: 4
 - **`leader_ordered`** -- its squad's leader (or it, a leader) has ordered a structure built that is not whole yet (`build_part leader` builds it)
 - **`has_leader`** -- it follows a living leader of its team: a bot or a person, the nearest with room (a loner never does)
@@ -118,13 +118,13 @@ For `if` and `unless`: true or false.
   - `place`: a [place](#places); left out: `own_intel`
   - `radius`: a number; left out: 20
   - `count`: a number; left out: 2
-- **`fact <name> [min]`** -- a fact a server script set (botlink_set("fact.<name>", number), for every bot or for this one) is at least min; with no min, is above 0. False for a fact nobody set
+- **`fact <name> [min]`** -- a fact a server script set (botlink_set("fact.<name>", number), for every bot or for this one) is at least min (`fact <name> >= <min>`); with no min, is above 0 (`fact <name> > 0`). False for a fact nobody set
   - `name`: a word; must be given
   - `min`: a number; left out: any value above 0
 
 ## Scores
 
-For `option <trait> <score>`: 0 to 1, how much the situation calls for the option. At 0 the option cannot be chosen.
+For `option <trait> <score>`: 0 to 1, how much the situation calls for the option. At 0 the option cannot be chosen. One marked *short for* a comparison is 1 when it holds and 0 when not.
 
 - **`night_vision`** -- 1 by night for a bot that has night vision
 - **`hit_in_dark`** -- 1 by night for a bot with no night vision that was hit in the last 8 s
@@ -188,12 +188,12 @@ For `option <trait> <score>`: 0 to 1, how much the situation calls for the optio
   - `voxels`: a number; left out: 40
 - **`mates_near <radius>`** -- 0 with no team-mate within radius, 1 with three or more
   - `radius`: a number; must be given
-- **`just_spawned [secs]`** -- 1 in the first seconds of its life (default 4), else 0
+- **`just_spawned [secs]`** -- 1 in the first seconds of its life (default 4), else 0. *Short for* `since_spawn < [secs]`
   - `secs`: a number; left out: 4
 - **`is_leader`** -- 1 for a leader, else 0: for a tree to lean a leader toward going somewhere
 - **`leader_ordered`** -- 1 while its squad's leader (or it, a leader) has a structure ordered that is not whole yet, else 0
 - **`has_leader`** -- 1 while it follows a living leader, else 0
-- **`quiet [secs]`** -- 1 once it has had no enemy in sight for that many seconds of this life (default 20), else 0
+- **`quiet [secs]`** -- 1 once it has had no enemy in sight for that many seconds of this life (default 20), else 0. *Short for* `since_enemy_seen >= [secs]`
   - `secs`: a number; left out: 20
 - **`unwatched [place] [radius]`** -- how short of team-mates a place is (default own_intel, within 20): 1 with none there, 0.5 with one, 0 with two or more; 0 with no such place
   - `place`: a [place](#places); left out: `own_intel`
@@ -292,6 +292,30 @@ For `do`. Each says what it answers: RUNNING while it goes on, SUCCESS or FAILUR
   - `voxels`: a number; left out: 6: what is dug standing about the place -- the server's reach of 5, and a step
   - `item`: a word; left out: none: its grenades, else the spade
 - **`reload`** -- reload now if the magazine is not full. SUCCESS asked, FAILURE nothing to do
+
+## Values
+
+For a comparison, wherever a condition goes (`if <value> [arguments] <op> <number>`, `unless ...`) and as an option's score (`option <trait> <value> [arguments] <op> <number>`: 1 when it holds, 0 when not). The operators are `<`, `<=`, `>` and `>=`. A value may be **unknown** now (no enemy in sight has no distance): a comparison of it is then false, so `unless` of it is true. The number compared must lie within the value's range, given here with its unit.
+
+- **`enemy_distance`** -- how far the nearest enemy in sight is; unknown with none in sight. In voxels, 0 or more
+- **`enemies_in_sight`** -- how many enemies it sees now. In enemies, 0 or more
+- **`health`** -- its health, 0 to 100. In hp, 0 to 100
+- **`ammo`** -- rounds left, magazine and reserve, as a fraction of a full load: 1 full, 0 none. In fraction, 0 to 1
+- **`level`** -- how good the bot is, 1 to 10: how well it aims, how soon it reacts, how fast it turns. In level, 1 to 10
+- **`blocks`** -- blocks it holds. In blocks, 0 or more
+- **`grenades`** -- grenades it holds. In grenades, 0 or more
+- **`mates_within <radius>`** -- how many live team-mates are within radius, across the ground (itself not counted). In mates, 0 or more
+  - `radius`: a number; must be given
+- **`mate_distance`** -- how far the nearest live team-mate is, across the ground; unknown with none alive. In voxels, 0 or more
+- **`distance <place>`** -- how far the place is, across the ground (height left out); unknown when it knows of no such place now. In voxels, 0 or more
+  - `place`: a [place](#places); must be given
+- **`fact <name>`** -- a fact a server script set (botlink_set("fact.<name>", number), for every bot or for this one); unknown when nobody set it. In number
+  - `name`: a word; must be given
+- **`since_hurt`** -- seconds since it last lost health (a very large number if it never did). In secs, 0 or more
+- **`since_shot_at`** -- seconds since it was last shot at: hurt by somebody, a round that passed within 2.5 voxels, a team-mate killed within 12 (a very large number if never). In secs, 0 or more
+- **`since_spotted_new`** -- seconds since it saw an enemy its team did not know of (a very large number if never). In secs, 0 or more
+- **`since_spawn`** -- seconds since its life began. In secs, 0 or more
+- **`since_enemy_seen`** -- seconds since it last had an enemy in sight in this life (since it spawned, if none yet). In secs, 0 or more
 
 ## Traits
 
