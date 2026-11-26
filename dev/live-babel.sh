@@ -47,7 +47,10 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-[ $# -eq 1 ] && [ -f "$1" ] || { sed -n '3,4p' "$0" >&2; exit 2; }
+if [ $# -ne 1 ] || [ ! -f "$1" ]; then
+	sed -n '3,4p' "$0" >&2
+	exit 2
+fi
 MAP=$1
 
 BOTS=${BOTS:-20}
@@ -137,12 +140,13 @@ run_cases() {
 	echo "$CASES" | tr ';' '\n' | while read -r cname sx sy tx ty tz; do
 		[ -n "$cname" ] || continue
 		g=$(lua "live_ground($sx, $sy)" </dev/null | awk '/^GROUND/{print $4}')
-		pin=$(printf '%.2f %.2f %.2f' "$tx" "$ty" "$tz")
+		lx=$(printf '%.2f' "$tx"); ly=$(printf '%.2f' "$ty"); lz=$(printf '%.2f' "$tz")
+		pin="$lx $ly $lz"
 		before=$(orders | wc -l)
 		echo "CASE $cname at $(($(now) - START)) s: stand $sx $sy $g, spot $pin" >>"$OUT/cases.txt"
 		# team 1 is the wire's team 0
 		dev/person/run.sh "$NAME" --name "Tester" --team 0 --at "$sx" "$sy" "$g" \
-			--look $pin --say "/pingmark $pin Build stairs here" --stay "$STAIR_SECS" \
+			--look "$lx" "$ly" "$lz" --say "/pingmark $pin Build stairs here" --stay "$STAIR_SECS" \
 			</dev/null >"$OUT/person-$cname.log" 2>&1 || true
 		me=$(sed -n 's/.*player id \([0-9]*\).*/\1/p' "$OUT/person-$cname.log" | head -1)
 		said=$(orders | sed -n "$((before + 1)),\$p" | grep "order of #$me:" | tail -1)
@@ -155,8 +159,10 @@ run_cases() {
 			echo "ORDER $cname: no stair ordered${why:+ (person: $why)}" >>"$OUT/climb.txt"
 			continue
 		fi
-		set -- $top
-		c=$(lua "live_climb($1, $2, $3, 64)" </dev/null | grep '^CLIMB' || echo "CLIMB no (probe)")
+		read -r top_x top_y top_z <<EOF
+$top
+EOF
+		c=$(lua "live_climb($top_x, $top_y, $top_z, 64)" </dev/null | grep '^CLIMB' || echo "CLIMB no (probe)")
 		echo "ORDER $cname: top $top, $c, $(($(now) - START)) s" >>"$OUT/climb.txt"
 	done
 }
