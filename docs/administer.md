@@ -122,6 +122,11 @@ lsdctl set engine_bots_level_spread 0               # how far each may fall from
 A level is how WELL a bot aims, reacts, hears and moves, never what it
 chooses to do: [the table](../bot/TREES.md#11-characters-traits-archetypes-weights).
 
+Each client is sent the world 30 times a second to start with
+(`ups_default`: 60, 30, 20, 15, 12 or 10); a player changes theirs with
+`/ups <rate>`. With many players a world update is several KB, and 30 a
+second is what keeps a link with any jitter from falling behind.
+
 The bots think in a process of their own beside the server (`botd`),
 whose heaviest work is finding routes on a big map; a team's bots going
 the same way share one search, and no round gives routes more than about
