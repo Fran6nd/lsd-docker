@@ -843,3 +843,15 @@ DONE (commit), BLOCKED (on what).
   bots keep their team, spectators stay. tests/range_teams_test.lua runs
   the real core.lua chain with upstream team_balance and command_switch
   under the mode (4 of 16 checks fail on the old code).
+- 2026-11-26 (ZeroSpades disconnects, UPS): measured at the shipped 30
+  UPS default, the base server holds (4 clients, stall 150 ms every
+  2-4 s / netem jitter / 1% loss, 60 and 200 bots: UPS min 21-29 of 30,
+  longest gap 0.14-0.31 s, no disconnect). The collapse to 0 was at 60
+  UPS: a World Update over the MTU (>56 players) goes as reliable
+  fragments, and ENet's throttle fell to 0. A patch sending them as
+  unreliable fragments with the throttle held (0005) fixed 60 UPS but
+  changes nothing at 30: NOT shipped. The one disconnect reproduced
+  (data 0) was 5 s with nothing reaching the server while it kept
+  sending, both sides timing out together -- read as Docker Desktop's
+  port forwarding into a loaded VM, not proven (no capture). Next: a
+  packet capture at the next disconnect.
