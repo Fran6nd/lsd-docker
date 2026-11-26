@@ -30,6 +30,8 @@ typedef struct bc_bp_cell {
 	uint8_t pad_;
 	uint32_t unseen;            /* no floor saw it on the map at revision unseen - 1 (0: not looked) */
 	double bad_until;           /* nobody could make it: not before this */
+	double noway_until;         /* these found no way to it (a way is from where one is: */
+	uint64_t noway[4];          /* the others still try), bit pid, till then */
 } bc_bp_cell;
 
 typedef struct bc_blueprint {

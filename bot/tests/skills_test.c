@@ -117,31 +117,102 @@ static void test_fire_discipline(void)
 	bs_free(s);
 }
 
+/* is `m` within `w` of the line from a's eye to t's, between them? (0.75:
+ * the bot's own rule for a line it holds its fire on; 0.45: half a body,
+ * a round that would hit him) */
+static int in_line(const bs_sim *s, int a, int m, int t, float w)
+{
+	float dx = s->p[t].body.pos.x - s->p[a].body.pos.x, dy = s->p[t].body.pos.y - s->p[a].body.pos.y;
+	float l = sqrtf(dx * dx + dy * dy), mx = s->p[m].body.pos.x - s->p[a].body.pos.x, my = s->p[m].body.pos.y - s->p[a].body.pos.y;
+	float u = (mx * dx + my * dy) / l, o = fabsf(mx * dy - my * dx) / l;
+
+	return u > 0.4f && u < l && o < w;
+}
+
 static void test_mate_in_line(void)
 {
 	bs_sim *s = game();
-	int i, bad = 0;
+	int i, bad = 0, first = -1;
 
-	printf("no shot through a team-mate\n");
+	printf("no shot through a team-mate: across the line to a clear one\n");
 	bs_start(s);
 	bs_add(s, 0, 1, 1, 8, BL_GUN_SMG, 31, 220.5f, 256.5f, 1, 0);
 	bs_add(s, 2, 0, 1, 5, BL_GUN_RIFLE, 2, 226.5f, 256.5f, 1, 0);      /* a mate, 6 ahead, in the line */
 	bs_add(s, 1, 0, 2, 5, BL_GUN_RIFLE, 1, 240.5f, 256.5f, -1, 0);
-	/* a tree that only stands and shoots: the line stays blocked */
+	/* a tree that only stands and shoots: the line is blocked where it
+	 * stands, and it steps across it (2026-11-25: it used to stand and
+	 * hold its fire for good) */
 	bs_set(s, BL_NO_PLAYER, "tree=tree t:\npick every=1\n\toption none always\n\t\tdo hold self 60\n");
 	for (i = 0; i < 60 * 5; i++) {
-		int before = s->p[0].shots;
+		int before = s->p[0].shots, blocked = in_line(s, 0, 2, 1, 0.45f);
 
 		s->p[1].hp = 100;
 		bs_step(s);
-		if (s->p[0].shots != before) bad++;
+		if (s->p[0].shots != before && blocked) bad++;
+		if (s->p[0].shots != before && first < 0) first = i;
 	}
-	printf("  rounds fired with the mate in the line: %d\n", bad);
+	printf("  rounds fired through the mate: %d; the first from a clear line after %.1f s\n", bad, first / 60.0);
 	CHECK(bad == 0);
-	/* he steps aside: now it shoots */
-	s->p[2].body.pos.y += 4.0f;
-	bs_run(s, 4.0);
-	CHECK(s->p[0].shots > 0);
+	CHECK(first >= 0 && first < 60 * 3);
+	bs_free(s);
+}
+
+/* CROWDS. Six of a team on a narrow way (a ramp one voxel wide, a voxel
+ * over the ground) in a file, an enemy ahead on it: they spread so that
+ * two or more have a clear shot within 3 s. Six told to hold one place
+ * on open ground: none stands in another for long. */
+static void test_crowds(void)
+{
+	bs_sim *s = game();
+	int i, k, j, clear_at = -1, inside = 0, last = 0;
+
+	printf("crowds: a file meeting a man spreads to shoot; six for one place stand side by side\n");
+	bs_box(s, 200, 256, G - 1, 260, 256, G - 1, 1);
+	bs_start(s);
+	for (k = 0; k < 6; k++)
+		bs_add(s, 2 + k, 1, 1, 6, BL_GUN_RIFLE, 40u + (uint32_t)k, 220.5f + (float)k * 1.2f, 256.5f, 1, 0);
+	bs_add(s, 1, 0, 2, 5, BL_GUN_RIFLE, 1, 250.5f, 256.5f, -1, 0);
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\npick every=1\n\toption none always\n\t\tdo hold self 60\n");
+	for (i = 0; i < 60 * 6; i++) {
+		int n = 0;
+
+		s->p[1].hp = 100;
+		bs_step(s);
+		for (k = 2; k < 8; k++) {
+			int blocked = 0;
+
+			for (j = 2; j < 8; j++)
+				if (j != k && in_line(s, k, j, 1, 0.75f)) blocked = 1;
+			n += !blocked;
+		}
+		if (n >= 2 && clear_at < 0) clear_at = i;
+	}
+	printf("  two or more with a clear shot after %.1f s\n", clear_at / 60.0);
+	CHECK(clear_at >= 0 && clear_at < 60 * 3);
+	bs_free(s);
+
+	s = game();
+	bs_start(s);
+	for (k = 0; k < 6; k++)
+		bs_add(s, 2 + k, 1, 1, 6, BL_GUN_RIFLE, 60u + (uint32_t)k, 225.5f + (float)(k % 3) * 2.0f, 250.5f + (float)(k / 3) * 2.0f, 1, 0);
+	bs_set(s, BL_NO_PLAYER, "place.post=230.5 256.5 37.75");
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\npick every=1\n\toption none always\n\t\tdo hold @post 60\n");
+	for (i = 0; i < 60 * 15; i++) {
+		int n = 0;
+
+		bs_step(s);
+		for (k = 2; k < 8; k++)
+			for (j = k + 1; j < 8; j++) {
+				float dx = s->p[k].body.pos.x - s->p[j].body.pos.x, dy = s->p[k].body.pos.y - s->p[j].body.pos.y;
+
+				if (dx * dx + dy * dy < 0.9f * 0.9f && fabsf(s->p[k].body.pos.z - s->p[j].body.pos.z) < 1.5f) n++;
+			}
+		if (i >= 60 * 10) inside += n;
+		last = n;
+	}
+	printf("  pairs in one another over the last 5 s: %d tick-pairs; at the end %d\n", inside, last);
+	CHECK(last == 0);
+	CHECK(inside < 60);
 	bs_free(s);
 }
 
@@ -499,6 +570,33 @@ static void test_ping_once(void)
 	printf("  a loner, the same 3 s: %d ping(s)\n", s->pings);
 	CHECK(s->pings == 0);
 	bs_free(s);
+
+	/* an enemy call is of a man in sight: one behind a wall, that a
+	 * team-mate sees and the board tells of, is not called by the bot
+	 * that only knows of him (the owner: pings "where there are no
+	 * enemies") */
+	s = game();
+	bs_box(s, 240, 240, G - 6, 240, 250, G - 1, 1);
+	bs_start(s);
+	bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, seed_with(BC_T_TEAMWORK, 2.0f, 3.0f, 1), 230.5f, 245.5f, 1, 0);
+	bs_add(s, 2, 1, 1, 6, BL_GUN_RIFLE, seed_with(BC_T_TEAMWORK, 2.0f, 3.0f, 900), 230.5f, 262.5f, 1, 0);
+	bs_add(s, 1, 0, 2, 5, BL_GUN_RIFLE, 1, 260.5f, 245.5f, -1, 0);
+	bs_set(s, BL_NO_PLAYER, "tree=tree t:\nselect\n\tseq\n\t\tdo ping enemy Enemy\n\t\twait 1\n\tdo hold self 1\n");
+	bs_set(s, 2, "tree=tree t:\nselect\n\tdo hold self 60\n");      /* the one who sees says nothing */
+	for (i = 0; i < 60 * 4; i++) {
+		s->p[1].hp = 100;
+		bs_step(s);
+	}
+	{
+		bc_bot *b0 = (bc_bot *)bc_engine_bot(s->e, 0);
+		bl_vec3 p;
+		int knows = bc_place_of(b0, "enemy", &p) && !b0->senses.k[1].visible;
+
+		printf("  told of a man behind a wall (knows of him, not in sight: %d): %d ping(s) of him\n", knows, s->ping_by[0]);
+		CHECK(knows);
+		CHECK(s->ping_by[0] == 0);
+	}
+	bs_free(s);
 }
 
 /* A number a word used to hard-code is its argument now, with the same
@@ -587,6 +685,7 @@ int main(void)
 	test_kill_standing();
 	test_fire_discipline();
 	test_mate_in_line();
+	test_crowds();
 	test_investigate();
 	test_orders();
 	test_follow_and_retreat();

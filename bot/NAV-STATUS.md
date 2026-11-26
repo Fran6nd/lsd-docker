@@ -349,9 +349,18 @@ Each: what is wrong / what it costs in play / what to do / how to see it.
    In play: two bots wanting the same one-wide door or bridge from opposite
    ends will push against each other until both report STUCK, plan again,
    and may meet again (GIVE_UP bounds it at three times in the same spot).
-   To do: an optional "cells others occupy or have claimed" input to
-   `bc_nav_follow_tick`, so a body waits (bounded) or steps aside; a
-   scenario of six bots through a door from both sides. No code exists.
+   Done for bodies that stand (2026-11-26, engine.c's act and
+   skill_move.c `bc_crowd_away`): a standing bot in a team-mate's body
+   (boxes overlapping, 0.9 across, one floor) walks out of him, the way
+   that is safe; a place a team-mate stands on is reached beside him
+   (`move_to`), so the one stepped aside does not walk back in; an exact
+   goal or an edit's stand is kept (the other steps off). A bot holding
+   fire for a team-mate in its line steps across the line
+   (`bc_fight_clear_line`). skills_test "crowds".
+   To do still: bodies on the move -- an optional "cells others occupy or
+   have claimed" input to `bc_nav_follow_tick`, so a body waits (bounded)
+   or steps aside; a scenario of six bots through a door from both
+   sides.
 5. **A sharp turn is taken wide.** The follower sprints into a 90-degree
    turn, overshoots by up to two voxels where there is floor to overshoot
    onto, and comes back to the line.

@@ -248,7 +248,7 @@ For `do`. Each says what it answers: RUNNING while it goes on, SUCCESS or FAILUR
 - **`throw_grenade [place]`** -- throw at the place, or at what is worth one: stands, turns to the arc, lets go. SUCCESS thrown, FAILURE no arc, too near, none left
   - `place`: a [place](#places); left out: what is worth one: a group, a far man, a place just lost
 - **`evade`** -- run from the grenade that threatens it. RUNNING until it has burst
-- **`ping <place> <label>...`** -- ping the place for the team with one of the mode's labels ("Enemy", "Need help", "Sniper"). SUCCESS sent; FAILURE when the team has such a ping there, it pinged lately, or it is not one to say (teamwork)
+- **`ping <place> <label>...`** -- ping the place for the team with one of the mode's labels ("Enemy", "Need help", "Sniper"). A call of an enemy is of a man it sees, where he is: the one in sight nearest the place. SUCCESS sent; FAILURE when the team has such a ping there, it pinged lately, it is not one to say (teamwork), or an enemy call with no enemy in sight
   - `place`: a [place](#places); must be given
   - `label`: a word; may be given several times; must be given
 - **`use <item> [place] [guide_secs]`** -- use an inventory item, on itself or aimed at a point (the server's "inv <item> [x y z]"). With `enemy` and a guide time the head stays on that man for it. SUCCESS asked; FAILURE none held, just used, nothing to aim at

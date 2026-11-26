@@ -783,3 +783,45 @@ DONE (commit), BLOCKED (on what).
   every gamemode's ping wedge, in every language, from its text through
   /pingmark to the packets of 3 people and 58 bots (270 failures without
   the fix).
+- 2026-11-26 (brain agent): CROWDS, A CLEAR LINE, PINGS FROM SIGHT (the
+  owner: "multiple bots on both stairs so none of them shoots as they are
+  in the same place"; "bots ping enemies sometimes where there are no
+  enemies"). Measured first (babel harness, 10 a side): holding fire for
+  a mate in the line is rare (0.7-1.6 a minute of 3400-4500 bot-seconds
+  with an enemy in sight); bodies in one another were the thing (same-
+  team pairs within a voxel 268-430 bot-seconds), most standing (guard,
+  hold, builders waiting) -- nav knows no other body (NAV-STATUS todo 4).
+  CHANGED: (1) a standing bot in a team-mate's body (boxes overlapping,
+  0.9 across, one floor) walks out of him, a safe way (engine.c's act,
+  skill_move.c bc_crowd_away); a place a team-mate stands on is reached
+  beside him (move_to), so the one stepped aside stays; an exact goal or
+  an edit's stand with the tool in hand is kept, the other steps off.
+  (2) A bot holding its fire for a mate in the line steps across the
+  line to a clear one (bc_fight_clear_line) instead of standing behind
+  him. (3) Babel's stair lanes not limited: at most 3-5 a stair at once
+  in 9 seeds, no queue to cut. Pings: an enemy call ("Enemy", "Sniper")
+  is of a man the bot sees, where he is (ctf, 8 a side, 3 seeds: 8 of
+  115 enemy pings had no enemy within 4 of the place -- remembered or
+  told men, "Sniper" at a guessed shooter -- now 0 of 139; within the
+  second still left 4 up to 7.5 off: sight only). build_part: no way to
+  a part's stand marks it for that bot only (the first part marked for
+  everybody held a stair up 35 s); a builder steps off a part its BOX is
+  in (the floor's column missed bodies over its edge: six builders left
+  one part for good, on Linux). Scenarios (skills_test): a mate in the
+  line -- no round through him, the first from a clear line in 0.8 s; a
+  file of six on a narrow ramp meeting a man -- two with a clear shot in
+  0.3 s; six holding one place -- no two in one another after 10 s; a
+  man told of, behind a wall -- not called (the old rule called him).
+  Harness, 3 seeds, before -> after: pairs within a voxel 268/430/373 ->
+  298/281/316 (standing ones gone; the rest walk past each other on
+  routes); stairs whole 82+75/87+135/214+297 -> 92+81/238+72/201+70 (the
+  old crowd's 61+59/90+64/219+260); captures over 9 seeds 25 (2.8 a game;
+  12 in the blueprint run's 3, 9 in the old tree's 3: noise is large).
+  Tests changed: routes_test "six there" within 4.5 of the spot (was 3:
+  six bodies side by side reach two rings); skills_test mate_in_line now
+  counts rounds THROUGH the mate (half a body off the line) and wants a
+  shot from a clear line within 3 s (it used to stand and hold for good);
+  ctf_test's dropped intel is looked at once our carrier of theirs is
+  home, 5 s on (was a fixed 25 s; his run moved with the bodies, and at
+  25 s he was still running, his escort with him) -- two guard it, as
+  before.

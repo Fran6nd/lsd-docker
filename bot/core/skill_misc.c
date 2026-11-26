@@ -663,6 +663,38 @@ bt_status bc_do_retreat(void *bot, const bt_args *a, float dt)
 
 /* --- ping <place> <label...> -------------------------------------------- */
 
+/* A call of an enemy ("Enemy", "Sniper", ...) is of a man the bot SEES,
+ * where he is (the owner: pings "where there are no enemies" -- the man
+ * it fought, remembered, or one a team-mate told of, called where he no
+ * longer was; even one seen within the second was called up to 7 voxels
+ * off him, a running man's second). Of those, the nearest the place the
+ * tree named. 0: nobody in sight, nothing to call. */
+
+static int ping_seen_enemy(const bc_bot *b, bl_vec3 *pos)
+{
+	const bc_senses *s = &b->senses;
+	float best = 1e30f;
+	int i, found = 0;
+	bl_vec3 at = *pos;
+
+	for (i = 0; i < BL_MAX_PLAYERS; i++) {
+		const bc_known *k = &s->k[i];
+		float dx = k->pos.x - at.x, dy = k->pos.y - at.y, dz = k->pos.z - at.z, d;
+
+		if (!k->visible)
+			continue;
+		if (b->e->w.players[i].state != BL_ALIVE || b->e->w.players[i].team == bc_me(b)->team)
+			continue;
+		d = dx * dx + dy * dy + dz * dz;
+		if (d < best) {
+			best = d;
+			*pos = k->pos;
+			found = 1;
+		}
+	}
+	return found;
+}
+
 bt_status bc_do_ping(void *bot, const bt_args *a, float dt)
 {
 	bc_bot *b = bot;
@@ -684,6 +716,8 @@ bt_status bc_do_ping(void *bot, const bt_args *a, float dt)
 	if (a->count < 2)
 		strcpy(ac.reason, "Enemy");
 	kind = bc_ping_kind(ac.reason);
+	if (kind == BC_PING_ENEMY && !ping_seen_enemy(b, &ac.pos))
+		return BT_FAILURE;
 	if (bc_board_pinged(&e->board, me->team, ac.pos, kind, 20.0f, e->now)) {
 		b->ping.cd_until = e->now + 2.0;
 		return BT_FAILURE;      /* the team knows */

@@ -134,6 +134,71 @@ int bc_move_to_raw(bc_bot *b, bl_vec3 pos, float radius)
 	return move_to(b, pos, radius, 1);
 }
 
+/* CROWDS (NAV-STATUS (todo 4): nav is per bot and knows nothing of other
+ * bodies). Two bodies are in each other when their boxes overlap: less
+ * than a body's width (0.9) apart across, on one floor. */
+static const float BODY_W = 0.9f;
+
+static int mate_body_near(const bc_bot *b, bl_vec3 at, float within)
+{
+	const bc_engine *e = b->e;
+	const bl_player *me = bc_me(b);
+	int i;
+
+	for (i = 0; i < BL_MAX_PLAYERS; i++) {
+		const bl_player *p = &e->w.players[i];
+		float dx = p->pos.x - at.x, dy = p->pos.y - at.y;
+
+		if (i == b->pid || p->state != BL_ALIVE || p->team != me->team || fabsf(p->pos.z - at.z) >= 1.5f)
+			continue;
+		if (dx * dx + dy * dy < within * within)
+			return 1;
+	}
+	return 0;
+}
+
+int bc_crowd_away(const bc_bot *b, float *mx, float *my)
+{
+	const bc_engine *e = b->e;
+	const bl_player *me = bc_me(b);
+	float ax = 0.0f, ay = 0.0f, l;
+	int i, n = 0, k;
+
+	for (i = 0; i < BL_MAX_PLAYERS; i++) {
+		const bl_player *p = &e->w.players[i];
+		float dx = me->pos.x - p->pos.x, dy = me->pos.y - p->pos.y, d2 = dx * dx + dy * dy;
+
+		if (i == b->pid || p->state != BL_ALIVE || p->team != me->team || fabsf(p->pos.z - me->pos.z) >= 1.5f ||
+		    d2 >= BODY_W * BODY_W)
+			continue;
+		n++;
+		if (d2 > 1e-6f) {
+			ax += dx / sqrtf(d2);
+			ay += dy / sqrtf(d2);
+		}
+	}
+	if (!n)
+		return 0;
+	l = sqrtf(ax * ax + ay * ay);
+	if (l < 1e-3f) {
+		/* in the very same place: each its own way, by who it is */
+		float a = (float)b->pid * 2.3999632f;
+
+		ax = cosf(a); ay = sinf(a); l = 1.0f;
+	}
+	ax /= l; ay /= l;
+	/* that way, or a quarter round either side: wherever it is safe */
+	for (k = 0; k < 3; k++) {
+		float rx = k == 0 ? ax : k == 1 ? -ay : ay, ry = k == 0 ? ay : k == 1 ? ax : -ax;
+
+		if (bc_walk_safe(b, rx, ry)) {
+			*mx = rx; *my = ry;
+			return 1;
+		}
+	}
+	return 0;
+}
+
 static int move_to(bc_bot *b, bl_vec3 pos, float radius, int raw)
 {
 	bc_engine *e = b->e;
@@ -159,6 +224,14 @@ static int move_to(bc_bot *b, bl_vec3 pos, float radius, int raw)
 		if (dx * dx + dy * dy <= (radius + 0.75f) * (radius + 0.75f) &&
 		    (raw ? (int)floorf(pos.z + 2.25f + 0.5f) == (int)floorf(me->pos.z + 2.25f + 0.5f)
 		         : fabsf(pos.z - me->pos.z) < 1.5f) &&
+		    !(mv->goal_set && mv->state == BC_MV_FOLLOWING))
+			return BC_MV_ARRIVED;
+		/* a place a team-mate stands on is reached beside him (a body's
+		 * width more): two do not stand in one another, and the one
+		 * stepped aside does not come back into him (an exact goal is
+		 * that floor: not so) */
+		if (!raw && dx * dx + dy * dy <= (radius + 0.75f + BODY_W) * (radius + 0.75f + BODY_W) &&
+		    fabsf(pos.z - me->pos.z) < 1.5f && mate_body_near(b, pos, radius + 0.75f) &&
 		    !(mv->goal_set && mv->state == BC_MV_FOLLOWING))
 			return BC_MV_ARRIVED;
 		/* shut in: no search over the map. A goal within the reach of one

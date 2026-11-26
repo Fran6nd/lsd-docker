@@ -103,7 +103,9 @@ static void test_share(void)
 	for (i = 0; i < BOTS; i++) {
 		float dx = s->p[i].body.pos.x - 290.5f, dy = s->p[i].body.pos.y - 230.5f;
 
-		there += dx * dx + dy * dy < 3.0f * 3.0f;
+		/* six bodies stand side by side round one spot, not in one
+		 * another (a body 0.9 across: two rings of them reach 4.5) */
+		there += dx * dx + dy * dy < 4.5f * 4.5f;
 	}
 	printf("  %d of %d there by the far gap after 40 s\n", there, BOTS);
 	CHECK(there == BOTS);

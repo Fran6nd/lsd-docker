@@ -622,16 +622,17 @@ static void part_let_go(bc_bot *b)
 	b->bld.started = 0;
 }
 
-/* the body standing in a part still to come (on any of the cells over
- * the floor it stands on) */
-static int body_in_parts(const bc_engine *e, const bc_blueprint *bp, bc_nav_node floor)
+/* a body's box (as body_in has it) at (x, y) with its eye at ez in a
+ * part still to come */
+static int box_in_parts(const bc_engine *e, const bc_blueprint *bp, float x, float y, float ez)
 {
 	int i;
 
 	for (i = 0; i < bp->n; i++) {
 		const bc_bp_cell *c = &bp->cells[i];
 
-		if (c->x == floor.x && c->y == floor.y && c->z < floor.z && c->z >= floor.z - 3 &&
+		if (x + 0.45f > (float)c->x && x - 0.45f < (float)c->x + 1.0f && y + 0.45f > (float)c->y &&
+		    y - 0.45f < (float)c->y + 1.0f && (float)c->z + 1.0f > ez - 0.5f && (float)c->z < ez + 2.25f &&
 		    !bc_map_solid(e->map, c->x, c->y, c->z))
 			return 1;
 	}
@@ -647,15 +648,14 @@ static int step_off_parts(bc_bot *b, const bc_blueprint *bp)
 {
 	bc_engine *e = b->e;
 	const bl_player *me = bc_me(b);
-	bc_nav_node here, best;
+	bc_nav_node best;
 	float bd = 1e30f;
 	int sx, sy, mv, x0 = (int)floorf(me->pos.x), y0 = (int)floorf(me->pos.y);
 	bl_vec3 p;
 
-	here.x = (int16_t)x0; here.y = (int16_t)y0; here.z = (int16_t)floorf(me->pos.z + 2.25f + 0.5f);
-	if (!body_in_parts(e, bp, here))
+	if (!box_in_parts(e, bp, me->pos.x, me->pos.y, me->pos.z))
 		return 0;
-	best = here;                    /* set by the scan below before it is read */
+	memset(&best, 0, sizeof best);  /* set by the scan below before it is read */
 	for (sy = y0 - 2; sy <= y0 + 2; sy++)
 		for (sx = x0 - 2; sx <= x0 + 2; sx++) {
 			uint64_t st = bc_map_stand_bits(bc_map_col(e->map, sx, sy));
@@ -665,7 +665,7 @@ static int step_off_parts(bc_bot *b, const bc_blueprint *bp)
 				float dx, dy, dz, d;
 
 				n.x = (int16_t)sx; n.y = (int16_t)sy; n.z = (int16_t)bc_ctz64(st);
-				if (n.z >= BC_MAP_WATER_Z || body_in_parts(e, bp, n))
+				if (n.z >= BC_MAP_WATER_Z || box_in_parts(e, bp, (float)sx + 0.5f, (float)sy + 0.5f, (float)n.z - 2.25f))
 					continue;
 				dx = (float)sx + 0.5f - me->pos.x; dy = (float)sy + 0.5f - me->pos.y;
 				dz = (float)n.z - 2.25f - me->pos.z;
@@ -747,6 +747,8 @@ bt_status bc_do_build_part(void *bot, const bt_args *a, float dt)
 				continue;
 			if (first < 0)
 				first = i;
+			if (e->now < c->noway_until && (c->noway[b->pid >> 6] >> (b->pid & 63) & 1u))
+				continue;
 			if (!face_neighbour(e->map, c->x, c->y, c->z) || zoned(b, c->x, c->y, 0) ||
 			    body_in(e, b, c->x, c->y, c->z) || waits_on_below(e, bp, i))
 				continue;
@@ -794,9 +796,21 @@ bt_status bc_do_build_part(void *bot, const bt_args *a, float dt)
 		}
 		if (r == BT_FAILURE && b->bld.started == 2) {
 			bp->cells[cur].climb_failed = 1;        /* no way onto it: put from beside it, next */
+		} else if (r == BT_FAILURE && e->now < b->bld.until) {
+			/* no way to its stand FROM HERE: left by this one, for the
+			 * others to try (the structure's first part marked for
+			 * everybody held the whole of it up 30 s) */
+			bc_bp_cell *m = &bp->cells[cur];
+
+			if (e->now >= m->noway_until)
+				memset(m->noway, 0, sizeof m->noway);
+			m->noway[b->pid >> 6] |= (uint64_t)1 << (b->pid & 63);
+			m->noway_until = e->now + PART_MARK;
+			bc_engine_log(e, 1, "bot #%d: %s part %d %d %d: no way to where it is put from: left by it %.0f s",
+			              b->pid, bp->name, c->x, c->y, c->z, PART_MARK);
 		} else if (r == BT_FAILURE) {
-			bc_engine_log(e, 1, "bot #%d: %s part %d %d %d: %s: left %.0f s", b->pid, bp->name, c->x, c->y, c->z,
-			              e->now >= b->bld.until ? "not put in 15 s" : "no way to where it is put from", PART_MARK);
+			bc_engine_log(e, 1, "bot #%d: %s part %d %d %d: not put in %.0f s at its stand: left %.0f s", b->pid,
+			              bp->name, c->x, c->y, c->z, EDIT_SECS, PART_MARK);
 			bp->cells[cur].bad_until = e->now + PART_MARK;
 			bp->cells[cur].climb_failed = 0;
 		}

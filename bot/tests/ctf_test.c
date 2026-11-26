@@ -355,10 +355,16 @@ static void test_thief(void)
 	CHECK(killed > 0);
 	CHECK(s->caps[2] == 0 && s->intel_holder[0] == -1);
 	/* it lies where he fell; nobody of ours can pick it up: it is watched.
-	 * Looked at after 25 s, not 12 (2026-11-25): one of ours took THEIR
-	 * intel during the hunt, and until he has scored with it the
-	 * teamwork-minded escort him past the spot; then two stand over ours */
-	bs_run(s, 25.0);
+	 * Looked at once nobody of ours carries THEIR intel any more, 5 s on
+	 * (40 s at most): one of ours took it during the hunt, and until he
+	 * has scored with it the teamwork-minded escort him past the spot;
+	 * then two stand over ours. (2026-11-25 this was a fixed 25 s; how
+	 * long his run takes moves with anything that moves a body -- bodies
+	 * stepping out of one another, 2026-11-26 -- and at 25 s he was still
+	 * on his way) */
+	for (k = 0; k < 60 * 40 && s->intel_holder[1] >= 0 && s->intel_holder[1] < 5; k++)
+		bs_step(s);
+	bs_run(s, 5.0);
 	for (i = 0; i < 5; i++) {
 		float dx = s->p[i].body.pos.x - s->intel[0].x, dy = s->p[i].body.pos.y - s->intel[0].y;
 
@@ -366,7 +372,7 @@ static void test_thief(void)
 		guards += !strcmp(leaf, "guard");
 		near_intel += s->p[i].alive && dx * dx + dy * dy < 12.0f * 12.0f;
 	}
-	printf("  25 s later the intel lies at %.0f %.0f: %d of 5 guard, %d within 12 of it\n", (double)s->intel[0].x,
+	printf("  once our carrier is home, 5 s on, the intel lies at %.0f %.0f: %d of 5 guard, %d within 12 of it\n", (double)s->intel[0].x,
 	       (double)s->intel[0].y, guards, near_intel);
 	CHECK(guards == 2 && near_intel >= 2);      /* two, whoever they are; the rest have a game to play */
 	bs_free(s);

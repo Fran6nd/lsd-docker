@@ -2486,12 +2486,25 @@ static void act(bc_engine *e, bc_bot *b, float dt)
 		ori.x = out.ori.x; ori.y = out.ori.y; ori.z = out.ori.z;
 		if (nav) {
 			keys = remap_keys(cmd.keys, cmd.ori, ori, look == BC_LOOK_TARGET);
+		} else if (look == BC_LOOK_TARGET && look_pid == b->wish.fire_pid && e->now < b->fight.ff_until &&
+		           !body.airborne && bc_fight_clear_line(b, dist, &wx, &wy)) {
+			/* A TEAM-MATE IN THE LINE, and it holds its fire for him:
+			 * across the line, to a clear one -- not standing behind him
+			 * (where it stands or how it strafes, it is not shooting) */
+			keys = bc_keys_toward(wx, wy, ori, b->keys_prev);
 		} else if (b->wish.move == BC_MOVE_FREE) {
 			keys = bc_keys_toward(b->wish.mx, b->wish.my, ori, b->keys_prev);
 			if (b->wish.sprint && keys == BL_K_FORWARD)
 				keys |= BL_K_SPRINT;
 		} else if (waiting_for_route(b, &body, &wx, &wy)) {
 			/* WAITING FOR A ROUTE is not standing: on toward the goal */
+			keys = bc_keys_toward(wx, wy, ori, b->keys_prev);
+		} else if (!body.airborne && !(b->wish.move == BC_MOVE_GOTO && b->mv.exact) &&
+		           (b->wish.tool == BL_TOOL_GUN || b->wish.tool == BL_TOOL_GRENADE) && bc_crowd_away(b, &wx, &wy)) {
+			/* STANDING IN A TEAM-MATE: out of him (a place to stand that
+			 * is a floor for a reason -- an exact goal asked for, an
+			 * edit's stand with the block or spade in hand -- is kept:
+			 * the other steps off) */
 			keys = bc_keys_toward(wx, wy, ori, b->keys_prev);
 		} else if (!body.airborne && bc_body_speed(&body) > 3.0f) {
 			/* stand means stop: letting go coasts two voxels */

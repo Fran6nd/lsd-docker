@@ -317,8 +317,9 @@ void bc_fire_at_will(bc_bot *b)
 }
 
 /* A team-mate in the line (aosbot AI.cpp:7864): within 0.75 of the ray,
- * between the muzzle and the man. */
-static int mate_in_line(const bc_bot *b, float tdist)
+ * between the muzzle and the man. 1 and, in *side, which side of the ray
+ * the nearest such one is (+1 right, -1 left, as the facing's right). */
+static int mate_in_line_side(const bc_bot *b, float tdist, float *side)
 {
 	const bc_engine *e = b->e;
 	const bl_player *me = bc_me(b);
@@ -339,9 +340,36 @@ static int mate_in_line(const bc_bot *b, float tdist)
 		if (ox * ox + oy * oy > 0.75f * 0.75f)
 			continue;
 		rz = me->pos.z + me->ori.z * t;
-		if (rz >= p->pos.z - 0.6f && rz <= p->pos.z + 2.8f)
+		if (rz >= p->pos.z - 0.6f && rz <= p->pos.z + 2.8f) {
+			if (side)
+				*side = ox * -me->ori.y + oy * me->ori.x >= 0.0f ? 1.0f : -1.0f;
 			return 1;
+		}
 	}
+	return 0;
+}
+
+static int mate_in_line(const bc_bot *b, float tdist)
+{
+	return mate_in_line_side(b, tdist, NULL);
+}
+
+int bc_fight_clear_line(const bc_bot *b, float dist, float *mx, float *my)
+{
+	const bl_player *me = bc_me(b);
+	float side, fl = sqrtf(me->ori.x * me->ori.x + me->ori.y * me->ori.y), rx, ry;
+	int k;
+
+	if (fl < 1e-4f || !mate_in_line_side(b, dist, &side))
+		return 0;
+	/* across the line, away from the side he is on; the other side if
+	 * that is no floor */
+	rx = -me->ori.y / fl; ry = me->ori.x / fl;
+	for (k = 0; k < 2; k++, side = -side)
+		if (bc_walk_safe(b, -side * rx, -side * ry)) {
+			*mx = -side * rx; *my = -side * ry;
+			return 1;
+		}
 	return 0;
 }
 

@@ -555,6 +555,9 @@ int bc_mover_act(bc_bot *b, const bc_body *body, bc_nav_cmd *cmd);
 uint8_t bc_keys_toward(float mx, float my, bl_vec3 ori, uint8_t prev);
 /* Would walking that way for a third of a second keep the feet up? */
 int bc_walk_safe(const bc_bot *b, float mx, float my);
+/* in a team-mate's body (standing in one another): 1 and the way out
+ * (a unit, safe to walk), else 0 */
+int bc_crowd_away(const bc_bot *b, float *mx, float *my);
 /* A place near `b` out of sight of `threat`. 0 if none. */
 int bc_find_cover(bc_bot *b, bl_vec3 threat, bl_vec3 *out);
 /* Somewhere worth walking to when nothing is known. */
@@ -573,6 +576,9 @@ int bc_floor_near(const bc_map *m, int x, int y, int z);
 void bc_fight_select(bc_bot *b);
 /* ACT: bursts, the mate in the line, the trigger. Returns the mouse bits. */
 uint8_t bc_fight_trigger(bc_bot *b, int on_target, float dist);
+/* A team-mate in the line of fire to a man `dist` off: 1 and the way to
+ * step for a clear line (a unit across it, safe to walk), else 0 */
+int bc_fight_clear_line(const bc_bot *b, float dist, float *mx, float *my);
 /* ACT: reload discipline. 1 on the think the reload is asked. */
 int bc_reload_act(bc_bot *b);
 float bc_engage_range(const bc_bot *b);
