@@ -123,7 +123,7 @@ A level is how WELL a bot aims, reacts, hears and moves, never what it
 chooses to do: [the table](../bot/TREES.md#11-characters-traits-archetypes-weights).
 
 Each client is sent the world 30 times a second to start with
-(`ups_default`: 60, 30, 20, 15, 12 or 10); a player changes theirs with
+(`ups_default_rate`: 60, 30, 20, 15, 12 or 10); a player changes theirs with
 `/ups <rate>`. With many players a world update is several KB, and 30 a
 second is what keeps a link with any jitter from falling behind.
 

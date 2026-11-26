@@ -1,21 +1,15 @@
 -- command_ups.lua -- Configure your WorldUpdate receive rate
--- upstream: lsd/scripts/command_ups.lua fnv1a32 460a94de (tests/overrides_test.lua)
+-- upstream: lsd/scripts/command_ups.lua fnv1a32 e6bd7c20 (tests/overrides_test.lua)
 -- TODO: autoconfigure based on RTT?
 
-local mod = init_mod();
+-- Must be 60, 30, 20, 15, 12 or 10
+-- (lsd-docker, PATCHED) 30 by default, not 60: half the bytes, and with
+-- many players a World Update is several KB -- at 60 a second a link
+-- with any jitter falls behind. A player still changes theirs with /ups.
+getcfg("ups_default_rate", 30);
 
--- (lsd-docker, PATCHED) the rate a client starts at: upstream sent every
--- client 60 a second. 30 is what a client needs to see others move
--- smoothly, and half the bytes: with many players a World Update is
--- several KB, and at 60 a second a link with any jitter falls behind.
--- A player still raises or lowers their own with /ups.
-local FREQS = {[60]=true, [30]=true, [20]=true, [15]=true, [12]=true, [10]=true};
-getcfg("ups_default", 30, "World Updates a second a client starts at (60, 30, 20, 15, 12 or 10; each player may change theirs with /ups).");
-local function start_rate()
-	local f = tonumber(ups_default);
-	return 60 / (FREQS[f] and f or 30);
-end
-local rate = pid_connected_table(start_rate);
+local mod = init_mod();
+local rate = pid_connected_table(60 / ups_default_rate);
 local ctr = 0;
 
 local freq_msg = {
