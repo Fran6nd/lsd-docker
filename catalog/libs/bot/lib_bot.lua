@@ -1146,7 +1146,16 @@ end
 -- into Lua -- per packet, the very walk this section exists to avoid.
 -- Tested against the people only (a handful), live at each send, so a
 -- team change or a connect in the middle of a tick is seen at once.
+--
+-- A team in a set is the core's own, 0 and 1 (the spectators' 255):
+-- PID_BROADCAST_TEAM(t) takes the script's 1 and 2 and holds t - 1, and
+-- get_team says t. So a player's team is get_team - 1 here, or a team's
+-- people would be the other team's, and a team of one's the nobody of its
+-- own.
 local SET = 0x20000000;
+local function team_of(i)
+	return get_team(i) - 1;
+end
 local function in_set(set, i)
 	local flags = math.floor(set / SET);
 	local data = set % SET;
@@ -1155,10 +1164,10 @@ local function in_set(set, i)
 	elseif (flags == 2) then
 		return is_connected(i) and i ~= data;
 	elseif (flags == 3) then
-		return is_joined(i) and get_team(i) == data;
+		return is_joined(i) and team_of(i) == data;
 	elseif (flags == 4) then
 		return i ~= math.floor(data / 256) and is_connected(i)
-			and (not is_joined(i) or get_team(i) ~= data % 256);
+			and (not is_joined(i) or team_of(i) ~= data % 256);
 	end
 	return false;
 end

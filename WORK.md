@@ -62,6 +62,7 @@ DONE (commit), BLOCKED (on what).
 | 27 | try_edit's top-band rule (no edits up into z < 3): same reasoning as the removed jump rule | TODO |
 | 28 | lib_bot's send_spawn_player split, redundant since patch 0002 | TODO |
 | 29 | One filter for every edit of the map (the owner: "all destruction effects must go through the gamemode's filter"): `may_edit_block`, asked at the engine's block_action_rm / block_action / block_line, answered once by each gamemode | DONE on the branch (lib_block_filter), not released |
+| 30 | "I ping from the pie menu and it does nothing" (babel, ZeroSpades): lib_bot's people_in compared get_team (1, 2) with the team a set holds (0, 1), so a team's people were the other team's and a ping, a team chat or a callout reached nobody it was for once bots were on the server | DONE (branch worktree-agent-ae2b8838b3487bc75; tests/pie_ping_test.lua) |
 
 ## Log
 
@@ -765,3 +766,20 @@ DONE (commit), BLOCKED (on what).
   stairs whole at 61+59/90+64/219+260 s -> 82+75/87+135/214+297 (a
   little slower: the mob at the frontier was the redundancy the edge
   needs); captures 2-0/2-2/2-1 -> 4-1/1-3/2-1.
+- 2026-11-26 (item 30, pie ping): reproduced in a container of its own
+  (lsd-ping, babel, two scripted ZeroSpades-like clients on team 1, one on
+  the other): with no bots a wedge's `/pingmark <point> Enemy` reached the
+  pinger and his team-mate; with 10 bots a team the log said "ping
+  accepted, relayed to 0 of team 1". Cause: lib_bot's in_set (the copy of
+  main.c's pid_matches that people_in tests the people with, 13d366f,
+  65a5f87) compared get_team(i), which lua.c gives as 1 and 2, with the
+  team a set holds, which PID_BROADCAST_TEAM makes t - 1 (0 and 1): a team
+  1 set picked nobody, a team 2 set picked team 1. Every loop over a
+  team's people was wrong with bots present (the ping relay, team chat
+  l10n split, callouts, relays), and the send guard dropped team sends as
+  "only bots". The tests' stubs had get_team and PID_BROADCAST_TEAM agree,
+  which hid it; they now make the sets as lua.c does. Fix: team_of(i) =
+  get_team(i) - 1 in in_set (sets 3 and 4). New tests/pie_ping_test.lua:
+  every gamemode's ping wedge, in every language, from its text through
+  /pingmark to the packets of 3 people and 58 bots (270 failures without
+  the fix).

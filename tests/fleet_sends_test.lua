@@ -100,7 +100,7 @@ end
 function is_connected(pid) return CONNECTED[pid] == true; end
 local TEAM = {};
 function get_team(pid) return TEAM[pid] or 0; end
-PID_BROADCAST_TEAM = function(t) return 0x20000000 * 3 + t; end
+PID_BROADCAST_TEAM = function(t) return 0x20000000 * 3 + t - 1; end   -- as lua.c: teams are 1 and 2, the set holds 0 and 1
 
 local function list(it)
 	local out = {};

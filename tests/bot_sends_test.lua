@@ -41,9 +41,9 @@ MAX_PLAYERS = 255;
 local SET = 0x20000000;
 PID_BROADCAST = SET;
 function PID_BROADCAST_EXCEPT(p) return 2 * SET + p; end
-function PID_BROADCAST_TEAM(t) return 3 * SET + t; end
-function PID_BROADCAST_EXCEPT_TEAM_AND_PLAYER(t, p) return 4 * SET + p * 256 + t; end
-function PID_BROADCAST_EXCEPT_TEAM(t) return 4 * SET + 255 * 256 + t; end
+function PID_BROADCAST_TEAM(t) return 3 * SET + t - 1; end   -- as lua.c: get_team says 1 and 2, the set holds 0 and 1
+function PID_BROADCAST_EXCEPT_TEAM_AND_PLAYER(t, p) return 4 * SET + p * 256 + t - 1; end
+function PID_BROADCAST_EXCEPT_TEAM(t) return 4 * SET + 255 * 256 + t - 1; end
 SPECTATOR = 255;
 
 local BOTS_N, TICKS = 100, 3600;       -- one minute at 60 a second
@@ -62,10 +62,10 @@ local function matches(set, i)
 	local flags, data = math.floor(set / SET), set % SET;
 	if (flags == 1) then return CONNECTED[i] == true; end
 	if (flags == 2) then return CONNECTED[i] == true and i ~= data; end
-	if (flags == 3) then return JOINED[i] == true and TEAM[i] == data; end
+	if (flags == 3) then return JOINED[i] == true and TEAM[i] - 1 == data; end
 	if (flags == 4) then
 		return i ~= math.floor(data / 256) and CONNECTED[i] == true
-			and (not JOINED[i] or TEAM[i] ~= data % 256);
+			and (not JOINED[i] or TEAM[i] - 1 ~= data % 256);
 	end
 	return set == i;
 end
