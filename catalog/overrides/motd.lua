@@ -5,7 +5,7 @@
 -- Upstream's, with the lines in each player's language: `motd` is a
 -- string of lines, or a list whose lines are each a string or a language
 -- map, {en: "Welcome", fr: "Bienvenue"} (see lib_l10n). %(server) in a
--- line is the server's name.
+-- line is the server's name. And not sent to a bot when it joins.
 local mod = init_mod();
 getcfg("motd", "Server owner forgot to set the motd, oh no");
 
@@ -31,8 +31,12 @@ local function send_motd(pid)
 end
 
 -- TODO: first join only -- on_initial_join
+-- (lsd-docker, PATCHED) told to a person only: a bot joins too, at every
+-- map, and has nobody to read it (lib_bot's people_in)
 function mod.after.on_join(pid)
-	send_motd(pid);
+	for i in (people_in or piditer)(pid) do
+		send_motd(i);
+	end
 end
 
 function mod.after.on_fakepid_connect(pid)

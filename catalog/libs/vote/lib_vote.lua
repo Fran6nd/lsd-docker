@@ -22,7 +22,9 @@
 --   vote_voters() -> how many people can vote: joined, not a bot or the
 --        console
 --
--- A vote is for the map it was started on: a new map drops it.
+-- A vote is for the map it was started on: a new map drops it. A voice
+-- is its voter's while he is here: one who leaves takes it with him (and
+-- whoever is given his slot next has a voice of his own).
 local mod = init_mod();
 
 local all = {};   -- every vote made, to lapse and to drop
@@ -84,6 +86,16 @@ function mod.after.tick()
 		if (v.open ~= nil and now >= v.open.deadline) then
 			v.open = nil;
 			l10n_send_chat(PID_BROADCAST, v.spec.failed);
+		end
+	end
+end
+
+function mod.after.on_disconnect(pid)
+	for _, v in ipairs(all) do
+		local o = v.open;
+		if (o ~= nil and o.voters[pid]) then
+			o.voters[pid] = nil;
+			o.count = o.count - 1;
 		end
 	end
 end

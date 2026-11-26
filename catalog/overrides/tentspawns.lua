@@ -72,10 +72,20 @@ end
 -- tent's by more than SAFE_DROP (from the tent, a drop that does not hurt
 -- gets there, and the way back is the slope that made it) and no higher
 -- than it by more than SAFE_DROP either (a hill one walks up); SPAWN_DRAWS
--- draws at most, then the tent's own column, which is always land at its
--- level. With half the square bad, 32 draws miss with a chance of one in
--- four billion.
+-- draws at most, then the tent's own column, which is at its level (land,
+-- unless the tent itself stands in the sea). With half the square bad, 32
+-- draws miss with a chance of one in four billion.
+--
+-- The square is cut to the map: a tent nearer an edge than
+-- tentspawns_radius (parkour's and the range's hidden tent at a corner, a
+-- base at a map's edge) drew columns off it, where is_solid raises and
+-- the whole spawn falls to the core's own rule.
 local SPAWN_DRAWS = 32;
+local MAP_LAST = 511;                -- the last column of a 512 x 512 map
+local function draw_column(c)
+	return math.random(math.max(0, math.floor(c - tentspawns_radius)),
+		math.min(MAP_LAST, math.floor(c - 1 + tentspawns_radius))) + 0.5;
+end
 local function near_tent_land(pos, tent_z)
 	local floor = pos.z + 2.251;        -- the floor the eye was put over
 	return floor < 63 and (tent_z == nil or math.abs(floor - tent_z) <= SAFE_DROP);
@@ -96,10 +106,7 @@ function mod.get_spawn_position(pid)
 
 	local pos;
 	for _ = 1, SPAWN_DRAWS do                    -- PATCHED (lsd-docker): on land near the tent's level
-		pos = {
-			x=math.random(math.floor(tentpos.x-tentspawns_radius), math.floor(tentpos.x-1+tentspawns_radius))+0.5,
-			y=math.random(math.floor(tentpos.y-tentspawns_radius), math.floor(tentpos.y-1+tentspawns_radius))+0.5
-		};
+		pos = {x = draw_column(tentpos.x), y = draw_column(tentpos.y)};   -- PATCHED (lsd-docker): within the map
 
 		set_highest_point_spawn(pos, tentpos.z);   -- PATCHED (lsd-docker): the tent's level
 		if (near_tent_land(pos, tentpos.z)) then return pos; end

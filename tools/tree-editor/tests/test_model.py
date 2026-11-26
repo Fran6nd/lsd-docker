@@ -75,10 +75,21 @@ def test_insert_follows_the_schema():
         M.insert(d, ("tdm", (0, 0)), 0, n, SCHEMA)        # an option has its child
     opt = M.new_node(SCHEMA, "option", "enemy_far", d)
     assert opt["trait"] == "none" and opt["score"] == "enemy_far" and opt["factor"] == 1
-    assert opt["children"] == [M.PLACEHOLDER]
+    assert M.needs_child(SCHEMA, opt)                     # what it does is asked for (complete)
     seq = M.new_node(SCHEMA, "seq", None, d)
-    assert seq["children"] == [M.PLACEHOLDER]             # a seq must hold something to compile
+    assert seq["children"] == [] and M.needs_child(SCHEMA, seq)   # a seq must hold something to compile
     assert M.new_node(SCHEMA, "tree", None, d, "tdm")["ref"] == "tdm_under_fire"
+    # a pick asks for its first option, and that option for what it does
+    asked = []
+
+    def fill(parent):
+        asked.append(parent["kind"])
+        return M.new_node(SCHEMA, "option", "always", d) if parent["kind"] == "pick" else \
+            M.new_node(SCHEMA, "do", "seek", d)
+
+    pick = M.complete(SCHEMA, M.new_node(SCHEMA, "pick", None, d), fill)
+    assert asked == ["pick", "option"] and pick["children"][0]["children"][0]["action"] == "seek"
+    assert M.complete(SCHEMA, M.new_node(SCHEMA, "seq", None, d), lambda p: None) is None   # given up: nothing
 
 
 def test_delete_wrap_unwrap():
@@ -100,11 +111,11 @@ def test_delete_wrap_unwrap():
 
 def test_extract_inline_rename():
     d = doc()
-    d2, sel = M.extract(d, ("tdm", (1,)), "tdm_net")
+    d2, sel = M.extract(d, ("tdm", (1,)), "tdm_net", SCHEMA)
     assert M.node_at(d2, sel) == {"kind": "tree", "ref": "tdm_net"}
     assert M.tree_names(d2)[1] == "tdm_net" and M.tree(d2, "tdm_net")["root"]["kind"] == "limit"
     with pytest.raises(M.EditError, match="already"):
-        M.extract(d2, ("tdm", ()), "tdm_net")
+        M.extract(d2, ("tdm", ()), "tdm_net", SCHEMA)
     d3, sel = M.inline(d2, sel)
     assert M.node_at(d3, sel)["kind"] == "limit" and "id" not in M.node_at(d3, sel)
     d4, new = M.rename_tree(d, "tdm_camper", "tdm_waiter")
@@ -136,20 +147,20 @@ def test_history_moves_along_the_texts():
 
 def test_blocks_bands_refs_and_folds():
     d = doc()
-    top = M.build_blocks(d, "tdm")
+    top = M.build_blocks(d, "tdm", SCHEMA)
     assert top.core[1]["kind"] == "select" and [k.core[1]["kind"] for k in top.kids] == ["pick", "do"]
     limit = top.kids[1]
     assert [n["kind"] for _, n in limit.rows] == ["limit", "do"]          # a band on its child
     opt = top.kids[0].kids[3]
     assert opt.ref == "tdm_under_fire" and opt.ref_known and not opt.opened and not opt.kids
-    opened = M.build_blocks(d, "tdm", opened={opt.key})
+    opened = M.build_blocks(d, "tdm", SCHEMA, opened={opt.key})
     o = opened.kids[0].kids[3]
     assert o.opened and o.kids[0].read_only and o.kids[0].rows[0][0] == ("tdm_under_fire", ())
-    folded = M.build_blocks(d, "tdm", folded={top.kids[0].key})
+    folded = M.build_blocks(d, "tdm", SCHEMA, folded={top.kids[0].key})
     assert folded.kids[0].kids == [] and folded.kids[0].folded == 14
-    everything = M.build_blocks(d, "tdm", open_all=True)
+    everything = M.build_blocks(d, "tdm", SCHEMA, open_all=True)
     assert sum(1 for _ in everything.walk()) > 40
-    assert M.build_blocks(d, "items") is None
+    assert M.build_blocks(d, "items", SCHEMA) is None
 
 
 def test_priority_lists_rolls_and_bars():
@@ -172,7 +183,7 @@ EDITS = {
     "cooldown": lambda d: M.wrap(d, ("tdm", (0, 0, 0)), {"kind": "cooldown", "seconds": 3}, SCHEMA),
     "insert": lambda d: M.insert(d, ("tdm", ()), 1, M.new_node(SCHEMA, "do", "fight", d), SCHEMA),
     "move": lambda d: M.move(d, ("tdm", (0, 5)), ("tdm_contact", ()), 1, SCHEMA),
-    "extract": lambda d: M.extract(d, ("tdm", (1,)), "tdm_net"),
+    "extract": lambda d: M.extract(d, ("tdm", (1,)), "tdm_net", SCHEMA),
     "rename": lambda d: (M.rename_tree(d, "tdm_camper", "tdm_waiter")[0], ("tdm_waiter", ())),
     "comment": lambda d: M.set_fields(d, ("tdm", (1,)), {"comment": "the net", "above": ["# a line above"]}),
 }

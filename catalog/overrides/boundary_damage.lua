@@ -56,8 +56,7 @@ end
 
 function mod.after.tick()
 	local tbl = get_map_meta().boundary_damage;
-	if (tbl == nil or tbl.left == nil or tbl.right == nil or tbl.top == nil
-	    or tbl.bottom == nil or tbl.damage == nil) then
+	if (tbl == nil) then
 		return;
 	end
 

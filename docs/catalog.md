@@ -9,7 +9,7 @@
 | bots | `Bot` | server-side players | guards, battle_bots |
 | tools | `Tool` | everything else | votekick, vote_map, vote_peace, rewards, inventory, esp_demo, headless, time_limit, ... |
 | demos | `Demo` | set a server up to show something off, not to run for good | demo_reward (every reward free and unlimited) |
-| libs | `Library` | what the others need; installed with them, not listed | ext, ext_policy, bot, shot_detect, player_effect, map_layout, callouts, blast, babel_protect, ask_player, vote |
+| libs | `Library` | what the others need; installed with them, not listed | ext, ext_policy, bot, shot_detect, player_effect, map_layout, block_filter, stairs, callouts, blast, babel_protect, ask_player, vote |
 
 A player effect forced on in setup is everybody's (`<id>_everyone = true`).
 A gamemode can hand one out instead, per player, for a time, until death
@@ -82,7 +82,8 @@ update, no other player's chat, kill or block -- only the map, itself
 (as player 1 when its own id is 32 or more), and system chat. It sees
 an empty map and the notice; it cannot be crashed by an id it cannot
 hold. A client too old to answer the handshake waits up to 10 seconds
-(`ext_policy_grace`) after the map before it is shown anything.
+(`ext_policy_grace`, counted from when the server sends the map, so
+the download is in it) before it is shown anything.
 
 Lower `player_limit_max` to 32 or fewer and every client plays: set
 Player Limit's policy back to applied as well (`lsdctl setup`, or
@@ -253,6 +254,11 @@ random, the costlier the rarer, put in the player's
 Inventory pie, or `/reward <name>`. One that cannot be used right now (a
 medkit at full health, night vision by day) is kept.
 
+A capture is the rewards of whoever made it, unless the gamemode says
+otherwise: in hostage a rescue is the man's who walked the hostage home
+(the hostage scores it) and an execution is nobody's; tdm's winning
+capture is nobody's.
+
 | reward | cost (rarity) | |
 |---|---|---|
 | Railgun | 1 | 30 s, or until death |
@@ -374,6 +380,14 @@ often). A gamemode with
 no pings of its own gets Enemy, Attack, Defend, Need help, Danger and
 Go here; ffa has none, having no team.
 
+The **Build pie** (aiming at a block) is pings too, through the same
+`/pingmark`: "Build mirador here", "Build bunker here". From a leader --
+every person on a team is one -- the bot engine takes it as an order to
+the bots of his squad to build that structure there (its English label
+is what the engine is told, whatever the pinger's language). A gamemode
+that says none of its own gets those two; babel has its own (no
+prefabs there); the range and parkour, where nobody builds, have none.
+
 `night` is both the Daytime and Weather and the Flashlight extensions
 (one file, `lib_night`), and tells the bot engine how bots see and use a
 lamp at night. An entry takes one preset, so night's say both whether it
@@ -445,6 +459,15 @@ Who answers today: babel (the platform, never broken; each team's tower
 area, not broken by that team nor by the world, and nobody builds in the
 other's), map_layout (the cells of a door, an elevator, a reserved volume),
 the range (everything, so its start wall stands) and parkour (everything).
+
+A player's client has already done what it asks for (the hole its spade
+dug, the block it built) before the server answers, and the filter puts
+nothing back. So a gamemode that refuses a player's own edit also answers
+it in the `late` chain of `on_block_action` / `on_block_line`, as the range,
+parkour and map_layout do: `map_layout.revert_action(pid, pos, type)` and
+`map_layout.revert_line(pid, start, stop)` undo it on that client, and the
+player is told why. (Upstream babel and babel_protect refuse a player's
+spade on the platform and the towers themselves, and put nothing back.)
 
 The cull is not an edit and is not asked: blocks that float after
 something under them is taken fall, on every client's own flood too. So a
@@ -524,13 +547,16 @@ times the work for nobody). So, in a catalog script:
   group on whole when nobody in it needs a different packet (see
   `catalog/overrides/purgatory.lua`).
 
-lib_bot's send guard drops what is addressed to a bot all the same and
-counts it: `bot_guard_drops()`, and a line in the log once a minute
+The core itself sends a bot nothing (patches/lsd 0002): its loops walk
+the players that have a client, and what it would send to one bot (its
+HP on a hit, a restock, its map) never reaches a script's hook. A send a
+script addresses to a bot is dropped by lib_bot's send guard and
+counted: `bot_guard_drops()`, and a line in the log once a minute
 ("N packets addressed to bots were dropped ... first from file:line")
 when there were any. It should never fire in normal play: a line there
 is a script to fix. `tests/bot_sends_test.lua` runs a minute of a game
 with 100 bots and one person through the real hook chain and the
-catalog's senders, and fails if any send reaches a bot.
+catalog's senders, and fails if any send is made at a bot.
 
 ## Your own scripts
 

@@ -181,6 +181,20 @@ msgstr ""
 msgid "Defend the tower"
 msgstr ""
 
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Intel here"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Build stairs here"
+msgstr ""
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Your squad of bots builds a stair up to here"
+msgstr ""
+
 #: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
@@ -283,11 +297,6 @@ msgstr ""
 
 #: catalog/libs/callouts/callouts/ctf.lua
 msgid "Push forward, go for their intel!"
-msgstr ""
-
-#: catalog/libs/callouts/callouts/ctf.lua
-#: catalog/libs/callouts/callouts/onectf.lua
-msgid "Intel here"
 msgstr ""
 
 #: catalog/libs/callouts/callouts/default.lua

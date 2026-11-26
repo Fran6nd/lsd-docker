@@ -31,9 +31,10 @@ end
 --============================== STUBS ===============================--
 MAX_PLAYERS = 32;
 PID_BROADCAST = 0x20000000;
--- as state.h has them: flag 2 is all-but-one, flag 3 a team
+-- as state.h has them: flag 2 is all-but-one, flag 3 a team -- the core's
+-- team, 0 and 1, where get_team says 1 and 2 (lua.c check_teamid)
 local EXCEPTBASE, TEAMBASE = 0x40000000, 0x60000000;
-function PID_BROADCAST_TEAM(t) return TEAMBASE + t; end
+function PID_BROADCAST_TEAM(t) return TEAMBASE + t - 1; end
 function PID_BROADCAST_EXCEPT(p) return EXCEPTBASE + p; end
 function init_mod()
 	local function s() return {before = {}, after = {}, next = {}}; end
@@ -117,7 +118,7 @@ function piditer(spec)
 			if (p ~= nil and p.conn) then
 				if (spec == PID_BROADCAST or spec == nil) then return i; end
 				if (spec >= TEAMBASE) then
-					if (p.team == spec - TEAMBASE) then return i; end
+					if (p.joined and p.team - 1 == spec - TEAMBASE) then return i; end
 				elseif (spec >= EXCEPTBASE) then
 					if (i ~= spec - EXCEPTBASE) then return i; end
 				elseif (spec == i) then return i; end
@@ -279,6 +280,13 @@ local prot = init_mod();
 function prot.block_action(pos, type, from)
 	if (PROTECTED[key(pos.x, pos.y, pos.z)]) then return; end
 	prot.next.block_action(pos, type, from);
+end
+function prot.block_line(a, b, from)
+	-- a half-drawn line is worse than none (lib_block_filter)
+	for p in iter_block_line(a, b) do
+		if (PROTECTED[key(p.x, p.y, p.z)]) then return; end
+	end
+	prot.next.block_line(a, b, from);
 end
 function prot.may_edit_block(who, pos, type)
 	if (PROTECTED[key(pos.x, pos.y, pos.z)]) then return false; end
@@ -706,10 +714,17 @@ check(not SOLID[key(210, 200, 30)], "a build out of reach: refused");
 block(203, 200, 29, 0);
 step(10);
 check(not SOLID[key(203, 200, 29)], "a build with no neighbour: refused");
-PROTECTED[key(204, 200, 33)] = true;
-block(204, 200, 33, 0);
+-- (a build every rule but the gamemode's allows: the top of a block beside it)
+SOLID[key(199, 200, 33)] = true;
+PROTECTED[key(199, 200, 32)] = true;
 step(10);
-check(not SOLID[key(204, 200, 33)], "a protected block (the gamemode's chain): not built");
+local held, refused1 = world().players[pid].blocks, botlink_stats().ac_refused;
+block(199, 200, 32, 0);
+step(10);
+check(not SOLID[key(199, 200, 32)], "a protected block (the gamemode's chain): not built");
+check(world().players[pid].blocks == held and botlink_stats().ac_refused == refused1 + 1,
+	"...no block spent on it, and counted refused", world().players[pid].blocks .. " of " .. held);
+PROTECTED[key(199, 200, 32)] = nil;
 engine_events();
 -- dig
 P[pid].tool = 0;
@@ -749,6 +764,21 @@ check(SOLID[key(203, 201, 32)], "a line (from the top of a block it sees)");
 check(#of(engine_events(), 3) == 1, "...announced");
 al.x2 = 400; act(2, pid, al); step(40);
 check(not SOLID[key(400, 201, 33)], "a line with more blocks than it holds (and out of reach): refused");
+-- a line the gamemode refuses (the filter takes a line whole or not at all)
+al.x1, al.y1, al.z1, al.x2, al.y2, al.z2 = 198, 199, 32, 198, 197, 32;
+SOLID[key(198, 199, 33)] = true; SOLID[key(198, 197, 33)] = true;
+PROTECTED[key(198, 197, 32)] = true;
+step(40);
+held, refused1 = world().players[pid].blocks, botlink_stats().ac_refused;
+act(2, pid, al); step(40);
+check(not SOLID[key(198, 197, 32)] and world().players[pid].blocks == held
+	and botlink_stats().ac_refused == refused1 + 1,
+	"a line the gamemode refuses: not built, no block spent, counted refused",
+	world().players[pid].blocks .. " of " .. held);
+PROTECTED[key(198, 197, 32)] = nil;
+act(2, pid, al); step(40);
+check(SOLID[key(198, 197, 32)] and world().players[pid].blocks == held - 3,
+	"...the same line, unprotected: built, three blocks spent", world().players[pid].blocks .. " of " .. held);
 -- grenade
 local ag = ffi.new("bl_ac_grenade");
 ag.vel.x, ag.vel.y, ag.vel.z, ag.fuse = 0.5, 0.5, -0.1, 2;
@@ -760,6 +790,17 @@ local gev = of(engine_events(), 7);
 check(#gev == 1 and gev[1].pid == pid, "...and announced");
 step(1);
 check(world().players[pid].grenades == 2, "...one fewer");
+-- what LSd refuses of a client's Grenade packet (funcs_packetrecv.c: the
+-- NADE_*_LIMIT_SQR): faster than an arm throws, too fast across
+g0 = #rec.grenades;
+for _, v in ipairs{{5, 0, 0}, {1.5, 1.0, 0}, {0, 0, -2.3}} do
+	ag.vel.x, ag.vel.y, ag.vel.z = v[1], v[2], v[3];
+	act(3, pid, ag);
+end
+step(1);
+check(#rec.grenades == g0 and world().players[pid].grenades == 2,
+	"a throw no arm makes (as LSd refuses a client's): refused, none spent", #rec.grenades - g0);
+ag.vel.x, ag.vel.y, ag.vel.z = 0.5, 0.5, -0.1;
 -- command, colour, log
 local text = ffi.new("char[?]", 32);
 ffi.copy(text, "inv rocket 10 20 30");
@@ -914,6 +955,23 @@ check(settexts()[pid .. ":night_vision=1"], "given night vision: the engine is t
 NV[pid] = nil;
 step(61);
 check(settexts()[pid .. ":night_vision=0"], "and when it ends");
+-- a bot that leaves by the server's hand (a kick, a seat given to a
+-- person: lib_bot's disconnect, not botlink_remove) leaves nothing of
+-- itself to the next bot in its seat
+do
+	local a = botlink_add{team = 2, seed = 4242};
+	NV[a] = true;
+	step(61);
+	check(settexts()[a .. ":night_vision=1"], "a second bot with night vision: told");
+	disconnect(a);
+	local b = botlink_add{team = 2, seed = 4343};
+	check(b == a, "the next bot takes its seat", tostring(b));
+	step(61);
+	check(settexts()[b .. ":night_vision=1"], "...and, holding night vision too, is told so itself");
+	NV[a] = nil;
+	botlink_remove(b);
+	step(1);
+end
 PlayerEffect = nil;
 
 print("\n9d. what the map's water does");
@@ -986,10 +1044,16 @@ do
 	check(P[npc].pos.x == 100.5 and P[npc].pos.y == 120.5 and P[npc].pos.z == 40, "it spawns at the place given", P[npc].pos.x);
 	step(2);
 	local line = nil;
-	for _, s in ipairs(of(engine_events(), 11)) do
+	local evs = engine_events();
+	for _, s in ipairs(of(evs, 11)) do
 		if (s.pid == npc and ffi.string(s.raw):find("^tree=")) then line = ffi.string(s.raw); end
 	end
 	check(line == "tree=guard", "its tree is told to the engine, for it alone", line);
+	local lvl;
+	for _, b in ipairs(of(evs, 9)) do
+		if (b.pid == npc) then lvl = as(b, "bl_ev_bot").level; end
+	end
+	check(lvl == 10, "no level asked for: 10, the bots' default", lvl);
 	botlink_set("tree", "tree courier:\ndo seek\n", npc);
 	step(1);
 	line = nil;

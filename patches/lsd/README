@@ -19,9 +19,18 @@ applies to the new upstream.
                           to, or ask has_quirk() of, each slot of a group
                           (send_map, send_spawn_player, send_packet_flags,
                           demand_fingerprint, send_chat, the block-action
-                          culls, finish_map_load) walk recipients, so a
-                          server of bots no longer calls into Lua for each
-                          of them on a block edit or a map change.
+                          culls, finish_map_load) walk recipients, and a send
+                          the core makes to ONE slot with no peer (a bot's
+                          HP on every hit, its restock and reload at a spawn,
+                          its map at connect) ends in lua.c before the
+                          scripts' send chain: SEND_TO_NOBODY, in the
+                          bindings gen_lua_binding.awk writes for every
+                          send_* (src/luaawk.h, regenerated, is in the patch)
+                          and in the hand-written send_packet,
+                          send_packet_unreliable and send_state_ctf. So a
+                          server of bots no longer calls into Lua for any of
+                          them, and what reaches lib_bot's send guard is a
+                          script's doing only.
 
   0003-accounts.patch     auth.lua: accounts administered by someone else --
                           useradd <name> <password> [caps...], userpasswd,

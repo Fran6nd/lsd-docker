@@ -1,39 +1,50 @@
 Upstream LSd modules, patched. Copied over upstream's at every start.
 
   sel.lua      /sel takes corners as numbers, and sel_begin() for
-               the editor gamemode. Pending upstream.
+               the editor gamemode. Pending upstream. Its state is the
+               module's own locals.
   lib_l10n.lua Every message in the player's language: per-script
                gettext catalogs (locales/<lang>.po), messages translated
                per recipient by server_msg and send_chat, /lang. Keeps
-               upstream's API. Ours; not meant for upstream as is.
+               upstream's API; what it replaces (the message tables, the
+               lookup) is upstream's locals. Ours; not meant for upstream
+               as is.
   command_cmds.lua
                /cmds, /help and /apropos show each command's
                description in the reader's language ("command"
-               context). Re-apply onto upstream's after a bump.
+               context). Each line is built by the local print_cmd,
+               which does not know the reader. Re-apply onto upstream's
+               after a bump.
   motd.lua     Each motd line in the player's language: a line may be
-               a language map, and %(server) is the server's name.
+               a language map, and %(server) is the server's name. Not
+               told to a bot when it joins (people_in). The lines are
+               split inside upstream's local send_motd.
   boundary_damage.lua
                A map's boundary_damage written over several lines (as
                many on the web are) was read as empty, and its tick
                compared positions with nil every tick -- the error ended
                each tick, stopping every script after it (bots, blasts).
-               Reads the block whole; an incomplete one is none. Report
+               Reads the block whole; an incomplete one is none. The
+               parse is upstream's own after.pyscrape_ext. Report
                upstream (lib_pyscrape's get_ext reads one line only).
   afkick.lua   A bot is never away from its keyboard: it is given no
                timer, so its inputs -- hundreds a second in a fleet --
                cost nothing (upstream walks every player three times
                for each). The one rule for it: lib_bot fakes no life
-               for afkick. Ours (bots are lib_bot's).
+               for afkick. Its timers are local and run inside its own
+               input hooks. Ours (bots are lib_bot's).
 
   tentspawns.lua
-               A spawn is not put on a thin layer floating far above
-               the tent (a slab in the sky over air deeper than a safe
-               fall: keidoro's at z 0): the floor under it instead.
-               Report upstream.
+               A spawn is on land near the tent's level: not on a thin
+               layer floating far above the tent (a slab in the sky over
+               air deeper than a safe fall: keidoro's at z 0), not in the
+               sea at a cliff's foot (32 draws, then the tent's own column),
+               and never on a column off the map (the square is cut to it).
+               Upstream's draw and height are one function. Report upstream.
 
   map_meta.lua The name of the next map is told to the people (lib_bot's
-               people_in), not to each bot: upstream sent it to every
-               id, a bot's too, at each map change.
+               people_in), not to each bot: upstream's loop over every id
+               is inside its map load hook.
 
   purgatory.lua, command_ignore.lua, command_secspec.lua, command_ups.lua
                Upstream split every packet a script sent to a group
@@ -41,16 +52,18 @@ Upstream LSd modules, patched. Copied over upstream's at every start.
                bots too: 230 calls and 230 packets for each packet.
                A group goes whole, once, unless someone in it needs a
                different one (a player in purgatory, one who ignores the
-               sender, the spectator who is spoken of); then only the
-               people of it (lib_bot's people_in) are walked. The rule
-               is lib_bot's THE BROADCASTER; tests/bot_sends_test.lua.
+               sender, the spectator who is spoken of, a /ups rate); then
+               only the people of it (lib_bot's people_in) are walked.
+               The split is each module's own loop, called below any hook
+               above it. The rule is lib_bot's THE BROADCASTER;
+               tests/bot_sends_test.lua. command_ups also sends 30 World
+               Updates a second by default, not 60 (ups_default_rate).
 
 Each one is a whole file, so it can drift from upstream silently. A
 change that can be made from outside -- a hook on the chain, in the
-module that owns the rule -- is made there instead (the World Update the
-core builds for a bot is dropped by lib_bot's late send_player_update).
-What is left here could not be (a local function changed, a loop inside
-the module that has to be a different loop).
+module that owns the rule -- is made there instead. What is left here
+could not be (a local function changed, a loop inside the module that
+has to be a different loop): each entry above says which.
 
 So each file's second line names the upstream file it was made from,
 by a checksum (-- upstream: lsd/scripts/<file> fnv1a32 ...), and each

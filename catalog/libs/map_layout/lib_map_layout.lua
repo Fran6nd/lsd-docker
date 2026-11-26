@@ -30,6 +30,9 @@
 --   map_layout.owned()                  id -> how many cells each owns
 --   map_layout.may_edit(pid, x, y, z)   "allow" | "deny" | "break", id
 --   map_layout.revert(pid, pos, type)   undo a refused edit on a client
+--   map_layout.revert_action(pid, pos, type)   ...of a whole Block Action
+--                                       (a spade's three blocks)
+--   map_layout.revert_line(pid, a, b)   ...of a whole Block Line
 --   map_layout.chunks                   the chunk module
 --   map_layout.readonly([on])           the master lock, read or set
 --   map_layout.save([force])            write the layout (autosave rules)
@@ -339,8 +342,13 @@ local function break_component(id, by)
 end
 
 -- put back what the client already changed locally: a refused destroy
--- has to be rebuilt, a refused build has to be taken away
+-- has to be rebuilt, a refused build has to be taken away. A bot has no
+-- client to put back, and is sent nothing (lib_bot: never a packet to a
+-- bot).
 local function revert(pid, pos, type)
+	if (bot_is_bot ~= nil and bot_is_bot(pid)) then
+		return;
+	end
 	if (type == 0) then
 		send_block_action(pid, pos, 1, get_anon_pid());
 		return;
@@ -358,6 +366,13 @@ local function revert_action(pid, pos, type)
 	if (type == 2) then
 		revert(pid, {x=pos.x, y=pos.y, z=pos.z-1}, type);
 		revert(pid, {x=pos.x, y=pos.y, z=pos.z+1}, type);
+	end
+end
+
+-- ...and for every block of a line, which only builds
+local function revert_line(pid, start, stop)
+	for p in iter_block_line(start, stop) do
+		revert(pid, p, 0);
 	end
 end
 
@@ -406,9 +421,7 @@ function mod.late.on_block_line(pid, start, stop)
 		local act, id = may_edit(pid, p.x, p.y, p.z);
 		if (act == "deny") then
 			-- refuse the whole line: a half-drawn line is worse than none
-			for q in iter_block_line(start, stop) do
-				send_block_action(pid, q, 1, get_anon_pid());
-			end
+			revert_line(pid, start, stop);
 			return;
 		elseif (act == "break") then
 			broke = id;
@@ -584,6 +597,7 @@ map_layout = {
 	may_edit = may_edit,
 	revert = revert,
 	revert_action = revert_action,
+	revert_line = revert_line,
 	chunks = chunks,
 	readonly = function(on)
 		if (on ~= nil) then

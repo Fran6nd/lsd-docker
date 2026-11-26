@@ -2030,6 +2030,7 @@ static void decide(bc_engine *e, bc_bot *b, float dt)
 	b->wish.tool = BL_TOOL_GUN;
 	b->wish.fire_pid = b->wish.look_pid = -1;
 	b->wish.crouch = b->wish.sneak = b->wish.jump = b->wish.sprint = 0;
+	b->wish.hold_fire = 0;
 	b->wish.mx = b->wish.my = 0.0f;
 	b->following = 0;
 
@@ -2093,6 +2094,23 @@ static void decide(bc_engine *e, bc_bot *b, float dt)
 			b->wish.look_at.z = me->pos.z;
 		}
 	}
+	/* AN ENEMY IN SIGHT IS SHOT AT FIRST (the owner, babel: "sometimes
+	 * bots face each other and do not shoot ... if enemy in FOV, kill them
+	 * first"). Whatever the tree asked -- or nothing, its tree ended this
+	 * tick (a third of the babel harness's men with their man in sight and
+	 * in range two seconds and more without a round), or a guard's sweep
+	 * --, the man it would fight, in sight and in its range, is looked at
+	 * and fired on (fire_at_will: the gun out). Where it goes is still the
+	 * tree's. The one place. But not: an errand that holds its fire on
+	 * purpose (wish.hold_fire: a retreat or a fall back, breaking contact
+	 * out of his sight; a carrier's run home, which shoots only a man it
+	 * is about to run into -- to turn and duel costs the run, and the
+	 * capture is the team's point); a grenade in hand being thrown (its
+	 * own aim) or one at its feet being run from (the jolt's threat); a
+	 * server at peace (the trigger is held there anyway). */
+	if (b->wish.fire_pid < 0 && !b->wish.hold_fire && b->wish.tool != BL_TOOL_GRENADE && !e->hold_fire &&
+	    bc_grenade_threat(b, NULL) < 25.0f)
+		bc_fire_at_will(b);
 	e->stats.decisions++;
 }
 

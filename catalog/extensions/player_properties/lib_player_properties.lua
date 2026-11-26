@@ -59,10 +59,14 @@
 -- does this. A script that hands out blocks or grenades of its own, or
 -- takes them, says so with player_properties_set_stock.
 --
--- Restocks are caught on send_restock rather than restock, because
--- that is the one every restock goes through: infinite_blocks calls
--- server.restock to skip the hooks, but the C restock still calls the
--- Lua send_restock (luaawk.h csend_restock), so it lands here too.
+-- Restocks are caught where each kind can be: on restock, the event,
+-- which every restock but one goes through and which a bot has too (no
+-- Restock packet is ever made for a bot: the core sends a slot with no
+-- client nothing, patches/lsd 0002); and on send_restock, for the one
+-- that skips the event --
+-- infinite_blocks calls server.restock, whose C still sends a person
+-- the Restock packet (luaawk.h csend_restock). Both set the same full
+-- stock, so a restock seen twice is the same restock.
 --
 -- WHO IS DESCRIBED: joined players on a team. A spectator has no HP,
 -- ammo or blocks worth stating, and one in limbo has not joined. A
@@ -221,6 +225,10 @@ local function spend_blocks(pid, n)
 end
 
 function mod.after.spawn_player(pid, pos)
+	restocked(pid);
+end
+
+function mod.after.restock(pid)
 	restocked(pid);
 end
 

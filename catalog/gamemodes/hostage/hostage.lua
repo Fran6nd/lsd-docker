@@ -538,26 +538,34 @@ local function home_told(pid)
 	end
 end
 
-local function make_hostage(team)
+-- made at its post, or `where` (a hostage given another mind where it
+-- stands); every later life starts at its post
+local function make_hostage(team, where)
 	local name = "Hostage "..get_team_name(team);
+	local pid;
 	if (engine_mind()) then
-		local pid = botlink_add{team = team, name = name, level = 1,
+		pid = botlink_add{team = team, name = name, level = 1,
 			tree = CAPTIVE_TREE,
 			at = function() return post(team); end};
 		if (pid ~= nil) then
 			bot_get(pid).data.hostage = true;
-			return pid;
 		end
 	end
-	return bot_create{
-		team = team,
-		name = name,
-		tool = "block",
-		block_color = get_team_color(team),
-		spawn_at = function() return post(team); end,
-		think = think,
-		data = {hostage=true},
-	};
+	if (pid == nil) then
+		pid = bot_create{
+			team = team,
+			name = name,
+			tool = "block",
+			block_color = get_team_color(team),
+			spawn_at = function() return post(team); end,
+			think = think,
+			data = {hostage=true},
+		};
+	end
+	if (pid ~= nil and where ~= nil) then
+		bot_teleport(pid, where);
+	end
+	return pid;
 end
 
 local function drop_hostage(pid)
@@ -611,18 +619,25 @@ function mod.after.tick()
 		end
 
 		-- the mind there is: the engine's while one beats, lib_bot's
-		-- otherwise; changed only while it waits at a tent with nobody
-		-- leading it (made again at its post, flag and all)
+		-- otherwise. A hostage that has one that works keeps it until it
+		-- waits at a tent with nobody leading it (made again at its post,
+		-- flag and all); an engine's hostage with no engine has none --
+		-- nothing would walk it again -- and is given lib_bot's at once,
+		-- where it stands
 		local hpid = byteam[team];
 		local b = hpid ~= nil and bot_get(hpid) or nil;
-		if (b ~= nil and is_alive(hpid) and (b.data.botlink == true) ~= engine_mind()
-		    and b.data.follow == nil and near_a_tent(hpid)) then
-			drop_hostage(hpid);
-			byteam[team] = nil;
+		local where = nil;
+		if (b ~= nil and is_alive(hpid) and (b.data.botlink == true) ~= engine_mind()) then
+			local mindless = b.data.botlink == true;
+			if (mindless or (b.data.follow == nil and near_a_tent(hpid))) then
+				where = mindless and not near_a_tent(hpid) and get_position(hpid) or nil;
+				drop_hostage(hpid);
+				byteam[team] = nil;
+			end
 		end
 
 		if (byteam[team] == nil and post(team) ~= nil) then
-			byteam[team] = make_hostage(team);
+			byteam[team] = make_hostage(team, where);
 		end
 
 		hpid = byteam[team];
@@ -706,6 +721,26 @@ function mod.after.capture_intel(scorer)
 	bot_heal(scorer);
 	bot_teleport(scorer, post(b.team));
 	bot_stop(scorer);
+end
+
+-- Whose a hostage's capture is, for the rewards (lib_rewards asks it
+-- before the capture): a rescue is the man's who walked it home, an
+-- execution nobody's -- the hostage is the objective, not a player, and
+-- the keeper's kill counted already.
+function mod.rewards_capture_for(pid)
+	local b = bot_get(pid);
+	if (b ~= nil and b.data.hostage) then
+		local hero = (not b.data.executing) and (b.data.hero or b.data.follow) or nil;
+		if (hero ~= nil and is_joined(hero) and get_team(hero) == b.team) then
+			return hero;
+		end
+		return nil;
+	end
+	local below = mod.next.rewards_capture_for;
+	if (below == nil) then
+		return pid;
+	end
+	return below(pid);
 end
 
 function mod.after.on_join(pid)

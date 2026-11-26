@@ -22,7 +22,14 @@ return {
 		{key = "build", label = {en = "Build here"}},
 		{key = "attack", label = {en = "Attack"}},
 		{key = "tower", label = {en = "Defend the tower"}},
+		{key = "intel", label = {en = "Intel here"}},
 	},
-	-- no prefabs in babel: its building is the tower
-	builds = {},
+	-- the Build pie: no prefabs in babel, its building is the tower -- a
+	-- stair: a leader (every person is one) pings the spot to reach (a
+	-- platform's edge, a pillar's top), his squad of bots builds a stair
+	-- from the ground up to it
+	builds = {
+		{key = "stairs", label = {en = "Build stairs here"},
+			tooltip = {en = "Your squad of bots builds a stair up to here"}},
+	},
 };

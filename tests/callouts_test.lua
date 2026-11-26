@@ -110,7 +110,20 @@ gamemode = "babel";
 package.loaded["callouts.babel"] = nil;
 mod = dofile("catalog/libs/callouts/lib_callouts.lua");
 mod.on_load();
-check(sliced.callouts_builds == nil, "babel: no Build pie (its building is the tower)");
+check(sliced.callouts_builds ~= nil and #sliced.callouts_builds == 1
+	and sliced.callouts_builds[1].text.en == "/pingmark %h Build stairs here",
+	"babel: its Build pie, a stair to the spot pinged (no prefabs)");
+
+print("\n7. no Build pie where nobody may build (the range, parkour: may_edit_block is no)");
+for _, name in ipairs({"range", "parkour"}) do
+	mod.on_unload();
+	gamemode = name;
+	package.loaded["callouts." .. name] = nil;
+	mod = dofile("catalog/libs/callouts/lib_callouts.lua");
+	mod.on_load();
+	check(sliced.callouts_builds == nil, name .. ": no Build pie",
+		sliced.callouts_builds and #sliced.callouts_builds);
+end
 
 L.clean(check);
 print(string.format("\n%d checks, %d failed", passed + failed, failed));

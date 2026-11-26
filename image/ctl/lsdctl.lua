@@ -143,6 +143,27 @@ end
 -- it is final. A new file is written knowing them all.
 local NEWER_DEFAULTS = {"vote_peace"};
 
+-- Those of them this settings file was never offered.
+local function not_offered(doc)
+	local seen = {};
+	local offered = doc:get("defaults_offered");
+	for _, id in ipairs(type(offered) == "table" and offered or {}) do seen[id] = true; end
+	local ids = {};
+	for _, id in ipairs(NEWER_DEFAULTS) do
+		if (not seen[id]) then ids[#ids+1] = id; end
+	end
+	return ids;
+end
+
+-- ...and that it has now been offered all of them (what it was offered
+-- before is kept: a default since retired was still offered).
+local function mark_offered(doc)
+	local offered = doc:get("defaults_offered");
+	offered = type(offered) == "table" and offered or {};
+	for _, id in ipairs(not_offered(doc)) do offered[#offered+1] = id; end
+	doc:set("defaults_offered", offered);
+end
+
 local function entry(name)
 	local e = cat():find(name);
 	if (e == nil) then
@@ -605,7 +626,7 @@ end
 -- there is (see NEWER_DEFAULTS).
 local function install_defaults(doc)
 	install_ids(doc, default_scripts(), make_ui(true), {});
-	doc:set("defaults_offered", NEWER_DEFAULTS);
+	mark_offered(doc);
 end
 
 command("install","install <script>... [--preset P] [--policy L] [--yes] [--no-restart]",
@@ -2631,21 +2652,14 @@ local function migrate(doc)
 	local changed = false;
 
 	-- a default that came after this file was written: given once
-	local offered = doc:get("defaults_offered");
-	offered = type(offered) == "table" and offered or {};
-	local seen, grown = {}, false;
-	for _, id in ipairs(offered) do seen[id] = true; end
-	for _, id in ipairs(NEWER_DEFAULTS) do
-		if (not seen[id]) then
+	local new = not_offered(doc);
+	if (#new > 0) then
+		for _, id in ipairs(new) do
 			if (not doc:is_installed(id)) then
 				install_ids(doc, {id}, make_ui(true), {});
 			end
-			offered[#offered+1] = id;
-			grown = true;
 		end
-	end
-	if (grown) then
-		doc:set("defaults_offered", offered);
+		mark_offered(doc);
 		changed = true;
 	end
 
@@ -2896,11 +2910,14 @@ command("setup", "setup [--defaults]",
 		end
 
 		-- the scripts, a category at a time; what is installed starts
-		-- ticked, and on a first setup so do the defaults
+		-- ticked, and on a first setup so do the defaults -- and on an
+		-- older file, the defaults that came after it (init would have
+		-- given them: unticking one here is the owner's answer)
 		local chosen = {};
 		for _, id in ipairs(existing and doc:installed() or default_scripts()) do
 			chosen[id] = true;
 		end
+		for _, id in ipairs(not_offered(doc)) do chosen[id] = true; end
 
 		local want = {};
 		for _, c in ipairs(catalog.CATEGORIES) do
@@ -2941,7 +2958,7 @@ command("setup", "setup [--defaults]",
 		for _, id in ipairs(want) do add[#add+1] = id; end
 		for _, d in ipairs(mode_e and mode_e:dependencies() or {}) do add[#add+1] = d; end
 		install_ids(doc, add, ui, {});
-		doc:set("defaults_offered", NEWER_DEFAULTS);   -- every default was in the list shown
+		mark_offered(doc);   -- every default was in the list shown, ticked
 
 		-- libraries nothing needs any more
 		local needed = {};

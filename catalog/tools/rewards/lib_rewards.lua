@@ -4,7 +4,9 @@
 -- Under any gamemode: every rewards_kills kills a player makes (counted
 -- across lives, from the map's start), every intel capture
 -- (rewards_capture) and every enemy carrier killed -- their intel freed,
--- on its way back (rewards_return) -- earns REWARDS: one of rewards_menu at random --
+-- on its way back (rewards_return) -- earns REWARDS (a capture is its
+-- maker's unless the gamemode answers rewards_capture_for: see WHOSE A
+-- CAPTURE IS): one of rewards_menu at random --
 -- the costlier, the rarer -- put in the player's inventory (lib_inventory),
 -- used from there like any item:
 --
@@ -244,7 +246,10 @@ local function award(pid, n)
 		define_items();
 		inventory_give(pid, e.key, 1);
 		given = given + 1;
-		l10n_send_chat(pid, earned_you, {what = e.label});
+		-- told to a person; a bot earns too and reads nothing (lib_bot's people_in)
+		for i in (people_in or piditer)(pid) do
+			l10n_send_chat(i, earned_you, {what = e.label});
+		end
 	end
 	if (given > 0) then
 		l10n_send_chat(PID_BROADCAST, earned_all, {name = get_name(pid)});
@@ -285,10 +290,30 @@ function mod.after.kill(pid, ktype, killer)
 	end
 end
 
-function mod.after.capture_intel(pid)
+-- WHOSE A CAPTURE IS: the player who made it, unless the gamemode says
+-- otherwise by answering rewards_capture_for(pid) in front of this one
+-- (hostage: its hostage scores a rescue for the man who walked it home,
+-- and an execution for nobody). nil: the capture earns nobody anything.
+function mod.impl.rewards_capture_for(pid)
 	-- tdm ends its game with a capture that is not one
-	if (tostring(gamemode) ~= "tdm" and rewards_capture > 0) then
-		award(pid, rewards_capture);
+	if (tostring(gamemode) == "tdm") then
+		return nil;
+	end
+	return pid;
+end
+
+-- asked before the capture: what the gamemode knows of it (a hostage's
+-- hero) may be forgotten by the time the capture's after-hooks run
+local credit = nil;
+function mod.before.capture_intel(pid)
+	credit = rewards_capture_for(pid);
+end
+
+function mod.after.capture_intel(pid)
+	local who = credit;
+	credit = nil;
+	if (who ~= nil and rewards_capture > 0) then
+		award(who, rewards_capture);
 	end
 end
 

@@ -125,6 +125,26 @@ votepeace(0);
 check(peace_active() == true, "a lone player's /votepeace is the peace");
 JOINED = {[0] = true, [1] = true, [2] = true};
 
+print("\n6b. a voter who leaves takes his voice with him");
+-- at peace (section 6); four people: three voices end it
+JOINED = {[0] = true, [1] = true, [2] = true, [3] = true};
+L.pids = {0, 1, 2, 3};
+votepeace(0);
+votepeace(1);
+check(peace_active() == true and last():find("%(2/3%)"), "two of the three it needs", last());
+JOINED[1] = nil;
+lib.after.on_disconnect(1);
+JOINED[1] = true;   -- somebody else, in his slot
+votepeace(1);
+check(last() ~= "You already voted on the peace." and peace_active() == true,
+	"the newcomer in his slot has a voice of his own; the leaver's is gone", last());
+votepeace(3);
+check(peace_active() == false, "and three present carry it");
+L.pids = {0, 1, 2};
+JOINED = {[0] = true};
+votepeace(0);
+JOINED = {[0] = true, [1] = true, [2] = true};
+
 print("\n7. a new map ends the peace");
 mod.after.load_map();
 check(peace_active() == false and last() == "New map: peace is over, damage is back.", "peace ends with the map", last());

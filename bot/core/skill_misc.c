@@ -608,6 +608,35 @@ bt_status bc_do_hold(void *bot, const bt_args *a, float dt)
 	return r;
 }
 
+/* --- watch <place> [secs] ------------------------------------------------
+ *
+ * Stand where it is and look at the place for a while -- a babel man just
+ * spawned looks up at the platform's edge over his spawn, where the
+ * spawn-killers stand. What it sees there it fights: an enemy in sight is
+ * shot at first, whatever the tree does (engine.c). SUCCESS after secs
+ * (default 3); FAILURE no such place. */
+bt_status bc_do_watch(void *bot, const bt_args *a, float dt)
+{
+	bc_bot *b = bot;
+	bc_engine *e = b->e;
+
+	(void)dt;
+	if (!b->hold.started) {
+		if (a->count < 1 || !bc_place_of(b, a->text[0], &b->hold.place))
+			return BT_FAILURE;
+		b->hold.started = 1;
+		b->hold.until = e->now + (double)(a->count > 1 && a->num[1] > 0.0f ? a->num[1] : 3.0f);
+	}
+	b->wish.move = BC_MOVE_NONE;
+	b->wish.look = BC_LOOK_POINT;
+	b->wish.look_at = b->hold.place;
+	if (e->now >= b->hold.until) {
+		b->hold.started = 0;
+		return BT_SUCCESS;
+	}
+	return BT_RUNNING;
+}
+
 /* --- retreat ------------------------------------------------------------ */
 
 bt_status bc_do_retreat(void *bot, const bt_args *a, float dt)
@@ -640,6 +669,7 @@ bt_status bc_do_retreat(void *bot, const bt_args *a, float dt)
 	}
 	st = bc_move_to(b, b->cover.goal, 1.0f);
 	b->wish.fire_pid = -1;
+	b->wish.hold_fire = 1;          /* a retreat, back turned: out of his sight */
 	if (st == BC_MV_FAILED) {
 		b->cover.valid = 0;
 		return BT_FAILURE;

@@ -45,6 +45,10 @@ select
 \tdo seek
 """
 
+# The palette's first entry where a decision may go: a pattern of nodes, not a kind.
+IF_THEN_OTHERWISE = ("", "if-then-otherwise", "If ... then ... otherwise ...",
+                     "a decision: if a condition holds, one thing; otherwise another")
+
 ROSTER = [("name", "Name"), ("team", "Team"), ("archetype", "Kind"), ("level", "Level"), ("health", "Health"),
           ("tree", "Tree"), ("doing", "Doing")]
 
@@ -274,10 +278,11 @@ class MainWindow(QMainWindow):
         self.map = QComboBox()
         self.map.addItem("A random map from the web", "random")
         self.map.addItem("A generated map (no network needed)", "generated")
-        self.team1 = QSpinBox(minimum=0, maximum=50, value=3)
-        self.team2 = QSpinBox(minimum=0, maximum=50, value=3)
+        first = Setup()                        # the server's defaults, said once
+        self.team1 = QSpinBox(minimum=0, maximum=50, value=first.bots_team1)
+        self.team2 = QSpinBox(minimum=0, maximum=50, value=first.bots_team2)
         self.team1_label, self.team2_label = QLabel("Bots, team 1"), QLabel("Bots, team 2")
-        self.level = QSpinBox(minimum=1, maximum=10, value=10)
+        self.level = QSpinBox(minimum=1, maximum=10, value=first.level)
         self.set_bots_button = QPushButton("Change the bots now")
         self.set_bots_button.setToolTip("Changing the number of bots restarts the server: players are put back in.")
         self.set_bots_button.clicked.connect(self.change_bots)
@@ -298,7 +303,7 @@ class MainWindow(QMainWindow):
         self.launch_button.clicked.connect(self.launch)
         self.stop_button = QPushButton("Stop the server")
         self.stop_button.clicked.connect(self.stop)
-        buttons = QHBoxLayout()
+        buttons = QVBoxLayout()                # one above the other: side by side they are clipped at 240 px
         buttons.addWidget(self.launch_button)
         buttons.addWidget(self.stop_button)
         self.state_label = QLabel()
@@ -319,10 +324,9 @@ class MainWindow(QMainWindow):
         self.client_button = QPushButton("Choose client...")
         self.client_button.setToolTip("The ZeroSpades program to start, when aos:// links are not opened by the system.")
         self.client_button.clicked.connect(self.choose_client)
-        join = QHBoxLayout()
-        join.addWidget(self.copy_button)
-        join.addWidget(self.open_button)
-        join.addWidget(self.client_button)
+        join = QVBoxLayout()                   # one a row: side by side they are clipped at 240 px
+        for b in (self.copy_button, self.open_button, self.client_button):
+            join.addWidget(b)
 
         server_box = QGroupBox("The server")
         box = QVBoxLayout(server_box)
@@ -378,6 +382,9 @@ class MainWindow(QMainWindow):
         self.panel.changed.connect(lambda path, fields: self.edit_doc(
             "change it", lambda d: M.set_fields(d, path, fields)))
         self.panel.open_tree.connect(self.diagram.set_root)
+        self.panel.refused.connect(lambda why: self._edit_refused("change it", why))
+        self.panel.about_changed.connect(lambda name, lines: self.edit_doc(
+            f"say what {name} is for", lambda d: M.set_about(d, name, lines)))
         self.tuning = TuningPanel(self)
         self.tree_list = QTreeWidget()
         self.tree_list.setHeaderLabels(["Tree", "Nodes", "Used"])
@@ -444,15 +451,17 @@ class MainWindow(QMainWindow):
         bv.addWidget(self.roster)
 
         # the diagram's own bar: the view, undo, redo
-        self.view_a = QPushButton("A  Top-down")
+        self.view_a = QPushButton("A  Outline")
         self.view_b = QPushButton("B  Left to right")
         for b, v in ((self.view_a, "A"), (self.view_b, "B")):
             b.setCheckable(True)
             b.setFlat(True)
             b.clicked.connect(lambda _=False, v=v: self.set_view(v))
         self.view_a.setChecked(True)
-        self.view_a.setToolTip("The tree from the top down: the main view")
-        self.view_b.setToolTip("The tree from left to right: the options of a pick in one column")
+        self.view_a.setToolTip("The tree as an outline: each node above what it holds, one step in; read from the "
+                               "top, as the text. Narrow: the main view, beside the text")
+        self.view_b.setToolTip("The tree from left to right: each node beside what it holds, its children from "
+                               "the top down. Shorter and wider: for a wide screen")
         self.undo_button = QPushButton("Undo")
         self.redo_button = QPushButton("Redo")
         self.undo_button.clicked.connect(self.undo)
@@ -555,12 +564,13 @@ class MainWindow(QMainWindow):
         self.act_format = action("Format", self.format_text, "Ctrl+Shift+F")
         self.act_apply = action("Apply to all bots", self.apply_all, "Ctrl+Return")
         self.act_revert = action("Revert", self.revert_all)
+        self.act_new_game = action("New from the game's tree...", self.new_from_server, "Ctrl+Shift+N")
         file_menu = self.menuBar().addMenu("File")
-        for a in (self.act_new, self.act_open, self.act_open_server, None, self.act_save, self.act_save_as,
-                  self.act_save_server, None, self.act_quit):
+        for a in (self.act_new, self.act_new_game, self.act_open, self.act_open_server, None, self.act_save,
+                  self.act_save_as, self.act_save_server, None, self.act_quit):
             file_menu.addAction(a) if a else file_menu.addSeparator()
-        tree_menu = self.menuBar().addMenu("Tree")
-        for a in (self.act_check, self.act_format, None, self.act_apply, self.act_revert):
+        tree_menu = self.tree_menu = self.menuBar().addMenu("Tree")
+        for a in (self.act_check, self.act_format, None, self.act_apply, self.act_revert, None):
             tree_menu.addAction(a) if a else tree_menu.addSeparator()
         bar = self.addToolBar("Tree")
         bar.setMovable(False)
@@ -602,37 +612,68 @@ class MainWindow(QMainWindow):
         self.act_insert_before = action("Insert before it...", lambda: self.insert_node("before"))
         self.act_insert_child = action("Add a child...", lambda: self.insert_node("child"), "Ctrl+Shift+I")
         self.act_insert_child.setShortcuts([QKeySequence("Ctrl+Shift+I"), QKeySequence("Shift+Ins")])
-        self.act_move_up = action("Move earlier (Alt+arrow)", lambda: self._move_selected(-1))
-        self.act_move_down = action("Move later (Alt+arrow)", lambda: self._move_selected(1))
+        self.act_conditional = action("If ... then ... otherwise it...", self.make_conditional, "Ctrl+Alt+I",
+                                      tip="A condition before it: if it holds, something else is done; "
+                                          "otherwise, this")
+        self.act_move_up = action("Move earlier", lambda: self._move_selected(-1), "Alt+Up")
+        self.act_move_down = action("Move later", lambda: self._move_selected(1), "Alt+Down")
         sep()
-        self.act_wrap = action("Wrap in...", self.wrap_selected)
-        self.act_unwrap = action("Remove around its child", self.unwrap_selected)
-        self.act_extract = action("Make it a tree of its own...", self.extract_selected)
-        self.act_inline = action("Copy that tree here (inline)", self.inline_selected)
-        self.act_open_ref = action("Open that tree", self.open_selected_ref, "Return")
+        self.act_wrap = action("Wrap in...", self.wrap_selected, "Ctrl+Alt+W")
+        self.act_unwrap = action("Remove around its child", self.unwrap_selected, "Ctrl+Alt+U")
+        self.act_extract = action("Make it a tree of its own...", self.extract_selected, "Ctrl+Alt+E")
+        self.act_inline = action("Copy that tree here (inline)", self.inline_selected, "Ctrl+Alt+L")
+        self.act_open_ref = action("Edit that tree", self.open_selected_ref, "Return")
+        self.act_show_here = action("Show it here", self.toggle_here, tip="A reference: show that tree in "
+                                    "place, read-only (Right arrow); a node: show what is under it (Right arrow)")
         sep()
         self.act_cut = action("Cut", self.cut_selected, QKeySequence.StandardKey.Cut)
         self.act_copy = action("Copy", self.copy_selected, QKeySequence.StandardKey.Copy)
         self.act_paste = action("Paste after it", lambda: self.paste("after"), QKeySequence.StandardKey.Paste)
-        self.act_paste_child = action("Paste as its child", lambda: self.paste("child"))
+        self.act_paste_child = action("Paste as its child", lambda: self.paste("child"), "Ctrl+Shift+V")
         self.act_delete = action("Delete", self.delete_selected, QKeySequence.StandardKey.Delete)
         self.act_delete.setShortcuts([QKeySequence(QKeySequence.StandardKey.Delete), QKeySequence("Backspace")])
         sep()
-        self.act_rename = action("Rename this tree...", self.rename_tree)
+        self.act_rename = action("Rename this tree...", self.rename_tree, "Ctrl+Alt+R")
+        # the trees of the text: in the Tree menu, the tree list's menu, and the diagram's
+        self.act_new_tree = action("New tree...", self.new_tree, "Ctrl+Alt+N")
+        self.act_duplicate = action("Duplicate this tree...", self.duplicate_tree, "Ctrl+Alt+D")
+        self.act_delete_tree = action("Delete this tree", self.delete_tree)
+        self.act_make_first = action("Make it the tree the bots run", self.make_first,
+                                     tip="A text given to bots runs its first tree: this one moves first, "
+                                         "its _also with it")
+        self.act_add_also = action("Add the tree beside it (_also)...", self.add_also,
+                                   tip="A tree ticked just before this one at every decision: for what is done "
+                                       "beside (a lamp, an item, a ping)")
+        self.tree_actions = [self.act_new_tree, self.act_rename, self.act_duplicate, self.act_delete_tree,
+                             self.act_make_first, self.act_add_also]
+        for a in self.tree_actions:
+            self.tree_menu.addAction(a)
         edit_menu = self.menuBar().addMenu("Edit")
         for a in d.actions():
-            edit_menu.addAction(a)
-        view_menu = self.menuBar().addMenu("View")
-        for text, v in (("Top-down (A)", "A"), ("Left to right (B)", "B")):
+            if a not in self.tree_actions or a is self.act_rename:
+                edit_menu.addAction(a)
+        edit_menu.aboutToShow.connect(self._refresh_edit_actions)
+        view_menu = self.view_menu = self.menuBar().addMenu("View")
+        for text, v, key in (("Outline (A)", "A", "Ctrl+1"), ("Left to right (B)", "B", "Ctrl+2")):
             a = QAction(text, self)
+            a.setShortcut(key)
             a.triggered.connect(lambda *_, v=v: self.set_view(v))
             view_menu.addAction(a)
         view_menu.addSeparator()
-        for text, slot in (("Fit the tree", d.fit), ("Zoom in", lambda: d.zoom_by(1.2)),
-                           ("Zoom out", lambda: d.zoom_by(1 / 1.2))):
+        for text, slot, key in (("Fit the tree (F)", d.fit, ""), ("Zoom in", lambda: d.zoom_by(1.2), "Ctrl++"),
+                                ("Zoom out", lambda: d.zoom_by(1 / 1.2), "Ctrl+-"),
+                                ("Expand all", d.expand_all, "Ctrl+Shift+Right"),
+                                ("Collapse all", d.collapse_all, "Ctrl+Shift+Left")):
             a = QAction(text, self)
+            if key:
+                a.setShortcut(key)
             a.triggered.connect(lambda *_, f=slot: f())
             view_menu.addAction(a)
+        self.act_also = QAction("The tree beside it (its _also)", self, checkable=True, checked=True)
+        self.act_also.setToolTip("Draw a tree's <name>_also beside it, read-only: it is ticked just before it")
+        self.act_also.triggered.connect(lambda on: (setattr(d, "also", on), d.relayout()))
+        view_menu.addAction(self.act_also)
+        d.b_also.clicked.connect(lambda: self.act_also.setChecked(d.also))
         view_menu.addSeparator()
         group = QActionGroup(self)
         self._theme_actions = []
@@ -671,6 +712,7 @@ class MainWindow(QMainWindow):
         self.doc = None
         self.diagram.root = ""
         self.diagram._history = []
+        self.diagram._kept = {}
         self.diagram.selected = None
         self.diagram.message.hide()
         self.panel.show_node(None)
@@ -963,14 +1005,33 @@ class MainWindow(QMainWindow):
         for a in (self.act_insert_after, self.act_insert_before, self.act_move_up, self.act_move_down,
                   self.act_cut, self.act_delete, self.act_paste):
             a.setEnabled(bool(ok) and not root)
-        self.act_wrap.setEnabled(bool(ok) and kind != "option")
-        self.act_unwrap.setEnabled(bool(ok) and len(node.get("children", [])) == 1 and kind != "option")
-        self.act_inline.setEnabled(bool(ok) and kind == "tree" and M.tree(self.doc, node.get("ref", "")) is not None)
-        self.act_open_ref.setEnabled(node is not None and kind == "tree"
-                                     and M.tree(self.doc or {}, node.get("ref", "")) is not None)
+        schema = self.session.schema
+        stays = bool(M.kind_info(schema, kind).get("parent"))
+        self.act_wrap.setEnabled(bool(ok) and not stays)
+        self.act_unwrap.setEnabled(bool(ok) and len(node.get("children", [])) == 1 and not stays)
+        ref = node is not None and M.is_ref(node)
+        self.act_inline.setEnabled(bool(ok) and ref and M.tree(self.doc, node.get("ref", "")) is not None)
+        self.act_open_ref.setEnabled(ref and M.tree(self.doc or {}, node.get("ref", "")) is not None)
+        if b is not None and b.ref is not None:
+            self.act_show_here.setText("Hide it here" if b.opened else "Show it here (read-only)")
+            self.act_show_here.setEnabled(b.ref_known)
+        elif b is not None and (b.kids or b.folded):
+            self.act_show_here.setText("Show what is under it" if b.folded else "Hide what is under it")
+            self.act_show_here.setEnabled(True)
+        else:
+            self.act_show_here.setText("Show it here")
+            self.act_show_here.setEnabled(False)
         self.act_paste_child.setEnabled(bool(ok) and self.clipboard is not None)
         self.act_paste.setEnabled(bool(ok) and not root and self.clipboard is not None)
-        self.act_rename.setEnabled(bool(self.doc) and not self.diagram.stale)
+        fresh = bool(self.doc) and not self.diagram.stale
+        root = self.diagram.root
+        for a in (self.act_rename, self.act_duplicate, self.act_delete_tree, self.act_make_first):
+            a.setEnabled(fresh and bool(root))
+        self.act_new_tree.setEnabled(fresh)
+        self.act_make_first.setEnabled(fresh and bool(root) and M.run_tree(self.doc) != root)
+        self.act_add_also.setEnabled(fresh and bool(root) and not root.endswith(M.ALSO)
+                                     and M.tree(self.doc, root + M.ALSO) is None)
+        self.act_conditional.setEnabled(bool(ok) and not stays)
 
 
     def edit_doc(self, what: str, change, root: str | None = None) -> None:
@@ -1082,7 +1143,7 @@ class MainWindow(QMainWindow):
         return self.diagram.selected
 
     def _move_selected(self, delta: int) -> None:
-        path = self._selected_path()
+        path = self.diagram.movable_path() if self._selected_path() is not None else None
         if path is not None:
             self.edit_doc("move it", lambda d: M.move_by(d, path, delta))
 
@@ -1104,17 +1165,42 @@ class MainWindow(QMainWindow):
         parent = M.node_at(self.doc, parent_path)
         entries = palette_entries(self.session.schema, parent, self.doc, path[0])
         if not entries:
-            self._edit_refused("insert", M._why_not(self.session.schema, parent, "do"))
+            self._edit_refused("insert", M.why_not(self.session.schema, parent, ""))
             return
         title = {"after": "Put after it", "before": "Put before it", "child": "Add a child"}[where] + \
             f" (under {parent.get('kind')})"
+        if any(M.may_hold(self.session.schema, parent, k) for k in M.TRIES):
+            entries = [IF_THEN_OTHERWISE] + entries
         chosen = self.pick_from_palette(entries, title)
         if not chosen:
             return
         kind, word = chosen
-        new = M.new_node(self.session.schema, kind, word, self.doc, path[0])
-        self.edit_doc(f"put {kind} {word or ''}".strip(),
-                      lambda d: M.insert(d, parent_path, index, new, self.session.schema))
+        new = self.if_then_otherwise(path[0]) if (kind, word) == IF_THEN_OTHERWISE[:2] else \
+            self.make_node(kind, word, path[0])
+        if new is None:
+            return
+        deeper = (0, 0) if (kind, word) == IF_THEN_OTHERWISE[:2] else ()    # a decision: its condition chosen
+
+        def put(d):
+            d2, sel = M.insert(d, parent_path, index, new, self.session.schema)
+            return d2, (sel[0], sel[1] + deeper)
+
+        self.edit_doc(f"put {kind or word} {word if kind else ''}".strip(), put)
+
+    def make_node(self, kind: str, word: str | None, here: str) -> dict | None:
+        """A new node, complete: for each child it must have (a composite's
+        first, an option's, a decorator's), the palette asks what goes there.
+        None if the user gave up: nothing is put in half made."""
+        schema = self.session.schema
+
+        def fill(parent: dict):
+            entries = palette_entries(schema, parent, self.doc or {}, here)
+            what = " ".join(x for x in (parent.get("kind"), parent.get(M.word_param(schema, parent.get("kind", ""))
+                                                                         .get("name", ""), "")) if x)
+            chosen = self.pick_from_palette(entries, f"A {what} must hold something: what goes under it?")
+            return M.new_node(schema, chosen[0], chosen[1], self.doc, here) if chosen else None
+
+        return M.complete(schema, M.new_node(schema, kind, word, self.doc, here), fill)
 
     def pick_from_palette(self, entries, title):
         """The palette as a dialog (the tests replace this)."""
@@ -1159,7 +1245,7 @@ class MainWindow(QMainWindow):
         if kind is None:
             entries = [(k["name"], None, k["name"], (k.get("doc") or "")[:160])
                        for k in (self.session.schema or {}).get("kinds", [])
-                       if k.get("children") in ("one", "many")]
+                       if k.get("children") in ("one", "many") and not k.get("parent")]
             chosen = self.pick_from_palette(entries, "Wrap it in")
             if not chosen:
                 return
@@ -1170,7 +1256,7 @@ class MainWindow(QMainWindow):
     def unwrap_selected(self) -> None:
         path = self._selected_path()
         if path is not None:
-            self.edit_doc("remove it around its child", lambda d: M.unwrap(d, path))
+            self.edit_doc("remove it around its child", lambda d: M.unwrap(d, path, self.session.schema))
 
     def extract_selected(self) -> None:
         path = self._selected_path()
@@ -1180,7 +1266,7 @@ class MainWindow(QMainWindow):
                              "The new tree's name (letters, digits and _); where it was, `tree <name>`:",
                              f"{path[0]}_part")
         if name:
-            self.edit_doc(f"make it the tree {name}", lambda d: M.extract(d, path, name))
+            self.edit_doc(f"make it the tree {name}", lambda d: M.extract(d, path, name, self.session.schema))
 
     def inline_selected(self) -> None:
         path = self._selected_path()
@@ -1189,8 +1275,15 @@ class MainWindow(QMainWindow):
 
     def open_selected_ref(self) -> None:
         node = M.find(self.doc or {}, self.diagram.selected) if self.diagram.selected else None
-        if node and node.get("kind") == "tree":
+        if node and M.is_ref(node):
             self.diagram.set_root(node.get("ref", ""))
+
+    def toggle_here(self) -> None:
+        """Show the selected reference in place, or hide it; or what is under a node."""
+        b = self.diagram.selected_block()
+        if b is not None:
+            self.diagram.set_open(b, bool(b.folded) if b.ref is None else not b.opened)
+            self._refresh_edit_actions()
 
     def rename_tree(self, old: str | None = None) -> None:
         old = old or self.diagram.root
@@ -1200,6 +1293,130 @@ class MainWindow(QMainWindow):
             self.edit_doc(f"rename {old} to {new}",
                           lambda d: (M.rename_tree(d, old, new)[0], (new, ()) if drawn else self.diagram.selected),
                           root=new if drawn else None)
+
+    # ---- the trees of the text --------------------------------------------------
+
+    def _tree_name(self, title: str, label: str, suggestion: str) -> str:
+        """A name for a tree, asked; checked before anything is made (an empty
+        one, a wrong letter, one taken), so a refusal says why at once."""
+        name = self.ask_text(title, label + " (letters, digits, _ - and .):", suggestion)
+        if not name:
+            return ""
+        try:
+            M._new_name(self.doc or {}, name, (self.session.schema or {}).get("limits", {}).get("name", 31))
+        except M.EditError as e:
+            self._edit_refused(title.lower(), str(e))
+            return ""
+        return name
+
+    def _root_for(self, name: str, title: str) -> dict | None:
+        """The first node of a new tree, from the palette: a tree is never empty."""
+        entries = palette_entries(self.session.schema, None, self.doc or {}, name)
+        chosen = self.pick_from_palette(entries, title)
+        return self.make_node(chosen[0], chosen[1], name) if chosen else None
+
+    def new_tree(self) -> None:
+        if self.doc is None or self.diagram.stale:
+            self._edit_refused("new tree", "The text does not compile: fix it first (see Problems).")
+            return
+        name = self._tree_name("New tree", "The new tree's name", "mine_part")
+        if not name:
+            return
+        root = self._root_for(name, f"The tree {name} begins with")
+        if root is not None:
+            self.edit_doc(f"make the tree {name}", lambda d: M.new_tree(d, name, root, after=self.diagram.root),
+                          root=name)
+
+    def add_also(self) -> None:
+        main = self.diagram.root
+        name = main + M.ALSO
+        root = self._root_for(name, f"{name}, ticked just before {main} at every decision, begins with")
+        if root is not None:
+            self.edit_doc(f"make the tree {name}", lambda d: M.new_tree(d, name, root, after=main))
+
+    def duplicate_tree(self) -> None:
+        old = self.diagram.root
+        name = self._tree_name("Duplicate the tree", f"The copy of {old} is called", old + "_copy")
+        if name:
+            self.edit_doc(f"copy {old} as {name}", lambda d: M.duplicate_tree(d, old, name), root=name)
+
+    def delete_tree(self) -> None:
+        name = self.diagram.root
+        self.edit_doc(f"delete the tree {name}", lambda d: M.delete_tree(d, name),
+                      root=self._neighbour(name))
+
+    def _neighbour(self, name: str) -> str | None:
+        names = M.tree_names(self.doc or {})
+        i = names.index(name) if name in names else 0
+        rest = names[:i] + names[i + 1:]
+        return rest[max(0, i - 1)] if rest else None
+
+    def make_first(self) -> None:
+        name = self.diagram.root
+        self.edit_doc(f"make {name} the tree the bots run", lambda d: M.make_first(d, name), root=name)
+
+    def make_conditional(self) -> None:
+        """If a condition holds, something; otherwise the selected node, as it is."""
+        path = self._selected_path()
+        if path is None or self.doc is None:
+            self.status("Choose a node of the tree drawn first.")
+            return
+        guard = self._ask_guard()
+        if guard is None:
+            return
+        then = self._ask_branch(path[0], "If it holds, do")
+        if then is None:
+            return
+        self.edit_doc("make it conditional",
+                      lambda d: M.make_conditional(d, path, guard, then, self.session.schema))
+
+    def _ask_guard(self) -> dict | None:
+        """A condition from the palette (the schema's guards and their words)."""
+        schema = self.session.schema
+        entries = [e for k in sorted(M.guard_kinds(schema), key=lambda k: [x["name"] for x in M.kinds(schema)].index(k))
+                   for e in palette_entries(schema, {"kind": M.next_kind(schema, "all"), "children": []}, {}, "")
+                   if e[0] == k]
+        chosen = self.pick_from_palette(entries, "If... (a condition; its numbers are set in Properties after)")
+        return M.new_node(schema, chosen[0], chosen[1]) if chosen else None
+
+    def _ask_branch(self, here: str, title: str) -> dict | None:
+        entries = palette_entries(self.session.schema, {"kind": M.next_kind(self.session.schema, "all"),
+                                                        "children": []}, self.doc or {}, here)
+        chosen = self.pick_from_palette(entries, title)
+        return self.make_node(chosen[0], chosen[1], here) if chosen else None
+
+    def if_then_otherwise(self, here: str) -> dict | None:
+        """The whole decision, asked in three steps: if, then, otherwise."""
+        guard = self._ask_guard()
+        then = self._ask_branch(here, "If it holds, do") if guard is not None else None
+        other = self._ask_branch(here, "Otherwise, do") if then is not None else None
+        if other is None:
+            return None
+        try:
+            return M.if_then_otherwise(self.session.schema, guard, then, other)
+        except M.EditError as e:
+            self._edit_refused("if ... then ... otherwise", str(e))
+            return None
+
+    def new_from_server(self) -> None:
+        """A new text from a tree the server has (the game's): its whole file,
+        untitled, to be renamed and changed; nothing on the server changes."""
+        if not self.confirm_discard():
+            return
+
+        def choose(listing):
+            dialog = ServerTreesDialog(listing, self)
+            dialog.setWindowTitle("New from the game's tree")
+            if dialog.exec() and dialog.chosen():
+                t = dialog.chosen()
+                work = (lambda: self.session.file_text(t["file"])) if dialog.whole.isChecked() else \
+                    (lambda: self.session.tree_text(t["name"]))
+                self.run(work, lambda text: (self._set_text(text, None, None, modified=True),
+                                             self.status(f"A copy of {t['name']}: rename it (Tree > Rename) "
+                                                         "and change it; Save as keeps it.")),
+                         busy=f"Copying {t['name']}...")
+
+        self.run(self.session.trees, choose, busy="Asking the server for its trees...")
 
     def ask_text(self, title: str, label: str, text: str) -> str:
         value, ok = QInputDialog.getText(self, title, label, text=text)
@@ -1227,11 +1444,14 @@ class MainWindow(QMainWindow):
 
     def _tree_list_menu(self, pos) -> None:
         item = self.tree_list.itemAt(pos)
-        if item is None:
-            return
+        if item is not None:
+            self.diagram.set_root(item.text(0))
+        self._refresh_edit_actions()
         menu = QMenu(self)
-        menu.addAction("Draw it", lambda: self.diagram.set_root(item.text(0)))
-        menu.addAction("Rename...", lambda: self.rename_tree(item.text(0)))
+        for a in self.tree_actions:
+            if a is not self.act_new_tree and item is None:
+                continue
+            menu.addAction(a)
         menu.exec(self.tree_list.viewport().mapToGlobal(pos))
 
     def set_view(self, view: str) -> None:

@@ -101,20 +101,21 @@ scripts.
 
 ## The bots
 
-Bots that play as players do (`lsdctl bots <n>`: n a team) decide with a
+Bots that play as players do (`lsdctl bots <n>`: n a team, or n in all
+in a game of one team) decide with a
 behaviour tree, a text you can read and replace. They take player ids
 like people do, out of the 255 seats a server has by default
 (`player_limit_max`); a person who finds every seat taken gets a bot's,
 so no number of bots keeps anybody out. A player id above 31 needs a
 client with Player Limit (ZeroSpades); any other client watches from
-spectator, told to update ([catalog](catalog.md#extensions-what-a-client-without-one-costs)). Four settings say how
-they play, each applied within a second, empty by default:
+spectator, told to update ([catalog](catalog.md#extensions-what-a-client-without-one-costs)). These settings say how
+they play, each applied within a second:
 
 ```sh
-lsdctl set engine_bots_tree "'mine'"                # the tree they run, by name: yours is /data/trees/mine.bt
-lsdctl set engine_bots_archetypes "'camper:2,pusher:1'"   # the mix of characters
-lsdctl set engine_bots_traits "'aggression:1.5'"    # every bot's weights, scaled
-lsdctl set engine_bots_edit "'dig'"                 # what a bot's route may do to the map: dig, build, all
+lsdctl set engine_bots_tree "'mine'"                # the tree they run, by name: yours is /data/trees/mine.bt (empty: the game's)
+lsdctl set engine_bots_archetypes "'camper:2,pusher:1'"   # the mix of characters (empty: every kind)
+lsdctl set engine_bots_traits "'aggression:1.5'"    # every bot's weights, scaled (empty: as they are)
+lsdctl set engine_bots_edit "'dig'"                 # what a bot's route may do to the map: dig, build, all (empty: it only walks and jumps)
 lsdctl set engine_bots_level 8                      # how good they are, 1 to 10 (10 by default)
 lsdctl set engine_bots_level_spread 0               # how far each may fall from it, either way (0 by default)
 ```
@@ -153,7 +154,13 @@ lsdctl bots check mine.bt             # every mistake of a text, with its line
 lsdctl bots apply - --bot Bot12 < mine.bt    # a tree for one bot, now (--team 2, --archetype camper, --each, --all)
 lsdctl bots revert --each             # every bot back to the world's tree
 lsdctl bots save mine < mine.bt       # keep a text as /data/trees/mine.bt
+lsdctl bots format mine.bt            # the text as the engine reads it back
+lsdctl bots games                     # the games: which have a tree, one team or two
+lsdctl bots schema                    # all a tree may be made of (with the kinds of bot there are)
 ```
+
+With `--json` they answer, and fail, in JSON (what the tree editor in
+`tools/tree-editor` reads).
 
 (From the host: `docker exec -i lsd lsdctl bots save mine < mine.bt`.)
 Writing a tree, from an empty file to one running here:

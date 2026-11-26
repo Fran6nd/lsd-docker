@@ -198,10 +198,71 @@ static void test_person_orders(void)
 	bs_free(s);
 }
 
+/* A STAIR TO HERE (babel's Build pie: "Build stairs here"). A platform
+ * twelve over the ground; a person on the ground pings its edge; his
+ * squad builds a stair up to it, and then a bot that may not dig or build
+ * walks up it onto the platform. A bot that leads nobody pings the same:
+ * nothing. */
+static void test_stair_to_here(void)
+{
+	bs_sim *s = bs_new(G, 8);
+	uint32_t seed = 700;
+	int i, k, done_at = -1, n = 0, made = 0, up = 0;
+	bc_bp_cell cells[256];
+	bc_blueprint *bp;
+
+	printf("a stair to here: a person pings a platform's edge, his squad builds a stair up to it\n");
+	bs_box(s, 250, 250, G - 12, 262, 262, G - 12, 1);       /* the platform */
+	bs_start(s);
+	bs_set(s, BL_NO_PLAYER, "edit=all");
+	bs_add(s, 9, 0, 1, 5, BL_GUN_RIFLE, 1, 232.5f, 256.5f, 1, 0);
+	for (i = 0; i < 4; i++) {
+		seed = seed_with(BC_T_TEAMWORK, 1.0f, 3.0f, seed + 1);
+		bs_add(s, i, 1, 1, 6, BL_GUN_RIFLE, seed, 228.5f, 252.5f + 3.0f * (float)i, 1, 0);
+	}
+	bs_add(s, 5, 1, 1, 6, BL_GUN_RIFLE, seed_with(BC_T_TEAMWORK, 0.0f, 0.5f, 900), 200.5f, 262.5f, 1, 0);   /* a loner */
+	bs_set(s, BL_NO_PLAYER, "tree=tdm");
+	bs_run(s, 3.0);
+	bs_ping(s, 5, 250.5f, 256.5f, (float)(G - 12), "Build stairs here");
+	bs_run(s, 0.5);
+	CHECK(bc_blueprint_get(s->e->blueprints, "order5") == NULL);
+	bs_ping(s, 9, 250.5f, 256.5f, (float)(G - 12), "Build stairs here");
+	bs_run(s, 0.5);
+	bp = bc_blueprint_get(s->e->blueprints, "order9");
+	CHECK(bp != NULL);
+	if (!bp) { bs_free(s); return; }
+	n = bp->n < 256 ? bp->n : 256;
+	memcpy(cells, bp->cells, (size_t)n * sizeof cells[0]);
+	for (k = 0; k < 60 * 240 && done_at < 0; k++) {
+		for (i = 0; i < 4; i++) s->p[i].blocks = 50;
+		bs_step(s);
+		if (!bc_blueprint_get(s->e->blueprints, "order9")) done_at = k;
+	}
+	for (i = 0; i < n; i++)
+		made += bc_map_solid(s->truth, cells[i].x, cells[i].y, cells[i].z);
+	/* climbable: a bot that may not edit walks up it */
+	bs_set(s, BL_NO_PLAYER, "edit=none");
+	bs_set(s, BL_NO_PLAYER, "place.top=256.50 256.50 25.75");
+	bs_add(s, 6, 1, 1, 6, BL_GUN_RIFLE, 77, 230.5f, 258.5f, 1, 0);
+	bs_set(s, 6, "tree=tree t:\nselect\n\tdo go_to @top 2\n\twait 1\n");
+	for (k = 0; k < 60 * 40 && !up; k++) {
+		bs_step(s);
+		up = s->p[6].body.pos.z < (float)(G - 12) - 1.0f;
+	}
+	printf("  %d voxels ordered, %d built in %.0f s, refused for sight %d; a bot that may not edit up on the platform: %d\n",
+	       n, made, (done_at < 0 ? k : done_at) / 60.0, s->vis_refused, up);
+	CHECK(n >= 20 && made == n);
+	CHECK(done_at >= 0);
+	CHECK(s->vis_refused == 0);
+	CHECK(up);
+	bs_free(s);
+}
+
 int main(void)
 {
 	test_place();
 	test_person_orders();
+	test_stair_to_here();
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;
 }

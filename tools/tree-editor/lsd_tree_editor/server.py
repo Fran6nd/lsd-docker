@@ -536,10 +536,17 @@ class Session:
             raise ServerError("The engine gave no structure back.")
         return text, checked, tree
 
-    def split(self, text: str, tree: str | None, words: dict[str, float], n: int = 700, level: int = 5) -> dict:
-        """Who would do what (`bttree --split --json`): a crowd rolled, the
-        tree ticked once for each in the situation given."""
+    def split(self, text: str, tree: str | None, words: dict[str, float], n: int = 700,
+              level: int = Setup.level,
+              mix: str | None = None) -> dict:
+        """Who would do what (`bttree --split --json`): a crowd rolled (of the
+        kinds `mix` says, `camper:1`; else every kind), the tree ticked once
+        for each in the situation given."""
         argv = ["bttree", "--split", "--json", "--n", str(n), "--level", str(level)]
+        if mix:
+            if not mix.replace("_", "").replace(":", "").replace(",", "").replace(".", "").isalnum():
+                raise ServerError("No kind of bot is called " + mix)
+            argv += ["--mix", mix]
         if tree:
             argv += ["--tree", tree]
         argv += ["-"] + [f"{k}={v:g}" for k, v in words.items()]

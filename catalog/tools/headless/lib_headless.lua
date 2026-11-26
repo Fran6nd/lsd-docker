@@ -110,26 +110,54 @@ end
 -- piqueserver, which sends 10, and reconciles its model on each one.
 -- People keep whatever rate they asked for with /ups.
 --
--- The same counter command_ups uses, so the two compose: a tick reaches
--- a headless client only when both let it through.
+-- UNDER command_ups, not over it: `late`, next to the core. command_ups
+-- (each client's /ups) counts its calls as ticks and splits a broadcast
+-- into one call for each client it lets through; a split above it made
+-- it count every client as a tick, and with an even number of clients
+-- at 30 a second half of them were sent no World Update at all. Here a
+-- tick is counted by the tick, so the two compose: a tick reaches a
+-- headless client only when both let it through.
 getcfg("headless_ups", 10,
 	"WorldUpdates per second sent to headless clients; one of 60, 30, "
 		.."20, 15, 12, 10, 6 or 5. People are not affected.");
 
 local valid_ups = {[60]=true, [30]=true, [20]=true, [15]=true, [12]=true,
 	[10]=true, [6]=true, [5]=true};
-local ctr = 0;
+local ctr = 0;    -- the tick, modulo 60: counted after each
 
-function mod.send_player_update(pid)
+local function due()
 	local ups = valid_ups[headless_ups] and headless_ups or 10;
-	local every = 60 / ups;
-	local due = (ctr % every == 0);
-	ctr = (ctr + 1) % 60;
+	return ctr % (60 / ups) == 0;
+end
 
-	-- the people among them (lib_bot's people_in: a bot is sent none)
+function mod.after.tick()
+	ctr = (ctr + 1) % 60;
+end
+
+function mod.late.send_player_update(pid)
+	if (pid < MAX_PLAYERS) then
+		if (bot_is_headless(pid) and not due()) then
+			return;
+		end
+		return mod.late.next.send_player_update(pid);
+	end
+
+	-- a group (no command_ups to split it): whole when nobody in it is
+	-- held back this tick, else to its people one by one (lib_bot's
+	-- people_in: a bot is sent none)
+	if (due()) then
+		return mod.late.next.send_player_update(pid);
+	end
+	local held = false;
 	for i in people_in(pid) do
-		if (due or not bot_is_headless(i)) then
-			mod.next.send_player_update(i);
+		if (bot_is_headless(i)) then held = true; break; end
+	end
+	if (not held) then
+		return mod.late.next.send_player_update(pid);
+	end
+	for i in people_in(pid) do
+		if (not bot_is_headless(i)) then
+			mod.late.next.send_player_update(i);
 		end
 	end
 end

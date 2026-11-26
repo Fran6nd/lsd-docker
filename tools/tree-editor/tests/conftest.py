@@ -101,18 +101,23 @@ def fake(tmp_path, monkeypatch):
 
 
 REPO = HERE.parent.parent.parent
+# The engine's sources and its shipped trees: this repository's bot/, or the
+# one LSD_BOT_DIR names (a copy that is not being changed while the tests run).
+BOT = Path(os.environ.get("LSD_BOT_DIR") or REPO / "bot")
+SHIPPED = sorted(p.stem for p in (BOT / "trees").glob("*.bt"))
 
 
 @pytest.fixture(scope="session")
 def native_bttree(tmp_path_factory):
-    """The engine's own bttree, built from this repository's bot/ for this
-    computer (no Docker): the edits' round trips use the real engine.
-    None when it cannot be built here (no C compiler, or bot/ mid-change)."""
+    """The engine's own bttree, built from BOT for this computer (no
+    Docker): the edits' round trips use the real engine. LSD_BTTREE names
+    one built already. None when it cannot be built here (no C compiler,
+    or bot/ mid-change)."""
     if os.environ.get("LSD_BTTREE"):
         return os.environ["LSD_BTTREE"]
     out = tmp_path_factory.mktemp("bttree")
     try:
-        r = subprocess.run(["make", "-C", str(REPO / "bot"), "tools", f"B={out}"], capture_output=True, text=True,
+        r = subprocess.run(["make", "-C", str(BOT), "tools", f"B={out}"], capture_output=True, text=True,
                            timeout=300)
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -125,6 +130,21 @@ def engine(native_bttree):
     if native_bttree is None:
         pytest.skip("the engine's bttree could not be built here (a C compiler and bot/ are needed)")
     return native_bttree
+
+
+@pytest.fixture(scope="session")
+def shipped(native_bttree):
+    """name -> the engine's `lsd-bt` document of each shipped tree file, and its schema."""
+    if native_bttree is None:
+        pytest.skip("the engine's bttree could not be built here (a C compiler and bot/ are needed)")
+    out = {}
+    for name in SHIPPED:
+        r = subprocess.run([native_bttree, "--json", str(BOT / "trees" / f"{name}.bt")], capture_output=True,
+                           text=True)
+        assert r.returncode == 0, r.stderr
+        out[name] = json.loads(r.stdout)
+    schema = json.loads(subprocess.run([native_bttree, "--schema"], capture_output=True, text=True).stdout)
+    return out, schema
 
 
 @pytest.fixture

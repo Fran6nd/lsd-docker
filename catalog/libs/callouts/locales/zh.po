@@ -183,6 +183,20 @@ msgstr "进攻"
 msgid "Defend the tower"
 msgstr "守塔"
 
+#: catalog/libs/callouts/callouts/babel.lua
+#: catalog/libs/callouts/callouts/ctf.lua
+#: catalog/libs/callouts/callouts/onectf.lua
+msgid "Intel here"
+msgstr "情报在这"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Build stairs here"
+msgstr "在此建造楼梯"
+
+#: catalog/libs/callouts/callouts/babel.lua
+msgid "Your squad of bots builds a stair up to here"
+msgstr "你的机器人小队建造一道通到这里的楼梯"
+
 #: catalog/libs/callouts/callouts/bots.lua
 #: catalog/libs/callouts/callouts/bots_rewards.lua
 #: catalog/libs/callouts/callouts/ctf.lua
@@ -286,11 +300,6 @@ msgstr "守住我们的基地！"
 #: catalog/libs/callouts/callouts/ctf.lua
 msgid "Push forward, go for their intel!"
 msgstr "向前推进，去拿他们的情报！"
-
-#: catalog/libs/callouts/callouts/ctf.lua
-#: catalog/libs/callouts/callouts/onectf.lua
-msgid "Intel here"
-msgstr "情报在这"
 
 #: catalog/libs/callouts/callouts/default.lua
 msgid "Need help"

@@ -8,6 +8,7 @@ and gives the diagram the new document."""
 
 from __future__ import annotations
 
+import functools
 import math
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
@@ -44,23 +45,36 @@ DARK = {
     "t_teamwork": "#75a6ff", "t_builder": "#d09a63", "t_marksman": "#b994ff", "t_flank": "#ff7fb8",
     "t_stealth": "#93a3ba", "t_curiosity": "#d6cc3a", "t_greed": "#7fd35f",
 }
-FAMILY = {"seq": "comp", "select": "comp", "pick": "pick", "option": "pick", "invert": "dec", "always": "dec",
-          "never": "dec", "cooldown": "dec", "limit": "dec", "if": "cond", "unless": "cond", "do": "act",
-          "wait": "act", "tree": "ref"}
-FAMILY_NAME = {"comp": "composite", "pick": "pick", "dec": "decorator", "cond": "condition", "act": "action",
-               "ref": "reference"}
+def family(schema: dict | None, kind: str) -> str:
+    """The colour family of a kind, from its shape in the schema: its children,
+    and the type of the word it takes."""
+    info = M.kind_info(schema, kind)
+    rule = info.get("children", "none")
+    types = {p.get("type") for p in info.get("params", [])}
+    if rule == "options" or info.get("parent"):
+        return "pick"
+    if rule == "many":
+        return "comp"
+    if rule == "one":
+        return "dec"
+    if "tree" in types:
+        return "ref"
+    if "cond" in types:
+        return "cond"
+    return "act"
 
 
 class Theme:
-    def __init__(self, dark: bool):
+    def __init__(self, dark: bool, schema: dict | None = None):
         self.dark = dark
+        self.schema = schema
         self.c = {k: QColor(v) for k, v in (DARK if dark else LIGHT).items()}
 
     def __getitem__(self, key: str) -> QColor:
         return self.c[key]
 
     def kind(self, kind: str) -> QColor:
-        return self.c["k_" + FAMILY.get(kind, "comp")]
+        return self.c["k_" + family(self.schema, kind)]
 
     def trait(self, name: str) -> QColor:
         return self.c.get("t_" + (name or "none"), self.c["t_none"])
@@ -72,7 +86,11 @@ class Theme:
         return c
 
 
+@functools.lru_cache(maxsize=None)
 def _font(px: float, weight: int = 400, italic: bool = False) -> QFont:
+    """A font of the cards. Made when it is first used -- by then the
+    application exists: a QFont made before it has no family, and is
+    measured wider than it is drawn (the cards' widths went wrong)."""
     f = QFont()
     f.setPixelSize(max(1, round(px)))
     f.setWeight(QFont.Weight(weight))
@@ -80,29 +98,33 @@ def _font(px: float, weight: int = 400, italic: bool = False) -> QFont:
     return f
 
 
-F_LABEL = _font(12.5, 600)
-F_REST = _font(12)
-F_KW = _font(11.5, 500)
-F_CMT = _font(11.3, 400, True)
-F_NUM = _font(11.5)
-F_CHIP = _font(10.8)
-F_TAG = _font(10.8, 600)
-F_BADGE = _font(10, 650)
-F_FRAME = _font(11, 600)
+def _qf(spec: tuple) -> QFont:
+    return _font(*spec)
+
+
+F_LABEL = (12.5, 600)
+F_REST = (12,)
+F_KW = (11.5, 500)
+F_CMT = (11.3, 400, True)
+F_NUM = (11.5,)
+F_CHIP = (10.8,)
+F_TAG = (10.8, 600)
+F_BADGE = (10, 650)
+F_FRAME = (11, 600)
 
 G_LABEL, G_COMMENT, G_CHIPS, G_STRIP, G_PAD = 28.0, 14.0, 22.0, 12.0, 5.0
 
 
-def _tw(font: QFont, text: str) -> float:
-    return QFontMetricsF(font).horizontalAdvance(text)
+def _tw(font: tuple, text: str) -> float:
+    return QFontMetricsF(_qf(font)).horizontalAdvance(text)
 
 
-def _clip(font: QFont, text: str, width: float) -> str:
-    return QFontMetricsF(font).elidedText(text, Qt.TextElideMode.ElideRight, max(0.0, width))
+def _clip(font: tuple, text: str, width: float) -> str:
+    return QFontMetricsF(_qf(font)).elidedText(text, Qt.TextElideMode.ElideRight, max(0.0, width))
 
 
 def _wrap(text: str, width: float, most: int = 2) -> list[str]:
-    fm = QFontMetricsF(F_CMT)
+    fm = QFontMetricsF(_qf(F_CMT))
     words, lines, cur = text.split(), [], ""
     for w in words:
         t = cur + " " + w if cur else w
@@ -131,52 +153,57 @@ def _n(v) -> str:
 
 # ---- what a row says ------------------------------------------------------------------
 
-def row_words(node: dict) -> tuple[str, str, str]:
-    """(keyword, main word, the rest) of a node, from its fields."""
+def _unit(spec: dict) -> str:
+    return " s" if "secs" in spec.get("written", "") else ""
+
+
+def row_words(schema: dict | None, node: dict) -> tuple[str, str, str]:
+    """(keyword, main word, the rest) of a node, from its fields and the
+    schema's params of its kind."""
     k = node.get("kind", "")
-    args = " ".join(str(a) for a in node.get("args", []))
-    if k == "do":
-        return "", node.get("action", ""), args
-    if k in ("if", "unless"):
-        return k, node.get("cond", ""), args
-    if k == "wait":
-        return "wait", _n(node.get("seconds")) + " s", ""
-    if k in ("cooldown", "limit"):
-        return "", k, _n(node.get("seconds")) + " s"
-    if k == "pick":
-        if node.get("roll", "weighed") == "each":
-            return "", "pick", "a lottery at every choice"
+    if k in M.chooser_kinds(schema):
         if M.is_roll(node):
-            return "", "pick", "a role, drawn by lot"
-        return "", "pick", "a priority list" if M.is_priority_list(node) else "weighed choice"
-    if k == "seq":
-        return "", "seq", "in order"
-    if k == "select":
-        return "", "select", "by priority"
-    if k == "tree":
-        return "tree", node.get("ref", ""), ""
-    if k == "option":
-        return "", node.get("score", ""), args
-    return "", k, ""
+            return k, "a lottery at every choice" if "every" not in M.left_out(node) else "a role, drawn by lot", ""
+        return k, "a priority list" if M.is_priority_list(node) else "the option worth most", ""
+    if M.is_ref(node):
+        return k, node.get("ref", ""), ""
+    main, rest = "", []
+    for p in M.params(schema, k):
+        name, t = p.get("name", ""), p.get("type")
+        if name not in node or name in node.get("defaults", []) or t == "trait":
+            continue
+        if t in M.WORD_LISTS:
+            main = str(node[name])
+            rest += [str(a) for a in node.get("args", [])]
+        elif not main and p.get("required"):
+            main = _n(node[name]) + _unit(p)
+        else:
+            rest.append(f"{name} {_n(node[name])}{_unit(p)}")
+    if not main and k in M.TRIES:
+        main = {"all": "in order, while each succeeds", "first": "the first that does not fail"}[M.TRIES[k]]
+        return k, "", main
+    return k, main, " ".join(rest)
 
 
-def pick_chips(node: dict) -> list[tuple[str, bool]]:
-    """(text, is a default) for each setting of a pick, as drawn."""
-    defaults = set(node.get("defaults", []))
-    if M.is_roll(node):
-        out = [("roll " + node.get("roll", ""), False)]
-        if node.get("roll") == "each" and "every" in node:
-            out.append(("every " + _n(node.get("every")) + " s", "every" in defaults))
-        return out
-    out = [(f"{k} {_n(node.get(k))}{' s' if k == 'every' else ''}", k in defaults)
-           for k in ("every", "sticky", "noise") if k in node]
+def pick_chips(schema: dict | None, node: dict) -> list[tuple[str, bool]]:
+    """(text, is a default) for each setting of a pick, as drawn: from its kind's params."""
+    defaults, gone = set(node.get("defaults", [])), M.left_out(node)
+    out = []
+    for p in M.params(schema, node.get("kind", "")):
+        name = p.get("name", "")
+        if name in gone or name not in node and "default" not in p:
+            continue
+        v = node.get(name, p.get("default"))
+        if p.get("type") == "enum" and v == p.get("default"):
+            continue
+        out.append((f"{name} {_n(v)}{_unit(p)}", name in defaults or name not in node))
     if M.log_scale(node) and not M.is_priority_list(node):
         out.append(("bars log scale", False))
     return out
 
 
-def node_title(node: dict) -> str:
-    return node.get("text") or " ".join(x for x in row_words(node) if x)
+def node_title(schema: dict | None, node: dict) -> str:
+    return node.get("text") or " ".join(x for x in row_words(schema, node) if x)
 
 
 # ---- the scene's geometry: one record a block -------------------------------------------
@@ -198,19 +225,29 @@ class Drawing:
         self.rows: dict[str, list[RowGeo]] = {}
         self.zones: list[tuple[QRectF, str, object]] = []     # (rect, what, payload)
         self.bounds = QRectF()
+        self.companion: Companion | None = None
 
 
-def natural_width(block: M.Block) -> float:
+class Companion:
+    """A tree drawn beside the one shown, read-only: its `<name>_also`."""
+
+    def __init__(self, name: str, root: M.Block, box: L.Box, frame: QRectF):
+        self.name, self.root, self.box, self.frame = name, root, box, frame
+
+
+def natural_width(schema: dict | None, block: M.Block) -> float:
+    if block.note:
+        return 300.0
     w = 0.0
     for path, node in block.rows:
-        kw, main, rest = row_words(node)
+        kw, main, rest = row_words(schema, node)
         x = 34 + (_tw(F_KW, kw) + 6 if kw else 0) + _tw(F_LABEL, main) + (_tw(F_REST, rest) + 7 if rest else 0)
-        if node.get("kind") == "option":
-            x += _tw(F_TAG, node.get("trait", "none")) + 20 + 104
-        if node.get("kind") == "tree":
-            x += 76
-        if node.get("kind") == "pick" and node is block.core[1]:
-            chips = pick_chips(node)
+        if "trait" in node:
+            x += _tw(F_TAG, node.get("trait", "")) + 20 + 104
+        if M.is_ref(node):
+            x += REF_CHIP + 10
+        if node.get("kind") in M.chooser_kinds(schema) and node is block.core[1]:
+            chips = pick_chips(schema, node)
             x = max(x, 12 + sum(_tw(F_CHIP, t) + 17 for t, _ in chips) + 8)
         w = max(w, x + 16)
         cm = " · ".join(M.comments(node))
@@ -219,7 +256,10 @@ def natural_width(block: M.Block) -> float:
     return w
 
 
-def measure(block: M.Block, width: float) -> list[RowGeo]:
+def measure(schema: dict | None, block: M.Block, width: float) -> list[RowGeo]:
+    if block.note:
+        lines = _wrap(block.note, width - 26, most=6)
+        return [RowGeo(block.top[0], block.top[1], 0.0, 12 + len(lines) * G_COMMENT + 8, lines, False)]
     out, y = [], 0.0
     for i, (path, node) in enumerate(block.rows):
         core = i == len(block.rows) - 1
@@ -227,65 +267,109 @@ def measure(block: M.Block, width: float) -> list[RowGeo]:
         cm = M.comments(node)
         lines = _wrap(" · ".join(cm), width - 26) if cm else []
         h += len(lines) * G_COMMENT + (G_PAD if lines else 0)
-        if core and node.get("kind") == "pick":
-            h += G_CHIPS + (G_STRIP if M.is_roll(node) else 0)
+        if core and node.get("kind") in M.chooser_kinds(schema):
+            h += G_CHIPS * len(chip_lines(pick_chips(schema, node), width)) + (G_STRIP if M.is_roll(node) else 0)
         out.append(RowGeo(path, node, y, h, lines, not core))
         y += h
     return out
 
 
-def build_drawing(doc: dict, root: str, view: str, opened: set, folded: set, open_all: bool) -> Drawing:
+def chip_lines(chips: list[tuple[str, bool]], width: float) -> list[list[tuple[float, str, bool]]]:
+    """The settings' chips in lines that fit the card: (x, text, is a default)."""
+    lines, cur, x = [], [], 12.0
+    for text, is_def in chips:
+        cw = _tw(F_CHIP, text) + 12
+        if cur and x + cw > width - 12:
+            lines.append(cur)
+            cur, x = [], 12.0
+        cur.append((x, text, is_def))
+        x += cw + 5
+    return lines + [cur] if cur else lines or [[]]
+
+
+REF_CHIP = 78.0           # the chip that shows a reference in place, or hides it
+FOLD_NOTE = 18.0          # the line under a folded card: "12 hidden"
+
+
+def build_drawing(doc: dict, root: str, view: str, opened: set, folded: set, open_all: bool,
+                  schema: dict | None = None, also: bool = False) -> Drawing:
+    """The tree `root` laid out; with `also`, its `<root>_also` beside it, read-only."""
     d = Drawing()
-    d.root = M.build_blocks(doc, root, opened, folded, open_all)
+    d.root = M.build_blocks(doc, root, schema, opened, folded, open_all)
     if d.root is None:
         return d
     rows: dict[str, list[RowGeo]] = {}
 
     def box(b: M.Block) -> L.Box:
-        bx = L.Box(b, [box(k) for k in b.kids], natural_width(b), frame=b.opened)
+        bx = L.Box(b, [box(k) for k in b.kids], natural_width(schema, b), frame=b.opened,
+                   foot=FOLD_NOTE if b.folded else 0.0)
         d.box[b.key] = bx
         d.blocks.append(b)
         return bx
 
     def height(bx: L.Box, w: float) -> float:
-        r = measure(bx.key, w)
+        r = measure(schema, bx.key, w)
         rows[bx.key.key] = r
         return r[-1].y + r[-1].h
 
+    lay = L.layout_a if view == "A" else L.layout_b
     top = box(d.root)
-    (L.layout_a if view == "A" else L.layout_b)(top, height)
+    lay(top, height)
+    name = root + M.ALSO
+    d.companion = None
+    if also and M.tree(doc, name) is not None and not root.endswith(M.ALSO):
+        other = M.build_blocks(doc, name, schema, opened, folded, open_all, via=("also",), chain=(root,))
+        obox = box(other)
+        lay(obox, height)
+        L.place_beside(top, obox, gap=64)
+        x, y, w, h = L.bounds(obox)
+        d.companion = Companion(name, other, obox, QRectF(x - L.FRAME_PAD, y - L.FRAME_HEAD - 6,
+                                                         w + 2 * L.FRAME_PAD, h + L.FRAME_HEAD + 6 + L.FRAME_PAD))
     d.rows = rows
     x, y, w, h = L.bounds(top)
-    d.bounds = QRectF(x - 40, y - 30, w + 140, h + 70)
+    r = QRectF(x, y, w, h)
+    if d.companion:
+        r = r.united(d.companion.frame)
+    d.bounds = r.adjusted(-40, -30, 100, 40)
     # what can be clicked besides a row
     for b in d.blocks:
         bx = d.box[b.key]
         if b.ref is not None and b.ref_known:
-            d.zones.append((QRectF(bx.x + bx.w - 76, bx.y + rows[b.key][-1].y + 5, 66, 20), "ref", b))
-        if bx.fr:
+            d.zones.append((QRectF(bx.x + bx.w - REF_CHIP - 8, bx.y + rows[b.key][-1].y + 5, REF_CHIP, 20), "ref", b))
+        if bx.fr and b.ref_state == "text":
             fx, fy, fw, fh = bx.fr
             d.zones.append((QRectF(fx, fy, fw, 22), "frame", b))
         if (b.kids or b.folded) and b.ref is None:
-            cx, cy = _knob_at(bx, view)
+            cx, cy = knob_at(bx, view)
             d.zones.append((QRectF(cx - 8, cy - 8, 16, 16), "fold", b))
+    if d.companion:
+        f = d.companion.frame
+        d.zones.append((QRectF(f.x(), f.y(), f.width(), 22), "also", d.companion))
     return d
 
 
-def _knob_at(bx: L.Box, view: str) -> tuple[float, float]:
+def knob_at(bx: L.Box, view: str) -> tuple[float, float]:
+    """Where the knob that folds a card's children is: on the line down to them."""
     if view == "A":
-        return (bx.x + 12, bx.y + bx.h) if bx.column else (bx.x + bx.w / 2, bx.y + bx.h)
+        return bx.x + L.A_RAIL, bx.y + bx.h
     return bx.x + bx.w, bx.y + 14
 
 
-def default_folds(doc: dict, root: str, opened: set, open_all: bool) -> set:
-    """What view A folds at first: under a parent of many children, each child
-    that has some of its own -- so the many are a column, not a row."""
-    top = M.build_blocks(doc, root, opened, set(), open_all)
-    out = set()
-    for b in (top.walk() if top else []):
-        if b.parent is not None and len(b.parent.kids) > L.A_COLUMN and b.kids and b.ref is None:
-            out.add(b.key)
-    return out
+def edge_points(bx: L.Box, kx: L.Box, view: str) -> list[tuple[float, float]]:
+    """The line from a card to one of its children: down the parent's rail and
+    across into the child (A), or across and down (B); never through a card."""
+    if view == "A":
+        sx = bx.x + L.A_RAIL
+        return [(sx, bx.y + bx.h), (sx, kx.y + 14), (kx.x, kx.y + 14)]
+    sx, sy = bx.x + bx.w, bx.y + 14
+    return [(sx, sy), (sx + 20, sy), (sx + 20, kx.y + 14), (kx.x, kx.y + 14)]
+
+
+def badge_at(bx: L.Box, kx: L.Box, view: str) -> QPointF:
+    """Where a child's number is drawn: on the line into it."""
+    if view == "A":
+        return QPointF(bx.x + L.A_RAIL, kx.y + 14)
+    return QPointF(kx.x - 13, kx.y + 14)
 
 
 def _rounded(points: list[tuple[float, float]], r: float = 6.0) -> QPainterPath:
@@ -305,7 +389,14 @@ def _rounded(points: list[tuple[float, float]], r: float = 6.0) -> QPainterPath:
 
 # ---- icons, 14 x 14 ------------------------------------------------------------------------
 
-def draw_icon(p: QPainter, kind: str, x: float, y: float, c: QColor, card: QColor) -> None:
+ICONS = {"seq", "select", "pick", "option", "if", "unless", "do", "wait", "cooldown", "limit", "tree"}
+
+def draw_icon(p: QPainter, kind: str, fam: str, x: float, y: float, c: QColor, card: QColor) -> None:
+    """The icon of a kind: the shipped kinds have their own; a kind the
+    engine adds later is drawn with its family's (composite, pick, condition,
+    action, reference, decorator)."""
+    if kind not in ICONS:
+        kind = {"comp": "seq", "pick": "pick", "cond": "if", "act": "do", "ref": "tree"}.get(fam, "")
     p.save()
     p.translate(x, y)
     pen = QPen(c, 1.6)
@@ -350,7 +441,7 @@ def draw_icon(p: QPainter, kind: str, x: float, y: float, c: QColor, card: QColo
         p.setPen(QPen(c, 1.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
         p.drawLine(QPointF(5, 9), QPointF(9, 5))
         p.drawPolyline(QPolygonF([QPointF(6, 5), QPointF(9, 5), QPointF(9, 8)]))
-    else:   # decorators: a hexagon
+    else:   # decorators, and what has no icon: a hexagon
         p.drawPolygon(QPolygonF([QPointF(7, 1), QPointF(12.6, 4.2), QPointF(12.6, 9.8), QPointF(7, 13),
                                  QPointF(1.4, 9.8), QPointF(1.4, 4.2)]))
     p.restore()
@@ -389,48 +480,29 @@ class BackItem(QGraphicsItem):
         view = v.view
         for b in d.blocks:                                   # frames
             bx = d.box[b.key]
-            if not bx.fr:
-                continue
-            fx, fy, fw, fh = bx.fr
-            pen = QPen(t["frame"], 1.2, Qt.PenStyle.CustomDashLine)
-            pen.setDashPattern([5 / 1.2, 4 / 1.2])
-            p.setPen(pen)
-            p.setBrush(Theme.alpha(t["frame"], 0.05))
-            p.drawRoundedRect(QRectF(fx, fy, fw, fh), 12, 12)
-            p.setFont(F_FRAME)
-            p.setPen(t["frame"])
-            uses = len(M.uses(v.doc, b.ref))
-            label = (f"tree {b.ref} · read-only here · click here to open it"
-                     f" (used in {uses} place{'s' if uses != 1 else ''})")
-            tx = max(fx + 10, bx.x) if view == "A" else fx + 10
-            p.drawText(QPointF(tx, fy + 15), _clip(F_FRAME, label, fw - (tx - fx) - 10))
+            if bx.fr:
+                if b.ref_state == "text":
+                    label = f"{b.ref} · read-only here · click to edit it"
+                else:
+                    label = f"{b.ref} · written by the server at run time"
+                _frame(p, t, QRectF(*bx.fr), label)
+        if d.companion:
+            c = d.companion
+            _frame(p, t, c.frame, f"{c.name} · ticked just before {d.root.top[0][0]} · read-only · click to edit")
+        p.setPen(QPen(t["edge"], 1.3))
+        p.setBrush(Qt.BrushStyle.NoBrush)
         for b in d.blocks:                                   # edges
             bx = d.box[b.key]
             for k in b.kids:
-                kx = d.box[k.key]
-                if view == "B":
-                    sx, sy = bx.x + bx.w, bx.y + 14
-                    pts = [(sx, sy), (sx + 20, sy), (sx + 20, kx.y + 14), (kx.x, kx.y + 14)]
-                elif bx.column:
-                    sx = bx.x + 12
-                    pts = [(sx, bx.y + bx.h), (sx, kx.y + 14), (kx.x, kx.y + 14)]
-                else:
-                    sx, sy = bx.x + bx.w / 2, bx.y + bx.h
-                    my = sy + 22
-                    pts = [(sx, sy), (sx, my), (kx.x + kx.w / 2, my), (kx.x + kx.w / 2, kx.y)]
-                p.setPen(QPen(t["edge"], 1.3))
-                p.setBrush(Qt.BrushStyle.NoBrush)
-                p.drawPath(_rounded(pts))
-        p.setFont(F_BADGE)
+                p.drawPath(_rounded(edge_points(bx, d.box[k.key], view)))
+        p.setFont(_qf(F_BADGE))
         for b in d.blocks:                                   # order badges
-            many = len(b.kids) > 1 or (b.kids and b.core[1].get("kind") == "pick")
+            many = len(b.kids) > 1 or (b.kids and b.core[1].get("kind") in M.chooser_kinds(v.schema))
             if not many or b.ref is not None:
                 continue
             bx = d.box[b.key]
             for k in b.kids:
-                kx = d.box[k.key]
-                c = QPointF(kx.x - 13, kx.y + 14) if view == "B" else (
-                    QPointF(bx.x + 12, kx.y + 14) if bx.column else QPointF(kx.x + kx.w - 2, kx.y - 1))
+                c = badge_at(bx, d.box[k.key], view)
                 p.setPen(QPen(t["border_strong"], 1))
                 p.setBrush(t["card"])
                 p.drawEllipse(c, 8.5, 8.5)
@@ -440,7 +512,7 @@ class BackItem(QGraphicsItem):
             if b.ref is not None or not (b.kids or b.folded):
                 continue
             bx = d.box[b.key]
-            cx, cy = _knob_at(bx, view)
+            cx, cy = knob_at(bx, view)
             p.setPen(QPen(t["border_strong"], 1))
             p.setBrush(t["card"])
             p.drawEllipse(QPointF(cx, cy), 6.5, 6.5)
@@ -448,14 +520,26 @@ class BackItem(QGraphicsItem):
             p.drawLine(QPointF(cx - 3, cy), QPointF(cx + 3, cy))
             if b.folded:
                 p.drawLine(QPointF(cx, cy - 3), QPointF(cx, cy + 3))
-                p.setFont(F_KW)
+                p.setFont(_qf(F_KW))
                 p.setPen(t["muted"])
-                text = f"{b.folded} hidden"
+                text = f"{b.folded} hidden: click + to show"
                 if view == "B":
                     p.drawText(QPointF(cx + 11, cy + 4), text)
                 else:
-                    p.drawText(QPointF(cx - _tw(F_KW, text) / 2, cy + 20), text)
-                p.setFont(F_BADGE)
+                    p.drawText(QPointF(cx + 12, cy + 13), text)
+                p.setFont(_qf(F_BADGE))
+
+
+def _frame(p: QPainter, t: Theme, r: QRectF, label: str) -> None:
+    """A dashed frame round what is shown in place, read-only, with its title."""
+    pen = QPen(t["frame"], 1.2, Qt.PenStyle.CustomDashLine)
+    pen.setDashPattern([5 / 1.2, 4 / 1.2])
+    p.setPen(pen)
+    p.setBrush(Theme.alpha(t["frame"], 0.05))
+    p.drawRoundedRect(r, 12, 12)
+    p.setFont(_qf(F_FRAME))
+    p.setPen(t["frame"])
+    p.drawText(QPointF(r.x() + 10, r.y() + 15), _clip(F_FRAME, label, r.width() - 20))
 
 
 class CardItem(QGraphicsItem):
@@ -481,6 +565,15 @@ def paint_card(p: QPainter, view: "Diagram", b: M.Block, w: float, h: float, gho
     rows = d.rows[b.key]
     selected = view.selected
     card = QRectF(0.5, 0.5, w - 1, h - 1)
+    if b.note:
+        p.setPen(QPen(t["frame"], 1, Qt.PenStyle.DashLine))
+        p.setBrush(Theme.alpha(t["frame"], 0.06))
+        p.drawRoundedRect(card, 8, 8)
+        p.setFont(_qf(F_CMT))
+        p.setPen(t["muted"])
+        for j, line in enumerate(rows[0].lines):
+            p.drawText(QPointF(12, 12 + j * G_COMMENT + 9), line)
+        return
     # a soft shadow
     p.setPen(Qt.PenStyle.NoPen)
     p.setBrush(Theme.alpha(QColor("#101828"), 0.10 if not t.dark else 0.35))
@@ -496,10 +589,12 @@ def paint_card(p: QPainter, view: "Diagram", b: M.Block, w: float, h: float, gho
     clip.addRoundedRect(card, 8, 8)
     p.save()
     p.setClipPath(clip)
+    schema = view.schema
     for i, r in enumerate(rows):
         node = r.node
         kind = node.get("kind", "")
         is_core = i == len(rows) - 1
+        is_option, is_ref = "trait" in node, M.is_ref(node)
         rect = QRectF(0, r.y, w, r.h)
         if r.band:
             p.fillRect(rect, t["band"])
@@ -511,41 +606,49 @@ def paint_card(p: QPainter, view: "Diagram", b: M.Block, w: float, h: float, gho
             p.drawLine(QPointF(1, r.y), QPointF(w - 1, r.y))
         # the stripe of its kind
         top = 6 if i == 0 else 4
-        bot = 6 if is_core else 4
-        stripe = t["k_pick"] if kind == "option" else (t["k_ref"] if kind == "tree" else t.kind(kind))
+        bot = 6 if i == len(rows) - 1 else 4
+        stripe = t.kind(kind)
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(Theme.alpha(stripe, 0.55) if kind == "option" else stripe)
+        p.setBrush(Theme.alpha(stripe, 0.55) if is_option else stripe)
         p.drawRoundedRect(QRectF(0, r.y + top, 3, r.h - top - bot), 1.5, 1.5)
         x, ly = 12.0, r.y + 18.5
-        if kind == "option":
+        if is_option:
             _paint_option(p, view, b, r, w, x, ly)
-        elif kind == "tree":
+        elif is_ref:
             _paint_ref(p, view, b, r, w, x, ly)
         else:
-            kw, main, rest = row_words(node)
-            draw_icon(p, kind, x, r.y + 7, t.kind(kind), t["card"])
+            kw, main, rest = row_words(schema, node)
+            if is_core and b.decision:
+                main, rest = "", "decide: the first that holds"
+            elif is_core and b.guards:
+                main, rest = "", "then, in order:" if len(b.kids) > 1 else "then:"
+            draw_icon(p, kind, family(schema, kind), x, r.y + 7, t.kind(kind), t["card"])
             x += 21
             if kw:
-                p.setFont(F_KW)
+                p.setFont(_qf(F_KW))
                 p.setPen(t["muted"])
                 p.drawText(QPointF(x, ly), kw)
                 x += _tw(F_KW, kw) + 5
             avail = w - x - 12
-            p.setFont(F_LABEL)
+            p.setFont(_qf(F_LABEL))
             p.setPen(t["text"])
             m = _clip(F_LABEL, main, avail)
             p.drawText(QPointF(x, ly), m)
             if rest and m == main:
-                x2 = x + _tw(F_LABEL, main) + 6
-                p.setFont(F_REST)
+                x2 = x + _tw(F_LABEL, main) + (6 if main else 0)
+                p.setFont(_qf(F_REST))
                 p.setPen(t["muted"])
                 p.drawText(QPointF(x2, ly), _clip(F_REST, rest, w - x2 - 12))
-            if is_core and kind == "pick":
+            if is_core and kind in M.chooser_kinds(schema):
                 _paint_pick_settings(p, view, node, r, w)
-        p.setFont(F_CMT)
+        p.setFont(_qf(F_CMT))
         p.setPen(t["faint"])
         for j, line in enumerate(r.lines):
             p.drawText(QPointF(12, r.y + G_LABEL + j * G_COMMENT + 3), line)
+        if i == 0 and b.otherwise:
+            _tag(p, t, w, r.y, "otherwise")
+        elif b.guards and i == len(rows) - 1 - b.guards and b.parent is not None and b.parent.decision:
+            _tag(p, t, w, r.y, "when")
     p.restore()
     # the selection's outline
     for r in rows:
@@ -553,6 +656,18 @@ def paint_card(p: QPainter, view: "Diagram", b: M.Block, w: float, h: float, gho
             p.setPen(QPen(t["sel"], 1.6))
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.drawRoundedRect(QRectF(1, r.y + 1, w - 2, r.h - 2), 7, 7)
+
+
+def _tag(p: QPainter, t: Theme, w: float, y: float, text: str) -> None:
+    """A word at the right of a row that says what the row is in a decision."""
+    tw = _tw(F_TAG, text) + 12
+    rect = QRectF(w - tw - 8, y + 5.5, tw, 17)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(Theme.alpha(t["k_cond"], 0.15))
+    p.drawRoundedRect(rect, 8.5, 8.5)
+    p.setFont(_qf(F_TAG))
+    p.setPen(t["k_cond"])
+    p.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
 
 
 def _paint_option(p, view, b, r, w, x, ly):
@@ -567,17 +682,17 @@ def _paint_option(p, view, b, r, w, x, ly):
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(Theme.alpha(c, 0.15))
         p.drawRoundedRect(QRectF(x, r.y + 5.5, tw, 17), 8.5, 8.5)
-        p.setFont(F_TAG)
+        p.setFont(_qf(F_TAG))
         p.setPen(c)
         p.drawText(QPointF(x + 6, r.y + 17.8), trait)
         x += tw + 7
     else:
-        draw_icon(p, "option", x, r.y + 7, t["k_pick"], t["card"])
+        draw_icon(p, node.get("kind", ""), "pick", x, r.y + 7, t["k_pick"], t["card"])
         x += 21
     bar_w = 0 if prio else (40 if view.view == "A" else 56)
     f = float(node.get("factor", 1))
     is_def = "factor" in node.get("defaults", [])
-    opts = [o for o in pick.get("children", []) if o.get("kind") == "option"]
+    opts = M.options(pick)
     vals = M.bar_values(pick) if pick else []
     idx = r.path[1][-1] if r.path[1] else 0
     v = vals[idx] if idx < len(vals) else 0
@@ -587,19 +702,20 @@ def _paint_option(p, view, b, r, w, x, ly):
     else:
         label = "×" + _n(f)
     right = bar_w + _tw(F_NUM, label) + 12 + (8 if bar_w else 0)
-    _, main, rest = row_words(node)
+    wp, _ = M.node_word(view.schema, node)
+    main, rest = str(node.get(wp.get("name", ""), "")), " ".join(str(a) for a in node.get("args", []))
     avail = w - x - right - 8
-    p.setFont(F_LABEL)
+    p.setFont(_qf(F_LABEL))
     p.setPen(t["text"])
     m = _clip(F_LABEL, main, avail)
     p.drawText(QPointF(x, ly), m)
     if rest and m == main:
         x2 = x + _tw(F_LABEL, main) + 5
-        p.setFont(F_REST)
+        p.setFont(_qf(F_REST))
         p.setPen(t["muted"])
         p.drawText(QPointF(x2, ly), _clip(F_REST, rest, avail - (x2 - x)))
     bx = w - 12 - bar_w
-    p.setFont(F_NUM)
+    p.setFont(_qf(F_NUM))
     p.setPen(t["faint"] if is_def else t["muted"])
     p.drawText(QRectF(bx - 106, r.y + 6, 100, 16), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, label)
     if bar_w:
@@ -610,48 +726,62 @@ def _paint_option(p, view, b, r, w, x, ly):
         p.drawRoundedRect(QRectF(bx, r.y + 11, max(2.0, bar_w * max(0.0, min(1.0, v))), 7), 3.5, 3.5)
 
 
+REF_SAYS = {"engine": "by the server", "cycle": "leads back here", "missing": "not in this text"}
+
+
+def ref_chip_text(view: "Diagram", b: M.Block) -> str:
+    if b.opened:
+        return "▾ hide"
+    if b.ref_state == "engine":
+        return "▸ what is it"
+    return f"▸ show · {M.ref_size(view.doc, b.ref)}"
+
+
 def _paint_ref(p, view, b, r, w, x, ly):
     t, node = view.theme, r.node
-    draw_icon(p, "tree", x, r.y + 7, t["k_ref"], t["card"])
+    kind = node.get("kind", "")
+    draw_icon(p, kind, "ref", x, r.y + 7, t["k_ref"], t["card"])
     x += 21
-    p.setFont(F_KW)
+    p.setFont(_qf(F_KW))
     p.setPen(t["muted"])
-    p.drawText(QPointF(x, ly), "tree")
-    x += _tw(F_KW, "tree") + 5
-    p.setFont(F_LABEL)
+    p.drawText(QPointF(x, ly), kind)
+    x += _tw(F_KW, kind) + 5
+    p.setFont(_qf(F_LABEL))
     p.setPen(t["k_ref"])
-    p.drawText(QPointF(x, ly), _clip(F_LABEL, node.get("ref", ""), w - x - 84))
+    p.drawText(QPointF(x, ly), _clip(F_LABEL, node.get("ref", ""), w - x - REF_CHIP - 16))
     if b.ref_known:
-        text = "close" if b.opened else f"open · {M.ref_size(view.doc, b.ref)}"
-        chip = QRectF(w - 76, r.y + 6, 66, 18)
+        chip = QRectF(w - REF_CHIP - 8, r.y + 6, REF_CHIP, 18)
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(Theme.alpha(t["k_ref"], 0.12))
         p.drawRoundedRect(chip, 9, 9)
-        p.setFont(F_TAG)
+        p.setFont(_qf(F_TAG))
         p.setPen(t["k_ref"])
-        p.drawText(chip, Qt.AlignmentFlag.AlignCenter, text)
-    else:
-        p.setFont(F_CMT)
-        p.setPen(t["faint"])
-        why = "written by the engine" if node.get("ref") in ("items", "extras") else "not in this text"
-        p.drawText(QRectF(w - 150, r.y + 6, 138, 18), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, why)
+        p.drawText(chip, Qt.AlignmentFlag.AlignCenter, ref_chip_text(view, b))
+    if b.ref_state in ("cycle", "missing"):
+        p.setFont(_qf(F_CMT))
+        p.setPen(t["warn"] if b.ref_state != "engine" else t["faint"])
+        right = w - (REF_CHIP + 16 if b.ref_known else 12)
+        p.drawText(QRectF(right - 130, r.y + 6, 130 - 6, 18),
+                   Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, REF_SAYS[b.ref_state])
 
 
 def _paint_pick_settings(p, view, node, r, w):
     t = view.theme
-    cx = 12.0
     cy = r.y + G_LABEL + len(r.lines) * G_COMMENT + (G_PAD if r.lines else 0) - 2
-    p.setFont(F_CHIP)
-    for text, is_def in pick_chips(node):
-        cw = _tw(F_CHIP, text) + 12
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(t["chip"])
-        p.drawRoundedRect(QRectF(cx, cy, cw, 17), 4, 4)
-        p.setPen(t["faint"] if is_def else t["muted"])
-        p.drawText(QPointF(cx + 6, cy + 12.2), text)
-        cx += cw + 5
+    p.setFont(_qf(F_CHIP))
+    lines = chip_lines(pick_chips(view.schema, node), w)
+    for line in lines:
+        for cx, text, is_def in line:
+            cw = _tw(F_CHIP, text) + 12
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(t["chip"])
+            p.drawRoundedRect(QRectF(cx, cy, cw, 17), 4, 4)
+            p.setPen(t["faint"] if is_def else t["muted"])
+            p.drawText(QPointF(cx + 6, cy + 12.2), text)
+        cy += G_CHIPS
+    cy -= G_CHIPS
     if M.is_roll(node):
-        opts = [o for o in node.get("children", []) if o.get("kind") == "option"]
+        opts = M.options(node)
         s = sum(max(0.0, float(o.get("factor", 1))) for o in opts) or 1
         sx, sw, sy = 12.0, w - 24, cy + 21
         p.setPen(Qt.PenStyle.NoPen)
@@ -753,35 +883,35 @@ class Palette(QDialog):
         return it.data(Qt.ItemDataRole.UserRole) if it else None
 
 
-def palette_entries(schema: dict | None, parent: dict, doc: dict, here: str) -> list[tuple[str, str | None, str, str]]:
-    """(kind, word, label, doc) of all that may go under `parent`."""
+def palette_entries(schema: dict | None, parent: dict | None, doc: dict, here: str) -> list[tuple[str, str | None, str, str]]:
+    """(kind, word, label, doc) of all that may go under `parent` (None: a
+    tree's root), in the schema's order: each kind, and for a kind that takes
+    a word, each word of the vocabulary with what it does."""
     out = []
-    s = schema or {}
     first = lambda d: (d or "").split(". ")[0][:160]
-    for k in s.get("kinds", []):
+    for k in M.kinds(schema):
         kind = k.get("name", "")
-        if not M.may_hold(s, parent, kind):
+        if parent is not None and not M.may_hold(schema, parent, kind):
             continue
-        if kind == "option":
-            for w in s.get("scores", []):
-                out.append(("option", w["name"], f"option · {w['name']}", first(w.get("doc"))))
-        elif kind == "do":
-            for w in s.get("actions", []):
-                out.append(("do", w["name"], f"do {w['name']}", first(w.get("doc"))))
-        elif kind in ("if", "unless"):
-            for w in s.get("conditions", []):
-                out.append((kind, w["name"], f"{kind} {w['name']}", first(w.get("doc"))))
-        elif kind == "tree":
+        if parent is None and k.get("parent"):
+            continue
+        wp = M.word_param(schema, kind)
+        if wp:
+            for w in M.word_list(schema, wp.get("type", "")):
+                usage = f" {w['usage']}" if w.get("usage") else ""
+                out.append((kind, w["name"], f"{kind} {w['name']}{usage}", first(w.get("doc"))))
+        elif M.is_ref(M.new_node(schema, kind, None, doc, here)):
             for name in M.tree_names(doc):
                 if name != here:
-                    out.append(("tree", name, f"tree {name}", "another tree of this text, as if written here"))
-            for name in ("items", "extras"):
-                out.append(("tree", name, f"tree {name}", "written by the engine: " + first(k.get("doc"))))
+                    out.append((kind, name, f"{kind} {name}", "another tree of this text, as if written here"))
+            for name, says in M.ENGINE_TREES.items():
+                out.append((kind, name, f"{kind} {name}", first(says)))
         else:
             out.append((kind, None, kind, first(k.get("doc"))))
-    order = {"seq": 0, "select": 1, "pick": 2, "option": 3}
-    out.sort(key=lambda e: (order.get(e[0], 5 if e[1] else 4), e[2]))
     return out
+
+
+READABLE = 0.85           # the smallest zoom a first view takes: below it a card's words are hard to read
 
 
 class Diagram(QGraphicsView):
@@ -800,9 +930,11 @@ class Diagram(QGraphicsView):
         self.schema: dict | None = None
         self.root: str = ""
         self.view = "A"
-        self.opened: set[str] = set()
-        self.folded: set[str] = set()
-        self.open_all = False
+        self.opened: set[str] = set()           # references shown in place, by block key
+        self.folded: set[str] = set()           # cards whose children are hidden, by block key
+        self.open_all = False                   # every reference shown, to any depth
+        self.also = True                        # the tree's `<name>_also` drawn beside it
+        self._kept: dict[str, tuple] = {}       # what was opened and folded in each tree drawn before
         self.selected = None              # a path
         self.selected_key: str | None = None
         self.stale = False
@@ -857,9 +989,12 @@ class Diagram(QGraphicsView):
         hb.addWidget(self.zoom_label)
         self.b_in = tb("+", "Zoom in (Ctrl++)", lambda: self.zoom_by(1.2))
         self.b_fit = tb("Fit", "The whole tree in view (F)", self.fit)
-        self.b_refs = tb("Open references", "Open every `tree <name>` in place, or close them all",
-                         self.toggle_refs)
-        self.b_fold = tb("Unfold all", "Show every node again", self.unfold_all)
+        self.b_expand = tb("Expand all", "Show every `tree <name>` in place, to any depth, and every folded "
+                           "node (Ctrl+Shift+Right)", self.expand_all)
+        self.b_collapse = tb("Collapse all", "Hide every tree shown in place, and show what was folded "
+                             "(Ctrl+Shift+Left)", self.collapse_all)
+        self.b_also = tb("Beside", "Show or hide the tree ticked beside this one (its _also)", self.toggle_also)
+        self.b_also.setCheckable(True)
         self.b_map = tb("Map", "Show or hide the map of the whole tree", self.toggle_map)
         self.b_map.setCheckable(True)
         self.b_map.setChecked(False)
@@ -923,7 +1058,7 @@ class Diagram(QGraphicsView):
 
     # -- what is shown
     def set_theme(self, dark: bool) -> None:
-        self.theme = Theme(dark)
+        self.theme = Theme(dark, self.schema)
         self._style_overlays()
         self._update_head()
         self.viewport().update()
@@ -931,6 +1066,7 @@ class Diagram(QGraphicsView):
 
     def set_schema(self, schema: dict | None) -> None:
         self.schema = schema
+        self.theme = Theme(self.theme.dark, schema)
 
     def set_document(self, doc: dict | None, select=None) -> None:
         """A new document (the text compiled). Keeps the view where it was
@@ -941,7 +1077,7 @@ class Diagram(QGraphicsView):
         names = M.tree_names(self.doc)
         if self.root not in names:
             self.root = names[0] if names else ""
-            self.opened, self.folded = set(), set()
+            self.opened, self.folded, self.open_all = self._kept.get(self.root, (set(), set(), False))
         if select is not None:
             self.selected, self.selected_key = select, None
         elif self.selected is not None and M.find(self.doc, self.selected) is None:
@@ -959,8 +1095,9 @@ class Diagram(QGraphicsView):
             return
         if remember:
             self._history.append(self.root)
+        self._kept[self.root] = (self.opened, self.folded, self.open_all)
         self.root = name
-        self.opened, self.folded = set(), set()
+        self.opened, self.folded, self.open_all = self._kept.get(name, (set(), set(), False))
         self.selected, self.selected_key = (name, ()), None
         self._fitted_for = None
         self.relayout()
@@ -980,34 +1117,61 @@ class Diagram(QGraphicsView):
             self._fitted_for = None
             self.relayout()
 
-    def toggle_refs(self) -> None:
-        self.open_all = not self.open_all
-        self.opened = set()
+    def expand_all(self) -> None:
+        """Every reference shown in place, to any depth (a circle stops where it
+        comes back), and every fold opened."""
+        self.open_all, self.opened, self.folded = True, set(), set()
+        self.relayout()
+
+    def collapse_all(self) -> None:
+        """The tree as written: no reference shown in place, nothing folded."""
+        self.open_all, self.opened, self.folded = False, set(), set()
         self.relayout()
 
     def unfold_all(self) -> None:
         self.folded = set()
         self.relayout()
 
+    def toggle_also(self) -> None:
+        self.also = not self.also
+        self.relayout()
+
+    def set_open(self, b: M.Block, show: bool) -> None:
+        """Show a reference in place, or hide it; or unfold a card, or fold it."""
+        if b.ref is not None:
+            if not b.ref_known or b.opened == show:
+                return
+            if self.open_all:                    # from "everything" to "everything but this"
+                self.open_all = False
+                self.opened = {x.key for x in self.drawing.blocks if x.opened}
+            self.opened ^= {b.key}
+        elif b.kids or b.folded:
+            if bool(b.folded) == (not show):
+                return
+            self.folded ^= {b.key}
+        else:
+            return
+        self.relayout()
+        self.select(self.selected, b.key, ensure_visible=False)
+
     def relayout(self) -> None:
         old_center = self.mapToScene(self.viewport().rect().center())
         key = (self.root, self.view)
         first = self._fitted_for != key
-        if first:
-            self.folded = default_folds(self.doc, self.root, self.opened, self.open_all) \
-                if self.view == "A" and self.root else set()
         self._scene.clear()
         self.items = {}
-        self.drawing = build_drawing(self.doc, self.root, self.view, self.opened, self.folded, self.open_all) \
-            if self.root else Drawing()
+        self.drawing = build_drawing(self.doc, self.root, self.view, self.opened, self.folded, self.open_all,
+                                     self.schema, self.also) if self.root else Drawing()
         self._scene.addItem(BackItem(self))
         for b in self.drawing.blocks:
             it = CardItem(self, b)
             self.items[b.key] = it
             self._scene.addItem(it)
         self._scene.setSceneRect(self.drawing.bounds.adjusted(-600, -400, 600, 400))
-        self.b_refs.setText("Close references" if self.open_all else "Open references")
-        self.b_fold.setVisible(bool(self.folded))
+        has_also = M.tree(self.doc, self.root + M.ALSO) is not None and not self.root.endswith(M.ALSO)
+        self.b_also.setVisible(has_also)
+        self.b_also.setChecked(self.also and has_also)
+        self.b_also.setText(f"Beside: {self.root}{M.ALSO}")
         self._update_head()
         if first:
             self._fitted_for = key
@@ -1038,6 +1202,11 @@ class Diagram(QGraphicsView):
         where = f"line {t.get('line', '?')} · {n} nodes with references opened"
         shared = (f" · <span style='color:{c['k_ref'].name()}'>used in {uses} place{'s' if uses != 1 else ''}: "
                   f"an edit here changes every one</span>" if uses else "")
+        if self.root == M.run_tree(self.doc):
+            shared += " · <b>the tree a bot given this text runs</b> (the first of the text)"
+        main = self.root[:-len(M.ALSO)] if self.root.endswith(M.ALSO) else ""
+        if main and M.tree(self.doc, main) is not None:
+            shared += f" · ticked beside {_esc(main)}, just before it, at every decision"
         ab = M.about(t)
         if len(ab) > 220:
             ab = ab[:217] + "…"
@@ -1072,20 +1241,18 @@ class Diagram(QGraphicsView):
 
     def initial_view(self) -> None:
         """A first view a person can read: the whole tree if it fits at 85 %
-        or more; else readable (85 %), the root in view at the top."""
+        or more; else readable (at least 85 %, as wide as fits), from its
+        top-left corner, the rest a scroll down."""
         b = self.drawing.bounds
         if b.isEmpty() or not self.drawing.blocks:
             return
         vw, vh = self.viewport().width(), self.viewport().height() - self.head_height()
         k = min(1.0, (vw - 56) / b.width(), (vh - 28) / b.height())
-        if k < 0.85:
-            k = min(1.0, max(0.85, (vw - 56) / b.width()))
+        if k < READABLE:
+            k = min(1.0, max(READABLE, (vw - 56) / b.width()))
         self.zoom_to(k)
-        rb = self.drawing.box[self.drawing.root.key]
         if b.width() * k <= vw - 56:
             self._top_at(b.center().x(), b.y(), center_x=True)
-        elif self.view == "A":
-            self._top_at(rb.x + rb.w / 2, b.y(), center_x=True)
         else:
             self._top_at(b.x(), b.y(), center_x=False)
         self.overview.update()
@@ -1132,16 +1299,21 @@ class Diagram(QGraphicsView):
             z = self.zone_at(sp)
             tip = ""
             if z and z[0] == "frame":
-                tip = f"Click to open the tree {z[1].ref} itself, to edit it."
+                n = len(M.uses(self.doc, z[1].ref))
+                tip = (f"Click to edit the tree {z[1].ref} itself (Enter on its reference). It is used in "
+                       f"{n} place{'s' if n != 1 else ''}: a change there is made in every one.")
+            elif z and z[0] == "also":
+                tip = f"Click to edit the tree {z[1].name} itself."
             elif z and z[0] == "ref":
-                tip = "Open or close it here (read-only here)."
+                tip = ("Show it here, read-only, or hide it (Right and Left arrows). Enter edits that tree itself."
+                       if z[1].ref_state == "text" else "What fills it, and who writes it (Right and Left arrows).")
             elif z and z[0] == "fold":
-                tip = "Fold or unfold what is under it."
+                tip = "Hide or show what is under it (Left and Right arrows)."
             elif hit:
                 b, r = hit
-                lines = [node_title(r.node)] + M.comments(r.node)
-                if b.read_only:
-                    lines.append(f"(in the tree {r.path[0]}, opened here read-only: click its frame to edit it)")
+                lines = [b.note] if b.note else [node_title(self.schema, r.node)] + M.comments(r.node)
+                if b.read_only and not b.note:
+                    lines.append(f"(in the tree {r.path[0]}, shown here read-only: click its frame to edit it)")
                 tip = "\n".join(lines)
             if tip:
                 QToolTip.showText(e.globalPos(), tip, self)
@@ -1178,9 +1350,13 @@ class Diagram(QGraphicsView):
                 return b
         return None
 
-    def editable_selection(self) -> bool:
+    def movable_path(self):
+        """What moving the selection moves: a condition of a guard alone, else
+        the whole card (its top band: the option, the decorator)."""
         b = self.selected_block()
-        return b is not None and not b.read_only and not self.stale
+        if b is None:
+            return None
+        return self.selected if b.is_guard(self.selected) else b.top[0]
 
     # -- the mouse
     def mousePressEvent(self, e) -> None:
@@ -1190,17 +1366,12 @@ class Diagram(QGraphicsView):
             z = self.zone_at(sp)
             if z:
                 what, b = z
-                if what == "ref":
-                    if self.open_all:
-                        self.open_all = False
-                        self.opened = {x.key for x in self.drawing.blocks if x.opened}
-                    self.opened ^= {b.key}
-                    self.relayout()
+                if what in ("ref", "fold"):
+                    self.set_open(b, not (b.opened if what == "ref" else not b.folded))
                 elif what == "frame":
                     self.set_root(b.ref)
-                elif what == "fold":
-                    self.folded ^= {b.key}
-                    self.relayout()
+                elif what == "also":
+                    self.set_root(b.name)
                 return
             hit = self.row_at(sp)
             if hit:
@@ -1215,10 +1386,10 @@ class Diagram(QGraphicsView):
 
     def mouseDoubleClickEvent(self, e) -> None:
         hit = self.row_at(self.mapToScene(e.position().toPoint()))
-        if hit and hit[1].node.get("kind") == "tree" and hit[0].ref_known:
+        if hit and M.is_ref(hit[1].node) and hit[0].ref_state == "text":
             self.set_root(hit[1].node.get("ref"))
             return
-        if hit and hit[0].read_only:
+        if hit and hit[0].read_only and not hit[0].note:
             self.set_root(hit[1].path[0])
 
     def mouseMoveEvent(self, e) -> None:
@@ -1271,26 +1442,13 @@ class Diagram(QGraphicsView):
             if not kids:
                 continue
             boxes = [self.drawing.box[k.key] for k in kids]
-            stacked = self.view == "B" or self.drawing.box[p.key].column
-            for i in range(len(kids) + 1):
-                if stacked:
-                    x0, x1 = boxes[0].x - 4, boxes[0].x + boxes[0].w + 4
-                    if i == 0:
-                        y = boxes[0].y - 5
-                    elif i == len(kids):
-                        y = boxes[-1].y + boxes[-1].h + 5
-                    else:
-                        y = (boxes[i - 1].y + boxes[i - 1].h + boxes[i].y) / 2
-                    out.append((QPointF(x0, y), QPointF(x1, y), p, i))
+            x0, x1 = boxes[0].x - 4, boxes[0].x + boxes[0].w + 4
+            for i in range(len(kids) + 1):          # children are stacked in both views: a line across
+                if i < len(kids):
+                    y = boxes[i].y - (L.A_VGAP if self.view == "A" else L.B_VGAP) / 2
                 else:
-                    if i == 0:
-                        x = boxes[0].x - 11
-                    elif i == len(kids):
-                        x = boxes[-1].x + boxes[-1].w + 11
-                    else:
-                        x = (boxes[i - 1].x + boxes[i - 1].w + boxes[i].x) / 2
-                    y0 = boxes[min(i, len(kids) - 1)].y - 4
-                    out.append((QPointF(x, y0), QPointF(x, y0 + 60), p, i))
+                    y = L.bounds(boxes[-1])[1] + L.bounds(boxes[-1])[3] + 4
+                out.append((QPointF(x0, y), QPointF(x1, y), p, i + p.guards))   # counted as in the text
         return out
 
     def begin_drag(self, b: M.Block, sp: QPointF) -> None:
@@ -1316,10 +1474,7 @@ class Diagram(QGraphicsView):
         d["ghost"].setPos(sp - d["offset"])
         best, dist = None, 70.0
         for a, bb, p, i in d["targets"]:
-            if a.y() == bb.y():                  # a line across: children stacked
-                dd = abs(sp.y() - a.y()) + max(0.0, a.x() - sp.x(), sp.x() - bb.x()) * 0.5
-            else:
-                dd = abs(sp.x() - a.x()) + max(0.0, a.y() - sp.y() - 40, sp.y() - bb.y() - 80) * 0.5
+            dd = abs(sp.y() - a.y()) + max(0.0, a.x() - sp.x(), sp.x() - bb.x()) * 0.5
             if dd < dist:
                 best, dist = (a, bb, p, i), dd
         d["target"] = best
@@ -1342,52 +1497,72 @@ class Diagram(QGraphicsView):
         self.edit.emit("move", (path, p.core[0], i))
 
     # -- the keyboard
+    def reading_order(self) -> list[tuple[M.Block, int]]:
+        """Every row drawn, (block, row), in the order the tree reads: from the
+        top down, the same in both views; the tree beside it last."""
+        out = []
+        tops = [self.drawing.root] + ([self.drawing.companion.root] if self.drawing.companion else [])
+        for top in tops:
+            for b in (top.walk() if top else []):
+                out += [(b, i) for i in range(len(self.drawing.rows[b.key]))]
+        return out
+
     def keyPressEvent(self, e) -> None:
+        """Up and Down: the row before or after, in reading order. Left: hide what
+        is under it (a reference shown, the children), else to its parent.
+        Right: show what is under it, else to its first child. Alt+Up and
+        Alt+Down: move it earlier or later among its siblings. The same in both
+        views: order is always downwards."""
         b = self.selected_block()
         key, mods = e.key(), e.modifiers()
         alt = bool(mods & Qt.KeyboardModifier.AltModifier)
+        arrows = (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right)
         if key == Qt.Key.Key_F and not mods:
             self.fit()
             return
         if b is None:
-            if key in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right) and self.drawing.root:
+            if key in arrows and self.drawing.root:
                 r = self.drawing.root
                 self.select(r.top[0], r.key, emit=True)
                 return
             super().keyPressEvent(e)
             return
-        rows = self.drawing.rows[b.key]
-        ri = next((i for i, r in enumerate(rows) if r.path == self.selected), 0)
-        prev_k, next_k, up_k, down_k = ((Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right)
-                                        if self.view == "B" else
-                                        (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down))
-        if alt and key in (prev_k, next_k):
-            if b.read_only or b.parent is None:
-                self.status.emit("It cannot be moved: " + ("it is read-only here." if b.read_only else "it is a root."))
+        if alt and key in (Qt.Key.Key_Up, Qt.Key.Key_Down):
+            if b.read_only or (b.parent is None and not b.is_guard(self.selected)):
+                self.status.emit("It cannot be moved: " + (
+                    "it belongs to a tree shown here read-only; edit that tree to move it." if b.read_only
+                    else "it is the root of its tree; wrap it, or change it."))
             else:
-                self.edit.emit("move_by", (b.top[0], -1 if key == prev_k else 1))
+                self.edit.emit("move_by", (self.movable_path(), -1 if key == Qt.Key.Key_Up else 1))
             return
+        if key not in arrows or mods & ~Qt.KeyboardModifier.KeypadModifier:
+            super().keyPressEvent(e)
+            return
+        order = self.reading_order()
+        ri = next((i for i, r in enumerate(self.drawing.rows[b.key]) if r.path == self.selected), 0)
+        at = order.index((b, ri)) if (b, ri) in order else 0
         target = None
-        if key in (prev_k, next_k) and b.parent is not None:
-            sibs = b.parent.kids
-            i = sibs.index(b) + (-1 if key == prev_k else 1)
-            if 0 <= i < len(sibs):
-                target = (sibs[i], 0)
-        elif key == up_k:
-            if ri > 0:
-                target = (b, ri - 1)
-            elif b.parent is not None:
+        shown = b.opened if b.ref is not None else bool(b.kids)
+        hidden = (b.ref_known and not b.opened) if b.ref is not None else bool(b.folded)
+        if key == Qt.Key.Key_Up and at > 0:
+            target = order[at - 1]
+        elif key == Qt.Key.Key_Down and at + 1 < len(order):
+            target = order[at + 1]
+        elif key == Qt.Key.Key_Left:
+            if shown:
+                self.set_open(b, False)
+                return
+            if b.parent is not None:
                 target = (b.parent, len(self.drawing.rows[b.parent.key]) - 1)
-        elif key == down_k:
-            if ri < len(rows) - 1:
-                target = (b, ri + 1)
-            elif b.kids:
+        elif key == Qt.Key.Key_Right:
+            if hidden:
+                self.set_open(b, True)
+                return
+            if b.kids:
                 target = (b.kids[0], 0)
         if target is not None:
             blk, i = target
             self.select(self.drawing.rows[blk.key][i].path, blk.key, emit=True)
-            return
-        super().keyPressEvent(e)
 
     def contextMenuEvent(self, e) -> None:
         sp = self.mapToScene(e.pos())
@@ -1451,11 +1626,9 @@ class _DropLine(QGraphicsItem):
         p.setPen(QPen(t["sel"], 3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
         p.drawLine(a, b)
         p.setFont(_font(10.5, 700))
-        text = f"put it here: {i + 1} under {row_words(parent.core[1])[1]}"
-        if a.y() == b.y():
-            p.drawText(QPointF(a.x() - _tw(_font(10.5, 700), text) - 8, a.y() + 4), text)
-        else:
-            p.drawText(QPointF(a.x() + 6, a.y() - 8), text)
+        kw, main, _ = row_words(self.view.schema, parent.core[1])
+        text = f"put it here: {i + 1 - parent.guards} under {main or kw}"
+        p.drawText(QPointF(b.x() + 8, a.y() + 4), text)
 
 
 def _esc(s: str) -> str:

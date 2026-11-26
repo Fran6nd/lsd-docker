@@ -848,6 +848,7 @@ bt_status bc_do_fall_back_by_cover(void *bot, const bt_args *a, float dt)
 		dest.y = clampf(me->pos.y + dy / l * 40.0f, 3.0f, 508.0f);
 	}
 	b->wish.fire_pid = -1;
+	b->wish.hold_fire = 1;          /* breaking contact: out of his sight, not a duel */
 	return bounds(b, dest, BC_COVER_BACK, 3.0f);
 }
 

@@ -81,7 +81,8 @@ typedef struct bc_wish {
 	uint8_t look;           /* BC_LOOK_* */
 	uint8_t tool;           /* bl_tool to hold */
 	uint8_t crouch, sneak, jump, sprint;
-	uint8_t pad_;
+	uint8_t hold_fire;      /* its errand fires at nobody on purpose (breaking contact,
+	                           a carrier's run): not even a man in sight (engine.c) */
 	int16_t fire_pid;       /* shoot him when the head is on him; -1 */
 	int16_t look_pid;
 	bl_vec3 goal;           /* GOTO */
@@ -685,7 +686,7 @@ bc_blueprint *bc_blueprint_for(bc_bot *b, const char *name);
  * policy.parts); taken again when the blueprints change */
 const bc_nav_protect *bc_parts_for(bc_engine *e, int team);
 /* A LEADER's order of a structure (a prefab) at a point, its front
- * toward him (look: the way he looks): the blueprint "order<pid>" his
+ * toward him (look: the way from him to it): the blueprint "order<pid>" his
  * squad builds. 1 posted (skill_build.c). */
 int bc_order_build(bc_engine *e, int leader, const char *structure, bl_vec3 at, bl_vec3 look);
 /* a ping "Build <structure> [here]" naming a structure botd loaded: a

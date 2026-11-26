@@ -29,7 +29,12 @@ function get_team(p) return TEAM[p]; end
 function is_alive(p) return ALIVE[p]; end
 function is_connected() return true; end
 function get_name(p) return "P" .. p; end
-function piditer() local i = -1; return function() i = i + 1; if (i <= 2) then return i; end end; end
+-- the core's: one player's id is that player, a group is everybody here
+function piditer(set)
+	local i, to = -1, 2;
+	if (type(set) == "number" and set >= 0 and set <= 2) then i, to = set - 1, set; end
+	return function() i = i + 1; if (i <= to) then return i; end end
+end
 -- the real lib_l10n: what the player reads, not a stand-in for it
 local L = dofile("tests/support/l10n_env.lua").load{};
 L.pids = {0, 1, 2};
@@ -89,6 +94,13 @@ local function kill(killer, victim, kt)
 	mod.after.kill(victim, kt or 0, killer);
 end
 local function reward(...) cmds.reward.func(0, {...}); end
+-- a capture as the core's chain runs it: every before, then every after
+local function capture(pid)
+	if (mod.before.capture_intel ~= nil) then mod.before.capture_intel(pid); end
+	mod.after.capture_intel(pid);
+end
+-- the impl of a question lib_rewards asks, as the core makes it a global
+for name, f in pairs(mod.impl) do if (_G[name] == nil) then _G[name] = f; end end
 
 --============================= EARNING ==============================--
 print("\n1. a reward for every rewards_kills kills, into the inventory");
@@ -101,6 +113,23 @@ check(chat[#chat-1].to == 0 and chat[#chat-1].text:find("^You earned: %u"), "and
 	chat[#chat-1].text);
 check(inventory_count(0, "missile") == 0 and inventory_count(0, "area_heal") == 0,
 	"never one whose effect is not loaded");
+
+print("\n1b. a bot earns its reward too, and is sent no line about it");
+-- lib_bot's people_in: the people of a set; player 1 is a bot here
+function people_in(set)
+	local done = (set == 1);
+	return function() if (not done) then done = true; return set; end end
+end
+do
+	local before, lines = total(1), #chat;
+	for i = 1, rewards_kills do kill(1, 2); end
+	check(total(1) == before + 1, "the bot holds its reward");
+	local to_bot = 0;
+	for i = lines + 1, #chat do if (chat[i].to == 1) then to_bot = to_bot + 1; end end
+	check(to_bot == 0, "nothing was sent to the bot", to_bot);
+	check(last().to == PID_BROADCAST and last().text == "P1 earned a reward", "everybody is told, once", last().text);
+end
+people_in = nil;
 
 print("\n2. kills that do not count");
 local n = total(0);
@@ -121,12 +150,32 @@ check(total(0) == 1, "a new map starts the kill count again");
 
 print("\n4. a capture earns one too, except tdm's winning one");
 empty(0);
-mod.after.capture_intel(0);
+capture(0);
 check(total(0) == rewards_capture, "a capture");
 gamemode = "tdm";
-mod.after.capture_intel(0);
+capture(0);
 check(total(0) == rewards_capture, "tdm's capture is the end of its game, not one");
 gamemode = "ctf";
+
+print("\n4c. the gamemode says whose a capture is (hostage: a bot scores it for its hero)");
+-- hostage's answer, in front of lib_rewards' in the chain: pid 2 plays the
+-- hostage, walked home by P1 -- or executed, when it is nobody's
+local own, executed = rewards_capture_for, false;
+rewards_capture_for = function(pid)
+	if (pid == 2) then return (not executed) and 1 or nil; end
+	return own(pid);
+end
+empty(1); empty(2);
+capture(2);
+check(total(2) == 0 and total(1) == rewards_capture, "the hostage earns nothing; its hero the capture's",
+	total(2) .. "/" .. total(1));
+executed = true;
+empty(1);
+capture(2);
+check(total(2) == 0 and total(1) == 0, "an execution: nobody's capture");
+check(not string.find(last().text or "", "P2 earned", 1, true), "nobody told the hostage earned one", last().text);
+rewards_capture_for = own;
+empty(1); empty(2);
 
 print("\n4b. killing the enemy who carries our intel");
 mod.after.load_map();      -- the kill count from zero: only the carrier reward counts here
@@ -153,7 +202,7 @@ print("\n5. the costlier, the rarer");
 local seen = {};
 for _ = 1, 400 do
 	empty(1);
-	mod.after.capture_intel(1);
+	capture(1);
 	for _, k in ipairs(KEYS) do if (inventory_count(1, k) > 0) then seen[k] = (seen[k] or 0) + 1; end end
 end
 empty(1);
@@ -230,7 +279,7 @@ rewards_enabled = false;
 NOW = NOW + 2; mod.after.tick();
 empty(0);
 for i = 1, 30 do kill(0, 2); end
-mod.after.capture_intel(0);
+capture(0);
 check(total(0) == 0, "kills and captures earn nothing");
 check(next(inventory_kinds()) == nil, "no reward is an item");
 check(not rail.everyone, "and the railgun is still nobody's");
@@ -247,7 +296,7 @@ gamemode_rewards = false;
 NOW = NOW + 2; mod.after.tick();
 empty(0);
 for i = 1, 30 do kill(0, 2); end
-mod.after.capture_intel(0);
+capture(0);
 check(total(0) == 0 and next(inventory_kinds()) == nil, "nothing earned, no reward is an item");
 check(rewards_enabled == true, "rewards_enabled is still the operator's");
 gamemode_rewards = nil;

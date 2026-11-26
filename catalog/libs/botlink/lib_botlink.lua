@@ -625,7 +625,7 @@ function botlink_add(opts)
 		error("botlink_add: team must be 1 or 2", 2);
 	end
 	local seed = opts.seed or math.random(1, 2147483646);
-	local level = math.max(1, math.min(10, math.floor(opts.level or 5)));
+	local level = math.max(1, math.min(10, math.floor(opts.level or 10)));
 	local gun = opts.gun or math.random(0, 2);
 	local at = opts.at;
 	local name = opts.name or string.format("Bot%d", seed % 1000);
@@ -649,12 +649,20 @@ function botlink_add(opts)
 	return pid;
 end
 
-function botlink_remove(pid)
-	local o = ours[pid];
-	if (o == nil) then return; end
+-- A bot of ours gone, whichever way it went (botlink_remove, or the
+-- server's hand: a kick, a seat given to a person): what was kept for it
+-- goes with it, so the next bot in its seat starts from nothing, and the
+-- engine is told.
+local function forget(pid)
+	if (ours[pid] == nil) then return; end
 	ours[pid] = nil;
 	psettings[pid], orders[pid], lastori[pid], nv_told[pid] = nil, nil, nil, nil;
 	push(10, pid, nil, 0, true);
+end
+
+function botlink_remove(pid)
+	if (ours[pid] == nil) then return; end
+	forget(pid);
 	if (bot_destroy ~= nil) then bot_destroy(pid); end
 end
 
@@ -775,11 +783,7 @@ function botlink_stats()
 end
 
 function mod.after.on_disconnect(pid)
-	if (ours[pid] ~= nil) then
-		ours[pid] = nil;
-		psettings[pid], orders[pid], lastori[pid] = nil, nil, nil;
-		push(10, pid, nil, 0, true);
-	end
+	forget(pid);
 	firing[pid], scoped[pid] = nil, nil;
 end
 
@@ -1074,6 +1078,12 @@ local function sees_dig(e, x, y, z)
 	return false;
 end
 
+-- WHAT AN EDIT COSTS is paid for what the map shows done. An edit that
+-- passed the player's rules above goes through the chains a client's
+-- does, and the gamemode may still say no there (lib_block_filter's
+-- may_edit_block, a protection of its own): nothing is built or taken
+-- then, so no block is spent or given back and the action is refused.
+-- The time is a player's either way: the click was made.
 local function do_block(pid)
 	local x, y, z, act = ac_block.x, ac_block.y, ac_block.z, ac_block.action;
 	if (not in_map(x, y, z) or act > 2) then return false; end
@@ -1087,18 +1097,17 @@ local function do_block(pid)
 		if (tool ~= 1 or blocks[pid] <= 0 or bot_solid(x, y, z) or not neighbours(x, y, z)
 		    or not sees_build(get_position(pid), x, y, z)) then return false; end
 		next_block[pid] = now + botlink_build_secs;
-		blocks[pid] = blocks[pid] - 1;
 		on_block_action(pid, posbuf, 0);
+		if (not bot_solid(x, y, z)) then return false; end
+		blocks[pid] = blocks[pid] - 1;
 		return true;
 	end
 
 	if (tool ~= 0 or not bot_solid(x, y, z) or not sees_dig(get_position(pid), x, y, z)) then return false; end
-	-- told no before the swing, not after: the filter would refuse it
-	-- silently, and the engine would count a dig that never was
-	if (may_edit_block ~= nil and not may_edit_block(pid, posbuf, 1)) then return false; end
 	next_block[pid] = now + (act == 1 and botlink_dig_secs or botlink_dig3_secs);
-	if (act == 1) then blocks[pid] = math.min(50, blocks[pid] + 1); end
 	on_block_action(pid, posbuf, act);
+	if (bot_solid(x, y, z)) then return false; end
+	if (act == 1) then blocks[pid] = math.min(50, blocks[pid] + 1); end
 	return true;
 end
 
@@ -1114,10 +1123,12 @@ local function do_line(pid)
 	-- begins); the rest is the line tool's
 	if (not sees_build(get_position(pid), x1, y1, z1)) then return false; end
 	next_block[pid] = now + botlink_line_secs;
-	blocks[pid] = blocks[pid] - n;
 	posbuf.x, posbuf.y, posbuf.z = x1, y1, z1;
 	posbuf2.x, posbuf2.y, posbuf2.z = x2, y2, z2;
 	on_block_line(pid, posbuf, posbuf2);
+	-- a line is drawn whole or not at all: its end, air before, says which
+	if (not bot_solid(x2, y2, z2)) then return false; end
+	blocks[pid] = blocks[pid] - n;
 	return true;
 end
 
@@ -1125,9 +1136,16 @@ local function finite3(x, y, z)
 	return x == x and y == y and z == z and math.abs(x) < 1e9 and math.abs(y) < 1e9 and math.abs(z) < 1e9;
 end
 
+-- The throws LSd takes from a client's Grenade packet (funcs_packetrecv.c,
+-- NADE_*_LIMIT_SQR, compared as written there: squared lengths against
+-- the limit + 1, the vertical ones against the plain component).
+local NADE_VEL, NADE_HVEL, NADE_DVEL, NADE_UVEL = 4.020025 + 1, 1.755625 + 1, 4 + 1, 1.8496 + 1;
+
 local function do_grenade(pid)
 	local vx, vy, vz, fuse = ac_grenade.vel.x, ac_grenade.vel.y, ac_grenade.vel.z, ac_grenade.fuse;
 	if (grenades[pid] <= 0 or not finite3(vx, vy, vz) or not (fuse >= 0 and fuse <= 3)) then return false; end
+	if (vx * vx + vy * vy + vz * vz > NADE_VEL or vx * vx + vy * vy > NADE_HVEL
+	    or vz > NADE_DVEL or -vz > NADE_UVEL) then return false; end
 	local len = math.sqrt(vx * vx + vy * vy + vz * vz);
 	if (len < 1e-6) then return false; end
 	on_orientation(pid, {x = vx / len, y = vy / len, z = vz / len});
@@ -1173,10 +1191,8 @@ local function do_ping(pid)
 	local pos = {x = x, y = y, z = z};
 	local reason = label_for(text);
 	if (teamplay_relay_pings ~= false) then
-		for i in (people_in or piditer)(PID_BROADCAST_TEAM(get_team(pid))) do
-			if (ours[i] == nil) then
-				teamplay_ping(i, pos, {from = pid, reason = reason});
-			end
+		for i in people_in(PID_BROADCAST_TEAM(get_team(pid))) do
+			teamplay_ping(i, pos, {from = pid, reason = reason});
 		end
 	end
 	if (attached) then ping_event(pid, pos, text); end

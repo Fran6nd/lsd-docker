@@ -43,10 +43,14 @@ def test_the_diagram_draws_the_text_and_follows_it_three_ways(window, real):
     load(window)
     d = window.diagram
     assert d.root == "tdm" and d.view == "A" and len(d.drawing.blocks) >= 9
-    # the first view: refs closed, the priority list a column, readable and narrow
-    assert d.drawing.box[d.drawing.root.kids[0].key].column
-    assert d.drawing.bounds.width() < 900 and d.zoom() >= 0.85
-    assert sum(1 for _, what, _ in d.drawing.zones if what == "ref") == 3      # its three references, closed
+    # the first view: refs closed, the priority list one under the other, readable
+    pick = d.drawing.root.kids[0]
+    ys = [d.drawing.box[k.key].y for k in pick.kids]
+    assert ys == sorted(ys) and len({d.drawing.box[k.key].x for k in pick.kids}) == 1
+    assert d.zoom() >= 0.85
+    main = [b for b in d.drawing.blocks if not b.read_only]
+    assert sum(1 for _, what, b in d.drawing.zones if what == "ref" and b in main) == 3   # its three references
+    assert d.drawing.companion.name == "tdm_also"                  # and what is ticked beside it, read-only
     # diagram -> text and outline
     d.select(("tdm", (0, 5)), emit=True)
     idle(window)
@@ -61,28 +65,53 @@ def test_the_diagram_draws_the_text_and_follows_it_three_ways(window, real):
     window.outline.setCurrentIndex(window.outline_model.index_for_line(M.node_at(window.doc, ("tdm", (1,)))["line"]))
     QApplication.processEvents()
     assert d.selected == ("tdm", (1,))
-    # the keyboard: down to the child, across to a sibling
-    d.select(("tdm", (0,)), emit=True)
+    # the keyboard, the same in both views: Down is the next row in reading
+    # order (an option's band, then what it does, then the next option); Left
+    # goes to the parent; Alt+Down moves it later
     from PySide6.QtCore import Qt
     from PySide6.QtTest import QTest
+    for view in ("A", "B"):
+        window.set_view(view)
+        d.select(("tdm", (0,)), emit=True)
+        QTest.keyClick(d, Qt.Key.Key_Down)
+        assert d.selected == ("tdm", (0, 0))
+        QTest.keyClick(d, Qt.Key.Key_Down)
+        assert d.selected == ("tdm", (0, 0, 0))        # the option's child, in the same card
+        QTest.keyClick(d, Qt.Key.Key_Down)
+        assert d.selected == ("tdm", (0, 1))           # the next option
+        QTest.keyClick(d, Qt.Key.Key_Up)
+        assert d.selected == ("tdm", (0, 0, 0))
+        QTest.keyClick(d, Qt.Key.Key_Left)
+        assert d.selected == ("tdm", (0,))             # to the parent
     QTest.keyClick(d, Qt.Key.Key_Down)
-    assert d.selected == ("tdm", (0, 0))
-    QTest.keyClick(d, Qt.Key.Key_Right)
-    assert d.selected == ("tdm", (0, 1))           # in a column: the next sibling
-    d.set_view("B")
-    assert not any(b.column for b in d.drawing.box.values())
+    QTest.keyClick(d, Qt.Key.Key_Down, Qt.KeyboardModifier.AltModifier)
+    idle(window)
+    assert M.node_at(window.doc, ("tdm", (0, 1)))["score"] == "grenade_near" and d.selected == ("tdm", (0, 1))
 
 
-def test_a_sub_tree_is_read_only_in_place_and_opened_by_a_click(window, real):
+def shown(d, name):
+    """The reference cards of `name` drawn, outside the tree beside."""
+    return [b for b in d.drawing.blocks if b.ref == name and (not b.via or b.via[0] != "also")]
+
+
+def click(d, rect):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    QTest.mouseClick(d.viewport(), Qt.MouseButton.LeftButton, pos=d.mapFromScene(rect.center()))
+
+
+def test_a_sub_tree_is_shown_in_place_read_only_by_click_key_and_menu(window, real):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
     load(window)
     d = window.diagram
-    ref = next(b for b in d.drawing.blocks if b.ref == "tdm_contact")
+    # the mouse: the chip on the card
+    ref = shown(d, "tdm_contact")[0]
     zone = next(r for r, what, b in d.drawing.zones if what == "ref" and b is ref)
-    from PySide6.QtCore import Qt
-    from PySide6.QtTest import QTest
-    QTest.mouseClick(d.viewport(), Qt.MouseButton.LeftButton, pos=d.mapFromScene(zone.center()))
-    inside = [b for b in d.drawing.blocks if b.read_only]
-    assert inside and all(b.top[0][0] == "tdm_contact" for b in inside)
+    click(d, zone)
+    ref = shown(d, "tdm_contact")[0]
+    assert ref.opened and ref.kids[0].read_only and ref.kids[0].top[0] == ("tdm_contact", ())
+    inside = [b for b in ref.kids[0].walk()]
     d.select(inside[0].top[0], inside[0].key, emit=True)
     idle(window)
     assert window.panel.read_only
@@ -90,13 +119,78 @@ def test_a_sub_tree_is_read_only_in_place_and_opened_by_a_click(window, real):
     assert not window.act_delete.isEnabled() and not window.act_insert_after.isEnabled()
     window.delete_selected()                        # refused quietly: nothing to do
     assert window._busy == 0
-    # the frame's title opens the tree itself, as the edited root; Back returns
+    click(d, zone)                                  # the same chip hides it
+    assert not shown(d, "tdm_contact")[0].opened
+    # the keyboard: Right shows it, Left hides it
+    ref = shown(d, "tdm_duty")[0]
+    d.select(ref.core[0], ref.key, emit=True)
+    QTest.keyClick(d, Qt.Key.Key_Right)
+    duty = shown(d, "tdm_duty")[0]
+    assert duty.opened
+    # nested: a reference inside a tree shown in place shows the same way, to any depth
+    camper = next(b for b in duty.walk() if b.ref == "tdm_camper")
+    d.set_open(camper, True)
+    camper = next(b for b in shown(d, "tdm_duty")[0].walk() if b.ref == "tdm_camper")
+    search = next(b for b in camper.walk() if b.ref == "tdm_search")
+    d.set_open(search, True)
+    deep = next(b for b in shown(d, "tdm_duty")[0].walk() if b.ref == "tdm_search" and b.opened)
+    assert deep.kids[0].top[0] == ("tdm_search", ()) and len(deep.kids[0].via) == 3
+    # it stays shown through an edit elsewhere, and its undo
+    keys = {b.key for b in d.drawing.blocks if b.opened}
+    d.select(("tdm", (0, 1)), emit=True)
+    window._move_selected(-1)
+    idle(window)
+    assert {b.key for b in d.drawing.blocks if b.opened} == keys
+    window.undo()
+    idle(window)
+    assert {b.key for b in d.drawing.blocks if b.opened} == keys
+    QTest.keyClick(d, Qt.Key.Key_Left)              # (0, 1) is not a reference: Left goes to its parent
+    # the menu: Edit > Show it here / Hide it here
+    ref = shown(d, "tdm_under_fire")[0]
+    d.select(ref.core[0], ref.key, emit=True)
+    idle(window)
+    assert window.act_show_here.text() == "Show it here (read-only)" and window.act_show_here.isEnabled()
+    assert window.act_show_here in d.actions()      # so in the right button's menu and the Edit menu
+    window.act_show_here.trigger()
+    assert shown(d, "tdm_under_fire")[0].opened
+    window._refresh_edit_actions()
+    assert window.act_show_here.text() == "Hide it here"
+    # expand all, to any depth (the references of the references), and collapse all
+    d.expand_all()
+    assert all(b.opened for b in d.drawing.blocks if b.ref_known)
+    assert len(d.drawing.blocks) > 60
+    d.collapse_all()
+    assert not any(b.opened for b in d.drawing.blocks)
+    # the frame's title edits the tree itself; Back returns
+    d.set_open(shown(d, "tdm_contact")[0], True)
     frame = next(r for r, what, b in d.drawing.zones if what == "frame")
-    QTest.mouseClick(d.viewport(), Qt.MouseButton.LeftButton, pos=d.mapFromScene(frame.center()))
+    click(d, frame)
     assert d.root == "tdm_contact" and not any(b.read_only for b in d.drawing.blocks)
     assert "used in 1 place" in d.head.text()
     d.go_back()
-    assert d.root == "tdm"
+    assert d.root == "tdm" and shown(d, "tdm_contact")[0].opened      # as it was left
+
+
+def test_the_tree_beside_and_the_trees_the_server_writes(window, real):
+    load(window)
+    d = window.diagram
+    c = d.drawing.companion
+    assert c.name == "tdm_also" and all(b.read_only for b in c.root.walk())
+    assert window.act_also.isChecked() and d.b_also.isVisible()
+    # items and extras: written by the server; shown in place, they say so
+    items = next(b for b in c.root.walk() if b.ref == "items")
+    assert items.ref_state == "engine"
+    d.set_open(items, True)
+    items = next(b for b in d.drawing.companion.root.walk() if b.ref == "items")
+    assert items.opened and "Written by the server" in items.kids[0].note
+    # hide the tree beside, and show it again
+    window.act_also.trigger()
+    assert d.drawing.companion is None and not d.b_also.isChecked()
+    window.act_also.trigger()
+    # its title edits it
+    zone = next(r for r, what, x in d.drawing.zones if what == "also")
+    click(d, zone)
+    assert d.root == "tdm_also" and "ticked beside tdm" in d.head.text()
 
 
 def test_edits_go_through_the_engine_and_undo(window, real):

@@ -181,12 +181,18 @@ end
 
 --=========================== NO BUILDING ============================--
 
-function mod.on_block_action(pid, pos, type)
-	l10n_send_chat(pid, no_build_msg);
+-- In the late chain, as the range's and map_layout's guards are: every
+-- observer above it (lib_shot_detect's proof of a shot) still sees the
+-- edit. What the client did of it already is put back on that client --
+-- else a runner's own copy of the course keeps the hole he dug.
+function mod.late.on_block_action(pid, pos, type)
+	map_layout.revert_action(pid, pos, type);
+	tell(pid, no_build_msg);
 end
 
-function mod.on_block_line(pid, start, stop)
-	l10n_send_chat(pid, no_build_msg);
+function mod.late.on_block_line(pid, start, stop)
+	map_layout.revert_line(pid, start, stop);
+	tell(pid, no_build_msg);
 end
 
 -- The course is nobody's to edit: not by a player's grenade, not by an

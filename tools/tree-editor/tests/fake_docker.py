@@ -95,6 +95,9 @@ def tool(args, text):
         sub = args[2] if len(args) > 2 else ""
         bad = "figth" in text
         if sub == "schema":
+            if BTTREE:
+                o, _, c = real(["--schema"], None)
+                return o, c
             return fixture("schema.json"), 0
         if sub == "trees":
             return fixture("trees.json"), 0

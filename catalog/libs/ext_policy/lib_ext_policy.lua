@@ -20,10 +20,11 @@
 --                    had already agreed. This is how you turn an
 --                    extension off from the settings file without
 --                    unloading its module.
---   EXT_APPLIED      silent. The extension is announced and used by
+--   EXT_APPLIED      silent, and what an extension ext_policy does not
+--                    name gets. The extension is announced and used by
 --                    whoever has it; a client without it is never told
 --                    and never hindered.
---   EXT_RECOMMENDED  the default. A client without it is told what it
+--   EXT_RECOMMENDED  a client without it is told what it
 --                    is missing and what that costs, and told again
 --                    every ext_policy_warn_interval for as long as it
 --                    is still missing. Nothing is withheld -- the point
@@ -85,10 +86,9 @@
 --
 -- BOTS ARE NOT CLIENTS and are exempt, which is not a special case so
 -- much as the absence of one: there is nothing on the other end of a
--- bot to ask. lib_bot's bots reach on_join by calling it
--- (lib_bot.lua:120), so without this every hostage and every faller
--- would be frozen in spectator and both gamemodes would stop working.
--- Two tests, either of which exempts:
+-- bot to ask. lib_bot's bots reach on_join by calling it (bot_create),
+-- so without this every bot would be frozen in spectator. Three tests,
+-- any of which exempts:
 --
 --   bot_is_nonhuman(pid) lib_bot saying so, which covers its own bots
 --                        and any client lib_headless has marked as
@@ -96,7 +96,7 @@
 --                        real peer and would pass every test below
 --   bot_is_bot(pid)      lib_bot's narrower answer, if an older copy of
 --                        it is loaded without the above
---   get_ipaddr(pid) == 0 no ENet peer at all (lua.c:1087-1096 answers 0
+--   get_ipaddr(pid) == 0 no ENet peer at all (lua.c get_ipaddr answers 0
 --                        rather than failing), which covers a bot from
 --                        any other source, and anything else holding a
 --                        player id with nobody behind it
@@ -108,13 +108,15 @@
 -- failing a requirement, but told nothing, because there is nothing to
 -- tell it yet and it has very likely just not got there.
 --
--- Running out of time is two clocks, not one. Both start only once the
--- map is through: the version request rides the end of it (send_state
--- calls demand_fingerprint), and nothing can be answered before it is
--- asked, so a slow download is never mistaken for silence. From there a
--- client gets ext_policy_grace; one that has also picked a team gets
--- only ext_policy_grace_joined, since it has demonstrably processed
--- everything the question came with.
+-- Running out of time is two clocks, not one. The first starts with the
+-- version request, which rides the end of the map (send_state calls
+-- demand_fingerprint): nothing can be answered before it is asked. But
+-- the core hands the whole map and the request behind it to ENet in one
+-- call, at the connect, so the clock starts when the map is SENT, not
+-- when it has arrived: a download slower than ext_policy_grace is taken
+-- for silence. From there a client gets ext_policy_grace; one that has
+-- also picked a team gets only ext_policy_grace_joined, since it has
+-- demonstrably processed everything the question came with.
 --
 -- Which makes the join a race, and the race is handled rather than
 -- avoided: a client that picks a team before its answer arrives is put
@@ -160,14 +162,7 @@ local LEVEL_NAME = {
 -- as "no entry" and quietly does the opposite of what was written.
 --
 -- Strings have no such ordering to get wrong, so they are what the
--- config uses and what the default below is written as. The numbers
--- stay valid for Lua that runs after the load.
--- The base protocol's system chat type, which needs no extension and no
--- agreement. Spelled here rather than as MSG_SYSTEM because that global
--- only exists once lib_message_types has loaded, and this module works
--- whether it ever does.
-local CHAT_SYSTEM = 2;
-
+-- config uses. The numbers stay valid for Lua that runs after the load.
 local LEVEL_BY_NAME = {
 	disabled = EXT_DISABLED,
 	applied = EXT_APPLIED,
@@ -185,29 +180,27 @@ local function resolve_level(v)
 	return nil;
 end
 
--- The level of any extension not named in ext_policy below, which with
--- an empty ext_policy means every extension this server speaks.
---
--- EXT_RECOMMENDED for now. Nothing is withheld from anybody at that
--- level and nobody is kept out; a client missing something is told
--- once, which is the only way to find out what clients actually
--- implement these -- the specifications are days old, and the honest
--- answer today is that most clients will be told they are missing most
--- of them. That is the point of running it this way round first: when
--- the warnings stop arriving for a client you expected to be fine, the
--- id -> level, for the extensions that are exceptions to the default
--- above. Empty is the normal state. Set it in config.lua before loading.
+-- The base protocol's system chat type, which needs no extension and no
+-- agreement. Spelled here rather than as MSG_SYSTEM because that global
+-- only exists once lib_message_types has loaded, and this module works
+-- whether it ever does.
+local CHAT_SYSTEM = 2;
+
+-- id -> level, for every extension this server registers: each
+-- Extension's setup writes its own entry. One it does not name runs at
+-- DEFAULT_LEVEL (below), and the audit says so in the log. Set it in
+-- config.lua before loading.
 getcfg("ext_policy", {},
 	"Per-extension levels, by protocol id. Every registered "
 		.."extension should be listed.");
 -- Seconds a client gets to answer the extension announcement before it
--- is judged on the silence, counted from the version request, which
--- rides the end of the map transfer -- send_map (funcs_send.c:198-208)
--- ends in send_state (:271-275), which is what calls demand_fingerprint
--- (main.c:1204-1223). The download itself is not counted, however slow.
--- The honest answers arrive in two round trips; 10 is generous, and it
--- is what a client too old to answer waits on its loading screen above
--- 32 seats (its StateData names it, and is held until then).
+-- is judged on the silence, counted from the version request: send_map
+-- ends in send_state, which calls demand_fingerprint. The core sends the
+-- map and the request in one call, so the clock counts the download as
+-- well (see the header). The honest answers arrive in two round trips
+-- after the map; 10 is what a client too old to answer waits on its
+-- loading screen above 32 seats (its StateData names it, and is held
+-- until then).
 getcfg("ext_policy_grace", 10,
 	"Seconds a client gets to answer the extension handshake, from the "
 		.."end of the map.");
@@ -290,8 +283,8 @@ local pending_team = pid_connected_table();
 -- as "long ago" happens to work on a host that has been up a while and
 -- silently gags every warning for the first minute after a reboot.
 local told_at = pid_connected_table();
--- pid -> when the version request went out, at the end of the map,
--- which is when the clock starts
+-- pid -> when the version request went out, behind the map, which is
+-- when the clock starts
 local since = pid_connected_table();
 -- pid -> has the one fixed alert gone out to them yet
 local alerted = pid_connected_table(false);
@@ -464,18 +457,17 @@ local function decided(pid)
 	local now = get_time();
 
 	-- They have joined, so they are not still downloading: the version
-	-- request goes out at the END of the map transfer
-	-- (main.c:1204-1223, reached from send_map), and a client cannot
-	-- have picked a team without getting past it. Silence from here is
-	-- an answer within a couple of seconds, not thirty.
+	-- request rides the END of the map (demand_fingerprint, reached from
+	-- send_map), and a client cannot have picked a team without getting
+	-- past it. Silence from here is an answer within a couple of
+	-- seconds.
 	local up = caught_up[pid];
 	if (up ~= nil and now - up >= ext_policy_grace_joined) then
 		return true;
 	end
 
-	-- Asked, at the end of the map, and not yet joined. Before the
-	-- question there is no clock at all: a client still pulling the map
-	-- down is not silent, it has not been asked.
+	-- Asked, and not yet joined: from when the request was sent, behind
+	-- the map (see the header). Before the question there is no clock.
 	local t = since[pid];
 	return t ~= nil and now - t >= ext_policy_grace;
 end
@@ -671,22 +663,6 @@ end
 
 --============================== AUDIT ===============================--
 
--- Says what the policy came out as, and names anything in it that no
--- module registered.
---
--- It reports and changes nothing, which is the important part. An
--- ext_policy entry for an unregistered id is already harmless by
--- construction: `wanted` walks lib_ext's REGISTRY and asks the policy
--- about each id, never the other way round, so an id nothing registered
--- is never looked at and can never make a client fail. Deleting such an
--- entry would be the actively worse move -- the extension may simply
--- not have loaded yet, and a policy deleted at startup would not come
--- back when it does.
---
--- Deferred to a tick rather than run from on_load for exactly the same
--- reason. config.lua may load this before or after the extensions it
--- names, and which it is should not change what gets logged, let alone
--- what gets enforced. By the first tick they have all registered.
 -- Make lib_ext's offered list match the policy. Disabling is an act,
 -- not a label: lib_ext has to be told, because it is the one that
 -- builds the announcement.
@@ -715,14 +691,29 @@ end
 
 local audited = false;
 
+-- Says what the policy came out as, and names anything in it that no
+-- module registered.
+--
+-- It reports and changes nothing, which is the important part. An
+-- ext_policy entry for an unregistered id is already harmless by
+-- construction: `wanted` walks lib_ext's REGISTRY and asks the policy
+-- about each id, never the other way round, so an id nothing registered
+-- is never looked at and can never make a client fail. Deleting such an
+-- entry would be the actively worse move -- the extension may simply
+-- not have loaded yet, and a policy deleted at startup would not come
+-- back when it does.
+--
+-- Deferred to a tick rather than run from on_load for exactly the same
+-- reason. config.lua may load this before or after the extensions it
+-- names, and which it is should not change what gets logged, let alone
+-- what gets enforced. By the first tick they have all registered.
 local function audit()
 	local known = {};
 	local lines = {};
 
-	-- every registered extension and the level actually in force for it,
-	-- which with a non-applied default is most of the interesting
-	-- information -- an operator reading ext_policy alone would see an
-	-- empty table and learn nothing
+	-- every registered extension and the level actually in force for it
+	-- (its floor included) -- an operator reading ext_policy alone would
+	-- not see a floor at work
 	ext_each(function(id, reg)
 		known[id] = reg;
 		lines[#lines+1] = string.format("%s=%s", reg.title,

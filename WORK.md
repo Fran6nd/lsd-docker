@@ -42,7 +42,7 @@ DONE (commit), BLOCKED (on what).
 | 8 | A babel tree, sent by babel_plus only when bots are added; no bots, no engine | DONE (babel.bt, masons/raiders, GAMES bots=true; v2026.11.25.5) |
 | 9 | Remove battle_bots and the gamemodes bots, bots_rewards (setup, scripts, docs, migration of servers that run them) | TODO (after 0) |
 | 10 | Shooting range gamemode on a generated map: a static range (bots as targets from 5 to 50 m, standing or crouched, never dying, never moving, damage shown to the shooter; a target on a rail or one that blinks from place to place) and an IPSC course, one player at a time; all targets as fast as possible; IPSC after the owner played it: targets drop, a start wall, no-shoots with a time penalty | DONE (range + IPSC + colour flip; v2026.11.25.6) |
-| 11 | Graphical node editor in tools/tree-editor (replaces its text-first phase 2) | DONE (diagram editor; never seen on a real screen yet) |
+| 11 | Graphical node editor in tools/tree-editor (replaces its text-first phase 2) | DONE (diagram editor); REVIEW (review batch 1: outline layout, nested trees shown in place, new/duplicate/delete trees, "if ... then ... otherwise"; seen offscreen as screenshots only) |
 | 12 | Docs pass left unfinished by the tooling agent (bot/trees/README.md, TREES.md trimmed, docs/*, skills) | TODO |
 | 13 | A scenario test for the sniper role (tdm, ctf) | DONE (sniper_test, 07ad876) |
 | 14 | Proposal to the owner: a behaviour's HOW written in Lua (a script skill a tree can `do`) | ON HOLD (owner stopped it; branch kept) |
@@ -60,7 +60,7 @@ DONE (commit), BLOCKED (on what).
 | 25 | Babel: carriers falling 26-30 voxels off their own stair's top under fire | TODO |
 | 26 | CI: bttree does not build on Ubuntu (upstream demoncore.c -Werror=address-of-packed-member), so bots_ctl_test skips there | TODO |
 | 27 | try_edit's top-band rule (no edits up into z < 3): same reasoning as the removed jump rule | TODO |
-| 28 | lib_bot's send_spawn_player split, redundant since patch 0002 | TODO |
+| 28 | lib_bot's send_spawn_player split, redundant since patch 0002 | REVIEW (removed; review batch 1) |
 | 29 | One filter for every edit of the map (the owner: "all destruction effects must go through the gamemode's filter"): `may_edit_block`, asked at the engine's block_action_rm / block_action / block_line, answered once by each gamemode | DONE on the branch (lib_block_filter), not released |
 | 30 | "I ping from the pie menu and it does nothing" (babel, ZeroSpades): lib_bot's people_in compared get_team (1, 2) with the team a set holds (0, 1), so a team's people were the other team's and a ping, a team chat or a callout reached nobody it was for once bots were on the server | DONE (branch worktree-agent-ae2b8838b3487bc75; tests/pie_ping_test.lua) |
 | 31 | Shooting range: nobody but its targets on the green team (team 2): not at the join, a team change, /switch, team_balance or a held team released | DONE (range.lua late on_join/on_switch; tests/range_teams_test.lua) |
@@ -988,3 +988,133 @@ DONE (commit), BLOCKED (on what).
   that miss differ by platform). One check replaces master's "2 of 3":
   16 matches, at least 7 (p 0.70, under both platforms: 0.7% false
   failure); the tallies over all of them.
+- 2026-11-26 (brain agent): THE OWNER'S BABEL FOUR. (1) AN ENEMY IN SIGHT
+  IS SHOT AT FIRST ("sometimes bots face each other and do not shoot").
+  Measured (babel harness, seed 1, 300 s): of 369 bot-seconds with its
+  man in sight and in range, 66 were 2 s and more without a round -- 33
+  with the tree ended that tick (no wishes at all), 11 a guard's sweep.
+  Fixed in one place (engine.c, after the tree): the man it would fight,
+  in sight and in range, is looked at and fired on (fire_at_will) whatever
+  the tree asked; where it goes stays the tree's. Not where the errand
+  holds its fire on purpose (wish.hold_fire): a retreat and a fall back
+  break contact out of his sight, and a carrier's run home shoots only a
+  man it is about to run into (14) -- to turn and duel costs the run, and
+  the capture is the point (ctf_test, skills_test, tactics_test pin all
+  three); nor with a grenade in hand or at its feet, nor at peace. 66/369 -> 26/269 (what is left: aim and burst gaps, 4 a route's
+  block in hand). skills_test "shot at first": guarding, a tree with
+  nothing to do (fails before: no round in 4 s), building -- all fire in
+  about a second. (2) A MAN JUST SPAWNED looks up at the platform's edge
+  over his spawn (`just_spawned`, `watch`, babel_plus place.platform_edge)
+  and fights who is there; skills_test: a spawn-killer on the edge high
+  behind him is shot at in 1.5 s (never before). (3) THE PLATFORM: with
+  nothing to do (a capture under way, all built) a team's men wait on
+  the platform's edge over the OTHER side (place.platform_watch, `guard`:
+  a spot each), not by their stair's top. Harness 3 seeds, before ->
+  after: bot-seconds by its own stair's top 207/211/355 -> 33/45/160;
+  on the platform 648/717/360 -> 99/245/50 and kills from it 4/8/1 ->
+  2/4/0 -- because now the first team up holds the other's stair top
+  from above, and the other's stair was never whole in 600 s in any of
+  the 3 seeds (79+277, 202+105, 187+- before); captures 8 -> 7. (4)
+  PINGS IN BABEL: babel_callouts (intel there, the thief, enemies
+  spotted, a sniper -- an enemy only where seen) and babel_answer (a
+  team-mate's ping: there; a call for help: by him), as ctf's. A STAIR
+  TO HERE: "Build stairs here" (babel's Build pie, fr/es/zh/ru) from a
+  leader -- every person is one -- is his squad's order: the engine lays
+  a straight stair from the ground up to the spot on his side
+  (skill_build.c stair_to_cells, through bc_order_build as the prefabs
+  go), `leader_ordered` -> build_part leader in babel.bt too; a bot leader
+  orders one at the platform's edge when its team's stair was cut within
+  a minute (babel_plus fact.stairs_wanted). prefab_test: a person's ping
+  -> 21 voxels built in 16 s, then a bot that may not edit walks up it
+  onto the platform; a loner's ping: nothing. callouts_test: babel's
+  Build pie.
+- 2026-11-26 (review of 25-26 Nov, batch 1: the catalog, lsdctl, the
+  tree editor; bot/core, bot/trees, bot/tests and babel left to the
+  brain agent, not touched). Each bug failed a test or a measurement
+  first; the test stays. SENDS: (1) the core sent a bot its own packets
+  (set_hp's HP packet, 568 a minute in bot_sends_test once it modelled
+  main.c's set_hp) and lib_bot's guard logged them as a script's fault,
+  beside an ENGINE list of the core's sends let through: two half
+  mechanisms. Now one rule in C -- patch 0002 gains SEND_TO_NOBODY: a
+  send to ONE slot with no peer returns before the scripts' chain (the
+  generated csend_* bindings, send_packet, send_packet_unreliable,
+  send_state_ctf); lib_bot's ENGINE list, engine_asks and the "only
+  bots" group check are gone, the guard catches a script's send at one
+  bot and names its real sender (not lib_l10n, which passes on). Live
+  (ctf, 60 bots, 994 hits, two map changes): 0 send_packet drops. (2)
+  item 28: lib_bot's send_spawn_player split removed. (3) motd sent its
+  lines to every bot at a join; (4) lib_rewards told a bot "You earned"
+  (12 drops in 2 min live): both walk people_in. (5) botlink_test built
+  team sets 1-based, the shape that hid item 30. (6) lib_botlink: a
+  build or line the filter refused still spent blocks and counted as
+  done; grenades held to LSd's NADE limits; nv_told forgotten at a
+  disconnect; botlink_add's level fallback 5 -> 10. (7) lib_headless
+  with an even number of clients: half the people got no World Update
+  (it split above command_ups, whose counter counts calls);
+  tests/headless_ups_test.lua. (8) tentspawns drew columns off the map
+  near an edge (is_solid raised: the core's rule for the whole spawn).
+  (9) player_properties never refilled a bot on a restock. Overrides:
+  none of the 12 can be a hook; the README says why, one sentence each.
+  RULES: (10) parkour refused an edit and put nothing back on the
+  client: its guard is the range's now (late chain, map_layout
+  revert_action / the one revert_line). (11) map_layout's revert sent 9
+  block packets to a bot. (12) lib_vote kept a leaver's voice: the next
+  player in that seat "already voted". (13) `lsdctl setup` before init
+  marked defaults_offered without vote_peace: lost for good; one
+  not_offered / mark_offered. (14) lib_stairs' straight and tapered feet
+  unchecked (in a pit, a refused column); tests/stairs_test.lua. (15) an
+  engine hostage loose with no engine stood for good: remade as lib_bot's
+  where it stands. (16) a hostage's capture paid the hostage: one
+  question, rewards_capture_for (tdm's by-name case is its default).
+  (17) the range and parkour offered the Build pie. entrypoint's
+  `--bots 255` (botd's own default) removed; docs/administer.md,
+  developing.md, catalog.md, README brought to the code. EDITOR: A is an
+  OUTLINE -- a parent over its children, stacked in order, one indent
+  in; A_COLUMN gone; order is downwards in both views, keys the same in
+  both (test_shipped.py: every shipped tree, both views: siblings in
+  order by y, no overlap, no connector through a card). Bugs: the CLI
+  forced level 5 (Setup is the one default now, tuning and split too);
+  cards measured 1.79x wider than drawn (fonts made before the
+  application); a typed @place never committed. Nested trees: show /
+  hide in place by chip, arrows and menu, to any depth, a cycle marked,
+  Expand all / Collapse all, state kept through edits and undo (keyed by
+  the node, not its path); `<name>_also` drawn beside; items / extras
+  said to be the server's. Trees: new, duplicate, delete, "the tree the
+  bots run", new from the game's tree; a new node asks what it holds
+  (no `wait 1` placeholder). "If ... then ... otherwise ..." in one
+  step (select / seq / if), drawn as a decision (when / then /
+  otherwise), inside an option and around a pick. Kinds, words and
+  arguments from the schema only (a kind the engine adds is offered,
+  drawn and edited: tested). Tests 82 (1 failing) -> 116, none skipped;
+  a real run on Docker left nothing behind. GREEN: dev/test.sh, make -C
+  bot test (Mac, with the brain agent's work in the tree),
+  tools/tree-editor pytest; the patches apply in order, the image builds
+  and dev/smoke.sh passes on it (Alpine gcc). Tests changed: hostage_test
+  6 asserted the stranded hostage (now the opposite); test_session's
+  LEVEL=5; stubs made to send as the core does (bot_sends, botlink,
+  rewards' piditer, parkour's late chain). OPEN, found and not fixed:
+  edit_mode's spade_with_62 removes on every client a block the filter
+  refused (records `removed` whatever block_action_rm answers);
+  lib_block_filter puts nothing back on a person's client for cells it
+  refuses (latent: every gamemode's own guard catches them first; the
+  revert belongs in the filter); 1-based team sets in the stubs of
+  callouts_test, event_pings_test, block_filter_test, hostage_test,
+  babel_test; a bot's ping goes round /pingmark (lib_botlink do_ping
+  repeats teamplay's request_ping: needs bc_do_ping to face the point);
+  ext_policy's 10 s clock starts when the map is queued, not received (a
+  slow download reads as an outdated client); old body numbers in
+  esp_demo and lib_blast's person_in; lib_botlink's label_for searches
+  pings only (lib_callouts should export one callouts_label over pings
+  and builds); executing a hostage pays rewards_return; `lsdctl bots <n>`
+  on the range; /va and /votepeace open at once (owner's call);
+  babel_plus: bots_told not reset at a map change, the platform zone sent
+  as a plain column (for the brain agent). Editor, wanted from the
+  engine: what it wrote into items / extras (`lsdctl bots`), and in
+  `bttree --schema`: the engine-written trees, the _also rule, @places,
+  which params a `roll` leaves out, how a kind tries its children. NEXT:
+  the language -- `if <value> <op> <number>` over one table of sensed
+  values (the five named number conditions become its shorthands) and an
+  `if / else` block, in bt.c, the schema and the editor -- and bot/
+  (items 25, 26, 27; routes, budget, threads, claims), after the brain
+  agent's commit. bot/core/lsd_state.h is an unfinished start on item
+  26, referenced by nothing.

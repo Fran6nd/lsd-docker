@@ -84,7 +84,7 @@ end
 local function load()
 	package.loaded.lib_player_limit = nil;
 	local max = player_limit_max;
-	player_limit_grace, player_limit_queue_max = nil, nil;
+	player_limit_queue_max = nil;
 	local mod = dofile("catalog/extensions/player_limit/lib_player_limit.lua");
 	player_limit_max = max;
 	mod.late.next.send_packet = function(pid, data) SENT[#SENT+1] = {pid, data, true}; return 1; end

@@ -91,6 +91,16 @@ check(not sh(ctl(dir) .. "get scripts"):find("vote_peace", 1, true), "an owner r
 out = sh(ctl(dir) .. "init");
 check(not out:find("brought up to date", 1, true) and not sh(ctl(dir) .. "get scripts"):find("vote_peace", 1, true),
 	"init does not put it back", out);
+print("\n5. an older server set up again before it starts is given it too");
+-- `docker run ... IMAGE setup` on an old volume runs no init first: the
+-- full setup shows the newer default ticked, and records it as offered
+-- only then
+f = io.open(dir .. "/settings", "wb"); f:write(old); f:close();
+sh(ctl(dir) .. "setup --defaults");
+scripts = sh(ctl(dir) .. "get scripts");
+check(scripts:find('"vote_peace"', 1, true) and scripts:find('"vote"', 1, true),
+	"setup installs it, with its library", scripts);
+check(sh(ctl(dir) .. "get defaults_offered"):find('"vote_peace"', 1, true), "and records it offered");
 sh("rm -rf " .. dir);
 
 print(string.format("\n%d checks, %d failed", checks, failures));

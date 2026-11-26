@@ -412,5 +412,22 @@ check(solid[k(310, 300, 30)] and solid[k(311, 300, 30)], "the layout draws its o
 we.fill({id = 1}, 310, 300, 30, 311, 300, 30, nil, false);
 check(not solid[k(310, 300, 30)], "and takes it down");
 
+print("\n9. what a refused edit did on the client is put back there -- a person's, not a bot's");
+-- the range, parkour and the layout's own guard refuse a player's edit in
+-- the late on_block_action and undo it on his client (map_layout.revert_*)
+local sent = {};
+function send_block_action(pid) sent[#sent+1] = pid; end
+function send_set_block_color(pid) sent[#sent+1] = pid; end
+function get_map_block_color() return {1, 2, 3}; end
+function bot_is_bot(pid) return pid == 3; end
+map_layout.revert_action(0, {x = 302, y = 300, z = 30}, 2);
+map_layout.revert_line(0, {x = 1, y = 1, z = 40}, {x = 3, y = 1, z = 40});
+check(#sent == 3 * 2 + 3 and sent[1] == 0, "a person's spade (3 blocks) and line (3): put back on his client", #sent);
+sent = {};
+map_layout.revert_action(3, {x = 302, y = 300, z = 30}, 2);
+map_layout.revert_line(3, {x = 1, y = 1, z = 40}, {x = 3, y = 1, z = 40});
+check(#sent == 0, "a bot has no client: nothing is sent to it", #sent);
+bot_is_bot = nil;
+
 print(string.format("\n%d checks, %d failed", passed + failed, failed));
 os.exit(failed > 0 and 1 or 0);

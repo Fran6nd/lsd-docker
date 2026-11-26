@@ -19,14 +19,15 @@ SIGNALS = [getattr(signal, n) for n in ("SIGINT", "SIGTERM", "SIGHUP") if hasatt
 
 
 def _arguments(argv):
+    first = Setup()                            # the defaults are the server's, said once (server.Setup)
     p = argparse.ArgumentParser(prog="lsd-tree-editor", description="A behaviour-tree editor for the server's bots.")
     p.add_argument("file", nargs="?", help="a tree file (.bt) to open")
     p.add_argument("--launch", action="store_true", help="launch the server at once")
     p.add_argument("--image", default=None, help=f"the server's image (default: the last used, else {DEFAULT_IMAGE})")
-    p.add_argument("--gamemode", default="tdm")
-    p.add_argument("--bots", type=int, default=3, help="bots a team")
-    p.add_argument("--level", type=int, default=5)
-    p.add_argument("--map", choices=["random", "generated"], default="random")
+    p.add_argument("--gamemode", default=first.gamemode)
+    p.add_argument("--bots", type=int, default=first.bots_team1, help="bots a team")
+    p.add_argument("--level", type=int, default=first.level, help=f"the bots' level, 1 to 10 (default {first.level})")
+    p.add_argument("--map", choices=["random", "generated"], default=first.map)
     p.add_argument("--headless", action="store_true", help="no window: for tests and scripts")
     return p.parse_args(argv)
 

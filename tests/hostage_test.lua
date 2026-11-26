@@ -8,7 +8,8 @@
 -- hostages are lib_bot's (and nothing of the engine's is asked for); with
 -- one, they are engine bots with the script's own tree, told what the
 -- game's rules say -- held, freed, home, its rescuer dead -- and the mind
--- changes only while a hostage waits at a tent. (What the engine does
+-- changes while a hostage waits at a tent, or at once, where it stands,
+-- when the engine it had is gone. (What the engine does
 -- with the tree: bot/tests/hostage_test.c.)
 
 local failures, checks = 0, 0;
@@ -117,7 +118,7 @@ function bot_look_at() end
 function bot_walk() end
 function bot_nearest_player() end
 function bot_heal() end
-function bot_teleport() end
+function bot_teleport(pid, pos) P[pid].pos = {x = pos.x, y = pos.y, z = pos.z}; end
 
 -- lib_botlink
 local LINK_ALIVE = false;
@@ -210,6 +211,18 @@ eq(last_set("fact.home", h1), "1", "told it is home: the last steps are its own"
 check(TELLS.hostage_home ~= nil, "it listens for the tree's tell");
 TELLS.hostage_home(h1, {});
 eq(bot_get(h1).data.hero, 1, "the man who brought it is the hero");
+eq(mod.rewards_capture_for(h1), 1, "its capture is his, for the rewards (not the hostage's)");
+eq(mod.rewards_capture_for(1), 1, "anybody else's capture is his own");
+-- an execution: the capture award_point makes is nobody's
+local credit = "unasked";
+local real_capture = capture_intel;
+capture_intel = function(pid) credit = mod.rewards_capture_for(pid); end
+player(2, 2, 104, 256);
+mod.after.kill(h1, 0, 2);
+eq(credit, nil, "an execution's capture: nobody's, for the rewards");
+bot_get(h1).data.executing = nil;     -- as its own capture hook clears it
+capture_intel = real_capture;
+P[2] = nil;
 
 print("\n5. the rescuer dies on the way");
 P[1].pos = {x = 250, y = 256, z = 38};
@@ -223,7 +236,7 @@ check(o ~= nil and o.order == "none", "no man to follow", o and o.order);
 eq(last_set("fact.rescue", h1), "0", "no rescue");
 eq(last_set("fact.lost", h1), "1", "loose in the open: lost (it gets down and waits)");
 
-print("\n6. the engine goes: back to lib_bot, but only at a tent");
+print("\n6. the engine goes: back to lib_bot -- at a tent, or at once where it has no mind")
 local function removed(pid)
 	for _, r in ipairs(REMOVED) do if (r == pid) then return true; end end
 	return false;
@@ -232,12 +245,23 @@ LINK_ALIVE = false;
 local h2 = hostage_of(2);
 tick();
 check(removed(h2), "team 2's, waiting at its post: let go, to be made again");
-check(not removed(h1), "team 1's, loose in the open: keeps the mind it has");
-P[h1].pos = {x = 400, y = 256, z = 38};
+check(bot_get(hostage_of(2)).think ~= nil and P[hostage_of(2)].pos.x == 100, "made again as lib_bot's, at its post");
+-- team 1's is loose in the open (5.): an engine's bot with no engine
+-- never moves again, so it cannot wait to reach a tent
+check(removed(h1), "team 1's, loose in the open with no engine: let go at once");
+local n1 = hostage_of(1);
+check(n1 ~= nil and bot_get(n1).think ~= nil and not bot_get(n1).data.botlink, "made again as lib_bot's, with its think");
+check(n1 ~= nil and P[n1].pos.x == 253, "where it stood, not back in the cage", n1 and P[n1].pos.x);
+
+print("\n7. an engine comes back: a lib_bot hostage loose in the open keeps its mind")
+LINK_ALIVE = true;
+local before = #ADDED;
+tick();
+eq(#ADDED, before + 1, "team 2's, at its post: the engine's again");
+eq(hostage_of(1), n1, "team 1's, loose and walkable by lib_bot: kept");
+P[n1].pos = {x = 400, y = 256, z = 38};
 tick(2);
-check(removed(h1), "at a tent, nobody leading: let go");
-check(bot_get(hostage_of(1)).think ~= nil and not bot_get(hostage_of(1)).data.botlink, "made again as lib_bot's, with its think");
-check(bot_get(hostage_of(2)).think ~= nil, "and team 2's too");
+check(hostage_of(1) ~= n1 and bot_get(hostage_of(1)).data.botlink, "at a tent, nobody leading: the engine's");
 
 print(string.format("\n%d checks, %d failed", checks, failures));
 os.exit(failures == 0 and 0 or 1);

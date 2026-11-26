@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QComboBox, QGridLayout, QHBoxLayout, QHeaderView,
                                QVBoxLayout, QWidget)
 
 from . import model as M
+from .server import Setup
 
 
 class TuningPanel(QWidget):
@@ -36,15 +37,19 @@ class TuningPanel(QWidget):
         self.head.setWordWrap(True)
         lay.addWidget(self.head)
         row = QHBoxLayout()
-        self.level = QSpinBox(minimum=1, maximum=10, value=5)
+        self.level = QSpinBox(minimum=1, maximum=10, value=Setup().level)   # the crowd as the server would make it
         self.level.setPrefix("level ")
         self.crowd = QComboBox()
         for n in (300, 700, 2000):
             self.crowd.addItem(f"{n} bots", n)
         self.crowd.setCurrentIndex(1)
+        self.kinds = QComboBox()
+        self.kinds.setToolTip("Which kinds of bot the crowd is made of (the server's engine_bots_archetypes)")
+        self.kinds.addItem("every kind, equally", "")
+        self.kinds.currentIndexChanged.connect(self.changed)
         self.reset = QPushButton("All to 0")
         self.reset.clicked.connect(self._reset)
-        for w in (self.level, self.crowd, self.reset):
+        for w in (self.level, self.crowd, self.kinds, self.reset):
             row.addWidget(w)
         row.addStretch(1)
         self.level.valueChanged.connect(self.changed)
@@ -90,7 +95,23 @@ class TuningPanel(QWidget):
             self in (tabs.currentWidget(), getattr(tabs.currentWidget(), "widget", lambda: None)())
 
     def document_changed(self) -> None:
+        self.set_kinds((self.window.session.schema or {}).get("archetypes", []))
         self.changed()
+
+    def set_kinds(self, archetypes: list[dict]) -> None:
+        """The kinds of bot of the schema, each to roll a crowd of alone."""
+        names = [a.get("name", "") for a in archetypes]
+        if names == [self.kinds.itemData(i) for i in range(1, self.kinds.count())]:
+            return
+        keep = self.kinds.currentData()
+        self.kinds.blockSignals(True)
+        while self.kinds.count() > 1:
+            self.kinds.removeItem(1)
+        for a in archetypes:
+            self.kinds.addItem(f"only {a['name']}s", a["name"])
+            self.kinds.setItemData(self.kinds.count() - 1, a.get("doc", ""), Qt.ItemDataRole.ToolTipRole)
+        self.kinds.setCurrentIndex(max(0, self.kinds.findData(keep)))
+        self.kinds.blockSignals(False)
 
     def node_selected(self, path) -> None:
         self.path = path
@@ -122,6 +143,7 @@ class TuningPanel(QWidget):
         self._generation += 1
         gen, text, tree = self._generation, self.window.text(), self.tree()
         words, n, level = dict(self.values), self.crowd.currentData(), self.level.value()
+        mix = f"{self.kinds.currentData()}:1" if self.kinds.currentData() else None
 
         def done(doc):
             self._pending = False
@@ -139,12 +161,13 @@ class TuningPanel(QWidget):
             self.result = None
             self.head.setText(str(e))
 
-        self.window.run(lambda: self.window.session.split(text, tree, words, n, level), done, failed)
+        self.window.run(lambda: self.window.session.split(text, tree, words, n, level, mix), done, failed)
 
     # -- showing
     def _say(self) -> None:
         node = M.find(self.window.doc or {}, self.path) if self.path else None
-        what = "this pick" if node and node.get("kind") == "pick" else "a pick (choose one in the diagram)"
+        what = "this pick" if node and node.get("kind") in M.chooser_kinds(self.window.session.schema) \
+            else "a pick (choose one in the diagram)"
         self.head.setText(f"Who chooses what, by the engine (bttree --split): a crowd of bots is rolled and the "
                           f"tree <b>{self.tree()}</b> ticked once for each, in the situation set below "
                           f"(a word not set is 0). Shown: what they end up doing, and at {what}, how often each "
@@ -200,10 +223,11 @@ class TuningPanel(QWidget):
 
     def _show_pick(self) -> None:
         node = M.find(self.window.doc or {}, self.path) if self.path else None
-        if node is not None and node.get("kind") == "option" and self.path[1]:
+        schema = self.window.session.schema
+        if node is not None and node.get("kind") in M.option_kinds(schema) and self.path[1]:
             node = M.find(self.window.doc, M.parent_path(self.path))
         t = self.pick_table
-        if node is None or node.get("kind") != "pick" or not self.result:
+        if node is None or node.get("kind") not in M.chooser_kinds(schema) or not self.result:
             self.pick_label.setText("Choose a pick (or one of its options) to see how often each option is chosen.")
             t.setRowCount(0)
             return

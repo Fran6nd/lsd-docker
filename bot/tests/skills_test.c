@@ -157,6 +157,88 @@ static void test_mate_in_line(void)
 	bs_free(s);
 }
 
+/* AN ENEMY IN SIGHT IS SHOT AT FIRST (the owner: "sometimes bots face
+ * each other and do not shoot ... if enemy in FOV, kill them first").
+ * Two men of each side face to face in the open, each on an errand of its
+ * tree that is not a fight (a place to guard, its sweep of the head; a
+ * tree that ends with nothing to do; a part to build):
+ * each opens fire within a second and a half (a level 6's reaction and
+ * aim, two of its bursts' gaps). */
+static void test_fov_first(void)
+{
+	static const char *const errands[3] = {
+		"tree=tree t:\nselect\n\tdo guard @post 30\n\twait 1\n",
+		"tree=tree t:\nselect\n\tif setting nothing_to_do\n\twait 1\n",
+		"tree=tree t:\nselect\n\tdo build_part wall\n\twait 1\n",
+	};
+	static const char *const what[3] = { "guarding a place", "nothing to do", "building" };
+	int k;
+
+	printf("an enemy in sight is shot at first, whatever the errand\n");
+	for (k = 0; k < 3; k++) {
+		bs_sim *s = game();
+		int i, f0 = -1, f1 = -1;
+
+		bs_start(s);
+		bs_set(s, BL_NO_PLAYER, "edit=all");
+		bs_set(s, BL_NO_PLAYER, "place.post=240.50 262.50 37.75");
+		bs_set(s, BL_NO_PLAYER, "blueprint.wall=240 250 39; 240 250 38; 240 250 37; 241 250 39; 241 250 38");
+		bs_set(s, BL_NO_PLAYER, errands[k]);
+		bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, 31, 230.5f, 256.5f, 1, 0);
+		bs_add(s, 1, 1, 2, 6, BL_GUN_RIFLE, 47, 252.5f, 256.5f, -1, 0);
+		for (i = 0; i < 60 * 4 && (f0 < 0 || f1 < 0); i++) {
+			s->p[0].hp = s->p[1].hp = 100;
+			s->p[0].blocks = s->p[1].blocks = 50;
+			bs_step(s);
+			if (f0 < 0 && s->p[0].shots) f0 = i;
+			if (f1 < 0 && s->p[1].shots) f1 = i;
+		}
+		printf("  %-15s first rounds after %.2f s and %.2f s\n", what[k], f0 / 60.0, f1 / 60.0);
+		CHECK(f0 >= 0 && f0 < 90 && f1 >= 0 && f1 < 90);
+		bs_free(s);
+	}
+}
+
+/* BABEL, A MAN JUST SPAWNED looks up at the platform's edge over his spawn
+ * first (the owner: "on spawn every bot must look at the platform to see
+ * if enemies are spawn-killing; if so, engage"): one of theirs stands on
+ * that edge, high over his back; the man spawned facing away opens fire
+ * within three seconds. */
+static void test_babel_spawn_look(void)
+{
+	static const char *const files[] = { "trees/default.bt", "trees/tdm.bt", "trees/ctf.bt", "trees/babel.bt" };
+	bs_sim *s = game();
+	char *all = calloc(1, 1 << 20), err[256];
+	size_t q;
+	int i, first = -1;
+
+	printf("babel: a man just spawned looks up at the platform's edge, and shoots who is there\n");
+	bs_box(s, 230, 248, 12, 250, 264, 12, 1);          /* the platform, 28 over the ground */
+	bs_start(s);
+	for (q = 0; q < sizeof files / sizeof files[0]; q++) {
+		char *t = bs_slurp(files[q]);
+
+		if (t) { strcat(all, t); strcat(all, "\n"); free(t); }
+	}
+	if (!bc_engine_trees(s->e, all, err, sizeof err)) printf("  trees: %s\n", err);
+	free(all);
+	bs_set(s, BL_NO_PLAYER, "place.platform_edge@1=230.50 256.50 9.75");
+	bs_set(s, BL_NO_PLAYER, "fact.stair_done@1=0");
+	bs_set(s, BL_NO_PLAYER, "tree=babel");
+	bs_add(s, 1, 1, 2, 6, BL_GUN_RIFLE, 2, 231.5f, 256.5f, -1, 0);       /* on the edge, facing out over the spawn */
+	s->p[1].body.pos.z = 9.75f;
+	bs_set(s, 1, "tree=tree t:\nselect\n\tdo hold self 60\n");
+	bs_add(s, 0, 1, 1, 6, BL_GUN_RIFLE, 31, 196.5f, 256.5f, -1, 0);      /* spawned facing away, the edge behind and high */
+	for (i = 0; i < 60 * 5 && first < 0; i++) {
+		s->p[1].hp = s->p[0].hp = 100;
+		bs_step(s);
+		if (s->p[0].shots) first = i;
+	}
+	printf("  first round at the spawn-killer after %.2f s\n", first / 60.0);
+	CHECK(first >= 0 && first < 60 * 3);
+	bs_free(s);
+}
+
 /* CROWDS. Six of a team on a narrow way (a ramp one voxel wide, a voxel
  * over the ground) in a file, an enemy ahead on it: they spread so that
  * two or more have a clear shot within 3 s. Six told to hold one place
@@ -686,6 +768,8 @@ int main(void)
 	test_fire_discipline();
 	test_mate_in_line();
 	test_crowds();
+	test_fov_first();
+	test_babel_spawn_look();
 	test_investigate();
 	test_orders();
 	test_follow_and_retreat();

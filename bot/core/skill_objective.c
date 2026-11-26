@@ -383,6 +383,8 @@ bt_status bc_do_carry_home(void *bot, const bt_args *a, float dt)
 	/* it does not stop to duel: only a man it is about to run into */
 	if (s->nearest >= 0 && flat(s->k[s->nearest].pos, me->pos) < (a->count > 0 && a->num[0] > 0.0f ? a->num[0] : 14.0f))
 		bc_fire_at_will(b);
+	else
+		b->wish.hold_fire = 1;
 	if (st == BC_MV_FAILED) {
 		if (b->carry.n) {
 			b->carry.n = 0;     /* no way round them: through, then */

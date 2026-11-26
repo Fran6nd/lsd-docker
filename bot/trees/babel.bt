@@ -18,6 +18,11 @@
 #                the block there whose removal drops the most)
 #   @intel       the intel: where it lies, or the man who carries it
 #   @intel_home  where the intel is put back (a capture, a carrier down)
+#   @platform_edge   the platform's edge over its spawn (a man just spawned
+#                looks up there first: spawn-killers)
+#   @platform_watch  the platform's edge over the other side: where its men
+#                up there with nothing to do wait, each at a spot of its
+#                own (`guard`), looking down at the other team
 #   fact stair_done  1 when its team's stair reaches the platform
 #   fact stair_high  how far up its team's stair is, 0 to 1
 #   fact widen   1 while there is a part of the second row to put
@@ -56,6 +61,19 @@ select
 			tree babel_under_fire
 		option none enemy_visible 3 x5        # somebody in sight, or just gone behind something: the fight it is in
 			tree babel_contact
+		option none leader_ordered x3.5       # its leader (a person's build ping, a bot leader's order) wants a stair to a spot: a part of it each; none free for this one: by him
+			select
+				do build_part leader
+				do follow leader
+		option none fact stairs_wanted x2     # its team's stair was cut lately: a leader orders one more, up to the platform's edge over its spawn
+			seq
+				if is_leader
+				cooldown 120
+					do order_build stairs @platform_edge
+		option teamwork ping_called x3        # a team-mate called: there
+			tree babel_answer
+		option none just_spawned 3 x4         # just spawned: up at the platform's edge over its spawn first -- the other side's spawn-killers stand there (and an enemy in sight is shot at first)
+			do watch @platform_edge 3
 		option aggression our_intel_taken x1.5     # one of theirs carries it: cut him off
 			do intercept
 		option none always                    # the game
@@ -91,10 +109,10 @@ select
 			do fetch
 		option none fact widen x2             # the second row, a part at a time
 			do build_part widen
-		option none always x0.5               # links where a cut would drop the most; none worth it: watch from the top
+		option none always x0.5               # links where a cut would drop the most; none worth it: on the platform's edge over their side
 			select
 				do brace stair
-				do hold @stair_top 30
+				do guard @platform_watch 30
 
 # The stair up, a part each (build_part: a part is one bot's, so the
 # team spreads over the stair instead of chasing its next step together).
@@ -159,10 +177,10 @@ select
 	pick every=10 sticky=0.5 noise=0.1
 		option none fact widen x2                 # the second row, a part at a time
 			do build_part widen
-		option none always x0.5                   # links where a cut would drop the most; none worth it: watch from the top
+		option none always x0.5                   # links where a cut would drop the most; none worth it: on the platform's edge over their side
 			select
 				do brace stair
-				do guard @stair_top 30
+				do guard @platform_watch 30
 
 tree babel_runner:
 select
@@ -174,8 +192,8 @@ select
 			do fetch
 		option none their_intel_dropped x4
 			do fetch
-		option none always x0.3                   # somebody has it: near the top, ready
-			do guard @stair_top 20
+		option none always x0.3                   # somebody has it (a capture under way): up there on the edge over their side, a spot of its own, shooting down at whoever comes
+			do guard @platform_watch 20
 
 # THE PLATFORM (the owner: no escorts in babel; "they go over the enemy
 # spawn to camp from platform and wait for flag to reset to cap it"). A
@@ -317,6 +335,38 @@ seq
 		select
 			if fact peace                     # at peace nothing is used on anyone
 			tree items                            # whatever it holds, used as each item says
+	always
+		tree babel_callouts
+
+# Tell the team, once (`ping` fails when the team has such a ping there,
+# and a bot low on teamwork lets it pass), with babel's labels (catalog/
+# libs/callouts/callouts/babel.lua): an enemy is called only where it
+# sees him (a spawn-killer on the platform's edge too).
+tree babel_callouts:
+select
+	seq
+		if their_intel_dropped                # theirs lies here for the taking
+		if at their_intel 30
+		do ping their_intel Intel here
+	seq
+		if our_intel_taken                    # ours is being carried off: where he is
+		if at thief 40
+		do ping thief Enemy
+	seq
+		if spotted_new                        # enemies the team did not know of
+		do ping enemy Enemy
+	seq
+		if sniped                             # hit from far away: where from, if it sees him
+		do ping threat Enemy
+
+# A team-mate's ping (a bot's, or a person's: every person leads): one
+# wanting company is joined; anything else is a place to go and look.
+tree babel_answer:
+select
+	seq
+		if ping_called help
+		do follow caller
+	do go_to ping 4
 
 # Shot at with no cover in view, building allowed: a wall put up where
 # it stands toward the man (two high, one to three wide), then down

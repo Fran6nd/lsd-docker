@@ -18,9 +18,6 @@ from PySide6.QtWidgets import (QComboBox, QCompleter, QDoubleSpinBox, QFormLayou
 
 from . import model as M
 
-NUMBERS = {"wait": ("seconds",), "cooldown": ("seconds",), "limit": ("seconds",)}
-
-
 def _num(v) -> str:
     return f"{v:g}" if isinstance(v, (int, float)) else str(v)
 
@@ -50,6 +47,8 @@ def arg_default(a: dict) -> str:
 class PropertyPanel(QScrollArea):
     changed = Signal(object, dict)          # (path, fields to change)
     open_tree = Signal(str)
+    refused = Signal(str)                   # a change the panel cannot make, and why
+    about_changed = Signal(str, list)       # (tree, its comment lines): what the tree is for
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -81,9 +80,10 @@ class PropertyPanel(QScrollArea):
         lay.setSpacing(6)
         if node is None:
             hint = QLabel("Choose a node in the diagram, the text or the outline to see its words, their types "
-                          "and defaults, and to change them.\n\nIn the diagram: arrows move between nodes, "
-                          "Alt+arrows move a node among its siblings (order is priority), Insert adds a node "
-                          "after it, Delete removes it; the right button shows every edit.")
+                          "and defaults, and to change them.\n\nIn the diagram: Up and Down go through the rows "
+                          "in reading order; Right shows what is under a node (a tree it names, in place), Left "
+                          "hides it; Alt+Up and Alt+Down move a node earlier or later (order is priority); "
+                          "Insert adds a node after it, Delete removes it; the right button shows every edit.")
             hint.setWordWrap(True)
             hint.setEnabled(False)
             lay.addWidget(hint)
@@ -114,20 +114,28 @@ class PropertyPanel(QScrollArea):
         form = QFormLayout()
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         lay.addLayout(form)
-        if kind == "option":
-            self._trait(form, node)
-            self._word(form, node, "score", lay)
-            self._factor(form, node)
-        elif kind in M.WORD_FIELD:
-            self._word(form, node, M.WORD_FIELD[kind], lay)
-        elif kind == "pick":
-            self._pick(form, node, info)
-        elif kind in NUMBERS:
-            self._number(form, node, "seconds", next((p for p in info.get("params", [])
-                                                       if p.get("name") == "seconds"), {"min": 0}))
-        elif kind == "tree":
-            self._ref(form, node, lay)
+        gone = M.left_out(node)
+        for p in info.get("params", []):            # every param of its kind, as the schema says
+            t, name = p.get("type"), p.get("name", "")
+            if name in gone:
+                continue
+            if t == "trait":
+                self._trait(form, node, p)
+            elif t in M.WORD_LISTS:
+                self._word(form, node, p, lay)
+            elif t == "tree":
+                self._ref(form, node, p)
+            elif t == "enum":
+                self._enum(form, node, p)
+            elif t == "number" and info.get("parent"):
+                self._factor(form, node, p)
+            elif t == "number":
+                self._number(form, node, name, p)
+            else:
+                self._text(form, node, p)
         self._comments(form, node)
+        if path is not None and not path[1]:
+            self._about(form, path[0])
         if read_only:
             for child in w.findChildren(QWidget):
                 if isinstance(child, (QLineEdit, QComboBox, QDoubleSpinBox, QSlider, QPlainTextEdit)):
@@ -139,18 +147,21 @@ class PropertyPanel(QScrollArea):
         lb = QLabel(f"{name}<br><span style='color:#8b95a6;font-size:11px'>{_esc(type_text)}</span>")
         return lb
 
-    def _trait(self, form: QFormLayout, node: dict) -> None:
+    def _trait(self, form: QFormLayout, node: dict, spec: dict) -> None:
+        name = spec.get("name", "")
         box = QComboBox()
-        for t in (self.schema or {}).get("traits", []):
+        for t in M.word_list(self.schema, "trait"):
             box.addItem(t["name"], t["name"])
             box.setItemData(box.count() - 1, t.get("doc", ""), Qt.ItemDataRole.ToolTipRole)
-        box.setCurrentIndex(max(0, box.findData(node.get("trait", "none"))))
-        box.activated.connect(lambda *_: self._emit({"trait": box.currentData()}))
-        form.addRow(self._label("trait", "a trait of the bot"), box)
-        self.fields["trait"] = box
+        box.setCurrentIndex(max(0, box.findData(node.get(name))))
+        box.setToolTip(spec.get("doc", ""))
+        box.activated.connect(lambda *_: self._emit({name: box.currentData()}))
+        form.addRow(self._label(name, "a trait of the bot"), box)
+        self.fields[name] = box
 
-    def _word(self, form: QFormLayout, node: dict, field: str, lay: QVBoxLayout) -> None:
-        words = M.word_list(self.schema, field)
+    def _word(self, form: QFormLayout, node: dict, spec: dict, lay: QVBoxLayout) -> None:
+        field, ptype = spec.get("name", ""), spec.get("type", "")
+        words = M.word_list(self.schema, ptype)
         box = QComboBox()
         box.setEditable(True)
         box.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
@@ -160,19 +171,18 @@ class PropertyPanel(QScrollArea):
         box.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         box.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         box.setCurrentText(node.get(field, ""))
-        name = {"score": "score", "cond": "condition", "action": "action"}[field]
+        box.setToolTip(spec.get("doc", ""))
 
         def chosen(*_):
             word = box.currentText().strip()
             if word and word != node.get(field):
-                self._emit({field: word, "args": M.required_args(self.schema, field, word)})
+                self._emit({field: word, "args": M.required_args(self.schema, ptype, word)})
 
         box.activated.connect(chosen)
         box.lineEdit().editingFinished.connect(chosen)
-        form.addRow(self._label(name, {"score": "0 to 1", "cond": "yes or no", "action": "what it does"}[field]),
-                    box)
+        form.addRow(self._label(field, f"one of the {M.WORD_LISTS[ptype]}"), box)
         self.fields[field] = box
-        info = M.word_info(self.schema, field, node.get(field, ""))
+        info = M.word_info(self.schema, ptype, node.get(field, ""))
         if info.get("doc"):
             d = QLabel(info["doc"])
             d.setWordWrap(True)
@@ -196,11 +206,18 @@ class PropertyPanel(QScrollArea):
                 if a.get("type") == "place":
                     for p in (self.schema or {}).get("places", []):
                         e.setItemData(e.findData(p["name"]), p.get("doc", ""), Qt.ItemDataRole.ToolTipRole)
+                    for sp in M.script_places(self.doc):
+                        e.addItem(sp, sp)
+                        e.setItemData(e.count() - 1, "a place a server script names (it sets it)",
+                                      Qt.ItemDataRole.ToolTipRole)
                 e.setEditable(a.get("type") == "place")
                 e.setCurrentIndex(max(0, e.findData(value)))
                 if value and e.findData(value) < 0:
                     e.setCurrentText(value)
                 e.activated.connect(lambda *_: self._commit_args(specs))
+                if e.isEditable():
+                    e.lineEdit().setPlaceholderText(f"or {M.SCRIPT_PLACE}name: a place a server script sets")
+                    e.lineEdit().editingFinished.connect(lambda: self._commit_args(specs))
                 get = (lambda e=e: (e.currentData() if e.currentIndex() >= 0 and e.currentText() == e.itemText(
                     e.currentIndex()) else e.currentText()) or "")
             else:
@@ -216,17 +233,26 @@ class PropertyPanel(QScrollArea):
                     e.setValidator(v)
                 e.editingFinished.connect(lambda: self._commit_args(specs))
                 get = (lambda e=e: e.text().strip())
-            e.setToolTip(arg_default(a))
+            e.setToolTip(" · ".join(x for x in (arg_default(a), a.get("doc", "")) if x))
             form.addRow(self._label(a.get("name", f"argument {i + 1}"), arg_type(a)), e)
             edits.append(get)
         self.fields["args"] = edits
 
     def _commit_args(self, specs) -> None:
+        """The arguments as the fields say. An argument left empty before one
+        that is given is written with its default: the words are read in order,
+        so a gap would shift the next one into its place."""
         vals = [g() for g in self.fields.get("args", [])]
         while vals and not vals[-1]:
             vals.pop()
         out = []
         for v, a in zip(vals, specs):
+            if not v:
+                if "default" not in a:
+                    self.refused.emit(f"{a.get('name')} must be given before what follows it: the words are read "
+                                      f"in order ({arg_default(a) or 'it has no default'}).")
+                    return
+                v = M.first_value(self.schema, a)
             if a.get("repeat"):
                 out += v.split()
             else:
@@ -234,9 +260,11 @@ class PropertyPanel(QScrollArea):
         if out != [str(a) for a in (self.node or {}).get("args", [])]:
             self._emit({"args": out})
 
-    def _factor(self, form: QFormLayout, node: dict) -> None:
-        f = float(node.get("factor", 1))
-        default = "factor" in node.get("defaults", [])
+    def _factor(self, form: QFormLayout, node: dict, spec: dict) -> None:
+        """An option's number (its factor): a slider on a log scale beside the box."""
+        name = spec.get("name", "")
+        f = float(node.get(name, spec.get("default", 1)))
+        default = name in node.get("defaults", [])
         row = QWidget()
         h = QHBoxLayout(row)
         h.setContentsMargins(0, 0, 0, 0)
@@ -250,16 +278,18 @@ class PropertyPanel(QScrollArea):
         spin.setValue(f)
         spin.setPrefix("×")
         if default:
-            spin.setToolTip("The default: 1 (not written in the text)")
+            spin.setToolTip(f"The default: {_num(spec.get('default', 1))} (not written in the text)")
         h.addWidget(slider, 1)
         h.addWidget(spin)
         slider.valueChanged.connect(lambda v: (spin.blockSignals(True), spin.setValue(self._from_slider(v)),
                                                spin.blockSignals(False), self._factor_timer.start()))
         slider.sliderReleased.connect(self._commit_factor)
         spin.editingFinished.connect(self._commit_factor)
-        form.addRow(self._label("factor", "number ≥ 0, default 1"), row)
-        self.fields["factor"] = spin
+        form.addRow(self._label(name, arg_type(spec) + (f", default {_num(spec['default'])}" if "default" in spec
+                                                        else "")), row)
+        self.fields[name] = spin
         self.fields["factor_slider"] = slider
+        self._factor_name = name
 
     @staticmethod
     def _to_slider(f: float) -> int:
@@ -272,30 +302,36 @@ class PropertyPanel(QScrollArea):
 
     def _commit_factor(self) -> None:
         self._factor_timer.stop()
-        spin = self.fields.get("factor")
+        name = getattr(self, "_factor_name", "")
+        spin = self.fields.get(name)
         if spin is None or self.node is None:
             return
         v = round(spin.value(), 4)
-        if abs(v - float(self.node.get("factor", 1))) > 1e-9:
-            self._emit({"factor": v})
+        if abs(v - float(self.node.get(name, 1))) > 1e-9:
+            self._emit({name: v})
 
-    def _pick(self, form: QFormLayout, node: dict, info: dict) -> None:
-        for p in info.get("params", []):
-            name = p.get("name")
-            if p.get("type") == "enum":
-                box = QComboBox()
-                for v in p.get("values", []):
-                    box.addItem(v, v)
-                box.setCurrentIndex(max(0, box.findData(node.get(name, p.get("default")))))
-                box.setToolTip(p.get("doc", ""))
-                box.activated.connect(lambda *_, n=name, b=box: self._emit({n: b.currentData()}))
-                form.addRow(self._label(name, arg_type(p) + (f", default {p['default']}" if "default" in p else "")),
-                            box)
-                self.fields[name] = box
-            else:
-                if M.is_roll(node) and not (name == "every" and node.get("roll") == "each"):
-                    continue                     # a pick that rolls once or a life has none of them
-                self._number(form, node, name, p)
+    def _enum(self, form: QFormLayout, node: dict, spec: dict) -> None:
+        name = spec.get("name", "")
+        box = QComboBox()
+        for v in spec.get("values", []):
+            box.addItem(v, v)
+        box.setCurrentIndex(max(0, box.findData(node.get(name, spec.get("default")))))
+        box.setToolTip(spec.get("doc", ""))
+        box.activated.connect(lambda *_: box.currentData() != node.get(name, spec.get("default"))
+                              and self._emit({name: box.currentData()}))
+        form.addRow(self._label(name, arg_type(spec) + (f", default {spec['default']}" if "default" in spec else "")),
+                    box)
+        self.fields[name] = box
+
+    def _text(self, form: QFormLayout, node: dict, spec: dict) -> None:
+        """A param of a type the panel has no field of its own for: its words."""
+        name = spec.get("name", "")
+        e = QLineEdit(str(node.get(name, "")))
+        e.setToolTip(spec.get("doc", ""))
+        e.editingFinished.connect(lambda: e.text().strip() != str(node.get(name, "")) and
+                                  self._emit({name: e.text().strip()}))
+        form.addRow(self._label(name, spec.get("type", "text")), e)
+        self.fields[name] = e
 
     def _number(self, form: QFormLayout, node: dict, name: str, spec: dict) -> None:
         spin = QDoubleSpinBox()
@@ -321,28 +357,38 @@ class PropertyPanel(QScrollArea):
         form.addRow(self._label(name, t), spin)
         self.fields[name] = spin
 
-    def _ref(self, form: QFormLayout, node: dict, lay: QVBoxLayout) -> None:
+    def _ref(self, form: QFormLayout, node: dict, spec: dict) -> None:
+        field = spec.get("name", "")
         box = QComboBox()
-        box.setEditable(True)
-        names = [n for n in M.tree_names(self.doc) if n != (self.path or ("",))[0]] + ["items", "extras"]
-        box.addItems(names)
-        box.setCurrentText(node.get("ref", ""))
+        here = (self.path or ("",))[0]
+        for n in M.tree_names(self.doc):
+            if n != here:
+                box.addItem(n, n)
+        for n, says in M.ENGINE_TREES.items():
+            box.addItem(n, n)
+            box.setItemData(box.count() - 1, says, Qt.ItemDataRole.ToolTipRole)
+        box.setCurrentIndex(max(0, box.findData(node.get(field, ""))))
 
         def chosen(*_):
-            v = box.currentText().strip()
-            if v and v != node.get("ref"):
-                self._emit({"ref": v})
+            v = box.currentData()
+            if v and v != node.get(field):
+                self._emit({field: v})
 
         box.activated.connect(chosen)
-        box.lineEdit().editingFinished.connect(chosen)
-        form.addRow(self._label("tree", "the name of a tree"), box)
-        self.fields["ref"] = box
-        name = node.get("ref", "")
+        box.setToolTip(spec.get("doc", ""))
+        form.addRow(self._label(field, "a tree of this text, or one the server writes"), box)
+        self.fields[field] = box
+        name = node.get(field, "")
         if M.tree(self.doc, name) is not None:
             n = len(M.uses(self.doc, name))
-            b = QPushButton(f"Open the tree {name} (used in {n} place{'s' if n != 1 else ''})")
+            b = QPushButton(f"Edit the tree {name} (used in {n} place{'s' if n != 1 else ''})")
             b.clicked.connect(lambda: self.open_tree.emit(name))
             form.addRow("", b)
+        elif name in M.ENGINE_TREES:
+            d = QLabel(M.ENGINE_TREES[name])
+            d.setWordWrap(True)
+            d.setEnabled(False)
+            form.addRow("", d)
 
     def _comments(self, form: QFormLayout, node: dict) -> None:
         above = QPlainTextEdit("\n".join(a.lstrip("#").strip() for a in node.get("above", []) if a.strip()))
@@ -369,6 +415,22 @@ class PropertyPanel(QScrollArea):
         form.addRow(self._label("above", "comment lines"), above)
         self.fields["comment"] = line
         self.fields["above"] = above
+
+    def _about(self, form: QFormLayout, name: str) -> None:
+        """The tree's own comment, above its header: what it is for."""
+        lines = [a.lstrip("#").strip() for a in (M.tree(self.doc, name) or {}).get("above", []) if a.strip()]
+        box = QPlainTextEdit("\n".join(lines))
+        box.setPlaceholderText(f"What the tree {name} is for (comment lines above it)")
+        box.setFixedHeight(54)
+
+        def commit():
+            new = [x.strip() for x in box.toPlainText().splitlines() if x.strip()]
+            if new != lines and not self.read_only:
+                self.about_changed.emit(name, new)
+
+        box.focusOutEvent = lambda e, f=box.focusOutEvent: (commit(), f(e))[1]
+        form.addRow(self._label("the tree", "what it is for"), box)
+        self.fields["about"] = box
 
     def _emit(self, fields: dict) -> None:
         if self.read_only or self.path is None:

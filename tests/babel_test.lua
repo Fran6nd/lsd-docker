@@ -265,6 +265,10 @@ do
 	eq(string.sub(last("blueprint.stair@2", nil), 1, 23), "353 255 49; 352 255 49;", "team 2's: the mirror of it");
 	eq(select(2, string.gsub(last("blueprint.stair@1", nil), ";", "")), 2 * 48 - 2, "48 steps, each with its riser but the lowest");
 	eq(last("fact.stair_done@1", nil), "0", "not done");
+	eq(last("place.platform_edge@1", nil), "206.50 256.50 -1.25", "team 1's look-up on spawn: the platform's west edge, its tent's row");
+	eq(last("place.platform_edge@2", nil), "305.50 256.50 -1.25", "team 2's: the east edge");
+	eq(last("place.platform_watch@1", nil), "304.50 256.50 -1.25", "team 1 waits up there over the other side: the east edge");
+	eq(last("place.platform_watch@2", nil), "207.50 256.50 -1.25", "team 2: the west edge");
 	eq(last("place.intel", nil), "256.00 256.00 -1.25", "the intel where it lies, for everybody");
 	eq(last("blueprint.stair", 0), nil, "nothing for one bot: a bot reads its team's");
 	eq(string.sub(last("blueprint.widen@1", nil), 1, 11), "158 256 49;", "the second row, beside the first, from its lowest block (the row up: as clear)");
@@ -314,6 +318,8 @@ do
 		and not string.find(second, " 253 ", 1, true) and not string.find(second, " 255 ", 1, true),
 		"and a second stair for the team, a row apart at least", second and string.sub(second, 1, 24));
 	check(string.find(table.concat(LOGGED, "\n"), "was cut", 1, true) ~= nil, "said in the log, with why");
+	eq(last("fact.stairs_wanted@1", nil), "1", "and its leaders are told a stair is wanted (a bot leader orders one)");
+	eq(last("fact.stairs_wanted@2", nil), "0", "team 2: none wanted");
 	-- a bot builds: its blocks are given back (infinite_blocks refills
 	-- players behind the botlink's count)
 	local restocked = {};

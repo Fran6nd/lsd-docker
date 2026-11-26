@@ -17,4 +17,6 @@ return {
 	pings = {
 		{key = "target", label = {en = "Target"}},
 	},
+	-- no Build pie: the range is nobody's to build on
+	builds = {},
 };

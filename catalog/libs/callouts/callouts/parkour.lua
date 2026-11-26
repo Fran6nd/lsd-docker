@@ -17,4 +17,6 @@ return {
 	pings = {
 		{key = "go", label = {en = "Go here"}},
 	},
+	-- no Build pie: the course is nobody's to build on
+	builds = {},
 };

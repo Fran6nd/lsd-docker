@@ -33,7 +33,9 @@
 --     stair.widen  voxels that make it hold better, built after it, in the
 --                  same order (empty when the kind needs none)
 --     stair.foot   {x, y, z}: the ground a body climbs onto its lowest step
---                  from
+--                  from: a column beside it, not refused, its ground at
+--                  most a voxel under that step, with air for a body over
+--                  it. None: the stair is not laid.
 --
 --   stair_kinds()  -> the kinds, {"straight", "tapered", ...}
 --
@@ -126,7 +128,8 @@ local LAY = {};
 
 -- step k at (top x + dx * k, the top's row, top z + k), from the top down
 -- to the first that rests on the ground (or sinks into it: kept, its band
--- left out -- the ground is its band); its foot the ground a column on
+-- left out -- the ground is its band); a body would come from the column
+-- past it
 function LAY.straight(spec)
 	local t, dx, ground = spec.top, spec.dx, spec.ground;
 	local steps = {};
@@ -142,7 +145,7 @@ function LAY.straight(spec)
 		steps = steps,
 		cells = band(steps, ground),
 		widen = spec.wide ~= nil and band(steps, ground, spec.wide) or {},
-		foot = {x = b.x + dx, y = t.y, z = ground(b.x + dx, t.y)},
+		want = {x = b.x + dx, y = t.y},
 	};
 end
 
@@ -167,7 +170,7 @@ function LAY.tapered(spec)
 			end
 		end
 	end
-	return {steps = st.steps, cells = cells, widen = {}, foot = st.foot};
+	return {steps = st.steps, cells = cells, widen = {}, want = st.want};
 end
 
 -- A stair that follows a PATH: path(i) is the column of the i-th floor
@@ -303,15 +306,14 @@ function stair_lay(kind, spec)
 	end
 	-- what widens it is no part of it: where it may not go, it goes without
 	if (not allowed(spec, st.widen)) then st.widen = {}; end
-	if (st.foot == nil) then
-		local taken = {};
-		for _, list in ipairs({st.cells, st.widen}) do
-			for _, c in ipairs(list) do taken[key(c.x, c.y, c.z)] = true; end
-		end
-		st.foot = foot_of(spec, st.steps[1], st.want, taken);
-		st.want = nil;
-		if (st.foot == nil) then return nil, "no way onto its lowest step"; end
+	-- every kind's foot by the one rule
+	local taken = {};
+	for _, list in ipairs({st.cells, st.widen}) do
+		for _, c in ipairs(list) do taken[key(c.x, c.y, c.z)] = true; end
 	end
+	st.foot = foot_of(spec, st.steps[1], st.want, taken);
+	st.want = nil;
+	if (st.foot == nil) then return nil, "no way onto its lowest step"; end
 	st.kind, st.top = kind, st.steps[#st.steps];
 	return st;
 end

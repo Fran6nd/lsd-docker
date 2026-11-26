@@ -1181,6 +1181,44 @@ static void order_name(int leader, char *out, size_t n)
 	snprintf(out, n, "order%d", leader);
 }
 
+/* A STAIR TO HERE (babel's "Build stairs here", a leader's ping on the
+ * spot to reach: a platform's edge, a pillar's top). The solid voxel at
+ * the spot is what it leads onto; its top step is the column beside it on
+ * the leader's side, a voxel lower (a step up onto it); from there one
+ * column and one voxel a step, down and toward him, to the first step
+ * that rests on something solid -- each step and the voxel under it (its
+ * riser), as babel's straight stair is laid (lib_stairs). Bottom first:
+ * what rests on what. How many cells, at most max. */
+enum { STAIR_STEPS_MAX = 63 };      /* the map's height: a stair from its top to its bottom */
+
+static int stair_to_cells(const bc_map *m, int x, int y, int gz, int quarter, bc_bp_cell *out, int max)
+{
+	static const int Q[4][2] = { { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 0 } };   /* toward the leader */
+	bc_bp_cell steps[STAIR_STEPS_MAX * 2];
+	int k, n = 0, dx = Q[quarter & 3][0], dy = Q[quarter & 3][1];
+
+	for (k = 1; k <= STAIR_STEPS_MAX; k++) {
+		int sx = x + dx * k, sy = y + dy * k, sz = gz + k;
+
+		if (!bc_map_in(sx, sy, sz) || sz >= BC_MAP_GROUND_Z)
+			break;
+		if (bc_map_solid(m, sx, sy, sz))
+			break;                  /* the ground (or a wall) reached: what is laid stands on it */
+		memset(&steps[n], 0, sizeof steps[n]);
+		steps[n].x = (int16_t)sx; steps[n].y = (int16_t)sy; steps[n].z = (int16_t)sz;
+		n++;
+		if (bc_map_solid(m, sx, sy, sz + 1))
+			break;                  /* this step rests on something */
+		memset(&steps[n], 0, sizeof steps[n]);
+		steps[n].x = (int16_t)sx; steps[n].y = (int16_t)sy; steps[n].z = (int16_t)(sz + 1);
+		n++;                        /* its riser */
+	}
+	/* bottom first: the last laid out is the lowest; a step's riser before it */
+	for (k = 0; k < n && k < max; k++)
+		out[k] = steps[n - 1 - k];
+	return k;
+}
+
 int bc_order_build(bc_engine *e, int leader, const char *structure, bl_vec3 at, bl_vec3 look)
 {
 	bc_bp_cell *cells;
@@ -1188,7 +1226,8 @@ int bc_order_build(bc_engine *e, int leader, const char *structure, bl_vec3 at, 
 	char name[32], err[96];
 	int x = (int)floorf(at.x), y = (int)floorf(at.y), gz, quarter, n;
 
-	if (!m || !e->have_map || !e->blueprints || !bc_is_leader(e, leader) || !bc_map_in(x, y, 0))
+	if ((!m && strcmp(structure, "stairs")) || !e->have_map || !e->blueprints || !bc_is_leader(e, leader) ||
+	    !bc_map_in(x, y, 0))
 		return 0;
 	gz = bc_map_floor_at_or_below(e->map, x, y, (int)floorf(at.z) < 0 ? 0 : (int)floorf(at.z));
 	if (gz >= 64)
@@ -1197,9 +1236,10 @@ int bc_order_build(bc_engine *e, int leader, const char *structure, bl_vec3 at, 
 	quarter = fabsf(look.x) > fabsf(look.y) ? (look.x > 0.0f ? 1 : 3) : (look.y > 0.0f ? 2 : 0);
 	/* an order is rare (a person's ping, a tree's choice): its cells are
 	 * allocated for it, not kept */
-	if (!(cells = malloc((size_t)m->n * sizeof *cells)))
+	if (!(cells = malloc((size_t)(m ? m->n : STAIR_STEPS_MAX * 2) * sizeof *cells)))
 		return 0;
-	n = bc_structure_cells(m, x, y, gz, quarter, cells, m->n);
+	n = m ? bc_structure_cells(m, x, y, gz, quarter, cells, m->n)
+	      : stair_to_cells(e->map, x, y, gz, quarter, cells, STAIR_STEPS_MAX * 2);
 	{
 		/* what the server would refuse him is no part of it: where his
 		 * team may not build (the zones a script set: the filter's), and
@@ -1222,6 +1262,16 @@ int bc_order_build(bc_engine *e, int leader, const char *structure, bl_vec3 at, 
 	return 1;
 }
 
+/* the way from the leader to the spot, flat (the side he is on is the
+ * other end of it); where he stands on it, the way he looks */
+static bl_vec3 toward(bl_vec3 from, bl_vec3 to, bl_vec3 ori)
+{
+	bl_vec3 d = to;
+
+	d.x -= from.x; d.y -= from.y; d.z = 0.0f;
+	return d.x * d.x + d.y * d.y > 1.0f ? d : ori;
+}
+
 int bc_order_from_ping(bc_engine *e, int by, const char *reason, bl_vec3 at)
 {
 	char word[BC_BLUEPRINT_NAME];
@@ -1233,13 +1283,13 @@ int bc_order_from_ping(bc_engine *e, int by, const char *reason, bl_vec3 at)
 	for (i = 0; reason[6 + i] && reason[6 + i] != ' ' && i + 1 < sizeof word; i++)
 		word[i] = (char)(reason[6 + i] >= 'A' && reason[6 + i] <= 'Z' ? reason[6 + i] - 'A' + 'a' : reason[6 + i]);
 	word[i] = 0;
-	if (!e->structures || !bc_structure_get(e->structures, word))
+	if (strcmp(word, "stairs") && (!e->structures || !bc_structure_get(e->structures, word)))
 		return 0;           /* "Build here" (babel's): a place, as any ping */
 	if (by < 0 || by >= BL_MAX_PLAYERS || !bc_is_leader(e, by)) {
 		bc_engine_log(e, 0, "build ping of #%d (%s) ignored: not a leader", by, word);
 		return 1;           /* a build call, not a place to go: nobody answers it */
 	}
-	bc_order_build(e, by, word, at, e->w.players[by].ori);
+	bc_order_build(e, by, word, at, toward(e->w.players[by].pos, at, e->w.players[by].ori));
 	return 1;
 }
 
@@ -1253,7 +1303,7 @@ bt_status bc_do_order_build(void *bot, const bt_args *a, float dt)
 	(void)dt;
 	if (a->count < 1 || !bc_place_of(b, a->count > 1 ? a->text[1] : "self", &p))
 		return BT_FAILURE;
-	return bc_order_build(b->e, b->pid, a->text[0], p, bc_me(b)->ori) ? BT_SUCCESS : BT_FAILURE;
+	return bc_order_build(b->e, b->pid, a->text[0], p, toward(bc_me(b)->pos, p, bc_me(b)->ori)) ? BT_SUCCESS : BT_FAILURE;
 }
 
 /* --- put_at <place> -------------------------------------------------------

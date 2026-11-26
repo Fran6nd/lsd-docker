@@ -20,7 +20,8 @@ local function chain()
 	end});
 end
 function init_mod()
-	return {after = {}, before = {}, next = chain(), impl = {}};
+	return {after = {}, before = {}, next = chain(), impl = {},
+		late = {after = {}, before = {}, next = chain()}};
 end
 function getcfg(k, d) if (_G[k] == nil) then _G[k] = d; end end
 MAX_PLAYERS = 32;
@@ -65,6 +66,13 @@ function tent_in_range(pos, t)
 	local dx, dy, dz = pos.x - t.x, pos.y - t.y, pos.z - t.z;
 	return math.sqrt(dx * dx + dy * dy) <= 3 and dz >= -4 and dz <= 1;
 end
+
+-- map_layout's "put back what the client did of a refused edit"
+local reverted = {};
+map_layout = {
+	revert_action = function(pid, pos, type) reverted[#reverted + 1] = {pid = pid, pos = pos, type = type}; end,
+	revert_line = function(pid, a, b) reverted[#reverted + 1] = {pid = pid, pos = a, stop = b}; end,
+};
 
 local listed, command;
 function masterlist_set_gamemode(g) listed = g; end
@@ -126,11 +134,30 @@ mod.pickup_intel(0);
 check(#hooks == 0, "nobody picks an intel up");
 
 print("\n3. no building, no digging, no craters");
-hooks = {};
-mod.on_block_action(0, {x = 1, y = 1, z = 1}, 0);
-mod.on_block_line(0, {x = 1, y = 1, z = 1}, {x = 2, y = 1, z = 1});
-check(#hooks == 0, "a block and a line are refused");
+-- a client's edit as the core's chain runs it: the default chain, then
+-- the late one, each going on only if the one before chained
+local function edit(name, pid, a, b)
+	hooks = {};
+	if (mod[name] ~= nil) then
+		mod[name](pid, a, b);
+		if (#hooks == 0) then return; end
+	end
+	if (mod.late[name] ~= nil) then
+		hooks = {};
+		mod.late[name](pid, a, b);
+	end
+end
+local spade = {x = 1, y = 1, z = 1};
+edit("on_block_action", 0, spade, 2);
+check(#hooks == 0, "a block is refused");
+check(#reverted == 1 and reverted[1].pid == 0 and reverted[1].pos == spade and reverted[1].type == 2,
+	"and what the client already did of it is put back on that client");
+edit("on_block_line", 0, {x = 1, y = 1, z = 1}, {x = 2, y = 1, z = 1});
+check(#hooks == 0 and #reverted == 2 and reverted[2].stop.x == 2, "a line too, every block of it taken back");
 check(L.chat[#L.chat].m == "No building or digging on the course.", "and the builder is told");
+local said = #L.chat;
+edit("on_block_action", 2, spade, 0);
+check(#hooks == 0 and #L.chat == said, "a bot's block: refused, and nothing said to it");
 check(not mod.may_edit_block(0, {x = 1, y = 1, z = 1}, 1) and not mod.may_edit_block(nil, {x = 1, y = 1, z = 1}, 1)
 	and not mod.may_edit_block(0, {x = 1, y = 1, z = 1}, 0),
 	"no crater, no blast, no script's edit: the one question every edit answers to says no");

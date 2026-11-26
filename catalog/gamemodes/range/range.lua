@@ -1117,14 +1117,12 @@ end
 -- client did of it already is put back on that client.
 function mod.late.on_block_action(pid, pos, type)
 	map_layout.revert_action(pid, pos, type);
-	l10n_send_chat(pid, no_build_msg);
+	tell(pid, no_build_msg);
 end
 
 function mod.late.on_block_line(pid, start, stop)
-	for p in iter_block_line(start, stop) do
-		map_layout.revert(pid, p, 0);
-	end
-	l10n_send_chat(pid, no_build_msg);
+	map_layout.revert_line(pid, start, stop);
+	tell(pid, no_build_msg);
 end
 
 -- The range is nobody's to edit: not by a player's grenade, not by an

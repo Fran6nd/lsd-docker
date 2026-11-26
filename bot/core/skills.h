@@ -169,6 +169,7 @@ bt_status bc_do_build_cover(void *bot, const bt_args *a, float dt);
 bt_status bc_do_build_part(void *bot, const bt_args *a, float dt);
 bt_status bc_do_order_build(void *bot, const bt_args *a, float dt);
 bt_status bc_do_brace(void *bot, const bt_args *a, float dt);
+bt_status bc_do_watch(void *bot, const bt_args *a, float dt);
 bt_status bc_do_put_at(void *bot, const bt_args *a, float dt);
 /* would a grenade at mark, going off as it arrives, take voxel (x, y, z)? */
 int bc_grenade_lands(const bc_map *m, bl_vec3 from, bl_vec3 mark, int x, int y, int z,

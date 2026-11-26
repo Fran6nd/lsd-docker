@@ -36,8 +36,17 @@ def test_the_server_is_set_up_as_asked_and_unlisted(session, fake):
     assert f"{LABEL_SESSION}={session.id}" in run and f"{LABEL}=1" in run
     assert "--restart" not in run
     setup = next(c for c in fake.calls() if c[0] == "run" and "GAME=tdm" in c)
-    assert {"BOTS=3", "TEAM1=3", "TEAM2=2", "LEVEL=5", "MAP=random"} <= set(setup)
+    assert {"BOTS=3", "TEAM1=3", "TEAM2=2", f"LEVEL={Setup().level}", "MAP=random"} <= set(setup)
+    assert Setup().level == 10                     # bots are level 10 unless said otherwise (the owner's rule)
     assert "masterlist_enabled false" in setup[-1]
+
+
+def test_the_command_line_starts_with_the_servers_defaults():
+    """`lsd-tree-editor` with no option sets the window's fields to the
+    server's defaults (it set level 5 over the default 10)."""
+    from lsd_tree_editor.app import _arguments
+    a, s = _arguments([]), Setup()
+    assert (a.level, a.bots, a.gamemode, a.map) == (s.level, s.bots_team1, s.gamemode, s.map)
 
 
 def test_an_image_without_the_bots_commands_is_refused(session, fake):

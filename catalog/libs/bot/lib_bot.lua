@@ -11,9 +11,10 @@
 -- on_join, on_move_input, ...), which is why other modules -- scores,
 -- masterlist counts, kill feeds -- see them like humans.
 --
--- What the core does NOT do is drop every packet for peerless players:
--- some it leaks. See mod.send_packet below; this module stops those
--- sends before they reach C.
+-- A bot is never sent a packet: the core sends to the slots that have a
+-- peer (patches/lsd 0002, pid_recipient), and what it would send to one bot
+-- -- its HP, a restock, a map -- never reaches the scripts. A script's send
+-- at a bot is stopped by this module's guard (THE BROADCASTER, below).
 --
 -- API (all globals, pids are ordinary player pids):
 --   bot_create{team=, name=, gun=, tool=, block_color=,
@@ -35,7 +36,7 @@
 --                                       typed send_*(set, ...) or, when the
 --                                       packet differs per recipient,
 --   broadcast_each(set, fn)          -- fn(pid) for each PERSON of the set
---   bot_guard_drops() -> n, by_name, engine -- the sends a script made at a
+--   bot_guard_drops() -> n, by_name, from -- the sends a script made at a
 --                                       bot (dropped, and logged once a
 --                                       minute if any: a bug to fix)
 --   bot_seats_free()                 -- the seats a bot may still take (one
@@ -551,26 +552,40 @@ function bot_dig_block(x, y, z, pid)
 	return edit_as(pid, bdestroy_block_action, {x=x, y=y, z=z}, 1);
 end
 
+-- THE BODY, relative to pos (the eye; z grows down): the box demoncore
+-- moves (boxclipmove), 0.45 over the eye and 0.45 to a side; the feet 2.25
+-- under it standing (the spawn height, main.c's highest_point_spawn, 2.251
+-- over the ground, agrees), 1.35 crouched -- change_crouch lowers the eye
+-- 0.9 and leaves the feet where they were. The server's inputs are the
+-- body's real crouch state: on_move_input moves the body exactly when the
+-- crouch bit changes (funcs_event.c). Where a bot stands and digs, and
+-- where a bullet meets a man (COMBAT), are both this body.
+--
+-- FIXME (WORK.md item 35): this mirrors LSd's body geometry. When LSd is
+-- updated (dev/bump-lsd.sh) and the code named below changes -- its body,
+-- its crouch, or LSd judging hits itself -- this body, the judge in COMBAT and
+-- brain_sim.h's bs_ray_hits must be made to match again.
+-- tests/hit_judge_test.lua fails until these lines name the new code's
+-- checksums:
+-- lsd: src/demoncore.c boxclipmove fnv1a32 9ff6863f
+-- lsd: src/demoncore.c check_collision fnv1a32 7484eb58
+-- lsd: src/demoncore.c change_crouch fnv1a32 3437006c
+-- lsd: src/demoncore.c try_uncrouch fnv1a32 39e15a99
+local BODY_TOP, BODY_RADIUS = -0.45, 0.45;
+local BODY_FEET = {[false] = 2.25, [true] = 1.35};
+
 -- The z of the block at the middle of a bot's body, with the block
 -- above it and the one below making the three a standing body fills --
--- which is what a bot has to dig to walk on through a wall.
---
--- Measured up from the feet and not down from the eye, because the
--- eye moves when the body crouches and the feet do not. Standing, the
--- feet are 2.25 below pos.z: the box demoncore clips (demoncore.c,
--- boxclipmove and try_uncrouch) and the spawn height (main.c's
--- highest_point_spawn, 2.251 above the ground) agree. Crouching moves
--- pos.z down by 0.9 and leaves the feet where they were (change_crouch),
--- so there they are 1.35 below it. The server's inputs are the body's
--- real crouch state: on_move_input moves the body exactly when the
--- crouch bit changes (funcs_event.c).
+-- which is what a bot has to dig to walk on through a wall. Measured up
+-- from the feet and not down from the eye, because the eye moves when the
+-- body crouches and the feet do not.
 --
 -- The 0.01 keeps feet resting on a floor in the block above it instead
 -- of rounding them into the floor itself.
 function bot_body_center_z(pid)
 	local p = get_position(pid);
 	local crouched = has_bit(get_inputs(pid), KEY.crouch);
-	local feet = p.z + (crouched and 1.35 or 2.25);
+	local feet = p.z + BODY_FEET[crouched];
 
 	return math.floor(feet - 0.01) - 1;
 end
@@ -626,27 +641,13 @@ local WEAPON = {
 	       dmg={head=37,  torso=27, limb=16}}, -- shotgun
 };
 
--- THE BODY A BULLET MEETS, relative to pos (the eye; z grows down): the
--- body demoncore moves (boxclipmove: 0.45 over the eye to the feet,
--- 2.25 under it standing, 1.35 crouched -- change_crouch lowers the eye
--- 0.9 and leaves the feet; a 0.45 half-width), cut into parts at the
+-- The body a bullet meets is THE BODY (above), cut into parts at the
 -- heights of the client's hit boxes (zerospades Player::GetHitBoxes, the
 -- gaze level): the head to 0.2 under the eye, the torso down to where the
 -- legs begin -- 1.05 standing, 0.55 crouched, the thighs out in front of
 -- a crouched man's belly, so nearer a shot from the front -- the legs
 -- below. The server judges no hit itself (clients do): this is ours.
---
--- FIXME (WORK.md item 35): this mirrors LSd's body geometry. When LSd is
--- updated (dev/bump-lsd.sh) and the code below changes -- its body, its
--- crouch, or LSd judging hits itself -- this judge and brain_sim.h's
--- bs_ray_hits must be made to match again. tests/hit_judge_test.lua
--- fails until these lines name the new code's checksums:
--- lsd: src/demoncore.c boxclipmove fnv1a32 9ff6863f
--- lsd: src/demoncore.c check_collision fnv1a32 7484eb58
--- lsd: src/demoncore.c change_crouch fnv1a32 3437006c
--- lsd: src/demoncore.c try_uncrouch fnv1a32 39e15a99
-local BODY_TOP, BODY_RADIUS, HEAD_BOTTOM = -0.45, 0.45, 0.2;
-local BODY_FEET = {[false] = 2.25, [true] = 1.35};
+local HEAD_BOTTOM = 0.2;
 local LEGS_TOP = {[false] = 1.05, [true] = 0.55};
 
 local function vlen(v) return math.sqrt(v.x*v.x + v.y*v.y + v.z*v.z); end
@@ -1238,43 +1239,36 @@ end
 -- The typed sends (send_chat, send_fog, send_block_action...) take a
 -- group as they take a pid: send_fog(PID_BROADCAST, c) is already one.
 --
--- THE SEND GUARD is what is left under that, for the day a script does
--- not. Every send addressed to a bot, or to a group with only bots in it,
--- is dropped here, and the ones addressed to a bot COUNTED (bot_guard_drops), and reported in
--- the log once a minute when there were any, with the first place each
--- came from: it is a script to fix, not a normal event.
+-- The core itself sends a bot nothing: its loops walk the slots that have
+-- a peer, and a send it makes to one slot with none ends in C before the
+-- scripts' chain (patches/lsd 0002). A group goes to the core whole; the
+-- core hands it to the peers in it, if any.
 --
--- It is also a leak stopped. send_packet_flags (lsd/src/funcs_send.c)
--- creates the ENet packet and then hands it to the peers that match, and
--- ENet frees a packet only once a peer has taken it. A group send (team,
--- all-but-one) with no member that has a peer is created and never
--- freed. A single peerless pid used to leak the same way -- fifty guards
--- each sent a WorldUpdate per tick was ~175MB a minute -- and upstream
--- 2cd8e5b fixed that case by returning before the packet is made; the
--- group case is still open. A plain PID_BROADCAST never leaked:
--- enet_host_broadcast destroys a packet nobody took.
-local function only_bots(pid)
-	if (pid >= MAX_PLAYERS and pid < SET) then
-		return false;    -- a handle of the server's own (the console)
-	end
-	return people_in(pid)() == nil;
-end
-
+-- THE SEND GUARD is what is left for a script that walks the players
+-- instead. A send it addresses to a bot is dropped at the top of the
+-- chain, COUNTED (bot_guard_drops) and reported in the log once a minute
+-- when there were any, with the first place each came from: it is a
+-- script to fix, never a normal event.
 local drops, drops_total = {}, 0;     -- since the last report: by name
 local drops_ever = {};                -- since the load: by name
 local drops_from = {};                -- name -> where the first came from
-local engine_asks = {};               -- name -> count, see ENGINE below
 local REPORT_EVERY = 60;
 local next_report;
 
--- Who sent it: the first frame outside this file and the core's chain.
+-- Who sent it: the first frame outside this file, the core's chain and
+-- the senders that only pass a pid on (lib_l10n's l10n_send_chat: the
+-- script that called it is the one that chose the bot).
+local PASS_ON = {"lib_bot", "core.lua", "lib_l10n"};
 local function whence()
-	for level = 3, 14 do
+	for level = 3, 16 do
 		local info = debug.getinfo(level, "Sl");
 		if (info == nil) then break; end
 		local src = info.short_src or "?";
-		if (not src:find("lib_bot", 1, true) and not src:find("core.lua", 1, true)
-		    and src ~= "[C]") then
+		local ours = (src == "[C]");
+		for _, name in ipairs(PASS_ON) do
+			ours = ours or src:find(name, 1, true) ~= nil;
+		end
+		if (not ours) then
 			return string.format("%s:%d", src, info.currentline or 0);
 		end
 	end
@@ -1290,32 +1284,17 @@ local function drop(name)
 	end
 end
 
--- What the core itself sends to the player an event is about, a bot as
--- much as a person: a map when it connects (send_map, and send_state for
--- each slot of a group sent a map), the restock and reload of a spawn, a
--- position, the quirks, a block action for each slot that matches. They
--- are answered here at once, before any packet is made, and are not a
--- script's doing: counted apart (the third result of bot_guard_drops),
--- never reported. The one remedy is the core's: the loops that walk every
--- slot that matches, the slots with no peer left out.
-local ENGINE = {send_map = true, send_state = true, send_block_action = true,
-	send_restock = true, send_reload = true, send_position = true,
-	send_orientation = true, send_quirks = true, send_quirks_off = true};
-
--- bot_guard_drops() -> n, by_name, engine_by_name, first_from_by_name: the
--- sends a script made at a bot since the load, then the core's own (ENGINE
--- below), then where the first of each came from
+-- bot_guard_drops() -> n, by_name, first_from_by_name: the sends a script
+-- made at a bot since the load, and where the first of each came from
 function bot_guard_drops()
 	local by, n = {}, 0;
 	for name, k in pairs(drops_ever) do
 		by[name] = k;
 		n = n + k;
 	end
-	local eng = {};
-	for name, k in pairs(engine_asks) do eng[name] = k; end
 	local from = {};
 	for name, at in pairs(drops_from) do from[name] = at; end
-	return n, by, eng, from;
+	return n, by, from;
 end
 
 report_drops = function(now)
@@ -1369,39 +1348,20 @@ local TYPED = {"server_msg", "send_chat", "send_state", "send_state_ctf",
 for _, name in ipairs(TYPED) do
 	mod.xearly[name] = function(pid, ...)
 		if (pid < MAX_PLAYERS and bots[pid] ~= nil) then
-			if (ENGINE[name]) then
-				engine_asks[name] = (engine_asks[name] or 0) + 1;
-			else
-				drop(name);
-			end
+			drop(name);
 			return;
 		end
 		return mod.xearly.next[name](pid, ...);
 	end
 end
 
--- send_spawn_player is the one the core takes apart itself: for a group
--- it walks every slot that matches (a bot too), asks has_quirk of it and
--- makes a send of it (funcs_send.c). Handed a group here it is handed to
--- the core a person at a time instead: the core's walk is then over one
--- id, and a bot is not in it.
-local spawn_whole = mod.xearly.send_spawn_player;
-function mod.xearly.send_spawn_player(pid, ...)
-	if (pid >= SET) then
-		for i in people_in(pid) do
-			spawn_whole(i, ...);
-		end
-		return;
-	end
-	return spawn_whole(pid, ...);
-end
-
 -- AND NO WORLD UPDATE IS BUILT FOR A BOT. The core builds one per
 -- recipient (funcs_send.c send_player_update: every live player's
 -- position, 24 bytes each) and only then sends it -- to a bot, nowhere.
--- command_ups calls this once for each id of the broadcast (its rate per
--- client); `late` puts this hook under it, next to the core, so every
--- caller's split ends here.
+-- command_ups calls this once for each person of the broadcast (its rate
+-- per client, catalog/overrides); a split that walked the bots too would
+-- reach the core under any hook at the top, so this guard is `late`, next
+-- to the core, where every caller's split ends.
 function mod.late.send_player_update(pid)
 	if (pid < MAX_PLAYERS and bots[pid] ~= nil) then
 		drop("send_player_update");
@@ -1410,26 +1370,19 @@ function mod.late.send_player_update(pid)
 	return mod.late.next.send_player_update(pid);
 end
 
--- A group with only bots in it (a team of bots told something) is a
--- normal thing for the core to send and is dropped without a word; a bot
--- addressed by itself is a script that walked the players: counted.
-local function refuse(name, pid)
-	if (pid < MAX_PLAYERS) then
-		drop(name);
-	end
-	return 0;
-end
-
+-- A raw packet a script addresses to a bot: the same guard.
 function mod.send_packet(pid, data)
-	if (only_bots(pid)) then
-		return refuse("send_packet", pid);
+	if (pid < MAX_PLAYERS and bots[pid] ~= nil) then
+		drop("send_packet");
+		return 0;
 	end
 	return mod.next.send_packet(pid, data);
 end
 
 function mod.send_packet_unreliable(pid, data)
-	if (only_bots(pid)) then
-		return refuse("send_packet_unreliable", pid);
+	if (pid < MAX_PLAYERS and bots[pid] ~= nil) then
+		drop("send_packet_unreliable");
+		return 0;
 	end
 	return mod.next.send_packet_unreliable(pid, data);
 end

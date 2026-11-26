@@ -54,7 +54,11 @@ The bots are made of three pieces, described in `bot/README.md`:
 
 In the image: `/usr/local/bin/botd`, `/lsd/exec/libbotlink.so` and
 `/lsd/exec/botlink.h` (where `lib_botlink` looks first), and the behaviour
-trees (`bot/trees/*.bt`) in `/opt/botd/trees`, with `bttree` to look at
+trees (`bot/trees/*.bt`, and the kinds of bot, `archetypes.txt`) in
+`/opt/botd/trees` and the structures a leader may order built
+(`bot/structures/*.kv6`) in `/opt/botd/structures` -- the operator's own
+in the data volume's `trees/` and `structures/`, read after them -- with
+`bttree` to look at
 and check them (how a tree is written, compiled and run, and how to give
 bots your own: [bot/trees/README.md](../bot/trees/README.md) step by
 step, [bot/TREES.md](../bot/TREES.md) for reference; the other bot
@@ -68,7 +72,10 @@ with `docker exec -u lsd`): `botd --file /dev/shm/lsd-botlink --trees
 bot/trees`; `--once` exits at once if there is no file, `--hz` and
 `--budget` set the rate and the planner's work per round (at least),
 `--plan-rate` each bot's share of the planner a second (a round spends
-the larger).
+the larger), `--plan-ms` the most of a round it may take, `--threads`
+the threads sight and the planner run on (the entrypoint passes the
+setting `botlink_threads`), `--bots` how many bots it is sized for
+(255, every seat). `botd --help` says them all.
 
 ```sh
 make -C bot          # libbotcore.a, libbotlink.so, build/bin/botd

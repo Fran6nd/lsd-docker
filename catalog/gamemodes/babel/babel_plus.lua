@@ -34,7 +34,14 @@
 --                               (`build_part`); said again only changed
 --   place.stair_top, place.stair_foot, place.breach   each team's, as the
 --                               world's "<name>@<team>"
---   fact.stair_done, fact.stair_high, fact.widen, fact.breach
+--   fact.stair_done, fact.stair_high, fact.widen, fact.breach,
+--   fact.stairs_wanted (its stair cut within a minute: a leader orders
+--                               one more)
+--   place.platform_edge          each team's: the platform's edge over its
+--                               spawn, an eye there (a man just spawned
+--                               looks up at it: spawn-killers)
+--   place.platform_watch         each team's: the platform's edge over the
+--                               other side, where its men up there wait
 --   place.intel, place.intel_home  for everybody (who carries it the engine
 --                               reads from the world: `carrying_intel`)
 -- The stair runs from the platform's corner side outward and down, one
@@ -519,6 +526,14 @@ local function tell_blueprint(team, name, cells)
 	end
 end
 
+-- A STAIR WANTED: a team's stair was cut lately -- STAIRS_WANTED_SECS, a
+-- minute: the time for one of its leaders to answer it -- and a bot
+-- leader then orders one more of its own (babel.bt: `order_build stairs`
+-- at the platform's edge, which its squad builds), as a person orders one
+-- with the Build pie
+local STAIRS_WANTED_SECS = 60;
+local cut_at = {};
+
 local function tell_bots()
 	if (not bots_told) then
 		bots_told = true;
@@ -543,7 +558,10 @@ local function tell_bots()
 	for team = 1, 2 do
 		local t = stairs[team];
 		if (t[1] ~= nil) then
-			if (team_state(team).cut) then stair_cut(team); end
+			if (team_state(team).cut) then
+				stair_cut(team);
+				cut_at[team] = get_time();
+			end
 			if (t[2] == nil and not t.second_tried) then
 				local n = team_bots(team);
 				if (n >= SECOND_STAIR_BOTS) then
@@ -560,6 +578,25 @@ local function tell_bots()
 	botlink_set("place.intel", intel);
 	-- where it is put back (babel's putback: the platform's middle)
 	botlink_set("place.intel_home", point(256.5, 256.5, babel_z - 2.25));
+	-- the platform's edge over each team's spawn: what a man just spawned
+	-- looks up at first (babel.bt), where the other team's spawn-killers
+	-- stand: an eye on the platform, on its side toward the team's tent
+	local tents = get_tentloc ~= nil and get_tentloc() or {};
+	for team = 1, 2 do
+		local tent = tents[team];
+		if (tent ~= nil) then
+			local y0, y1 = 256 - babel_height / 2, 255 + babel_height / 2;
+			local x = team == 1 and 256 - babel_width / 2 or 255 + babel_width / 2;
+			local y = math.max(y0, math.min(y1, math.floor(tent.y)));
+			tell_team(team, "place.platform_edge", point(x + 0.5, y + 0.5, babel_z - 2.25));
+		end
+		-- and the edge over the OTHER side, its middle: where a team's men up
+		-- there with nothing to do wait (each at a spot of its own: `guard`),
+		-- looking down at the other team's stair and spawn, not at their own
+		-- stair's top
+		local wx = team == 1 and 255 + babel_width / 2 - 1 or 256 - babel_width / 2 + 1;
+		tell_team(team, "place.platform_watch", point(wx + 0.5, 256.5, babel_z - 2.25));
+	end
 	for team = 1, 2 do
 		local t, me, them = stairs[team], s[team], s[other(team)];
 		if (me.st ~= nil) then
@@ -569,6 +606,8 @@ local function tell_bots()
 			tell_team(team, "place.stair_foot", eye(me.st.foot));
 			tell_team(team, "fact.stair_done", me.done and 1 or 0);
 			tell_team(team, "fact.stair_high", me.high);
+			tell_team(team, "fact.stairs_wanted",
+				cut_at[team] ~= nil and get_time() - cut_at[team] < STAIRS_WANTED_SECS and 1 or 0);
 			-- ours: what widens the first (the links where a cut would drop
 			-- the most, the bots choose themselves: `brace stair`, by the
 			-- server's own collapse)
@@ -729,7 +768,7 @@ function mod.before.finish_map_load()
 	watch = {};
 	next_check = 0;
 	stairs, bots_next = {}, 0;     -- laid out again on the new map, when bots ask
-	told_blueprint, laid_ground = {}, {};
+	told_blueprint, laid_ground, cut_at = {}, {}, {};
 end
 
 function mod.on_load()

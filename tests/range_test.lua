@@ -128,6 +128,9 @@ map_layout = {
 	revert_action = function(pid, pos, type) reverted[#reverted + 1] = {pid = pid, pos = pos, type = type}; end,
 	revert = function(pid, pos, type) reverted[#reverted + 1] = {pid = pid, pos = pos, type = type}; end,
 };
+function map_layout.revert_line(pid, a, b)
+	for p in iter_block_line(a, b) do map_layout.revert(pid, p, 0); end
+end
 function iter_block_line(a, b)
 	local list, k = {a, b}, 0;
 	return function() k = k + 1; return list[k]; end
