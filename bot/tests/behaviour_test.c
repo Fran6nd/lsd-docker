@@ -89,7 +89,7 @@ static void look_pass(int gaze, int noise, int *saw, int *of, double *off_share,
 		for (i = 0; i < 60 * 12; i++) {
 			float vx, vy, v, ox, oy, o;
 
-			s->p[1].hp = 100;
+			s->p[1].hp = 250;       /* above a head shot: he is there for every walker */
 			bs_step(s);
 			b = bc_engine_bot(s->e, 0);
 			if (noise && !said && s->p[0].body.pos.x > 268.0f) {

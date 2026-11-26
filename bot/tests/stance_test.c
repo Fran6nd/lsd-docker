@@ -68,7 +68,7 @@ static void duel(int level, int stance, float range, uint32_t seed, tally *out)
 	for (i = 0; i < 60 * 30; i++) {
 		bs_player *me = &s->p[0], *him = &s->p[1];
 
-		him->hp = 100;
+		him->hp = 1000;         /* never dies, a head shot or not */
 		him->script_keys = stance == CROUCH ? BL_K_CROUCH : 0;
 		/* the range is the test's: kept where it stands, whatever its fight
 		 * would have it do with its feet */

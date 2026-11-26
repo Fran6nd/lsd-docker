@@ -65,8 +65,9 @@ DONE (commit), BLOCKED (on what).
 | 30 | "I ping from the pie menu and it does nothing" (babel, ZeroSpades): lib_bot's people_in compared get_team (1, 2) with the team a set holds (0, 1), so a team's people were the other team's and a ping, a team chat or a callout reached nobody it was for once bots were on the server | DONE (branch worktree-agent-ae2b8838b3487bc75; tests/pie_ping_test.lua) |
 | 31 | Shooting range: nobody but its targets on the green team (team 2): not at the join, a team change, /switch, team_balance or a held team released | DONE (range.lua late on_join/on_switch; tests/range_teams_test.lua) |
 | 32 | "On local babel lots of bots are stuck": tents on the islands' outer edges, half the spawn square in the sea at a 20-high cliff; bots dig into it and stay in crouch-only pockets (planner refuses the start) or in a notch whose plan starts from the water column under a corner | TODO, for the brain/nav agent (bot/tests/babel_stuck_open.c: 5 cases, all failing) |
-| 33 | "Do bots aim properly on crouched people?": no -- the spot went lower on a crouched man (in the ground at his feet); now on the body he has (1.35 under the eye crouched, what is over the sea wading) | REVIEW (aim.c; tests/stance_test.c) |
+| 33 | "Do bots aim properly on crouched people?": no -- the spot went lower on a crouched man (in the ground at his feet); now on the body he has (1.35 under the eye crouched, what is over the sea wading) | DONE (653315b: aim.c, tests/stance_test.c); ctf_test's six a side now 16 matches, at least 7 capture (measured on Mac and Alpine) |
 | 34 | "Bots turn at team-mates' noise": every hearing path filtered mates but one -- a collapse a mate's dig caused was heard as from nobody | REVIEW (engine.c map_changed takes the edit's maker; tests/hearing_test.c) |
+| 35 | lib_bot's hit judge (bot bullets; LSd judges none itself) had a body 1.35 over the eye to 2.25 under whatever the stance: the head band over the real head, a crouched man's legs in the ground. Now the server's body (0.45 over, 2.25 / 1.35 under) cut at the client's hit-box heights; brain_sim.h's bs_ray_hits the same. FIXME: it mirrors LSd's geometry -- tests/hit_judge_test.lua pins demoncore's boxclipmove, check_collision, change_crouch, try_uncrouch by fnv1a32 and fails on an LSd bump that changes them (dev/bump-lsd.sh runs it): then make both judges match again | REVIEW (lib_bot.lua judge; brain_sim.h; tests/hit_judge_test.lua) |
 
 ## Log
 
@@ -954,3 +955,20 @@ DONE (commit), BLOCKED (on what).
   enemy in sight 3 s: once, then built to the end. Babel harness, seed 1,
   300 s: the block put away while building 139 -> 107 times, of which 7
   with no enemy in sight and nobody shooting (a route's dig: the spade).
+- 2026-11-26 (live-debug agent, items 33 and 35, on 653315b): 35: the
+  judge on the server's body. stance_test hit rates hardly move (L10
+  standing 99/80/46 -> 99/80/47 % at 10/30/60, crouched 98/77/42 ->
+  99/77/41, wading 98/74/39 -> 98/75/39); the part does -- the head band
+  is on the head now, so head shots (rifle 100) land where the aim's head
+  spot is. Tests that kept a man alive at 100 hp keep him over a head shot
+  (stance_test 1000, behaviour_test look_pass 250); engine_test's watch
+  looks for the held worth over its 3 s, not at their end only;
+  botlink_test's target stands where a level shot meets his chest. 33:
+  six a side, seeds 0-31, captures within 480 s / pickups and kills a
+  minute, Mac clang | Alpine gcc: before the aim fix 29 | 26, 1.07 | 1.07,
+  18.4 | 18.4; aim fix 24 | 28, 0.88 | 1.27, 18.2 | 18.6; aim fix and
+  judge 24 | 26, 0.90 | 0.92, 20.1 | 19.5. No kill-trade stalemate: kills
+  a minute within 10%, captures 55 -> 50 of 64 (noise-sized; the seeds
+  that miss differ by platform). One check replaces master's "2 of 3":
+  16 matches, at least 7 (p 0.70, under both platforms: 0.7% false
+  failure); the tallies over all of them.

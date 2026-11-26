@@ -1243,11 +1243,19 @@ static void test_watch(void)
 	bc_engine_watch(s->e, 0, 1);
 	bc_engine_watch(s->e, 200, 1);                     /* no such bot: nothing */
 	CHECK(bc_engine_watched(s->e, 0) && !bc_engine_watched(s->e, 1) && !bc_engine_watched(s->e, 200));
-	run_alive(s, 3.0, 0);
+	/* its choices over 3 s (what the recording below holds): the numbers
+	 * and what it held, in a snapshot taken at one of them -- not
+	 * necessarily the last, a fight holds its pick a while */
+	for (k = 0, weighed = 0; k < 6; k++) {
+		run_alive(s, 0.5, 0);
+		n = bc_engine_snapshot(s->e, 0, out, OUT);
+		weighed |= n < OUT && strstr(out, "\"worth\": {\"score\": ") && strstr(out, "\"held\": true");
+	}
 	b = bc_engine_bot(s->e, 0);
 	n = bc_engine_snapshot(s->e, 0, out, OUT);
 	CHECK(n < OUT && is_json(out) && strstr(out, "\"traced\": true"));
-	CHECK(strstr(out, "\"worth\": {\"score\": ") && strstr(out, "\"held\": true"));
+	CHECK(weighed);
+	weighed = 0;
 	CHECK(strstr(out, "\"role\": \"main\", \"name\": \"tdm\"") && strstr(out, "\"role\": \"also\", \"name\": \"tdm_also\""));
 	CHECK(strstr(out, "\"tree\": \"tdm\", \"tree_from\": \"files\"") && strstr(out, "\"archetype\": \""));
 	CHECK(strstr(out, "if has_item medkit") != NULL);          /* the engine's own writing is in it */

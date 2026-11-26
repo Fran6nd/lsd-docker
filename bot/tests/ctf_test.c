@@ -157,24 +157,38 @@ static void test_lone_capture(void)
 	bs_free(s);
 }
 
-/* SIX A SIDE, to a first capture: a seed's match (its bots' characters).
- * 1 if one came within 8 minutes. A single seed's match is chaos -- any
- * change that moves a body moves who meets whom (2026-11-26: seed 0 lost
- * its capture to changes that touch no ctf decision; seeds 1 to 3 had
- * theirs at 308, 60 and 63 s) --, so the capture is asked of most of
- * three, and the rest of each match as it was. */
-static int six_a_side(uint32_t seed)
+/* SIX A SIDE, to a first capture. A seed's match (its bots' characters)
+ * is chaos: any change that moves a body moves who meets whom, and the
+ * same seed plays out differently from one compiler to the next (Mac
+ * clang and Alpine gcc). One seed, or two of three, says little; so
+ * GAMES matches, and a share of them must capture within 8 minutes. The
+ * share is set from what was measured (see SIX_CAPTURES below); what the
+ * men do (the tallies, where they stand, stuck) is read over all of them. */
+enum { GAMES = 16 };
+/* Measured 2026-11-26 on seeds 0 to 31, with the aim on a crouched man's
+ * body and lib_bot's judge on the server's body: a capture within 8
+ * minutes in 24 of 32 matches built by Mac clang, 26 of 32 by Alpine gcc
+ * (before the aim and judge changes: 29 and 26). The bar takes p = 0.70,
+ * under both, and asks the count GAMES matches reach but for 1% of draws
+ * (binomial): fewer than 7 of 16 comes 0.7% of the time. A tree that no
+ * longer goes for the intel makes 0 or 1. */
+#define SIX_MEASURED "24/32 Mac, 26/32 Alpine"
+enum { SIX_CAPTURES = 7 };
+
+typedef struct six_tally {
+	tally before, during;
+	int went, guarded, samples, stuck;
+	double worst;
+} six_tally;
+
+/* one match, to its first capture or the cap: 1 if it came */
+static int six_a_side(uint32_t seed, six_tally *g)
 {
 	bs_sim *s = big_pitch(12);
-	tally before, during;
 	char leaf[64];
-	double worst = 0.0;
-	int i, k, stuck = 0, first = -1, went = 0, guarded = 0, samples = 0;
+	int i, k, first = -1;
 	uint32_t seed0 = getenv("CTF_SEED") ? (uint32_t)atoi(getenv("CTF_SEED")) + seed : seed;
 
-	printf("6 against 6 to a first capture\n");
-	memset(&before, 0, sizeof before);
-	memset(&during, 0, sizeof during);
 	bs_start(s);
 	s->respawn = 6.0;
 	for (i = 0; i < 6; i++) {
@@ -188,11 +202,11 @@ static int six_a_side(uint32_t seed)
 			for (i = 0; i < 6; i++) {
 				if (!s->p[i].alive) continue;
 				leaf_of(s, i, leaf, sizeof leaf);
-				tally_add(&before, leaf);
-				samples++;
+				tally_add(&g->before, leaf);
+				g->samples++;
 				/* where it is: on its own third of the field, or on theirs */
-				guarded += s->p[i].body.pos.x < 230.0f;
-				went += s->p[i].body.pos.x > 280.0f;
+				g->guarded += s->p[i].body.pos.x < 230.0f;
+				g->went += s->p[i].body.pos.x > 280.0f;
 			}
 		if (k % 30 == 0)
 			for (i = 0; i < 6; i++) {
@@ -204,38 +218,43 @@ static int six_a_side(uint32_t seed)
 					/* a team whose man carries: what the others are at */
 					if (h < 0 || s->p[h].team != t || h == mine || !s->p[mine].alive) continue;
 					leaf_of(s, mine, leaf, sizeof leaf);
-					tally_add(&during, leaf);
+					tally_add(&g->during, leaf);
 				}
 			}
 		if (s->caps[1] + s->caps[2] > 0) first = k;
 	}
 	for (i = 0; i < BL_MAX_PLAYERS; i++)
 		if (s->p[i].used && s->p[i].bot) {
-			stuck += s->p[i].stuck_events;
-			if (s->p[i].worst_hold > worst) worst = s->p[i].worst_hold;
+			g->stuck += s->p[i].stuck_events;
+			if (s->p[i].worst_hold > g->worst) g->worst = s->p[i].worst_hold;
 		}
-	tally_print(&before, "  team 1, once a second: ");
-	tally_print(&during, "  the carrier's team-mates while it is carried (twice a second): ");
-	printf("  team 1's men were on their own third of the field %d%% of the time, on the other team's %d%%\n",
-	       samples ? 100 * guarded / samples : 0, samples ? 100 * went / samples : 0);
-	printf("  first capture after %.0f s (%d-%d); pickups %d and %d, drops %d; kills %d-%d; stuck %d, longest hold %.1f s, goals dropped %u\n",
-	       first / 60.0, s->caps[1], s->caps[2], s->pickups[1], s->pickups[2], s->drops, s->kills[1], s->kills[2], stuck, worst,
+	printf("  seed %2u: %s %3.0f s (%d-%d); pickups %d and %d, drops %d; kills %d-%d; goals dropped %u\n",
+	       (unsigned)seed0, first >= 0 ? "first capture after" : "NO capture in      ", (first >= 0 ? first : k) / 60.0,
+	       s->caps[1], s->caps[2], s->pickups[1], s->pickups[2], s->drops, s->kills[1], s->kills[2],
 	       (unsigned)bc_engine_stats_get(s->e)->stuck_resets);
-	CHECK(went * 50 >= samples && guarded * 8 >= samples);      /* some go (2% of the time or more on their third: few get that far), some stay */
-	CHECK(tally_of(&during, "escort") * 12 >= during.n[0] + during.n[1] + during.n[2] + during.n[3] + during.n[4] + during.n[5] + during.n[6] + during.n[7]);
-	CHECK(stuck == 0 && worst < 3.0);
 	bs_free(s);
-	return first > 0;
+	return first >= 0;
 }
 
 static void test_six_a_side(void)
 {
+	six_tally g;
 	int seed, captured = 0;
 
-	for (seed = 0; seed < 3; seed++)
-		captured += six_a_side((uint32_t)seed);
-	printf("  a capture in %d of 3 matches\n", captured);
-	CHECK(captured >= 2);
+	printf("6 against 6 to a first capture, %d matches\n", GAMES);
+	memset(&g, 0, sizeof g);
+	for (seed = 0; seed < GAMES; seed++)
+		captured += six_a_side((uint32_t)seed, &g);
+	tally_print(&g.before, "  team 1, once a second: ");
+	tally_print(&g.during, "  the carrier's team-mates while it is carried (twice a second): ");
+	printf("  team 1's men were on their own third of the field %d%% of the time, on the other team's %d%%\n",
+	       g.samples ? 100 * g.guarded / g.samples : 0, g.samples ? 100 * g.went / g.samples : 0);
+	printf("  a capture in %d of %d matches (at least %d: %s); stuck %d, longest hold %.1f s\n",
+	       captured, GAMES, SIX_CAPTURES, SIX_MEASURED, g.stuck, g.worst);
+	CHECK(captured >= SIX_CAPTURES);
+	CHECK(g.went * 50 >= g.samples && g.guarded * 8 >= g.samples);      /* some go (2% of the time or more on their third: few get that far), some stay */
+	CHECK(tally_of(&g.during, "escort") * 12 >= g.during.n[0] + g.during.n[1] + g.during.n[2] + g.during.n[3] + g.during.n[4] + g.during.n[5] + g.during.n[6] + g.during.n[7]);
+	CHECK(g.stuck == 0 && g.worst < 3.0);
 }
 
 /* PEACE: the server tells the engine two things while the players have

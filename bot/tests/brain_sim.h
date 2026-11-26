@@ -470,24 +470,33 @@ static inline void bs_hurt(bs_sim *s, int pid, int dmg, int by, bl_vec3 from, in
 	}
 }
 
-/* lib_bot ray_hits_player: 0 none, 1 head, 2 torso, 3 limb */
+/* lib_bot ray_hits_player: 0 none, 1 head, 2 torso, 3 limb. The body
+ * demoncore moves, 0.45 over the eye to the feet (2.25 under it standing,
+ * 1.35 crouched), 0.45 round its axis; the parts at the heights of the
+ * client's hit boxes: the head to 0.2 under the eye, the legs from 1.05
+ * (crouched 0.55). The ray is taken where it passes nearest his axis.
+ * FIXME (WORK.md item 35): it mirrors LSd's body; lib_bot.lua's judge
+ * pins the LSd code it comes from (tests/hit_judge_test.lua): when that
+ * test fails after an LSd update, make this match again too. */
 static inline int bs_ray_hits(bs_sim *s, bl_vec3 start, bl_vec3 dir, int tgt, float range)
 {
 	const bs_player *t = &s->p[tgt];
+	int crouched = (t->body.keys & BC_K_CROUCH) != 0;
 	bl_vec3 p, c;
-	float wx, wy, wz, tt, hd, zrel;
+	float h, tt, hd, zrel;
 
 	p.x = t->body.pos.x; p.y = t->body.pos.y; p.z = t->body.pos.z;
-	wx = p.x - start.x; wy = p.y - start.y; wz = p.z - start.z;
-	tt = wx * dir.x + wy * dir.y + wz * dir.z;
+	h = dir.x * dir.x + dir.y * dir.y;
+	if (h < 1e-9f) return 0;
+	tt = ((p.x - start.x) * dir.x + (p.y - start.y) * dir.y) / h;
 	if (tt <= 0.0f || tt > range) return 0;
 	c.x = start.x + dir.x * tt; c.y = start.y + dir.y * tt; c.z = start.z + dir.z * tt;
 	hd = sqrtf((c.x - p.x) * (c.x - p.x) + (c.y - p.y) * (c.y - p.y));
 	if (hd > 0.45f) return 0;
 	zrel = c.z - p.z;
-	if (zrel < -1.35f || zrel > 2.25f) return 0;
+	if (zrel < -0.45f || zrel > (crouched ? 1.35f : 2.25f)) return 0;
 	if (!bc_sight_clear(s->truth, start, c)) return 0;
-	return zrel <= -0.7f ? 1 : zrel >= 1.2f ? 3 : 2;
+	return zrel < 0.2f ? 1 : zrel >= (crouched ? 0.55f : 1.05f) ? 3 : 2;
 }
 
 static inline void bs_shoot(bs_sim *s, int pid)

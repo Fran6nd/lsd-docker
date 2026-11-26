@@ -625,7 +625,9 @@ check(P[pid].mouse == 2, "secondary: the scope, as the server models it");
 -- the trigger: gun
 P[pid].mag, P[pid].pos, P[pid].tool = 10, {x = 300, y = 300, z = 30}, 2;
 P[pid].gun = 0;
-new_player(7, 2).pos = {x = 300, y = 310, z = 30.9};
+-- (his eye 0.5 over the bot's: a level shot meets his chest -- lib_bot
+-- judges the server's body, 0.45 over the eye to the feet)
+new_player(7, 2).pos = {x = 300, y = 310, z = 29.5};
 mkintent(pid, {tool = 2, mouse = 1, oy = 1, flags = 1});
 engine_events();
 step(1);
@@ -640,11 +642,11 @@ step(40);
 check(P[7].hp == 100, "an empty magazine does not fire");
 -- the trigger: spade
 P[pid].mag = 10; P[pid].tool = 0; P[7].alive = true; P[7].hp = 100;
-P[7].pos = {x = 300, y = 302, z = 30.9};
+P[7].pos = {x = 300, y = 302, z = 29.5};
 mkintent(pid, {tool = 0, mouse = 1, oy = 1, flags = 1});
 step(1);
 check(#rec.hits >= 1 and rec.hits[#rec.hits][1] == pid and rec.hits[#rec.hits][2] == 4 and P[7].hp < 100, "the trigger with the spade: a swing that hits goes through on_hit");
-P[7].pos = {x = 300, y = 330, z = 30.9};
+P[7].pos = {x = 300, y = 330, z = 29.5};
 SOLID[key(300, 302, 30)] = true;
 engine_events();
 step(30);

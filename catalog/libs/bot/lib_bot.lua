@@ -626,9 +626,28 @@ local WEAPON = {
 	       dmg={head=37,  torso=27, limb=16}}, -- shotgun
 };
 
--- demoncore clips a body from 1.35 above pos (head) to 2.25 below
--- (feet) with a 0.45 half-width; classify the hit by height
-local BODY_TOP, BODY_BOTTOM, BODY_RADIUS = -1.35, 2.25, 0.45;
+-- THE BODY A BULLET MEETS, relative to pos (the eye; z grows down): the
+-- body demoncore moves (boxclipmove: 0.45 over the eye to the feet,
+-- 2.25 under it standing, 1.35 crouched -- change_crouch lowers the eye
+-- 0.9 and leaves the feet; a 0.45 half-width), cut into parts at the
+-- heights of the client's hit boxes (zerospades Player::GetHitBoxes, the
+-- gaze level): the head to 0.2 under the eye, the torso down to where the
+-- legs begin -- 1.05 standing, 0.55 crouched, the thighs out in front of
+-- a crouched man's belly, so nearer a shot from the front -- the legs
+-- below. The server judges no hit itself (clients do): this is ours.
+--
+-- FIXME (WORK.md item 35): this mirrors LSd's body geometry. When LSd is
+-- updated (dev/bump-lsd.sh) and the code below changes -- its body, its
+-- crouch, or LSd judging hits itself -- this judge and brain_sim.h's
+-- bs_ray_hits must be made to match again. tests/hit_judge_test.lua
+-- fails until these lines name the new code's checksums:
+-- lsd: src/demoncore.c boxclipmove fnv1a32 9ff6863f
+-- lsd: src/demoncore.c check_collision fnv1a32 7484eb58
+-- lsd: src/demoncore.c change_crouch fnv1a32 3437006c
+-- lsd: src/demoncore.c try_uncrouch fnv1a32 39e15a99
+local BODY_TOP, BODY_RADIUS, HEAD_BOTTOM = -0.45, 0.45, 0.2;
+local BODY_FEET = {[false] = 2.25, [true] = 1.35};
+local LEGS_TOP = {[false] = 1.05, [true] = 0.55};
 
 local function vlen(v) return math.sqrt(v.x*v.x + v.y*v.y + v.z*v.z); end
 
@@ -662,12 +681,16 @@ local function aim_offset(dir, up, yaw)
 	return {x=ch*math.cos(a), y=ch*math.sin(a), z=-math.sin(e)};
 end
 
--- does the ray from `start` along `dir` strike enemy `tgt` before any
--- wall? returns the body part ("head"/"torso"/"limb") or nil
+-- does the ray from `start` along `dir` (a unit vector) strike enemy
+-- `tgt` before any wall? returns the body part ("head"/"torso"/"limb") or
+-- nil. The body is upright: the ray is taken where it passes nearest his
+-- axis.
 local function ray_hits_player(start, dir, tgt, range)
 	local p = get_position(tgt);
-	local w = {x=p.x-start.x, y=p.y-start.y, z=p.z-start.z};
-	local t = w.x*dir.x + w.y*dir.y + w.z*dir.z; -- distance along ray to closest point
+	local crouched = has_bit(get_inputs(tgt), KEY.crouch);
+	local h = dir.x*dir.x + dir.y*dir.y;
+	if (h < 1e-9) then return nil; end
+	local t = ((p.x-start.x)*dir.x + (p.y-start.y)*dir.y) / h;  -- along the ray, to his axis
 	if (t <= 0 or t > range) then return nil; end
 
 	local c = {x=start.x+dir.x*t, y=start.y+dir.y*t, z=start.z+dir.z*t};
@@ -675,7 +698,7 @@ local function ray_hits_player(start, dir, tgt, range)
 	if (hd > BODY_RADIUS) then return nil; end
 
 	local zrel = c.z - p.z;
-	if (zrel < BODY_TOP or zrel > BODY_BOTTOM) then return nil; end
+	if (zrel < BODY_TOP or zrel > BODY_FEET[crouched]) then return nil; end
 
 	-- wall in the way? raycast to the impact point; a solid nearer than
 	-- the target blocks the shot
@@ -685,10 +708,12 @@ local function ray_hits_player(start, dir, tgt, range)
 		if (wd2 < t*t*0.98) then return nil; end
 	end
 
-	if (zrel <= -0.7) then return "head";
-	elseif (zrel >= 1.2) then return "limb";
+	if (zrel < HEAD_BOTTOM) then return "head";
+	elseif (zrel >= LEGS_TOP[crouched]) then return "limb";
 	else return "torso"; end
 end
+-- the judge, for a test or a script that shoots for a bot
+bot_hit_part = ray_hits_player;
 
 -- clear line of sight from pid's eyes to a target (a pid or a pos)?
 -- false when a wall sits nearer than the target
